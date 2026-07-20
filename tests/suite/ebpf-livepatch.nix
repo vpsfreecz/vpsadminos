@@ -132,9 +132,9 @@ import ../make-test.nix (
                   && builtins.pathExists (
                     repo + ("/os/livepatches/ebpf/programs/" + program.name + ".bpf.c")
                   );
-                untilNotBeforeSince =
+                untilAfterSince =
                   !(program ? untilKernel)
-                  || builtins.compareVersions program.untilKernel program.sinceKernel >= 0;
+                  || builtins.compareVersions program.untilKernel program.sinceKernel > 0;
               };
 
             evalModule =
@@ -234,6 +234,12 @@ import ../make-test.nix (
                 ptrace_mm_guard = { };
               };
             };
+            atUpperBoundEval = evalModule {
+              kernelVersion = "6.12.89";
+              programs = {
+                ptrace_mm_guard = { };
+              };
+            };
             invalidProgramOptionsEval = evalModule {
               kernelVersion = currentKernelVersion;
               programs = {
@@ -295,14 +301,14 @@ import ../make-test.nix (
                 untilKernel = "6.0";
                 enable = true;
               };
-              patchAtUntil = currentAvailable.programMatchesKernel "6.12.88" {
+              patchBeforeUntil = currentAvailable.programMatchesKernel "6.12.87" {
                 name = "synthetic";
                 description = "Synthetic test program";
                 sinceKernel = "6.12.0";
                 untilKernel = "6.12.88";
                 enable = true;
               };
-              patchAboveUntil = currentAvailable.programMatchesKernel "6.12.89" {
+              patchAtUntil = currentAvailable.programMatchesKernel "6.12.88" {
                 name = "synthetic";
                 description = "Synthetic test program";
                 sinceKernel = "6.12.0";
@@ -319,8 +325,8 @@ import ../make-test.nix (
                 currentAvailable.programAvailableForKernel currentKernelVersion "ptrace_mm_guard";
               currentHasCifsSpnego =
                 currentAvailable.programAvailableForKernel currentKernelVersion "cifs_spnego_guard";
-              atPtraceUntil = (availableFor "6.12.88").programNames "6.12.88";
-              afterPtraceUntil = (availableFor "6.12.89").programNames "6.12.89";
+              beforePtraceUntil = (availableFor "6.12.88").programNames "6.12.88";
+              atPtraceUntil = (availableFor "6.12.89").programNames "6.12.89";
             };
 
             module = {
@@ -337,6 +343,7 @@ import ../make-test.nix (
               assertionMessages = map (assertion: assertion.message) manualDisabledEval.config.assertions;
               unknownFailures = failedMessages unknownEval;
               outOfRangeFailures = failedMessages outOfRangeEval;
+              atUpperBoundFailures = failedMessages atUpperBoundEval;
               invalidProgramOptionsAccepted = invalidProgramOptionsResult.success;
               autoLoadService =
                 let
@@ -413,9 +420,9 @@ import ../make-test.nix (
           expect(validation.fetch('dotted')).to be(false)
         end
 
-        it 'does not define untilKernel below sinceKernel' do
+        it 'defines untilKernel after sinceKernel' do
           @facts.fetch('registry').fetch('programs').each do |program|
-            expect(program.fetch('untilNotBeforeSince')).to be(true)
+            expect(program.fetch('untilAfterSince')).to be(true)
           end
         end
 
@@ -435,8 +442,8 @@ import ../make-test.nix (
           expect(@facts.fetch('synthetic').fetch('atSince')).to be(true)
         end
 
-        it 'includes kernels equal to untilKernel' do
-          expect(@facts.fetch('synthetic').fetch('atUntil')).to be(true)
+        it 'excludes kernels equal to untilKernel' do
+          expect(@facts.fetch('synthetic').fetch('atUntil')).to be(false)
         end
 
         it 'excludes kernels above untilKernel' do
@@ -446,8 +453,8 @@ import ../make-test.nix (
         it 'supports patch versions in untilKernel' do
           synthetic = @facts.fetch('synthetic')
 
-          expect(synthetic.fetch('patchAtUntil')).to be(true)
-          expect(synthetic.fetch('patchAboveUntil')).to be(false)
+          expect(synthetic.fetch('patchBeforeUntil')).to be(true)
+          expect(synthetic.fetch('patchAtUntil')).to be(false)
         end
       end
 
@@ -461,11 +468,11 @@ import ../make-test.nix (
         end
 
         it 'includes ptrace_mm_guard through kernel 6.12.88' do
-          expect(@facts.fetch('defaults').fetch('atPtraceUntil')).to include('ptrace_mm_guard')
+          expect(@facts.fetch('defaults').fetch('beforePtraceUntil')).to include('ptrace_mm_guard')
         end
 
-        it 'excludes ptrace_mm_guard after kernel 6.12.88' do
-          expect(@facts.fetch('defaults').fetch('afterPtraceUntil')).not_to include('ptrace_mm_guard')
+        it 'excludes ptrace_mm_guard at kernel 6.12.89' do
+          expect(@facts.fetch('defaults').fetch('atPtraceUntil')).not_to include('ptrace_mm_guard')
         end
 
         it 'matches ptrace_mm_guard default to current kernel eligibility' do
@@ -492,13 +499,13 @@ import ../make-test.nix (
       end
 
       describe 'service module options' do
-        it 'documents inclusive kernel bounds' do
+        it 'documents an inclusive lower and exclusive upper kernel bound' do
           description = @facts.fetch('module').fetch('optionDescription').gsub(/\s+/, ' ')
 
           expect(description).to include('sinceKernel')
           expect(description).to include('sinceKernel is an inclusive lower bound')
           expect(description).to include('untilKernel')
-          expect(description).to include('untilKernel is an inclusive upper bound')
+          expect(description).to include('untilKernel is an exclusive upper bound')
         end
 
         it 'documents BPF program name requirements in assertions' do
@@ -570,6 +577,16 @@ import ../make-test.nix (
           expect(messages.first).to include('not available for kernel 5.6')
           expect(messages.first).to include('ptrace_mm_guard')
           expect(messages.first).to include('kernel >= 5.7 (inclusive)')
+        end
+
+        it 'rejects manual programs at their exclusive upper bound' do
+          messages = @facts.fetch('module').fetch('atUpperBoundFailures')
+
+          expect(messages.length).to eq(1)
+          expect(messages.first).to include('not available for kernel 6.12.89')
+          expect(messages.first).to include('ptrace_mm_guard')
+          expect(messages.first).to include('kernel >= 5.7 (inclusive)')
+          expect(messages.first).to include('and < 6.12.89 (exclusive)')
         end
       end
     '';

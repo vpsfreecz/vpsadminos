@@ -49,7 +49,7 @@ let
       name = "ptrace_mm_guard";
       description = "Deny ptrace access to mm-less tasks without init-ns CAP_SYS_PTRACE";
       sinceKernel = "5.7";
-      untilKernel = "6.12.88";
+      untilKernel = "6.12.89";
       bpfPrograms = [ "ptrace_mm_guard" ];
       linkFields = [ "ptrace_mm_guard" ];
       enable = true;
@@ -73,7 +73,7 @@ let
     }) allPrograms
   );
 
-  versionUpTo = kernelVer: untilKernel: builtins.compareVersions kernelVer untilKernel <= 0;
+  versionBefore = kernelVer: untilKernel: builtins.compareVersions kernelVer untilKernel < 0;
 
   # BPF_OBJ_NAME_LEN is 16 including the trailing NUL. The kernel accepts
   # only isalnum(), '_' and '.' in bpf_obj_name_cpy().
@@ -106,7 +106,7 @@ let
   programMatchesKernel =
     kernelVer: program:
     versionAtLeast kernelVer program.sinceKernel
-    && (!(program ? untilKernel) || versionUpTo kernelVer program.untilKernel);
+    && (!(program ? untilKernel) || versionBefore kernelVer program.untilKernel);
 
   programAvailableForKernel =
     kernelVer: name:

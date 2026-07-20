@@ -41,7 +41,7 @@ let
   programKernelRange =
     program:
     "kernel >= ${program.sinceKernel} (inclusive)"
-    + optionalString (program ? untilKernel) " and <= ${program.untilKernel} (inclusive)";
+    + optionalString (program ? untilKernel) " and < ${program.untilKernel} (exclusive)";
 
   unavailableProgramDescription =
     name: "${name} (${programKernelRange available.programsByName.${name}})";
@@ -218,7 +218,7 @@ in
 
           Defaults to the complete list from available.nix filtered
           by kernel version requirements. In the program registry, sinceKernel
-          is an inclusive lower bound and untilKernel is an inclusive upper
+          is an inclusive lower bound and untilKernel is an exclusive upper
           bound when set. Programs can be selected only when the current
           boot.kernelVersion is within those bounds.
         '';
