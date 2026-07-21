@@ -213,16 +213,11 @@ import ../../make-test.nix (
 
         it 'initializes osctl pool storage' do
           installed.wait_for_zpool('tank', timeout: 20 * 60)
-          installed.wait_until_succeeds(
-            'test "$(zfs get -H -o value org.vpsadminos.osctl:active tank)" = "yes"',
-            timeout: 5 * 60
-          )
-          installed.wait_until_succeeds('test -s /tank/.migrations', timeout: 5 * 60)
-          installed.wait_until_succeeds(
-            'zfs list -H -o name tank/ct tank/conf tank/hook tank/log tank/repository tank/migration tank/trash',
-            timeout: 5 * 60
-          )
+          installed.wait_for_service('pool-tank')
           installed.all_succeed(
+            'test "$(zfs get -H -o value org.vpsadminos.osctl:active tank)" = "yes"',
+            'test -s /tank/.migrations',
+            'zfs list -H -o name tank/ct tank/conf tank/hook tank/log tank/repository tank/migration tank/trash',
             'test -d /tank/conf/pool',
             'test -d /tank/conf/user',
             'test -d /tank/conf/group',
