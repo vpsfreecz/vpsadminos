@@ -37,6 +37,8 @@ module OsCtld
     # @param opts [Hash]
     # @option opts [Array] :args command arguments
     # @option opts [Hash] :kwargs command arguments
+    # @option opts [String, nil] :lifecycle_start_token private capability for
+    #                                                    a transient lifecycle
     # @option opts [Boolean, nil] :reset_subtree_control
     # @option opts [IO, nil] :stdin
     # @option opts [IO, nil] :stdout
@@ -82,6 +84,8 @@ module OsCtld
 
         pool: ct.pool.name,
         id: ct.id,
+        run_id: ct.run_conf&.run_id&.to_s,
+        lifecycle_start_token: opts[:lifecycle_start_token],
         lxc_home: ct.lxc_home,
         user_home: ct.user.homedir,
         log_file: ct.log_path,
@@ -202,7 +206,9 @@ module OsCtld
       keep_fds = Array(opts[:keep_fds])
 
       runner_opts = {
+        pool: ct.pool.name,
         id: ct.id,
+        run_id: ct.run_conf&.run_id&.to_s,
         lxc_home: ct.lxc_home,
         user_home: ct.user.homedir,
         log_file: ct.log_path,
