@@ -67,16 +67,11 @@ module OsCtld
 
     # Bind-mount path with ID-mapping and push it through the shared directory
     # @param dir [String]
-    # @param user_ns [IO, Integer] opened user namespace or the earlier hook PID
+    # @param user_ns [IO] opened user namespace of the LXC hook process
     # @param [String] path to the mountpoint, same in both init and ct mount namespaces
     def map_and_push(dir, user_ns)
       host_path = host_path_for(dir)
-      user_ns_path =
-        if user_ns.respond_to?(:fileno)
-          File.join('/proc', Process.pid.to_s, 'fd', user_ns.fileno.to_s)
-        else
-          File.join('/proc', user_ns.to_s, 'ns', 'user')
-        end
+      user_ns_path = File.join('/proc', Process.pid.to_s, 'fd', user_ns.fileno.to_s)
 
       Dir.mkdir(host_path)
       syscmd_argv([

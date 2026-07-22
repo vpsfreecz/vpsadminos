@@ -23,17 +23,22 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
-      return error('access denied') unless owns_ct?(ct)
 
-      init_identity = open_init_identity(ct)
-      delegate_start_cgroups(ct)
+      ret = authenticate_lifecycle_callback(ct)
+      return ret if ret
 
-      # Configure the system
-      DistConfig.run(ct.run_conf, :start)
-      configure_static_network(ct, init_identity)
+      net_config = static_network_config(ct)
+      init_identity = open_init_identity(ct) unless net_config.empty?
+      with_claimed_lifecycle_event(ct, :on_start, after: :pre_start) do |run_conf|
+        delegate_start_cgroups(ct)
 
-      Hook.run(ct, :on_start)
-      ok
+        # Configure the system
+        DistConfig.run(run_conf, :start)
+        configure_static_network(init_identity, net_config)
+
+        Hook.run(ct, :on_start)
+        ok
+      end
     rescue HookFailed, NetworkSetupFailed, InitIdentityFailed => e
       error(e.message)
     ensure
@@ -43,10 +48,10 @@ module OsCtld
     protected
 
     def detect_init_pid(ct)
-      pid = positive_pid(ct.run_conf&.init_pid)
+      pid = positive_pid(authenticated_run_conf&.init_pid)
       return pid if pid
 
-      positive_pid(ct.refresh_init_pid)
+      positive_pid(peer&.environment_variable('LXC_PID'))
     rescue StandardError => e
       log(:warn, ct, "Unable to detect init PID for start-time network setup: #{e.message}")
       nil
@@ -54,10 +59,31 @@ module OsCtld
 
     def open_init_identity(ct)
       init_pid = detect_init_pid(ct)
-      return unless init_pid
+      unless init_pid
+        raise InitIdentityFailed, 'unable to resolve current container init identity: PID is not available'
+      end
 
-      ProcessIdentity.new(init_pid, namespaces: %i[net pid])
+      identity = ProcessIdentity.new(init_pid, namespaces: %i[net pid])
+
+      if identity.pid == peer&.pid
+        identity.close
+        raise Errno::EPERM, 'container init process matches the lifecycle hook'
+      end
+
+      unless identity.in_cgroup_subtree?(ct.base_cgroup_path)
+        identity.close
+        raise Errno::EPERM, 'container init process is outside its cgroup'
+      end
+
+      lifecycle_identity = authenticated_run_conf&.lifecycle_identity
+      unless lifecycle_identity && identity.direct_child_of?(lifecycle_identity)
+        identity.close
+        raise Errno::EPERM, 'container init process is not the lifecycle child'
+      end
+
+      identity
     rescue SystemCallError, IOError, ArgumentError => e
+      identity&.close
       raise InitIdentityFailed,
             "unable to resolve current container init identity: #{e.message}"
     end
@@ -69,10 +95,13 @@ module OsCtld
       pid > 0 ? pid : nil
     end
 
-    def configure_static_network(ct, init_identity)
-      return unless ct.can_dist_configure_network?
+    def static_network_config(ct)
+      return [] unless ct.can_dist_configure_network?
 
-      net_config = NetConfig.create(ct).export(configured_only: true)
+      NetConfig.create(ct).export(configured_only: true)
+    end
+
+    def configure_static_network(init_identity, net_config)
       return if net_config.empty?
 
       if init_identity.nil?
@@ -95,7 +124,7 @@ module OsCtld
             raise Errno::ESRCH, 'container init process exited'
           end
 
-          NetConfig.setup_in_netns_io(init_identity.namespace(:net), net_config)
+          NetConfig.setup_in_netns(init_identity, net_config)
         rescue StandardError => e
           msg = "#{e.class}: #{e.message}"
           status = 1
