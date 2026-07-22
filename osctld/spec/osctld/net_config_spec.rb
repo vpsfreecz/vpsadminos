@@ -91,35 +91,19 @@ RSpec.describe OsCtld::NetConfig do
     expect(gateway_waits).to eq([])
   end
 
-  it 'sets up an exported config inside another network namespace' do
-    sys = instance_double(OsCtl::Lib::Sys)
-    cfg = instance_double(described_class, setup: true)
-    net_config = [{ name: 'eth0', ips: [], routes: [] }]
-
-    allow(OsCtl::Lib::Sys).to receive(:new).and_return(sys)
-    allow(sys).to receive(:setns_path)
-    allow(described_class).to receive(:import).with(net_config).and_return(cfg)
-
-    described_class.setup_in_netns(1234, net_config)
-
-    expect(sys).to have_received(:setns_path).with(
-      '/proc/1234/ns/net',
-      OsCtl::Lib::Sys::CLONE_NEWNET
-    )
-    expect(cfg).to have_received(:setup)
-  end
-
-  it 'sets up an exported config through an already-open network namespace' do
+  it 'sets up an exported config through a stable process identity' do
     sys = instance_double(OsCtl::Lib::Sys)
     net_ns = instance_double(File)
+    init_identity = instance_double(OsCtld::ProcessIdentity)
     cfg = instance_double(described_class, setup: true)
     net_config = [{ name: 'eth0', ips: [], routes: [] }]
 
     allow(OsCtl::Lib::Sys).to receive(:new).and_return(sys)
     allow(sys).to receive(:setns_io)
+    allow(init_identity).to receive(:namespace).with(:net).and_return(net_ns)
     allow(described_class).to receive(:import).with(net_config).and_return(cfg)
 
-    described_class.setup_in_netns_io(net_ns, net_config)
+    described_class.setup_in_netns(init_identity, net_config)
 
     expect(sys).to have_received(:setns_io).with(
       net_ns,

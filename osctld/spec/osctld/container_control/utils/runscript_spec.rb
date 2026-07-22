@@ -18,6 +18,8 @@ RSpec.describe OsCtld::ContainerControl::Utils::Runscript::Frontend do
       def current_state; end
 
       def running?; end
+
+      def run_conf; end
     end
   end
 
@@ -84,6 +86,26 @@ RSpec.describe OsCtld::ContainerControl::Utils::Runscript::Frontend do
       frontend.sync_state_after_transient_run(:running)
 
       expect(ct).not_to have_received(:current_state)
+    end
+  end
+
+  describe '#issue_transient_lifecycle_start' do
+    let(:run_conf_class) do
+      Class.new do
+        def issue_lifecycle_start; end
+      end
+    end
+    let(:run_conf) { instance_double(run_conf_class, issue_lifecycle_start: 'start-token') }
+    let(:ct) { instance_double(container_class, run_conf:) }
+
+    it 'issues a private capability for stopped-container execution' do
+      expect(frontend.issue_transient_lifecycle_start(:run)).to eq('start-token')
+      expect(run_conf).to have_received(:issue_lifecycle_start)
+    end
+
+    it 'does not issue a capability for an already-running container' do
+      expect(frontend.issue_transient_lifecycle_start(:running)).to be_nil
+      expect(run_conf).not_to have_received(:issue_lifecycle_start)
     end
   end
 end
