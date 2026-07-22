@@ -26,10 +26,13 @@ module Sys
 end
 
 class CtPostMount
-  def initialize(pool, ctid, rootfs)
+  ROOTFS_DESCRIPTOR_REQUEST = 'send-rootfs-mount-fd'.freeze
+
+  def initialize(pool, ctid, run_id, rootfs_dir)
     @pool = pool
     @ctid = ctid
-    @rootfs = File.absolute_path(rootfs)
+    @run_id = run_id
+    @rootfs_dir = rootfs_dir
   end
 
   def run
@@ -40,13 +43,24 @@ class CtPostMount
 
   def call_osctld!
     s = UNIXSocket.new('/run/osctl/user-control/namespaced.sock')
-    s.puts({ cmd: :ct_post_mount, opts: {
-      id: @ctid,
-      pool: @pool,
-      rootfs_mount: @rootfs
-    } }.to_json)
-    ret = JSON.parse(s.readline, symbolize_names: true)
-    s.close
+    begin
+      s.puts({ cmd: :ct_post_mount, opts: {
+        id: @ctid,
+        pool: @pool,
+        run_id: @run_id
+      } }.to_json)
+
+      request = JSON.parse(s.readline, symbolize_names: true)
+      unless request[:status] && request[:progress] == ROOTFS_DESCRIPTOR_REQUEST
+        warn "Error: #{request[:message] || 'server did not request the mounted rootfs descriptor'}"
+        exit(false)
+      end
+
+      s.send_io(@rootfs_dir)
+      ret = JSON.parse(s.readline, symbolize_names: true)
+    ensure
+      s.close unless s.closed?
+    end
 
     unless ret[:status]
       warn "Error: #{ret[:message]}"
@@ -58,10 +72,22 @@ class CtPostMount
 end
 
 ctid = ENV.fetch('LXC_NAME', nil)
+run_id = ENV.fetch('OSCTL_RUN_ID', nil)
+rootfs_fd = ENV.fetch('LXC_ROOTFS_MOUNT_FD', nil)
 
-if ctid.nil?
+if ctid.nil? || run_id.nil? || rootfs_fd.nil?
   warn 'Expected environment variables:'
   warn '  LXC_NAME'
+  warn '  OSCTL_RUN_ID'
+  warn '  LXC_ROOTFS_MOUNT_FD'
+  exit(false)
+end
+
+begin
+  rootfs_dir = IO.for_fd(Integer(rootfs_fd, 10), autoclose: false)
+  raise Errno::ENOTDIR unless rootfs_dir.stat.directory?
+rescue SystemCallError, IOError, ArgumentError, TypeError => e
+  warn "Invalid mounted rootfs descriptor: #{e.message}"
   exit(false)
 end
 
@@ -72,7 +98,7 @@ end
 
 pool = Regexp.last_match(1)
 
-hook = CtPostMount.new(pool, ctid, ENV.fetch('LXC_ROOTFS_MOUNT', nil))
+hook = CtPostMount.new(pool, ctid, run_id, rootfs_dir)
 hook.run
 
 exit

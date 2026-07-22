@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+$:.unshift(File.expand_path('../../../fixtures/ruby_load_path', __dir__))
+
 require 'osctld/container_control/commands/exec'
 require 'osctld/container_control/result'
 require 'osctld/dist_config'
@@ -15,7 +17,12 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
   end
 
   def build_run_conf
-    Struct.new(:name, keyword_init: true).new(name: 'run-conf')
+    Struct.new(:name, :issued_lifecycle_starts, keyword_init: true) do
+      def issue_lifecycle_start
+        self.issued_lifecycle_starts += 1
+        'transient-start-token'
+      end
+    end.new(name: 'run-conf', issued_lifecycle_starts: 0)
   end
 
   def build_ct(running:, mounts:, run_conf:)
@@ -70,7 +77,9 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
     expect(call[:stdin]).to be_nil
     expect(call[:stdout]).to be_a(StringIO)
     expect(call[:stderr]).to be_a(StringIO)
+    expect(call[:lifecycle_start_token]).to be_nil
     expect(call[:reset_subtree_control]).to be(false)
+    expect(run_conf.issued_lifecycle_starts).to eq(0)
     expect(frontend.cleanup_calls).to eq(1)
   end
 
@@ -89,7 +98,9 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
     expect(call[:stdin]).to be_nil
     expect(call[:stdout]).to be_a(StringIO)
     expect(call[:stderr]).to be_a(StringIO)
+    expect(call[:lifecycle_start_token]).to eq('transient-start-token')
     expect(call[:reset_subtree_control]).to be(true)
+    expect(run_conf.issued_lifecycle_starts).to eq(1)
     expect(frontend.cleanup_calls).to eq(1)
   end
 

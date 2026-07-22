@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'osctld/user_control/command'
 require 'osctld/user_control/supervisor'
 
 RSpec.describe OsCtld::UserControl::Supervisor do
@@ -182,4 +183,165 @@ RSpec.describe OsCtld::UserControl::Supervisor do
       )
     end
   end
+
+  # rubocop:disable RSpec/MultipleMemoizedHelpers, RSpec/SubjectStub
+  # rubocop:disable RSpec/VerifiedDoubleReference
+  describe described_class::ClientHandler do
+    subject(:handler) { described_class.new(socket, user:) }
+
+    let(:socket) do
+      instance_double(
+        UNIXSocket,
+        getsockopt: [321, 12_345, 12_345].pack('LLL')
+      )
+    end
+    let(:user) { instance_double('User', ugid: 12_345, ident: 'tank:alice') }
+    let(:peer) { instance_double(OsCtld::ProcessIdentity, pid: 321, close: nil) }
+    let(:command) { class_double('OsCtld::UserControl::Commands::CtPreStart') }
+
+    before do
+      allow(OsCtld::ProcessIdentity).to receive(:new)
+        .with(321, namespaces: [], root: false)
+        .and_return(peer)
+      allow(OsCtld::UserControl::Command).to receive(:find)
+        .with(:ct_pre_start)
+        .and_return(command)
+      allow(command).to receive(:run).and_return(status: true, output: nil)
+    end
+
+    it 'uses kernel peer credentials and passes an internal process identity' do
+      ret = handler.handle_cmd(
+        cmd: 'ct_pre_start',
+        opts: { id: 'ct1', pool: 'tank', run_id: 'current' }
+      )
+
+      expect(ret).to eq(status: true, output: nil)
+      expect(command).to have_received(:run).with(
+        user,
+        { id: 'ct1', pool: 'tank', run_id: 'current' },
+        peer:
+      )
+    end
+
+    it 'does not expose namespaced-only commands on the per-user socket' do
+      expect(
+        handler.handle_cmd(cmd: 'ct_post_mount', opts: {})
+      ).to eq(status: false, message: 'invalid cmd')
+    end
+  end
+
+  describe 'authenticated namespaced dispatch' do
+    subject(:handler) { described_class::NamespacedClientHandler.new(socket, {}) }
+
+    let(:socket) do
+      instance_double(
+        UNIXSocket,
+        getsockopt: [654, 100_000, 100_000].pack('LLL'),
+        puts: nil
+      )
+    end
+    let(:id_map) { instance_double('IdMap', ns_to_host: 100_000) }
+    let(:user) do
+      instance_double(
+        'User',
+        ident: 'tank:alice',
+        uid_map: id_map,
+        gid_map: id_map
+      )
+    end
+    let(:ct) do
+      instance_double(
+        'Container',
+        user:,
+        ident: 'tank:ct1',
+        base_cgroup_path: '/osctl/pool.tank/ct.ct1'
+      )
+    end
+    let(:peer) do
+      instance_double(
+        OsCtld::ProcessIdentity,
+        pid: 654,
+        in_cgroup_subtree?: true,
+        close: nil
+      )
+    end
+    let(:command) { class_double('OsCtld::UserControl::Commands::CtPreMount') }
+
+    before do
+      stub_const('OsCtld::DB::Containers', double)
+      allow(handler).to receive(:log)
+      allow(OsCtld::DB::Containers).to receive(:find).with('ct1', 'tank').and_return(ct)
+      allow(OsCtld::ProcessIdentity).to receive(:new)
+        .with(654, namespaces: %i[mnt user], root: true)
+        .and_return(peer)
+      allow(OsCtld::UserControl::Command).to receive(:find)
+        .with(:ct_pre_mount)
+        .and_return(command)
+      allow(command).to receive(:run).and_return(status: true, output: nil)
+    end
+
+    it 'binds a namespaced callback to the requested container cgroup' do
+      ret = handler.handle_cmd(
+        cmd: 'ct_pre_mount',
+        opts: { id: 'ct1', pool: 'tank', run_id: 'current' }
+      )
+
+      expect(ret).to eq(status: true, output: nil)
+      expect(peer).to have_received(:in_cgroup_subtree?).with(
+        '/osctl/pool.tank/ct.ct1'
+      )
+      expect(command).to have_received(:run).with(
+        user,
+        { id: 'ct1', pool: 'tank', run_id: 'current' },
+        peer:
+      )
+    end
+
+    it 'receives the mounted rootfs descriptor for post-mount dispatch' do
+      rootfs_dir = instance_double(IO, closed?: false, close: nil)
+      allow(socket).to receive(:wait_readable)
+        .with(described_class::NamespacedClientHandler::ROOTFS_DESCRIPTOR_TIMEOUT)
+        .and_return(true)
+      allow(socket).to receive(:recv_io).and_return(rootfs_dir)
+      allow(OsCtld::UserControl::Command).to receive(:find)
+        .with(:ct_post_mount)
+        .and_return(command)
+
+      ret = handler.handle_cmd(
+        cmd: 'ct_post_mount',
+        opts: { id: 'ct1', pool: 'tank', run_id: 'current' }
+      )
+
+      expect(ret).to eq(status: true, output: nil)
+      expect(socket).to have_received(:puts).with({
+        status: true,
+        progress: described_class::NamespacedClientHandler::ROOTFS_DESCRIPTOR_REQUEST
+      }.to_json)
+      expect(command).to have_received(:run).with(
+        user,
+        {
+          id: 'ct1',
+          pool: 'tank',
+          run_id: 'current',
+          rootfs_dir:
+        },
+        peer:
+      )
+      expect(rootfs_dir).to have_received(:close)
+    end
+
+    it 'rejects a sibling-container peer before dispatch' do
+      allow(peer).to receive(:in_cgroup_subtree?).and_return(false)
+
+      expect(
+        handler.handle_cmd(
+          cmd: 'ct_pre_mount',
+          opts: { id: 'ct1', pool: 'tank', run_id: 'current' }
+        )
+      ).to eq(status: false, message: 'invalid container')
+      expect(command).not_to have_received(:run)
+    end
+  end
+  # rubocop:enable RSpec/MultipleMemoizedHelpers, RSpec/SubjectStub
+  # rubocop:enable RSpec/VerifiedDoubleReference
 end
