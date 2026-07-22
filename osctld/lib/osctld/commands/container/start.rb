@@ -1,3 +1,5 @@
+require 'json'
+require 'osctld/cgroup'
 require 'osctld/commands/logged'
 
 module OsCtld
@@ -157,13 +159,16 @@ module OsCtld
       # running with CAP_SYS_RESOURCE and can set both obj_score_adj and
       # obj_score_adj_min to zero. When it's done, osctld-ct-start execs to
       # lxc-start.
+      cgroup_path = ct.cgroup_path.split('/').reject(&:empty?)
+      CGroup.mkpath_all(cgroup_path, chown: ct.user.ugid)
+      bootstrap_r, cgroup_procs = prepare_lifecycle_start(ct, cgroup_path)
+
       cmd = [
         Daemon.get.config.ct_wrapper,
         "#{ct.pool.name}:#{ct.id}",
         Console.socket_path(ct),
         OsCtld.bin('osctld-ct-start'),
-        ct.pool.name,
-        ct.id,
+        bootstrap_r.fileno.to_s,
         'lxc-start',
         '-P', ct.lxc_home,
         '-n', ct.id,
@@ -175,30 +180,41 @@ module OsCtld
       r, w = IO.pipe
 
       progress('Starting container')
-      pid = SwitchUser.fork_and_switch_to(
-        ct.user.sysusername,
-        ct.user.ugid,
-        ct.user.homedir,
-        ct.wrapper_cgroup_path,
-        prlimits: ct.prlimits.export,
-        oom_score_adj: -1000,
-        keep_fds: [w],
-        syslogns_tag: ct.syslogns_tag(run_id: ct.run_conf.run_id)
-      ) do
-        # Closed by SwitchUser.fork_and_switch_to
-        # r.close
+      begin
+        pid = SwitchUser.fork_and_switch_to(
+          ct.user.sysusername,
+          ct.user.ugid,
+          ct.user.homedir,
+          ct.wrapper_cgroup_path,
+          prlimits: ct.prlimits.export,
+          oom_score_adj: -1000,
+          keep_fds: [w, bootstrap_r, *cgroup_procs],
+          syslogns_tag: ct.syslogns_tag(run_id: ct.run_conf.run_id)
+        ) do
+          # Closed by SwitchUser.fork_and_switch_to
+          # r.close
 
-        # This is to remove all Ruby related environment variables, because
-        # lxc-start then passes them to hooks, which can make the hooks fail
-        # when ruby or osctld gems are upgraded.
-        SwitchUser.clear_ruby_env
+          # This is to remove all Ruby related environment variables, because
+          # lxc-start then passes them to hooks, which can make the hooks fail
+          # when ruby or osctld gems are upgraded.
+          SwitchUser.clear_ruby_env
 
-        wrapper_pid = Process.spawn(
-          *cmd,
-          pgroup: true, in: :close, out: :close, err: :close
-        )
+          spawn_opts = { pgroup: true, in: :close, out: :close, err: :close }
+          [bootstrap_r, *cgroup_procs].each do |io|
+            spawn_opts[io.fileno] = io
+          end
 
-        w.puts(wrapper_pid.to_s)
+          wrapper_pid = Process.spawn(
+            { 'OSCTL_RUN_ID' => ct.run_conf.run_id.to_s },
+            *cmd,
+            spawn_opts
+          )
+
+          w.puts(wrapper_pid.to_s)
+        end
+      ensure
+        bootstrap_r.close unless bootstrap_r.closed?
+        cgroup_procs.each { |io| io.close unless io.closed? }
       end
 
       w.close
@@ -215,6 +231,34 @@ module OsCtld
 
       Process.wait(pid)
       :wait
+    end
+
+    def prepare_lifecycle_start(ct, cgroup_path)
+      bootstrap_r = nil
+      bootstrap_w = nil
+
+      cgroup_procs = CGroup.procs_paths(cgroup_path).map do |path|
+        File.open(path, 'w')
+      end
+
+      bootstrap_r, bootstrap_w = IO.pipe
+      bootstrap_w.write(
+        JSON.generate(
+          pool: ct.pool.name,
+          ctid: ct.id,
+          run_id: ct.run_conf.run_id.to_s,
+          lifecycle_start_token: ct.run_conf.issue_lifecycle_start,
+          cgroup_fds: cgroup_procs.map(&:fileno)
+        )
+      )
+
+      [bootstrap_r, cgroup_procs]
+    rescue StandardError
+      bootstrap_r&.close
+      cgroup_procs.each { |io| io.close unless io.closed? }
+      raise
+    ensure
+      bootstrap_w&.close
     end
 
     # Wait for the container to start or fail

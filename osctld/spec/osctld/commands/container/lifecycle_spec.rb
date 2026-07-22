@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'io/wait'
+
 # rubocop:disable Lint/ConstantDefinitionInBlock, Lint/StructNewOverride, RSpec/DescribeClass, RSpec/LeakyConstantDeclaration, RSpec/VerifiedDoubles
 
 require 'fileutils'
@@ -67,6 +69,52 @@ RSpec.describe 'container lifecycle commands' do
     end
 
     let(:ct) { Struct.new(:id, :pool).new('ct1', pool) }
+
+    it 'closes the lifecycle bootstrap writer after the complete payload' do
+      with_tmpdir do |dir|
+        cgroup_procs_path = File.join(dir, 'cgroup.procs')
+        File.write(cgroup_procs_path, '')
+        run_conf = Struct.new(:run_id, :issue_lifecycle_start).new(
+          'run-1',
+          'start-token'
+        )
+        container = Struct.new(:id, :pool, :run_conf).new('ct1', pool, run_conf)
+        command = described_class.new({}, {})
+        allow(OsCtld::CGroup).to receive(:procs_paths)
+          .with(%w[osctl pool.tank ct.ct1 user-owned])
+          .and_return([cgroup_procs_path])
+
+        bootstrap_r, cgroup_procs = command.send(
+          :prepare_lifecycle_start,
+          container,
+          %w[osctl pool.tank ct.ct1 user-owned]
+        )
+
+        raw = +''
+        loop do
+          chunk = bootstrap_r.read_nonblock(4096, exception: false)
+          break if chunk.nil?
+
+          if chunk == :wait_readable
+            raise 'bootstrap writer did not deliver EOF' unless bootstrap_r.wait_readable(0.1)
+          else
+            raw << chunk
+          end
+        end
+
+        payload = JSON.parse(raw, symbolize_names: true)
+        expect(payload).to include(
+          pool: 'tank',
+          ctid: 'ct1',
+          run_id: 'run-1',
+          lifecycle_start_token: 'start-token'
+        )
+        expect(bootstrap_r.read_nonblock(1, exception: false)).to be_nil
+      ensure
+        bootstrap_r&.close
+        cgroup_procs&.each { |io| io.close unless io.closed? }
+      end
+    end
 
     it 'enqueues queued starts when waiting is disabled' do
       command = described_class.new({ queue: true, wait: false, priority: 10 }, {})
@@ -249,7 +297,11 @@ RSpec.describe 'container lifecycle commands' do
         FileUtils.mkdir_p(console_dir)
         File.write(sock_path, '')
 
-        run_conf = Struct.new(:mount, :run_id).new(nil, nil)
+        run_conf = Struct.new(:mount, :run_id, :issue_lifecycle_start).new(
+          nil,
+          'run-1',
+          'start-token'
+        )
         allow(run_conf).to receive(:mount)
         mounts = Struct.new(:added) do
           def prune; end
@@ -276,6 +328,7 @@ RSpec.describe 'container lifecycle commands' do
           :lxc_config,
           :lxc_home,
           :wrapper_cgroup_path,
+          :cgroup_path,
           :prlimits,
           keyword_init: true
         ) do
@@ -301,6 +354,7 @@ RSpec.describe 'container lifecycle commands' do
           lxc_config:,
           lxc_home: '/var/lib/lxc',
           wrapper_cgroup_path: '/sys/fs/cgroup/wrapper',
+          cgroup_path: '/osctl/pool.tank/user.alice/ct.ct1/user-owned',
           prlimits:
         )
         console = stub_const('OsCtld::Console', Class.new do
@@ -329,11 +383,23 @@ RSpec.describe 'container lifecycle commands' do
         allow(dist_config).to receive(:run)
         allow(cpu_scheduler).to receive(:schedule_ct)
         allow(daemon).to receive(:get).and_return(daemon_instance)
+        allow(OsCtld::CGroup).to receive(:mkpath_all)
+        cgroup_procs_path = File.join(tmpdir, 'cgroup.procs')
+        File.write(cgroup_procs_path, '')
+        allow(OsCtld::CGroup).to receive(:procs_paths)
+          .with(%w[osctl pool.tank user.alice ct.ct1 user-owned])
+          .and_return([cgroup_procs_path])
         OsCtld.define_singleton_method(:bin) { |_name| '/bin/true' } unless OsCtld.respond_to?(:bin)
         allow(OsCtld).to receive(:bin).and_return('/bin/true')
         spawn_args = nil
+        bootstrap_payload = nil
         allow(Process).to receive(:spawn) do |*args|
           spawn_args = args
+          bootstrap_fd = Integer(args[5], 10)
+          bootstrap_payload = JSON.parse(
+            args.last.fetch(bootstrap_fd).read,
+            symbolize_names: true
+          )
           202
         end
         allow(Process).to receive(:wait).with(101)
@@ -353,7 +419,28 @@ RSpec.describe 'container lifecycle commands' do
         allow(command).to receive(:log)
 
         expect(command.send(:start_now, container)).to eq(:wait)
-        expect(spawn_args[0]).to eq('/run/wrappers/osctld-ct-wrapper')
+        expect(spawn_args[0]).to eq('OSCTL_RUN_ID' => 'run-1')
+        expect(spawn_args[1]).to eq('/run/wrappers/osctld-ct-wrapper')
+        expect(spawn_args[5]).to match(/\A[0-9]+\z/)
+        expect(spawn_args[6]).to eq('lxc-start')
+        expect(spawn_args[1..-2]).not_to include('start-token', cgroup_procs_path)
+        expect(bootstrap_payload).to include(
+          pool: 'tank',
+          ctid: 'ct1',
+          run_id: 'run-1',
+          lifecycle_start_token: 'start-token'
+        )
+        cgroup_fds = bootstrap_payload.fetch(:cgroup_fds)
+        expect(cgroup_fds.length).to eq(1)
+        expect(cgroup_fds.first).to be_a(Integer)
+        expect(cgroup_fds).not_to include(Integer(spawn_args[5], 10))
+        cgroup_fds.each do |fd|
+          expect(spawn_args.last).to have_key(fd)
+        end
+        expect(OsCtld::CGroup).to have_received(:mkpath_all).with(
+          %w[osctl pool.tank user.alice ct.ct1 user-owned],
+          chown: 1234
+        )
         expect(command).to have_received(:log).with(:warn, container, 'Unable to connect to tty0')
       end
     end
