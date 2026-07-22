@@ -190,7 +190,8 @@ module ContainerHelpers
       end
 
       attr_reader :ct, :rootfs, :destroy_calls, :retirement_calls, :save_calls,
-                  :distribution_updates
+                  :distribution_updates, :lifecycle_lease_count,
+                  :closed_lifecycle_lease_count, :destroy_observed_lease_count
       attr_accessor :dataset, :distribution, :version, :arch, :vendor, :variant,
                     :cpu_package, :init_pid
 
@@ -207,6 +208,13 @@ module ContainerHelpers
         @save_calls = 0
         @destroy_calls = 0
         @retirement_calls = 0
+        @retiring = false
+        @retirement_complete = false
+        @retirement_mutex = Mutex.new
+        @retirement_cond = ConditionVariable.new
+        @lifecycle_lease_count = 0
+        @closed_lifecycle_lease_count = 0
+        @destroy_observed_lease_count = nil
         @distribution_updates = []
         @load_conf = load_conf
       end
@@ -216,11 +224,71 @@ module ContainerHelpers
       end
 
       def destroy
-        @destroy_calls += 1
+        @retirement_mutex.synchronize do
+          @retirement_cond.wait(@retirement_mutex) while @lifecycle_lease_count > 0
+
+          @destroy_observed_lease_count = @lifecycle_lease_count
+          @destroy_calls += 1
+          @retirement_complete = true
+          @retirement_cond.broadcast
+        end
       end
 
       def begin_retirement
-        @retirement_calls += 1
+        @retirement_mutex.synchronize do
+          @retirement_calls += 1
+          return false if @retiring
+
+          @retiring = true
+          true
+        end
+      end
+
+      def retiring?
+        @retirement_mutex.synchronize { @retiring }
+      end
+
+      def wait_for_lifecycle_leases
+        @retirement_mutex.synchronize do
+          @retirement_cond.wait(@retirement_mutex) while @lifecycle_lease_count > 0
+        end
+      end
+
+      def acquire_lifecycle_lease
+        @retirement_mutex.synchronize do
+          raise 'container run is retiring' if @retiring
+
+          @lifecycle_lease_count += 1
+        end
+
+        run_conf = self
+        closed = false
+        close_mutex = Mutex.new
+        Object.new.tap do |lease|
+          lease.define_singleton_method(:close) do
+            release = close_mutex.synchronize do
+              next false if closed
+
+              closed = true
+              true
+            end
+            run_conf.__send__(:release_test_lifecycle_lease) if release
+          end
+        end
+      end
+
+      def wait_until_retired
+        @retirement_mutex.synchronize do
+          @retirement_cond.wait(@retirement_mutex) until @retirement_complete
+        end
+      end
+
+      def release_test_lifecycle_lease
+        @retirement_mutex.synchronize do
+          @lifecycle_lease_count -= 1
+          @closed_lifecycle_lease_count += 1
+          @retirement_cond.broadcast
+        end
       end
 
       def set_distribution(distribution:, version:, arch:, vendor:, variant:)
