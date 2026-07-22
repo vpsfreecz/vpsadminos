@@ -23,18 +23,9 @@ module OsCtld
       cfg
     end
 
-    def self.setup_in_netns(init_pid, net_config)
+    def self.setup_in_netns(init_identity, net_config)
       sys = OsCtl::Lib::Sys.new
-      sys.setns_path(
-        File.join('/proc', init_pid.to_s, 'ns/net'),
-        OsCtl::Lib::Sys::CLONE_NEWNET
-      )
-      import(net_config).setup
-    end
-
-    def self.setup_in_netns_io(net_ns, net_config)
-      sys = OsCtl::Lib::Sys.new
-      sys.setns_io(net_ns, OsCtl::Lib::Sys::CLONE_NEWNET)
+      sys.setns_io(init_identity.namespace(:net), OsCtl::Lib::Sys::CLONE_NEWNET)
       import(net_config).setup
     end
 

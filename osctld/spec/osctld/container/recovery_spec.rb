@@ -3,6 +3,7 @@
 # rubocop:disable RSpec/MultipleMemoizedHelpers, RSpec/VerifiedDoubles
 
 require 'osctld/container/recovery'
+require 'osctld/exceptions'
 
 RSpec.describe OsCtld::Container::Recovery do
   let(:invalid_host_link) { Class.new(StandardError) }
@@ -37,6 +38,15 @@ RSpec.describe OsCtld::Container::Recovery do
   let(:recovery) { described_class.new(ct) }
 
   before do
+    stub_const('OsCtld::AppArmor', Class.new do
+      def self.enabled? = false
+    end)
+    stub_const('OsCtld::Hook', Class.new do
+      def self.run(*); end
+    end)
+    stub_const('OsCtld::Eventd', Class.new do
+      def self.report(*); end
+    end)
     stub_const(
       'OsCtld::DB::Containers',
       Class.new do
@@ -344,37 +354,87 @@ RSpec.describe OsCtld::Container::Recovery do
     expect(snapshots.last).to eq([:stopped, [nil, nil, nil]])
   end
 
-  it 'finishes stopped recovery before cleaning up a failed netif teardown' do
+  it 'holds the exact old run through container-global stop recovery effects' do
     events = []
+    lease = instance_double(
+      OsCtld::Container::RunConfiguration::LifecycleLease
+    )
+    run_conf = instance_double(OsCtld::Container::RunConfiguration)
+    netifs = double
+    apparmor = double
+    recovered_ct = double(
+      state: :running,
+      current_state: :stopped,
+      run_conf:,
+      netifs:,
+      apparmor:,
+      pool:,
+      id: 'ct1'
+    )
+    allow(recovered_ct).to receive(:inclusively).and_yield
+    allow(run_conf).to receive(:acquire_lifecycle_lease) do
+      events << :lease
+      lease
+    end
+    allow(run_conf).to receive(:wait_for_lifecycle_leases) { events << :wait }
+    allow(netifs).to receive(:each)
+    allow(netifs).to receive(:take_down) { events << :netifs }
+    allow(lease).to receive(:close) { events << :release }
+    allow(recovered_ct).to receive(:stopped) do |expected_run, &block|
+      expect(expected_run).to be(run_conf)
+      block.call(true)
+      events << :stopped
+      true
+    end
+    allow(OsCtld::AppArmor).to receive(:enabled?).and_return(false)
+    allow(OsCtld::Hook).to receive(:run) { events << :hook }
+    allow(OsCtld::Eventd).to receive(:report)
+
+    described_class.new(recovered_ct).recover_state
+
+    expect(events).to eq(%i[lease netifs release wait hook stopped])
+  end
+
+  it 'runs recovery cleanup after netif teardown fails even when a hook error propagates' do
+    events = []
+    lease = instance_double(
+      OsCtld::Container::RunConfiguration::LifecycleLease
+    )
+    run_conf = instance_double(OsCtld::Container::RunConfiguration)
     failed_netifs = double
     recovered_ct = double(
       state: :running,
       current_state: :stopped,
+      run_conf:,
       netifs: failed_netifs,
       pool:,
       id: 'ct1'
     )
-    hook_error = RuntimeError.new('post-stop hook failed')
+    hook = Class.new do
+      def self.hook_name = 'post_stop'
+    end.new
+    hook_error = OsCtld::HookFailed.new(hook, '/hooks/post-stop', 1)
     failed_recovery = described_class.new(recovered_ct)
 
+    allow(recovered_ct).to receive(:inclusively).and_yield
+    allow(run_conf).to receive(:acquire_lifecycle_lease) do
+      events << :lease
+      lease
+    end
+    allow(run_conf).to receive(:wait_for_lifecycle_leases) { events << :wait }
     allow(failed_netifs).to receive(:each)
     allow(failed_netifs).to receive(:take_down) do
       events << :netifs
       raise 'missing recorded identity'
     end
-    allow(recovered_ct).to receive(:stopped) do
+    allow(lease).to receive(:close) { events << :release }
+    allow(recovered_ct).to receive(:stopped) do |expected_run, &block|
+      expect(expected_run).to be(run_conf)
+      block.call(true)
       events << :stopped
       true
     end
-    stub_const('OsCtld::AppArmor', Class.new do
-      def self.enabled? = false
-    end)
-    stub_const('OsCtld::Hook', Class.new do
-      def self.run(*); end
-    end)
-    stub_const('OsCtld::Eventd', Class.new do
-      def self.report(*); end
-    end)
+    allow(OsCtld::AppArmor).to receive(:enabled?).and_return(false)
     allow(OsCtld::Hook).to receive(:run) do
       events << :hook
       raise hook_error
@@ -386,7 +446,37 @@ RSpec.describe OsCtld::Container::Recovery do
     end
 
     expect { failed_recovery.recover_state }.to raise_error(hook_error)
-    expect(events).to eq(%i[netifs stopped hook cleanup_or_taint])
+    expect(events).to eq(
+      %i[lease netifs release wait hook stopped cleanup_or_taint]
+    )
+  end
+
+  it 'does not touch global state when the old run is already retiring' do
+    run_conf = instance_double(OsCtld::Container::RunConfiguration)
+    netifs = double
+    recovered_ct = double(
+      state: :running,
+      current_state: :stopped,
+      run_conf:,
+      netifs:,
+      pool:,
+      id: 'ct1'
+    )
+    allow(recovered_ct).to receive(:inclusively).and_yield
+    allow(run_conf).to receive(:acquire_lifecycle_lease).and_raise(
+      OsCtld::Container::RunConfiguration::LifecycleError,
+      'container run is retiring'
+    )
+    allow(netifs).to receive(:take_down)
+    allow(recovered_ct).to receive(:stopped)
+    allow(OsCtld::Hook).to receive(:run)
+    allow(OsCtld::Eventd).to receive(:report)
+
+    described_class.new(recovered_ct).recover_state
+
+    expect(netifs).not_to have_received(:take_down)
+    expect(OsCtld::Hook).not_to have_received(:run)
+    expect(recovered_ct).not_to have_received(:stopped)
   end
 end
 # rubocop:enable RSpec/MultipleMemoizedHelpers, RSpec/VerifiedDoubles

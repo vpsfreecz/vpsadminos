@@ -37,11 +37,26 @@ RSpec.describe OsCtld::Cli::Runner do
         attr_accessor :instances
       end
 
-      attr_reader :kwargs, :args, :stdin, :stdout, :stderr, :pool, :id, :lxc_home, :user_home, :log_file
+      attr_reader :kwargs, :args, :stdin, :stdout, :stderr, :pool, :id,
+                  :run_id, :lifecycle_start_token, :lxc_home, :user_home,
+                  :log_file
 
-      def initialize(pool:, id:, lxc_home:, user_home:, log_file:, stdin:, stdout:, stderr:)
+      def initialize(
+        pool:,
+        id:,
+        run_id:,
+        lifecycle_start_token:,
+        lxc_home:,
+        user_home:,
+        log_file:,
+        stdin:,
+        stdout:,
+        stderr:
+      )
         @pool = pool
         @id = id
+        @run_id = run_id
+        @lifecycle_start_token = lifecycle_start_token
         @lxc_home = lxc_home
         @user_home = user_home
         @log_file = log_file
@@ -77,6 +92,8 @@ RSpec.describe OsCtld::Cli::Runner do
       pool: 'tank',
       id: 'ct1',
       name: 'Sample',
+      run_id: 'run-1',
+      lifecycle_start_token: 'start-token',
       lxc_home: '/var/lib/lxc/ct1',
       user_home: '/home/alice',
       log_file: '/var/log/ct1.log',
@@ -99,6 +116,8 @@ RSpec.describe OsCtld::Cli::Runner do
     expect(Process).to have_received(:setproctitle).with('osctld: tank:ct1 runner:sample')
     expect(runner.pool).to eq('tank')
     expect(runner.id).to eq('ct1')
+    expect(runner.run_id).to eq('run-1')
+    expect(runner.lifecycle_start_token).to eq('start-token')
     expect(runner.args).to eq(['alpha'])
     expect(runner.kwargs).to eq(debug: true)
     expect(runner.stdin).to equal(stdin)
@@ -116,7 +135,7 @@ RSpec.describe OsCtld::Cli::Runner do
     end
 
     runner_class = Class.new do
-      def initialize(pool:, id:, lxc_home:, user_home:, log_file:, stdin:, stdout:, stderr:); end
+      def initialize(**); end
 
       def execute(*, **)
         raise 'runner exploded'
@@ -139,6 +158,8 @@ RSpec.describe OsCtld::Cli::Runner do
       pool: 'tank',
       id: 'ct1',
       name: 'Sample',
+      run_id: nil,
+      lifecycle_start_token: nil,
       lxc_home: '/var/lib/lxc/ct1',
       user_home: '/home/alice',
       log_file: '/var/log/ct1.log',
