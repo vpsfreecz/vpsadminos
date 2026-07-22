@@ -87,6 +87,16 @@ module OsCtld
       end
     end
 
+    # Return the cgroup.procs files through which a process can move itself
+    # into +path+ in every mounted hierarchy.
+    # @param path [Array<String>]
+    # @return [Array<String>]
+    def self.procs_paths(path)
+      subsystems.map do |subsys|
+        File.join(abs_cgroup_path(subsys), *path, 'cgroup.procs')
+      end.uniq
+    end
+
     # Check if cgroup exists
     # @param subsys [String] subsystem
     # @param path [String]

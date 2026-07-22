@@ -8,10 +8,24 @@ require 'osctld/user_control/command'
 require 'osctld/user_control/commands/ct_on_start'
 
 RSpec.describe OsCtld::UserControl::Commands::CtOnStart do
-  subject(:command) { described_class.new(user, opts) }
+  subject(:command) { described_class.new(user, opts, peer: hook_identity) }
 
   let(:user) { instance_double('User') }
-  let(:run_conf) { instance_double('RunConfig', init_pid: 1234) }
+  let(:lifecycle_identity) { instance_double(OsCtld::ProcessIdentity) }
+  let(:hook_identity) do
+    instance_double(
+      OsCtld::ProcessIdentity,
+      pid: 4321,
+      environment_variable: '5678'
+    )
+  end
+  let(:run_conf) do
+    instance_double(
+      'RunConfig',
+      init_pid: 1234,
+      lifecycle_identity:
+    )
+  end
   let(:init_net_ns) { instance_double(File, 'init_net_ns') }
   let(:init_pid_ns) { instance_double(File, 'init_pid_ns') }
   let(:init_identity) do
@@ -19,10 +33,13 @@ RSpec.describe OsCtld::UserControl::Commands::CtOnStart do
       OsCtld::ProcessIdentity,
       pid: 1234,
       alive?: true,
+      in_cgroup_subtree?: true,
+      direct_child_of?: true,
       close: nil
     )
   end
   let(:ct_cgroup_path) { '/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned' }
+  let(:base_cgroup_path) { File.dirname(ct_cgroup_path) }
   let(:monitor_cgroup_path) { File.join(ct_cgroup_path, 'lxc.monitor.ct1') }
   let(:payload_cgroup_path) { File.join(ct_cgroup_path, 'lxc.payload.ct1') }
   let(:ct) do
@@ -32,6 +49,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtOnStart do
       user:,
       run_conf:,
       root_host_gid: 100_000,
+      base_cgroup_path:,
       cgroup_path: ct_cgroup_path,
       entry_cgroup_path: monitor_cgroup_path,
       payload_cgroup_path:,
@@ -106,6 +124,11 @@ RSpec.describe OsCtld::UserControl::Commands::CtOnStart do
     allow(OsCtld::NetConfig).to receive(:create).with(ct).and_return(net_config)
     allow(net_config).to receive(:export).with(configured_only: true).and_return(exported_net_config)
     allow(command).to receive(:fork_static_network_setup)
+    allow(command).to receive_messages(
+      authenticate_lifecycle_callback: nil,
+      authenticated_run_conf: run_conf,
+      claim_lifecycle_event: nil
+    )
     allow(command).to receive(:log)
   end
 
@@ -120,9 +143,17 @@ RSpec.describe OsCtld::UserControl::Commands::CtOnStart do
     )
   end
 
-  it 'refreshes a missing server-held runtime configuration init PID' do
-    refreshed_identity = instance_double(OsCtld::ProcessIdentity, close: nil)
+  it "uses the authenticated lifecycle hook's LXC PID when the run has no init identity" do
+    refreshed_identity = instance_double(
+      OsCtld::ProcessIdentity,
+      pid: 5678,
+      in_cgroup_subtree?: true,
+      direct_child_of?: true,
+      close: nil
+    )
     allow(run_conf).to receive(:init_pid).and_return(nil)
+    allow(refreshed_identity).to receive(:namespace).with(:net).and_return(init_net_ns)
+    allow(refreshed_identity).to receive(:namespace).with(:pid).and_return(init_pid_ns)
     allow(OsCtld::ProcessIdentity).to receive(:new)
       .with(5678, namespaces: %i[net pid])
       .and_return(refreshed_identity)
@@ -133,16 +164,49 @@ RSpec.describe OsCtld::UserControl::Commands::CtOnStart do
       refreshed_identity,
       exported_net_config
     )
+    expect(hook_identity).to have_received(:environment_variable).with('LXC_PID')
+  end
+
+  it 'rejects start processing when no trusted init identity is available' do
+    allow(run_conf).to receive(:init_pid).and_return(nil)
+    allow(hook_identity).to receive(:environment_variable).with('LXC_PID').and_return(nil)
+
+    expect(command.execute).to eq(
+      status: false,
+      message: 'unable to resolve current container init identity: PID is not available'
+    )
+    expect(command).not_to have_received(:claim_lifecycle_event)
+    expect(OsCtld::DistConfig).not_to have_received(:run)
+    expect(OsCtld::Hook).not_to have_received(:run)
   end
 
   it 'skips static netns setup when no interfaces need host-applied config' do
     allow(net_config).to receive(:export).with(configured_only: true).and_return([])
+    allow(run_conf).to receive(:init_pid).and_return(nil)
+    allow(hook_identity).to receive(:environment_variable).with('LXC_PID').and_return(nil)
 
     ret = command.execute
 
     expect(ret).to eq(status: true, output: nil)
+    expect(hook_identity).not_to have_received(:environment_variable)
     expect(command).not_to have_received(:fork_static_network_setup)
     expect(OsCtld::Hook).to have_received(:run).with(ct, :on_start)
+  end
+
+  it "rejects the lifecycle hook's own PID as the container init" do
+    allow(run_conf).to receive(:init_pid).and_return(nil)
+    allow(hook_identity).to receive(:environment_variable).with('LXC_PID').and_return('4321')
+    allow(OsCtld::ProcessIdentity).to receive(:new)
+      .with(4321, namespaces: %i[net pid])
+      .and_return(hook_identity)
+    allow(hook_identity).to receive(:close)
+
+    expect(command.execute).to eq(
+      status: false,
+      message: 'unable to resolve current container init identity: ' \
+               'Operation not permitted - container init process matches the lifecycle hook'
+    )
+    expect(command).not_to have_received(:claim_lifecycle_event)
   end
 
   it 'returns a command error when static network setup fails' do
