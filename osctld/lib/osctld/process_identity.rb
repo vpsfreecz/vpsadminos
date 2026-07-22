@@ -86,6 +86,18 @@ module OsCtld
       @namespaces.fetch(name.to_sym)
     end
 
+    def parent_pid
+      stat = read_proc_file('stat')
+      fields = stat[(stat.rindex(')') + 1)..].split
+      Integer(fields.fetch(1))
+    end
+
+    def start_time_ticks
+      stat = read_proc_file('stat')
+      fields = stat[(stat.rindex(')') + 1)..].split
+      Integer(fields.fetch(19))
+    end
+
     def cgroup_entries
       read_proc_file('cgroup').lines.map do |line|
         hierarchy, controllers, path = line.strip.split(':', 3)
@@ -106,15 +118,103 @@ module OsCtld
     end
 
     def in_cgroup_subtree?(path)
-      prefix = File.absolute_path(path)
+      prefix = File.absolute_path(path, '/')
 
       entries = cgroup_entries
       return false if entries.empty?
 
       entries.all? do |entry|
-        current = File.absolute_path(entry.fetch(:path))
+        current = File.absolute_path(entry.fetch(:path), '/')
         current == prefix || current.start_with?("#{prefix}/")
       end
+    end
+
+    def descendant_of?(ancestor)
+      return false unless ancestor&.alive? && alive?
+      return false if pid == ancestor.pid
+
+      current = self
+      opened = []
+
+      loop do
+        parent_pid = current.parent_pid
+        return false if parent_pid <= 1 || parent_pid == current.pid || !current.alive?
+
+        parent = self.class.new(parent_pid)
+        opened << parent
+
+        # Opening a numeric /proc entry and re-reading the child's parent
+        # closes the exit/reparent/reuse window between the two operations.
+        unless current.alive? && parent.alive? && current.parent_pid == parent.pid
+          return false
+        end
+
+        if parent.pid == ancestor.pid
+          return ancestor.alive? && parent.start_time_ticks == ancestor.start_time_ticks
+        end
+
+        current = parent
+      end
+    rescue SystemCallError, IOError, ArgumentError, IndexError
+      false
+    ensure
+      opened&.each(&:close)
+    end
+
+    # Check one exact ancestry depth while pinning every process identity in
+    # the chain. Unlike +descendant_of?+, this cannot authorize a peer merely
+    # because it is somewhere below the expected ancestor.
+    def descendant_at_depth?(ancestor, depth)
+      return false unless depth.is_a?(Integer) && depth > 0
+      return false unless ancestor&.alive? && alive?
+      return false if pid == ancestor.pid
+
+      current = self
+      opened = []
+
+      depth.times do |index|
+        parent_pid = current.parent_pid
+        return false if parent_pid <= 1 || parent_pid == current.pid || !current.alive?
+
+        parent = self.class.new(parent_pid)
+        opened << parent
+
+        # Pin each numeric parent before advancing. Re-reading the child's
+        # parent closes the exit, reparent, and PID-reuse window.
+        unless current.alive? && parent.alive? && current.parent_pid == parent.pid
+          return false
+        end
+
+        if index == depth - 1
+          return false unless parent.pid == ancestor.pid
+
+          return ancestor.alive? && parent.start_time_ticks == ancestor.start_time_ticks
+        end
+
+        # The expected ancestor was reached too early, so the requested exact
+        # depth cannot match even if a later PID happened to be identical.
+        return false if parent.pid == ancestor.pid
+
+        current = parent
+      end
+
+      false
+    rescue SystemCallError, IOError, ArgumentError, IndexError
+      false
+    ensure
+      opened&.each(&:close)
+    end
+
+    def direct_child_of?(parent)
+      return false unless parent&.alive? && alive?
+      return false unless parent_pid == parent.pid
+
+      # Re-read both identities after resolving PPid. If the parent exited and
+      # its numeric PID was reused between the reads, the child's PPid will
+      # already have changed and the callback must fail closed.
+      parent.alive? && alive? && parent_pid == parent.pid
+    rescue SystemCallError, IOError, ArgumentError, IndexError
+      false
     end
 
     def open_proc_file(name, mode = 'r', &)
@@ -130,6 +230,47 @@ module OsCtld
 
     def read_proc_file(name)
       open_proc_file(name, &:read)
+    end
+
+    def environment_variable(name)
+      key = name.to_s
+      raise ArgumentError, 'invalid environment variable name' if key.empty? || key.include?("\0") || key.include?('=')
+
+      prefix = "#{key}="
+      entry = read_proc_file('environ').split("\0").find { |value| value.start_with?(prefix) }
+      entry&.delete_prefix(prefix)
+    end
+
+    # Open an absolute path below the root and mount namespace held when this
+    # identity was authenticated. Symlink traversal is forbidden and the
+    # result has to name the same directory as +expected+ in osctld's mount
+    # namespace.
+    def open_root_path(path, expected:)
+      raise IOError, 'process root was not retained' unless root_dir && !root_dir.closed?
+
+      absolute_path = File.absolute_path(path)
+      relative_path = absolute_path.delete_prefix('/')
+      relative_path = '.' if relative_path.empty?
+
+      verify_root_context!
+      io = @sys.open_beneath(root_dir, relative_path)
+      raise Errno::ENOTDIR, absolute_path unless io.stat.directory?
+      raise Errno::EXDEV, absolute_path unless same_file?(io, expected)
+
+      verify_root_context!
+
+      io
+    rescue StandardError
+      io&.close
+      raise
+    end
+
+    # Stop retaining the authenticated process root while keeping the process
+    # and namespace identity alive for the rest of the request.
+    def release_root
+      close_io(@root_dir)
+      @root_dir = nil
+      nil
     end
 
     def files
