@@ -10,26 +10,37 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
-      return error('access denied') unless owns_ct?(ct)
 
-      log(
-        :info,
-        ct,
-        "veth interface coming up: ct=#{opts[:interface]}, host=#{opts[:veth]}"
-      )
+      ret = authenticate_lifecycle_callback(ct)
+      return ret if ret
 
       netif = ct.netifs[opts[:interface]]
-      netif.up(opts[:veth])
+      return error('network interface not found') unless netif.is_a?(NetInterface::Veth)
 
-      Hook.run(
+      host_veth, = netif.validate_up_callback(opts[:veth])
+      with_claimed_lifecycle_event(
         ct,
-        :veth_up,
-        ct_veth: opts[:interface],
-        host_veth: opts[:veth],
-        enable: netif.enable
-      )
-      ok
-    rescue HookFailed => e
+        "veth_up:#{netif.name}",
+        after: :pre_start
+      ) do
+        log(
+          :info,
+          ct,
+          "veth interface coming up: ct=#{netif.name}, host=#{host_veth}"
+        )
+
+        netif.up(host_veth)
+
+        Hook.run(
+          ct,
+          :veth_up,
+          ct_veth: netif.name,
+          host_veth:,
+          enable: netif.enable
+        )
+        ok
+      end
+    rescue HookFailed, NetInterface::Veth::InvalidHostLink => e
       error(e.message)
     end
   end

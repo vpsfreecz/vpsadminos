@@ -241,29 +241,40 @@ module OsCtld
     end
 
     # This must be called on container start
-    def init_run_conf
-      exclusively do
-        if @next_run_conf
-          @run_conf = @next_run_conf
-          @next_run_conf = nil
-        else
-          @run_conf = new_run_conf
+    def init_run_conf(replace: true)
+      loop do
+        state, selected_run_conf = exclusively do
+          if @run_conf&.retiring?
+            [:retiring, @run_conf]
+          elsif @run_conf && !replace
+            [:existing, @run_conf]
+          else
+            if @next_run_conf
+              @run_conf = @next_run_conf
+              @next_run_conf = nil
+            else
+              @run_conf = new_run_conf
+            end
+
+            @run_conf.save
+            reconfigure
+            [:installed, @run_conf]
+          end
         end
 
-        @run_conf.save
-      end
+        if state == :retiring
+          selected_run_conf.wait_until_retired
+          next
+        end
 
-      # Generate LXC configs for current time namespace offsets
-      reconfigure
+        return selected_run_conf
+      end
     end
 
     # Call {#init_run_conf} unless {#run_conf} is already set
     # @return [Container::RunConfiguration]
     def ensure_run_conf
-      exclusively do
-        init_run_conf if @run_conf.nil?
-        run_conf
-      end
+      init_run_conf(replace: false)
     end
 
     # Mount the container's dataset
@@ -421,32 +432,62 @@ module OsCtld
     end
 
     def starting
-      exclusively do
-        # Normally {#init_run_conf} is called from {Commands::Container::Start},
-        # but in case the lxc-start was invoked manually outside of osctld,
-        # initiate the run conf if needed.
-        ensure_run_conf
-      end
+      # Normally {#init_run_conf} is called from {Commands::Container::Start},
+      # but in case the lxc-start was invoked manually outside of osctld,
+      # initiate the run conf if needed.
+      ensure_run_conf
     end
 
     def stopped(expected_run_conf = nil)
-      retiring_run_conf = nil
-      accepted = exclusively do
+      stop_state, retiring_run_conf = exclusively do
         if expected_run_conf && !@run_conf.equal?(expected_run_conf)
-          next false
+          next [:stale, nil]
         end
 
         if run_conf
-          retiring_run_conf = @run_conf
-          retiring_run_conf.begin_retirement
-          @past_run_conf = @run_conf
-          @run_conf = nil
+          selected_run_conf = @run_conf
+          state = selected_run_conf.begin_retirement ? :owner : :wait
+          [state, selected_run_conf]
+        else
+          [:empty, nil]
         end
-
-        true
       end
 
-      retiring_run_conf&.destroy
+      return false if stop_state == :stale
+      return true if stop_state == :empty
+
+      if stop_state == :wait
+        # A concurrent recovery or authenticated post-stop callback already
+        # owns this exact run's teardown. Let the losing caller release its
+        # lifecycle lease before waiting for the elected owner to finish.
+        begin
+          yield(false) if block_given?
+        ensure
+          retiring_run_conf.wait_until_retired
+        end
+        return true
+      end
+
+      # Keep the current-run pointer attached through destruction. A new run
+      # must not save the shared runtime config while the retiring run can
+      # still unlink it.
+      accepted = false
+      begin
+        yield(true) if block_given?
+      ensure
+        begin
+          retiring_run_conf.destroy
+        ensure
+          accepted = exclusively do
+            next false unless @run_conf.equal?(retiring_run_conf)
+
+            @past_run_conf = @run_conf
+            @run_conf = nil
+            true
+          end
+        end
+      end
+
       accepted
     end
 
@@ -948,25 +989,30 @@ module OsCtld
     def syslogns_tag(run_id: nil)
       max_size = OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE
 
-      if run_id
-        digest = Digest::SHA256.hexdigest(run_id.to_s)[0, 4]
-        prefix = id.gsub(/[^A-Za-z0-9_.-]/, '_')
-        prefix = 'ct' if prefix.empty?
-        prefix = prefix.byteslice(0, max_size - digest.bytesize - 1)
-
-        return "#{prefix}:#{digest}".rjust(max_size)
-      end
-
-      tag =
-        if id.bytesize >= max_size - 1 # -1 for colon used as a separator
-          id[0..(max_size - 1)]
+      base =
+        if run_id || id.bytesize >= max_size - 1
+          id
         else
-          v = ident
-          v = v[1..] while v.bytesize > max_size
-          v
+          ident
         end
 
-      tag.rjust(max_size)
+      base = base.gsub(/[^A-Za-z0-9_.-]/, '_')
+      base = base.sub(/\A[^A-Za-z0-9]+/, '').sub(/[^A-Za-z0-9]+\z/, '')
+      base = 'ct' if base.empty?
+
+      if run_id
+        digest = Digest::SHA256.hexdigest(run_id.to_s)[0, 4]
+        prefix = base.byteslice(0, max_size - digest.bytesize - 1)
+        prefix = prefix.sub(/[^A-Za-z0-9]+\z/, '')
+        prefix = 'ct' if prefix.empty?
+
+        return "#{prefix}-#{digest}"
+      end
+
+      tag = base.byteslice(0, max_size)
+      tag = tag.sub(/[^A-Za-z0-9]+\z/, '')
+
+      tag.empty? ? 'ct' : tag
     end
 
     def log_path

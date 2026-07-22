@@ -78,6 +78,36 @@ RSpec.describe OsCtl::Lib::Sys do
     expect(described_class::Int).not_to have_received(:openat)
   end
 
+  it 'opens relative paths beneath a held directory without symlink traversal' do
+    dir = instance_double(File, fileno: 9)
+    opened = instance_double(IO)
+    how = [
+      File::RDONLY | described_class::O_CLOEXEC | described_class::O_DIRECTORY,
+      0,
+      described_class::RESOLVE_BENEATH |
+        described_class::RESOLVE_NO_MAGICLINKS |
+        described_class::RESOLVE_NO_SYMLINKS
+    ].pack('Q<Q<Q<')
+
+    allow(described_class::Int).to receive(:syscall)
+      .with(described_class::SYS_OPENAT2, 9, 'srv/root', how, how.bytesize)
+      .and_return(12)
+    allow(IO).to receive(:for_fd).with(12, autoclose: true).and_return(opened)
+    allow(opened).to receive(:close_on_exec=).with(true)
+
+    expect(sys.open_beneath(dir, 'srv/root')).to be(opened)
+    expect(opened).to have_received(:close_on_exec=).with(true)
+  end
+
+  it 'rejects absolute paths before calling openat2' do
+    dir = instance_double(File, fileno: 9)
+    allow(described_class::Int).to receive(:syscall)
+
+    expect { sys.open_beneath(dir, '/srv/root') }
+      .to raise_error(ArgumentError, /relative path/)
+    expect(described_class::Int).not_to have_received(:syscall)
+  end
+
   it_behaves_like 'simple Int wrapper',
                   :move_mount, :mount,
                   ['/src', '/dst'], {},

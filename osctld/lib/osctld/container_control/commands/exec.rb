@@ -44,11 +44,14 @@ module OsCtld
           DistConfig.run(ct.run_conf, :pre_start)
         end
 
+        lifecycle_start_token = issue_transient_lifecycle_start(mode)
+
         ret = exec_runner(
           args: [mode, runner_opts],
           stdin: opts[:stdin],
           stdout: opts[:stdout],
           stderr: opts[:stderr],
+          lifecycle_start_token:,
           switch_extra_namespaces: mode != :running,
           reset_subtree_control: mode != :running
         )

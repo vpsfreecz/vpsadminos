@@ -72,15 +72,11 @@ module OsCtld
       end
 
       def executable(hook_path)
-        if opts[:mnt_ns]
-          ['nsenter', "--mount=/proc/self/fd/#{opts[:mnt_ns].fileno}", hook_path]
-        else
-          ['nsenter', '--target', opts.fetch(:ns_pid).to_s, '--mount', hook_path]
-        end
+        ['nsenter', "--mount=/proc/self/fd/#{opts.fetch(:mnt_ns).fileno}", hook_path]
       end
 
       def inherited_files
-        [opts[:mnt_ns]].compact
+        [opts.fetch(:mnt_ns)]
       end
     end
 
@@ -98,15 +94,11 @@ module OsCtld
       end
 
       def executable(hook_path)
-        if opts[:mnt_ns]
-          ['nsenter', "--mount=/proc/self/fd/#{opts[:mnt_ns].fileno}", hook_path]
-        else
-          ['nsenter', '--target', opts.fetch(:ns_pid).to_s, '--mount', hook_path]
-        end
+        ['nsenter', "--mount=/proc/self/fd/#{opts.fetch(:mnt_ns).fileno}", hook_path]
       end
 
       def inherited_files
-        [opts[:mnt_ns]].compact
+        [opts.fetch(:mnt_ns)]
       end
     end
 
