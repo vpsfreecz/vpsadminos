@@ -54,6 +54,11 @@
 ## Commit & Pull Request Guidelines
 - Follow existing history: `<area>: <change>` (e.g., `os: ...`, `tests/distributions: ...`); present tense, scoped subjects.
 - Each commit message must explain what the change does and why the change is necessary.
+- Follow the permanent
+  [downstream patch-series policy](docs/os/patch-series-policy.md) for OS
+  integration history and the Linux, OpenZFS, and LXC downstream stacks. In
+  particular, fold caused fixes into their logical owner, advance the owner's
+  patch version, and never ship fixup/WIP residue as final history.
 - `make gems` refreshes packaged Ruby gem metadata from local sources and flake
   inputs. It does not create build IDs or upload gems to a remote repository.
 - Gem metadata commits created with `make commit-gems` or `make amend-gems`
