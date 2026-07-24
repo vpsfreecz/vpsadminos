@@ -258,6 +258,8 @@ in
       "l2tp_netlink"
       "l2tp_ppp"
       "l2tp_eth"
+      "l2tp_ip"
+      "l2tp_ip6"
       "libceph"
       "libchacha"
       "libchacha20poly1305"
