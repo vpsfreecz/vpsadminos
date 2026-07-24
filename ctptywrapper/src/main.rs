@@ -66,6 +66,7 @@ fn main() {
 
 fn run() -> Result<()> {
     let args: Vec<String> = env::args().collect();
+    let mut ready = ReadyNotifier::from_env();
 
     if args.len() < 4 {
         return Err(format!(
@@ -80,7 +81,10 @@ fn run() -> Result<()> {
     set_process_name(&format!("osctld: CT {}", args[1]));
 
     let socket_path = Path::new(&args[2]);
-    let listener = UnixListener::bind(socket_path)?;
+    let listener = match ListenerReceiver::from_env()? {
+        Some(v) => v,
+        None => UnixListener::bind(socket_path)?,
+    };
 
     let (pty, child_pid) = match spawn_pty(&args[3..]) {
         Ok(v) => v,
@@ -90,6 +94,7 @@ fn run() -> Result<()> {
         }
     };
 
+    ready.notify();
     let loop_result = event_loop(&listener, pty, child_pid);
 
     drop(listener);
@@ -98,6 +103,73 @@ fn run() -> Result<()> {
     terminate_child(child_pid);
 
     loop_result.map_err(Into::into)
+}
+
+struct ListenerReceiver;
+
+impl ListenerReceiver {
+    fn from_env() -> io::Result<Option<UnixListener>> {
+        let fd = env::var("OSCTLD_CT_WRAPPER_LISTENER_FD")
+            .ok()
+            .and_then(|v| v.parse::<RawFd>().ok());
+        env::remove_var("OSCTLD_CT_WRAPPER_LISTENER_FD");
+
+        let Some(fd) = fd else {
+            return Ok(None);
+        };
+
+        Self::from_fd(fd).map(Some)
+    }
+
+    fn from_fd(fd: RawFd) -> io::Result<UnixListener> {
+        let listener = unsafe { UnixListener::from_raw_fd(fd) };
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+
+        if flags < 0 {
+            return Err(io::Error::last_os_error());
+        }
+
+        if unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0 {
+            return Err(io::Error::last_os_error());
+        }
+
+        Ok(listener)
+    }
+}
+
+struct ReadyNotifier(Option<File>);
+
+impl ReadyNotifier {
+    fn from_env() -> Self {
+        let fd = env::var("OSCTLD_CT_WRAPPER_READY_FD")
+            .ok()
+            .and_then(|v| v.parse::<RawFd>().ok());
+        env::remove_var("OSCTLD_CT_WRAPPER_READY_FD");
+
+        let Some(fd) = fd else {
+            return Self(None);
+        };
+
+        Self::from_fd(fd)
+    }
+
+    fn from_fd(fd: RawFd) -> Self {
+        unsafe {
+            let flags = libc::fcntl(fd, libc::F_GETFD);
+
+            if flags >= 0 {
+                libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC);
+            }
+
+            Self(Some(File::from_raw_fd(fd)))
+        }
+    }
+
+    fn notify(&mut self) {
+        if let Some(mut file) = self.0.take() {
+            let _ = file.write_all(b"1");
+        }
+    }
 }
 
 fn set_process_name(name: &str) {
@@ -140,7 +212,16 @@ fn spawn_pty(cmd: &[String]) -> Result<(File, libc::pid_t)> {
     Ok((pty, pid))
 }
 
-fn event_loop(listener: &UnixListener, mut pty: File, child_pid: libc::pid_t) -> io::Result<()> {
+fn event_loop(listener: &UnixListener, pty: File, child_pid: libc::pid_t) -> io::Result<()> {
+    event_loop_for_uid(listener, pty, child_pid, 0)
+}
+
+fn event_loop_for_uid(
+    listener: &UnixListener,
+    mut pty: File,
+    child_pid: libc::pid_t,
+    allowed_uid: u32,
+) -> io::Result<()> {
     let mut client: Option<UnixStream> = None;
     let mut cmd_buf = LineBuffer::default();
     let mut current_rows = 25;
@@ -181,10 +262,6 @@ fn event_loop(listener: &UnixListener, mut pty: File, child_pid: libc::pid_t) ->
             return Err(err);
         }
 
-        if fds[0].revents & libc::POLLIN != 0 {
-            accept_client(listener, &mut client);
-        }
-
         if fds.len() > 2 && fds[2].revents & (libc::POLLIN | libc::POLLHUP | libc::POLLERR) != 0 {
             let mut close_client = false;
 
@@ -209,6 +286,13 @@ fn event_loop(listener: &UnixListener, mut pty: File, child_pid: libc::pid_t) ->
             }
         }
 
+        // Process the fd represented by fds[2] before replacing client. A
+        // reconnect can be queued at the same time as the old client reports
+        // HUP, notably after osctld restarts before this loop begins.
+        if fds[0].revents & libc::POLLIN != 0 {
+            accept_client(listener, &mut client, allowed_uid);
+        }
+
         if fds[1].revents & (libc::POLLIN | libc::POLLHUP | libc::POLLERR) != 0 {
             match pty.read(&mut read_buf) {
                 Ok(0) => return Ok(()),
@@ -227,12 +311,12 @@ fn event_loop(listener: &UnixListener, mut pty: File, child_pid: libc::pid_t) ->
     }
 }
 
-fn accept_client(listener: &UnixListener, client: &mut Option<UnixStream>) {
+fn accept_client(listener: &UnixListener, client: &mut Option<UnixStream>, allowed_uid: u32) {
     let Ok((c, _)) = listener.accept() else {
         return;
     };
 
-    if client_uid(c.as_raw_fd()) == Some(0) {
+    if client_uid(c.as_raw_fd()) == Some(allowed_uid) {
         *client = Some(c);
     }
 }
@@ -404,9 +488,20 @@ fn wait_child(pid: libc::pid_t, flags: libc::c_int) -> WaitResult {
 mod tests {
     use super::*;
     use std::mem;
-    use std::sync::atomic::{AtomicI32, Ordering};
+    use std::os::fd::IntoRawFd;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
     static SIGWINCH_PIPE: AtomicI32 = AtomicI32::new(-1);
+    static NEXT_SOCKET_ID: AtomicU64 = AtomicU64::new(0);
+
+    fn temp_path(name: &str) -> PathBuf {
+        env::temp_dir().join(format!(
+            "ctptywrapper-{name}-{}-{}",
+            std::process::id(),
+            NEXT_SOCKET_ID.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
 
     extern "C" fn record_sigwinch(_signum: libc::c_int) {
         let fd = SIGWINCH_PIPE.load(Ordering::Relaxed);
@@ -471,7 +566,7 @@ mod tests {
                 SIGWINCH_PIPE.store(pipe_fds[1], Ordering::Relaxed);
 
                 let mut action: libc::sigaction = mem::zeroed();
-                action.sa_sigaction = record_sigwinch as usize;
+                action.sa_sigaction = record_sigwinch as *const () as usize;
                 action.sa_flags = 0;
                 libc::sigemptyset(&mut action.sa_mask);
 
@@ -546,6 +641,60 @@ mod tests {
                 Err(e) => return Err(e),
             }
         }
+    }
+
+    #[test]
+    fn notifies_parent_when_wrapper_is_ready() {
+        let mut pipe_fds = [-1, -1];
+
+        assert_eq!(unsafe { libc::pipe(pipe_fds.as_mut_ptr()) }, 0);
+
+        let mut reader = unsafe { File::from_raw_fd(pipe_fds[0]) };
+        let mut notifier = ReadyNotifier::from_fd(pipe_fds[1]);
+        notifier.notify();
+
+        let mut byte = [0_u8; 1];
+        reader.read_exact(&mut byte).unwrap();
+        assert_eq!(byte[0], b'1');
+    }
+
+    #[test]
+    fn accepts_connections_on_an_inherited_listener() {
+        let socket_path = temp_path("inherited-listener");
+        let original = UnixListener::bind(&socket_path).unwrap();
+        let listener = ListenerReceiver::from_fd(original.as_raw_fd()).unwrap();
+        std::mem::forget(original);
+        let _client = UnixStream::connect(&socket_path).unwrap();
+        let _connection = listener.accept().unwrap();
+        fs::remove_file(socket_path).unwrap();
+    }
+
+    #[test]
+    fn replaces_a_closed_queued_client_before_reading_the_new_one() {
+        let socket_path = temp_path("queued-reconnect");
+        let listener = UnixListener::bind(&socket_path).unwrap();
+        let (pty, pty_peer) = UnixStream::pair().unwrap();
+        let pty = unsafe { File::from_raw_fd(pty.into_raw_fd()) };
+        let mut pty_peer = unsafe { File::from_raw_fd(pty_peer.into_raw_fd()) };
+        let allowed_uid = unsafe { libc::geteuid() };
+        let worker =
+            thread::spawn(move || event_loop_for_uid(&listener, pty, 0, allowed_uid).unwrap());
+
+        let mut old_client = UnixStream::connect(&socket_path).unwrap();
+        pty_peer.write_all(b"r").unwrap();
+        let mut byte = [0_u8; 1];
+        old_client.read_exact(&mut byte).unwrap();
+        assert_eq!(byte[0], b'r');
+
+        drop(old_client);
+        let mut new_client = UnixStream::connect(&socket_path).unwrap();
+        new_client.write_all(b"{\"keys\":\"eA==\"}\n").unwrap();
+        wait_for_pipe_byte(&mut pty_peer, b'x').unwrap();
+
+        drop(new_client);
+        drop(pty_peer);
+        worker.join().unwrap();
+        fs::remove_file(socket_path).unwrap();
     }
 
     fn pty_winsize(fd: RawFd) -> io::Result<(u16, u16)> {

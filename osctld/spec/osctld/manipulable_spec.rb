@@ -50,10 +50,12 @@ RSpec.describe OsCtld::Manipulable do
   it 'allows the same thread to re-enter without deadlocking' do
     fixture.acquire_manipulation_lock(holder)
 
+    expect(fixture.owns_manipulation_lock?).to be(true)
     expect(fixture.manipulate(other_holder) { :nested }).to eq(:nested)
     expect(fixture.manipulated_by).to eq(holder)
 
     fixture.release_manipulation_lock
+    expect(fixture.owns_manipulation_lock?).to be(false)
   end
 
   it 'raises ResourceLocked for a second thread when block is false' do

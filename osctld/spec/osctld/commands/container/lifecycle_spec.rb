@@ -105,6 +105,316 @@ RSpec.describe 'container lifecycle commands' do
       expect(command.send(:start_now, container)).to eq(status: true, output: nil)
     end
 
+    it 'waits for prior stop cleanup without holding the manipulation lock' do
+      run_conf = Class.new do
+        attr_accessor :container
+
+        def get_exit_promise
+          container.promise
+        end
+
+        def runtime_unknown?
+          false
+        end
+      end.new
+      container = Class.new do
+        attr_accessor :promise
+        attr_reader :lock_entries
+
+        def initialize(run_conf)
+          @run_conf = run_conf
+          @locked = false
+          @lock_entries = 0
+        end
+
+        def manipulate(_holder, block:)
+          raise 'lock already held' if @locked
+
+          @locked = true
+          @lock_entries += 1
+          yield
+        ensure
+          @locked = false
+        end
+
+        def get_pending_run_conf
+          @run_conf
+        end
+
+        def get_starting_run_conf
+          nil
+        end
+
+        def finish_stopping
+          @run_conf = nil
+        end
+
+        def locked?
+          @locked
+        end
+
+        def owns_manipulation_lock?
+          false
+        end
+      end.new(run_conf)
+      promise = Class.new do
+        attr_reader :timeout
+
+        def initialize(container)
+          @container = container
+        end
+
+        def wait(timeout:)
+          @timeout = timeout
+          raise 'manipulation lock held while waiting' if @container.locked?
+
+          @container.finish_stopping
+          true
+        end
+      end.new(container)
+      container.promise = promise
+      run_conf.container = container
+
+      daemon = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(daemon).to receive(:get).and_return(double(stopping?: false))
+      now = Time.now
+      allow(Time).to receive(:now).and_return(now)
+      command = described_class.new({ wait: 5 }, {})
+      eventd = stub_const('OsCtld::Eventd', Class.new do
+        def self.subscribe; end
+
+        def self.unsubscribe(_queue); end
+      end)
+      allow(eventd).to receive(:subscribe).and_return(double('event queue'))
+      allow(eventd).to receive(:unsubscribe)
+      allow(command).to receive(:start_now)
+        .with(container)
+        .and_return(status: true)
+
+      expect(command.execute(container)).to eq(status: true)
+      expect(container.lock_entries).to eq(2)
+      expect(promise.timeout).to eq(5)
+      expect(command).to have_received(:start_now).with(container)
+    end
+
+    it 'waits indefinitely for prior stop cleanup when requested' do
+      promise = double('exit promise')
+      run_conf = double(
+        'run configuration',
+        runtime_unknown?: false,
+        get_exit_promise: promise
+      )
+      container = double(
+        'container',
+        owns_manipulation_lock?: false
+      )
+      daemon = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(daemon).to receive(:get).and_return(double(stopping?: false))
+      allow(promise).to receive(:wait).with(timeout: nil).and_return(true)
+      command = described_class.new({ wait: 'infinity' }, {})
+
+      expect(command.send(:wait_for_pending_run, run_conf, container, nil)).to be_nil
+      expect(promise).to have_received(:wait).with(timeout: nil)
+    end
+
+    it 'wakes an unbounded cleanup wait when the command is stopped' do
+      token = instance_double(OsCtld::Promise::Token)
+      allow(token).to receive(:fulfil)
+      command = described_class.new({ wait: 'infinity' }, {})
+      command.instance_variable_set(:@pending_wait_token, token)
+
+      command.request_stop
+
+      expect(token).to have_received(:fulfil)
+    end
+
+    it 'waits for an ambiguous restored runtime to resolve' do
+      promise = double('runtime resolution promise', wait: true)
+      run_conf = double(
+        'run configuration',
+        runtime_unknown?: true,
+        get_runtime_resolution_promise: promise
+      )
+      container = double('container', owns_manipulation_lock?: false)
+      daemon = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(daemon).to receive(:get).and_return(double(stopping?: false))
+      command = described_class.new({ wait: 'infinity' }, {})
+
+      expect(command.send(:wait_for_pending_run, run_conf, container, nil)).to be_nil
+      expect(promise).to have_received(:wait).with(timeout: nil)
+    end
+
+    it 'releases the manipulation lock before wrapper readiness and the new run' do
+      run_conf = double('run configuration', run_id: double(to_s: 'tank:ct1:1'))
+      container = Class.new do
+        attr_reader :locked
+
+        def initialize
+          @locked = false
+        end
+
+        def manipulate(_holder, block:)
+          @locked = true
+          yield
+        ensure
+          @locked = false
+        end
+
+        def get_pending_run_conf
+          nil
+        end
+
+        def get_starting_run_conf
+          nil
+        end
+      end.new
+      event_queue = double('event queue')
+      eventd = stub_const('OsCtld::Eventd', Class.new do
+        def self.subscribe; end
+
+        def self.unsubscribe(_queue); end
+      end)
+      allow(eventd).to receive(:subscribe).and_return(event_queue)
+      allow(eventd).to receive(:unsubscribe)
+      now = Time.now
+      allow(Time).to receive(:now).and_return(now)
+      command = described_class.new({ wait: 5 }, {})
+      ready_io = double('ready io')
+      allow(command).to receive(:start_now)
+        .with(container)
+        .and_return([:launch, run_conf, ready_io])
+      allow(command).to receive(:finish_wrapper_launch) do |ct_arg, run_arg, io|
+        expect(ct_arg).to equal(container)
+        expect(run_arg).to equal(run_conf)
+        expect(io).to equal(ready_io)
+        raise 'manipulation lock held while waiting for readiness' if container.locked
+
+        [:wait, run_conf]
+      end
+      allow(command).to receive(:wait_for_ct) do |queue, ct_arg, run_arg, wait_until|
+        expect(queue).to equal(event_queue)
+        expect(ct_arg).to equal(container)
+        expect(run_arg).to equal(run_conf)
+        expect(wait_until).to eq(now + 5)
+        raise 'manipulation lock held while waiting' if container.locked
+
+        [:running]
+      end
+
+      expect(command.execute(container)).to eq(status: true, output: nil)
+      expect(command).to have_received(:finish_wrapper_launch)
+      expect(command).to have_received(:wait_for_ct)
+      expect(eventd).to have_received(:unsubscribe).with(event_queue)
+    end
+
+    it 'does not wait for prior stop cleanup when waiting is disabled' do
+      run_conf = Object.new
+      container = Class.new do
+        attr_reader :run_conf
+
+        def initialize(run_conf)
+          @run_conf = run_conf
+        end
+
+        def manipulate(_holder, block:)
+          yield
+        end
+
+        def get_pending_run_conf
+          run_conf
+        end
+
+        def get_starting_run_conf
+          nil
+        end
+      end.new(run_conf)
+      command = described_class.new({ wait: false }, {})
+
+      expect(command.execute(container)).to eq(
+        status: false,
+        message: 'previous container run is still stopping'
+      )
+    end
+
+    it 'joins an existing wrapper launch instead of starting another run' do
+      run_conf = double('run configuration', run_id: double(to_s: 'tank:ct1:1'))
+      container = Class.new do
+        attr_reader :run_conf
+
+        def initialize(run_conf)
+          @run_conf = run_conf
+        end
+
+        def manipulate(_holder, block:)
+          yield
+        end
+
+        def get_pending_run_conf
+          nil
+        end
+
+        def get_starting_run_conf
+          run_conf
+        end
+      end.new(run_conf)
+      event_queue = double('event queue')
+      eventd = stub_const('OsCtld::Eventd', Class.new do
+        def self.subscribe; end
+
+        def self.unsubscribe(_queue); end
+      end)
+      allow(eventd).to receive(:subscribe).and_return(event_queue)
+      allow(eventd).to receive(:unsubscribe)
+      command = described_class.new({ wait: false }, {})
+      allow(command).to receive(:start_now)
+
+      expect(command.execute(container)).to eq(status: true, output: nil)
+      expect(command).not_to have_received(:start_now)
+      expect(eventd).to have_received(:unsubscribe).with(event_queue)
+    end
+
+    it 'does not wait for prior stop cleanup under an outer manipulation lock' do
+      promise = double('exit promise')
+      run_conf = double(
+        'run configuration',
+        runtime_unknown?: false,
+        get_exit_promise: promise
+      )
+      container = Class.new do
+        include OsCtld::Manipulable
+
+        def initialize(run_conf)
+          @run_conf = run_conf
+          init_manipulable
+        end
+
+        def get_pending_run_conf
+          @run_conf
+        end
+
+        def get_starting_run_conf
+          nil
+        end
+      end.new(run_conf)
+      command = described_class.new({ wait: 'infinity' }, {})
+
+      allow(promise).to receive(:wait)
+
+      ret = container.manipulate(:outer) { command.execute(container) }
+
+      expect(promise).not_to have_received(:wait)
+      expect(ret).to eq(
+        status: false,
+        message: 'previous container run is still stopping'
+      )
+    end
+
     it 'maps dataset mount failures to command errors' do
       run_conf = Struct.new(:mount).new(nil)
       allow(run_conf).to receive(:mount)
@@ -159,7 +469,8 @@ RSpec.describe 'container lifecycle commands' do
       command = described_class.new({ wait: 5 }, {})
       allow(command).to receive(:log)
 
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(%i[running])
+      run_conf = double(run_id: double(to_s: 'tank:ct1:1'))
+      expect(command.send(:wait_for_ct, queue, ct, run_conf, nil)).to eq(%i[running])
     end
 
     it 'returns timeout when no relevant events arrive in time' do
@@ -176,8 +487,9 @@ RSpec.describe 'container lifecycle commands' do
       allow(command).to receive(:log)
       now = Time.now
       allow(Time).to receive(:now).and_return(now, now, now + 2)
+      run_conf = double(run_id: double(to_s: 'tank:ct1:1'))
 
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(%i[timeout])
+      expect(command.send(:wait_for_ct, queue, ct, run_conf, now + 1)).to eq(%i[timeout])
     end
 
     it 'fails when state recovery reports the container stopped' do
@@ -195,9 +507,70 @@ RSpec.describe 'container lifecycle commands' do
       command = described_class.new({ wait: 5 }, {})
       allow(command).to receive(:log)
 
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(
+      run_conf = double(run_id: double(to_s: 'tank:ct1:1'))
+      expect(command.send(:wait_for_ct, queue, ct, run_conf, nil)).to eq(
         [:error, 'start failed, container is found to be stopped']
       )
+    end
+
+    it 'fails only for the matching wrapper run' do
+      queue = Struct.new(:events) do
+        def pop(timeout:)
+          events.shift
+        end
+      end.new(
+        [
+          Event.new(
+            type: :ct_start_failed,
+            opts: {
+              pool: 'tank',
+              id: 'ct1',
+              run_id: 'tank:ct1:old',
+              message: 'old run failed'
+            }
+          ),
+          Event.new(
+            type: :ct_start_failed,
+            opts: {
+              pool: 'tank',
+              id: 'ct1',
+              run_id: 'tank:ct1:new',
+              message: 'wrapper failed'
+            }
+          )
+        ]
+      )
+      daemon = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(daemon).to receive(:get).and_return(double(stopping?: false))
+      command = described_class.new({ wait: 'infinity' }, {})
+      allow(command).to receive(:log)
+      run_conf = double(run_id: double(to_s: 'tank:ct1:new'))
+
+      expect(command.send(:wait_for_ct, queue, ct, run_conf, nil)).to eq(
+        [:error, 'wrapper failed']
+      )
+    end
+
+    it 'leaves wrapper EOF cleanup to the preattached console observer' do
+      run_conf = Object.new
+      command = described_class.new({}, {})
+      ready_io = Class.new do
+        def initialize = @closed = false
+
+        def read(_length) = nil
+
+        def close = @closed = true
+
+        def closed? = @closed
+      end.new
+
+      expect(command.send(:finish_wrapper_launch, nil, run_conf, ready_io)).to eq(
+        status: false,
+        message: 'container wrapper failed to start'
+      )
+      expect(ready_io).to be_closed
     end
 
     it 'fails when osctld is shutting down while waiting' do
@@ -213,7 +586,8 @@ RSpec.describe 'container lifecycle commands' do
       command = described_class.new({ wait: 5 }, {})
       allow(command).to receive(:log)
 
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(
+      run_conf = double(run_id: double(to_s: 'tank:ct1:1'))
+      expect(command.send(:wait_for_ct, queue, ct, run_conf, nil)).to eq(
         [:error, 'osctld is shutting down']
       )
     end
@@ -235,13 +609,14 @@ RSpec.describe 'container lifecycle commands' do
       command = described_class.new({ wait: 'infinity' }, {})
       allow(command).to receive(:log)
 
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(
+      run_conf = double(run_id: double(to_s: 'tank:ct1:1'))
+      expect(command.send(:wait_for_ct, queue, ct, run_conf, nil)).to eq(
         [:error, 'osctld is shutting down']
       )
       expect(queue.calls).to eq(1)
     end
 
-    it 'tolerates tty socket races and console reconnect failures' do
+    it 'tolerates tty socket removal races and preattaches the console' do
       with_tmpdir do |tmpdir|
         console_dir = File.join(tmpdir, 'console')
         log_path = File.join(tmpdir, 'ct.log')
@@ -285,6 +660,12 @@ RSpec.describe 'container lifecycle commands' do
           end
 
           def init_run_conf; end
+
+          def start_pending
+            run_conf
+          end
+
+          def abort_start(_run_conf); end
         end.new(
           pool: Struct.new(:name, :console_dir).new('tank', console_dir),
           id: 'ct1',
@@ -304,7 +685,9 @@ RSpec.describe 'container lifecycle commands' do
         console = stub_const('OsCtld::Console', Class.new do
           def self.socket_path(_ct); end
 
-          def self.connect_tty0(*); end
+          def self.attach_tty0(*); end
+
+          def self.activate_tty0(*); end
         end)
         dist_config = stub_const('OsCtld::DistConfig', Class.new do
           def self.run(*); end
@@ -323,7 +706,12 @@ RSpec.describe 'container lifecycle commands' do
           101
         end
         allow(console).to receive(:socket_path).with(container).and_return(sock_path)
-        allow(console).to receive(:connect_tty0).and_raise(Errno::ECONNREFUSED)
+        attached_io = nil
+        allow(console).to receive(:attach_tty0) do |_ct, _pid, io, _run_conf, ready:|
+          expect(ready).to be(false)
+          attached_io = io
+        end
+        allow(console).to receive(:activate_tty0).with(container, run_conf).and_return(true)
         allow(dist_config).to receive(:run)
         allow(cpu_scheduler).to receive(:schedule_ct)
         allow(daemon).to receive(:get).and_return(daemon_instance)
@@ -332,6 +720,14 @@ RSpec.describe 'container lifecycle commands' do
         spawn_args = nil
         allow(Process).to receive(:spawn) do |*args|
           spawn_args = args
+          env = args.first
+          ready_fd = env.fetch('OSCTLD_CT_WRAPPER_READY_FD').to_i
+          listener_fd = env.fetch('OSCTLD_CT_WRAPPER_LISTENER_FD').to_i
+          ready_io = args.last.keys.detect { |v| v.is_a?(IO) && v.fileno == ready_fd }
+          listener_io = args.last.keys.detect { |v| v.is_a?(IO) && v.fileno == listener_fd }
+          expect(listener_io).to be_a(UNIXServer)
+          ready_io.write('1')
+          ready_io.flush
           202
         end
         allow(Process).to receive(:wait).with(101)
@@ -341,6 +737,7 @@ RSpec.describe 'container lifecycle commands' do
         allow(File).to receive(:unlink).and_wrap_original do |orig, path|
           if path == sock_path && !unlinked
             unlinked = true
+            orig.call(path)
             raise Errno::ENOENT
           else
             orig.call(path)
@@ -350,9 +747,25 @@ RSpec.describe 'container lifecycle commands' do
         allow(command).to receive(:remove_accounting_cgroups)
         allow(command).to receive(:log)
 
-        expect(command.send(:start_now, container)).to eq(:wait)
-        expect(spawn_args[0]).to eq('/run/wrappers/osctld-ct-wrapper')
-        expect(command).to have_received(:log).with(:warn, container, 'Unable to connect to tty0')
+        launch = command.send(:start_now, container)
+        expect(launch[0..1]).to eq([:launch, run_conf])
+        expect(command.send(:finish_wrapper_launch, container, *launch[1..])).to eq(
+          [:wait, run_conf]
+        )
+        expect(spawn_args[1]).to eq('/run/wrappers/osctld-ct-wrapper')
+        expect(spawn_args.first).to include(
+          'OSCTLD_CT_WRAPPER_LISTENER_FD',
+          'OSCTLD_CT_WRAPPER_READY_FD'
+        )
+        expect(console).to have_received(:attach_tty0).with(
+          container,
+          nil,
+          attached_io,
+          run_conf,
+          ready: false
+        )
+        expect(console).to have_received(:activate_tty0).with(container, run_conf)
+        attached_io.close
       end
     end
   end

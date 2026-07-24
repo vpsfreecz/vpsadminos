@@ -13,8 +13,20 @@ module OsCtld
       tty(tty_n).add_client(io)
     end
 
-    def connect_tty0(pid, socket)
-      tty(0).connect(pid, socket)
+    def connect_tty0(pid, socket, run_conf)
+      tty(0).connect(pid, socket, run_conf)
+    end
+
+    def attach_tty0(pid, io, run_conf, ready: true)
+      tty(0).attach(pid, io, run_conf, ready:)
+    end
+
+    def activate_tty0(run_conf)
+      tty(0).activate(run_conf)
+    end
+
+    def reconnect_tty0(socket, run_conf)
+      tty(0).connect(nil, socket, run_conf, retry_limit: 0)
     end
 
     def tty(n)
@@ -23,9 +35,14 @@ module OsCtld
           @ttys[n]
         else
           klass = n == 0 ? Console::Console : Console::TTY
-          @ttys[n] = tty = klass.new(ct, n)
-          tty.start
-          tty
+          tty = klass.new(ct, n)
+          begin
+            tty.start
+          rescue StandardError
+            tty.close
+            raise
+          end
+          @ttys[n] = tty
 
         end
       end

@@ -121,7 +121,7 @@ module OsCtld
       st = ContainerControl::Commands::State.run!(ct)
       return if ct.state == :error
 
-      ct.state = st.state
+      ct.existing_runtime_state_changed(st.state)
 
       if st.init_pid
         ct.ensure_run_conf.init_pid = st.init_pid

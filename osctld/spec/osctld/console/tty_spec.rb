@@ -57,7 +57,7 @@ RSpec.describe OsCtld::Console::TTY do
 
   it 'wakes the thread with stop and joins it on close' do
     tty = described_class.new(build_ct, 1)
-    thread = instance_double(Thread, join: nil)
+    thread = instance_double(Thread, alive?: true, join: nil)
     tty.instance_variable_set(:@thread, thread)
     allow(tty).to receive(:wake)
 
@@ -69,14 +69,19 @@ RSpec.describe OsCtld::Console::TTY do
 
   it 'clears tty state and invokes on_close when tty reads fail' do
     klass = Class.new(described_class) do
-      attr_reader :closed
+      attr_reader :closed, :context
 
-      def on_close
+      def close_context
+        :run
+      end
+
+      def on_close(context)
         @closed = true
+        @context = context
       end
     end
     tty = klass.new(build_ct, 1)
-    io = instance_double(IO)
+    io = instance_double(IO, closed?: false, close: nil)
     tty.instance_variable_set(:@opened, true)
     tty.send(:tty_pid=, 100)
     tty.send(:tty_in_io=, instance_double(IO))
@@ -89,5 +94,54 @@ RSpec.describe OsCtld::Console::TTY do
     expect(tty.send(:tty_in_io)).to be_nil
     expect(tty.send(:tty_out_io)).to be_nil
     expect(tty.closed).to be(true)
+    expect(tty.context).to eq(:run)
+  end
+
+  it 'does not clear a replacement tty when an old descriptor closes' do
+    klass = Class.new(described_class) do
+      attr_reader :closed
+
+      def on_close(_context)
+        @closed = true
+      end
+    end
+    tty = klass.new(build_ct, 1)
+    old_io = instance_double(IO, closed?: false, close: nil)
+    replacement = instance_double(IO)
+    tty.instance_variable_set(:@opened, true)
+    tty.send(:tty_in_io=, replacement)
+    tty.send(:tty_out_io=, replacement)
+    allow(old_io).to receive(:read_nonblock).and_raise(IOError)
+
+    expect(tty.send(:tty_read, old_io)).to be_nil
+    expect(tty.send(:tty_in_io)).to equal(replacement)
+    expect(tty.send(:tty_out_io)).to equal(replacement)
+    expect(tty.closed).to be_nil
+    expect(old_io).to have_received(:close)
+  end
+
+  it 'routes tty write failures through exact close handling' do
+    klass = Class.new(described_class) do
+      attr_reader :context
+
+      def close_context
+        :run
+      end
+
+      def on_close(context)
+        @context = context
+      end
+    end
+    tty = klass.new(build_ct, 1)
+    io = instance_double(IO, closed?: false, close: nil)
+    tty.instance_variable_set(:@opened, true)
+    tty.send(:tty_in_io=, io)
+    tty.send(:tty_out_io=, io)
+    allow(io).to receive(:write).and_raise(Errno::EPIPE)
+
+    expect(tty.send(:tty_write, io, 'input')).to be_nil
+    expect(tty.send(:tty_in_io)).to be_nil
+    expect(tty.send(:tty_out_io)).to be_nil
+    expect(tty.context).to eq(:run)
   end
 end

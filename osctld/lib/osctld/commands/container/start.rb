@@ -14,44 +14,120 @@ module OsCtld
       ct || error!('container not found')
     end
 
+    def request_stop
+      @stop_requested = true
+      @pending_wait_token&.fulfil
+    end
+
     def execute(ct)
       return start_queued(ct) if opts[:queue]
 
-      event_queue = nil
+      wait_until = start_wait_until
 
-      manipulate(ct) do
-        event_queue = Eventd.subscribe
-        ret = start_now(ct)
+      loop do
+        pending_run_conf = nil
+        event_queue = nil
+        ret = nil
 
-        # Exit if we don't need to wait
-        if ret != :wait
-          Eventd.unsubscribe(event_queue)
-          return ret
+        manipulate(ct) do
+          pending_run_conf = ct.get_pending_run_conf
 
-        elsif opts[:wait] === false
-          Eventd.unsubscribe(event_queue)
-          return ok
+          unless pending_run_conf
+            event_queue = Eventd.subscribe
+            starting_run_conf = ct.get_starting_run_conf
+            ret = starting_run_conf ? [:wait, starting_run_conf] : start_now(ct)
+          end
         end
 
-        # Wait for the container to enter state `running`
+        if pending_run_conf
+          ret = wait_for_pending_run(pending_run_conf, ct, wait_until)
+          return ret if ret
+
+          next
+        end
+
+        if ret.is_a?(Array) && ret[0] == :launch
+          ret = finish_wrapper_launch(ct, *ret[1..])
+        end
+
+        # Exit if we don't need to wait
+        return ret if !ret.is_a?(Array) || ret[0] != :wait
+        return ok if opts[:wait] === false
+
+        # The manipulation lock must not be held while waiting. A reboot
+        # requested from inside the container needs the same lock to start the
+        # next run.
         progress('Waiting for the container to start')
-        started, msg = wait_for_ct(event_queue, ct)
-        Eventd.unsubscribe(event_queue)
+        started, msg = wait_for_ct(event_queue, ct, ret[1], wait_until)
 
         case started
         when :running
-          ok
+          return ok
         when :timeout
-          error(msg || 'timed out while waiting for container to start')
+          return error(msg || 'timed out while waiting for container to start')
         when :error
-          error(msg || 'container failed to start')
+          return error(msg || 'container failed to start')
         else
-          error(msg || 'unknown error')
+          return error(msg || 'unknown error')
         end
+      ensure
+        Eventd.unsubscribe(event_queue) if event_queue
       end
     end
 
     protected
+
+    def start_wait_until
+      if opts[:wait] == 'infinity' || opts[:wait] === false
+        nil
+      else
+        Time.now + (opts[:wait] || Container::DEFAULT_START_TIMEOUT)
+      end
+    end
+
+    def wait_for_pending_run(run_conf, ct, wait_until)
+      if opts[:wait] === false
+        return error('previous container run is still stopping')
+      end
+
+      if ct.owns_manipulation_lock?
+        return error('previous container run is still stopping')
+      end
+
+      if run_conf.runtime_unknown?
+        progress('Waiting to identify the existing container run')
+        promise = run_conf.get_runtime_resolution_promise
+      else
+        progress('Waiting for the previous container run to stop')
+        promise = run_conf.get_exit_promise
+      end
+
+      @pending_wait_token = promise
+
+      if @stop_requested || Daemon.get.stopping?
+        log(:info, ct, 'osctld is shutting down, giving up waiting')
+        return error('osctld is shutting down')
+      end
+
+      timeout = wait_until - Time.now if wait_until
+
+      if timeout && timeout <= 0
+        return error('timed out while waiting for previous container run to stop')
+      end
+
+      fulfilled = promise.wait(timeout:)
+
+      if @stop_requested || Daemon.get.stopping?
+        log(:info, ct, 'osctld is shutting down, giving up waiting')
+        return error('osctld is shutting down')
+      end
+
+      return if fulfilled
+
+      error('timed out while waiting for previous container run to stop')
+    ensure
+      @pending_wait_token = nil if @pending_wait_token.equal?(promise)
+    end
 
     def start_queued(ct)
       progress('Joining the queue')
@@ -172,7 +248,21 @@ module OsCtld
         '-F'
       ]
 
-      r, w = IO.pipe
+      # Bind before launching the wrapper. The listener itself is the durable
+      # identity across an abrupt osctld restart: if it can be connected, a
+      # wrapper inherited it; if not, the path is merely stale and cleanup can
+      # safely resume.
+      listener = UNIXServer.new(sock_path)
+      File.chown(ct.user.ugid, 0, sock_path)
+
+      console_io = UNIXSocket.new(sock_path)
+      ready_r, ready_w = IO.pipe
+      run_conf = ct.start_pending
+      console_attached = false
+      launch_returned = false
+
+      Console.attach_tty0(ct, nil, console_io, run_conf, ready: false)
+      console_attached = true
 
       progress('Starting container')
       pid = SwitchUser.fork_and_switch_to(
@@ -182,56 +272,84 @@ module OsCtld
         ct.wrapper_cgroup_path,
         prlimits: ct.prlimits.export,
         oom_score_adj: -1000,
-        keep_fds: [w],
+        keep_fds: [ready_w, listener],
         syslogns_tag: ct.syslogns_tag
       ) do
         # Closed by SwitchUser.fork_and_switch_to
-        # r.close
+        # ready_r.close
 
         # This is to remove all Ruby related environment variables, because
         # lxc-start then passes them to hooks, which can make the hooks fail
         # when ruby or osctld gems are upgraded.
         SwitchUser.clear_ruby_env
 
-        wrapper_pid = Process.spawn(
-          *cmd,
-          pgroup: true, in: :close, out: :close, err: :close
-        )
-
-        w.puts(wrapper_pid.to_s)
+        begin
+          Process.spawn(
+            {
+              'OSCTLD_CT_WRAPPER_LISTENER_FD' => listener.fileno.to_s,
+              'OSCTLD_CT_WRAPPER_READY_FD' => ready_w.fileno.to_s
+            },
+            *cmd,
+            pgroup: true, in: :close, out: :close, err: :close,
+            listener => listener,
+            ready_w => ready_w
+          )
+        ensure
+          listener.close
+          ready_w.close
+        end
       end
 
-      w.close
-      wrapper_pid = r.readline.strip.to_i
-      r.close
-
-      progress('Connecting console')
-
-      begin
-        Console.connect_tty0(ct, wrapper_pid)
-      rescue Errno::ENOENT, Errno::ECONNREFUSED
-        log(:warn, ct, 'Unable to connect to tty0')
-      end
-
+      ready_w.close
+      listener.close
       Process.wait(pid)
-      :wait
+
+      launch_returned = true
+      [:launch, run_conf, ready_r]
+    rescue StandardError
+      ct.abort_start(run_conf) if run_conf && !console_attached
+      raise
+    ensure
+      [listener, ready_w].each do |io|
+        io&.close unless io&.closed?
+      end
+
+      console_io&.close unless console_attached || console_io&.closed?
+      ready_r&.close unless launch_returned || ready_r&.closed?
+    end
+
+    # Complete the event-driven handoff from the wrapper outside of the
+    # manipulation lock. This may wait indefinitely when the host is
+    # overloaded, but it cannot prevent stop cleanup or a queued reboot from
+    # acquiring the lock.
+    def finish_wrapper_launch(ct, run_conf, ready_io)
+      # Daemon shutdown also waits for readiness or EOF. Once readiness is
+      # received, the console socket is an exact identity which the next daemon
+      # can reconnect to.
+      ready_signal = ready_io.read(1)
+
+      if ready_signal != '1'
+        return error('container wrapper failed to start')
+      end
+
+      unless Console.activate_tty0(ct, run_conf)
+        return error('container wrapper console closed before becoming ready')
+      end
+
+      [:wait, run_conf]
+    ensure
+      ready_io.close unless ready_io.closed?
     end
 
     # Wait for the container to start or fail
     # @return [Array<Symbol, String>] :running, :timeout or :error and string message
-    def wait_for_ct(event_queue, ct)
+    def wait_for_ct(event_queue, ct, run_conf, wait_until)
       # Sequence of events that lead to the container being started.
       # We're accepting even `stopping` and `stopped`, since when the container
       # is being restarted, these events may be received and should not cause
       # this method to exit.
       sequence = %i[stopping stopped starting running]
       last_i = nil
-      wait_until =
-        if opts[:wait] == 'infinity'
-          nil
-        else
-          Time.now + (opts[:wait] || Container::DEFAULT_START_TIMEOUT)
-        end
       shutdown_wait_until = nil
 
       loop do
@@ -275,6 +393,11 @@ module OsCtld
               && event.opts[:id] == ct.id \
               && event.opts[:state] == :stopped
           return [:error, 'start failed, container is found to be stopped']
+        elsif event.type == :ct_start_failed \
+              && event.opts[:pool] == ct.pool.name \
+              && event.opts[:id] == ct.id \
+              && event.opts[:run_id] == run_conf.run_id.to_s
+          return [:error, event.opts[:message]]
         end
 
         # Ignore irrelevant events

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'osctld/attributes'
+require 'osctld/console'
 require 'osctld/pool'
 
 RSpec.describe OsCtld::Pool do
@@ -203,6 +204,38 @@ RSpec.describe OsCtld::Pool do
       expect(pool.ct_ds).to eq('tank/ct')
       expect(pool.trash_bin_ds).to eq('tank/trash')
       expect(pool.config_path).to eq(File.join(dir, 'conf', 'pool', 'config.yml'))
+    end
+  end
+
+  it 'retries console attachment resource exhaustion without a lifecycle cutoff' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      ct = Struct.new(:id).new('ct1')
+      run_conf = Object.new
+      attempts = 0
+      daemon_class = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+
+        def stopping?; end
+      end)
+      daemon = instance_double(daemon_class, stopping?: false)
+      allow(daemon_class).to receive(:get).and_return(daemon)
+      allow(OsCtld::Console).to receive(:reconnect_tty0) do
+        attempts += 1
+        raise Errno::EMFILE if attempts < 3
+
+        true
+      end
+      allow(OsCtld::Console).to receive(:wrapper_exited)
+      allow(pool).to receive(:sleep)
+      allow(pool).to receive(:log)
+
+      pool.send(:reconnect_ct_console, ct, run_conf, cleanup_on_gone: true)
+
+      expect(attempts).to eq(3)
+      expect(pool).to have_received(:sleep).with(0.1).ordered
+      expect(pool).to have_received(:sleep).with(0.2).ordered
+      expect(OsCtld::Console).not_to have_received(:wrapper_exited)
     end
   end
 end

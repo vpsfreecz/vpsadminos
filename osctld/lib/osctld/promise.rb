@@ -23,18 +23,40 @@ module OsCtld
     def initialize
       @mutex = Mutex.new
       @tokens = []
+      @fulfilled = false
     end
 
     # @return [Token]
     def add
       t = Token.new
-      @tokens << t
+
+      @mutex.synchronize do
+        if @fulfilled
+          t.fulfil
+        else
+          @tokens << t
+        end
+      end
+
       t
     end
 
     def fulfil
-      @tokens.each(&:fulfil)
+      tokens = @mutex.synchronize do
+        next [] if @fulfilled
+
+        @fulfilled = true
+        ret = @tokens
+        @tokens = []
+        ret
+      end
+
+      tokens.each(&:fulfil)
       nil
+    end
+
+    def fulfilled?
+      @mutex.synchronize { @fulfilled }
     end
   end
 end

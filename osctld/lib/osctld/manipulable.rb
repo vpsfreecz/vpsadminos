@@ -62,6 +62,10 @@ module OsCtld
         @hold.locked?
       end
 
+      def owned?
+        @hold.owned?
+      end
+
       def holder
         @meta.synchronize { @holder }
       end
@@ -118,6 +122,11 @@ module OsCtld
     # Check if any thread holds the lock
     def is_being_manipulated?
       @manipulation_lock.locked?
+    end
+
+    # Check if the current thread holds the lock
+    def owns_manipulation_lock?
+      @manipulation_lock.owned?
     end
   end
 end

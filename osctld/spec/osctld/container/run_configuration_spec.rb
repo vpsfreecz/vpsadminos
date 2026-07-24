@@ -188,14 +188,107 @@ RSpec.describe OsCtld::Container::RunConfiguration do
     end
   end
 
+  it 'persists a reboot request for cleanup after daemon restart' do
+    with_tmpdir do |dir|
+      ct, rc = build_run_configuration(root: dir)
+
+      rc.request_reboot
+
+      expect(described_class.load(ct).reboot?).to be(true)
+    end
+  end
+
   it 'fulfils exit promises' do
     with_tmpdir do |dir|
       _ct, rc = build_run_configuration(root: dir)
       promise = rc.get_exit_promise
 
+      expect(rc.exited?).to be(false)
+
       rc.fulfil_exit
 
       expect(promise.wait(timeout: 0.1)).to be(true)
+      expect(rc.exited?).to be(true)
+    end
+  end
+
+  it 'tracks a pending start only in memory' do
+    with_tmpdir do |dir|
+      ct, rc = build_run_configuration(root: dir)
+
+      expect(rc.start_pending?).to be(false)
+
+      rc.save
+      rc.start_pending
+      loaded = described_class.load(ct)
+
+      expect(rc.start_pending?).to be(true)
+      expect(loaded.start_pending?).to be(false)
+    end
+  end
+
+  it 'clears the pending start when the run exits' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+
+      rc.start_pending
+      rc.fulfil_exit
+
+      expect(rc.start_pending?).to be(false)
+      expect(rc.exited?).to be(true)
+    end
+  end
+
+  it 'marks a pending run when it enters the LXC lifecycle' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+
+      rc.start_pending
+      rc.runtime_started
+
+      expect(rc.runtime_started?).to be(true)
+      expect(rc.runtime_stopping?).to be(false)
+    end
+  end
+
+  it 'tracks when a pending runtime begins stopping' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+
+      rc.start_pending
+      rc.runtime_started
+      rc.runtime_stopping
+
+      expect(rc.runtime_started?).to be(false)
+      expect(rc.runtime_stopping?).to be(true)
+    end
+  end
+
+  it 'resolves an ambiguous restored runtime on either start or exit' do
+    with_tmpdir do |dir|
+      _ct, started = build_run_configuration(root: dir)
+      _ct, exited = build_run_configuration(root: dir)
+      started.start_pending
+      started.runtime_unknown
+      exited.start_pending
+      exited.runtime_unknown
+      started_promise = started.get_runtime_resolution_promise
+      exited_promise = exited.get_runtime_resolution_promise
+
+      started.runtime_started
+      exited.fulfil_exit
+
+      expect(started_promise.wait(timeout: 0)).to be(true)
+      expect(exited_promise.wait(timeout: 0)).to be(true)
+    end
+  end
+
+  it 'allows post-stop cleanup to be claimed once' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+
+      expect(rc.claim_exit_cleanup).to be(true)
+      expect(rc.claim_exit_cleanup).to be(false)
     end
   end
 

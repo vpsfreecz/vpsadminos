@@ -32,7 +32,19 @@ RSpec.describe OsCtld::Monitor::Process do
   end
 
   def build_ct(id: 'ct1')
-    run_conf = Struct.new(:init_pid, :aborted).new(nil, false)
+    run_conf = Struct.new(:init_pid, :aborted, :pending, :runtime) do
+      def start_pending?
+        pending
+      end
+
+      def runtime_started
+        self.runtime = :started
+      end
+
+      def runtime_stopping
+        self.runtime = :stopping
+      end
+    end.new(nil, false, true, false)
     mounts = Struct.new(:pruned) do
       def prune
         self.pruned = true
@@ -41,6 +53,7 @@ RSpec.describe OsCtld::Monitor::Process do
 
     Struct.new(
       :id, :pool, :user, :group, :state, :run_conf, :mounts, :lxc_home,
+      :trace,
       keyword_init: true
     ) do
       def ident
@@ -54,6 +67,23 @@ RSpec.describe OsCtld::Monitor::Process do
       def init_pid
         run_conf.init_pid
       end
+
+      def state=(new_state)
+        trace << [:state, new_state]
+        self[:state] = new_state
+      end
+
+      def existing_runtime_state_changed(new_state)
+        self.state = new_state
+        trace << [:phase, new_state]
+        return unless run_conf.start_pending?
+
+        if %i[starting running].include?(new_state)
+          run_conf.runtime_started
+        elsif %i[stopping stopped aborting aborted].include?(new_state)
+          run_conf.runtime_stopping
+        end
+      end
     end.new(
       id:,
       pool:,
@@ -62,7 +92,8 @@ RSpec.describe OsCtld::Monitor::Process do
       state: :stopped,
       run_conf:,
       mounts:,
-      lxc_home: '/var/lib/lxc/alice'
+      lxc_home: '/var/lib/lxc/alice',
+      trace: []
     )
   end
 
@@ -96,7 +127,9 @@ RSpec.describe OsCtld::Monitor::Process do
       def self.run!(_ct); end
     end)
     allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
-    allow(eventd).to receive(:report)
+    allow(eventd).to receive(:report) do |type, **opts|
+      ct.trace << [:event, opts[:state]] if type == :state
+    end
     allow(hook).to receive(:run)
     allow(state_class).to receive(:run!).with(ct).and_return(
       Struct.new(:id, :state, :init_pid).new('ct1', :running, 5678)
@@ -106,6 +139,9 @@ RSpec.describe OsCtld::Monitor::Process do
 
     expect(ct.state).to eq(:running)
     expect(ct.ensure_run_conf.init_pid).to eq(5678)
+    expect(ct.ensure_run_conf.runtime).to eq(:started)
+    expect(ct.trace.index(%i[state running])).to be < ct.trace.index(%i[phase running])
+    expect(ct.trace.index(%i[phase running])).to be < ct.trace.index(%i[event running])
     expect(eventd).to have_received(:report).with(:state, pool: 'tank', id: 'ct1', state: :running)
     expect(eventd).to have_received(:report).with(:ct_init_pid, pool: 'tank', id: 'ct1', init_pid: 5678)
     expect(hook).to have_received(:run).with(ct, :post_start, init_pid: 5678)
@@ -175,6 +211,7 @@ RSpec.describe OsCtld::Monitor::Process do
 
     process.send(:update_state, pool: 'tank', ctid: 'ct1', state: :stopping)
 
+    expect(ct.ensure_run_conf.runtime).to eq(:stopping)
     expect(hook).to have_received(:run).with(ct, :on_stop)
   end
 

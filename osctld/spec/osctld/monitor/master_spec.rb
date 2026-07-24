@@ -19,7 +19,10 @@ RSpec.describe OsCtld::Monitor::Master do
     group = Struct.new(:name).new(group_name)
     run_conf = Struct.new(:init_pid).new(nil)
 
-    Struct.new(:id, :pool, :user, :group, :state, :run_conf, keyword_init: true) do
+    Struct.new(
+      :id, :pool, :user, :group, :state, :run_conf, :runtime_states,
+      keyword_init: true
+    ) do
       def ident
         "#{pool.name}:#{id}"
       end
@@ -27,7 +30,12 @@ RSpec.describe OsCtld::Monitor::Master do
       def ensure_run_conf
         run_conf
       end
-    end.new(id:, pool:, user:, group:, state: :stopped, run_conf:)
+
+      def existing_runtime_state_changed(new_state)
+        self.state = new_state
+        runtime_states << new_state
+      end
+    end.new(id:, pool:, user:, group:, state: :stopped, run_conf:, runtime_states: [])
   end
 
   it 'creates one monitor thread per pool/user/group key' do
@@ -93,6 +101,7 @@ RSpec.describe OsCtld::Monitor::Master do
     master.send(:update_state, ct)
 
     expect(ct.state).to eq(:running)
+    expect(ct.runtime_states).to eq([:running])
     expect(ct.ensure_run_conf.init_pid).to eq(4321)
     expect(eventd).to have_received(:report).with(
       :ct_init_pid,

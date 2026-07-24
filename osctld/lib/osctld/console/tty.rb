@@ -182,8 +182,17 @@ module OsCtld
     end
 
     def close
-      wake(:stop)
-      @thread.join if @thread
+      thread = @thread
+      @thread = nil
+
+      if thread
+        wake(:stop) if thread.alive?
+        thread.join
+      end
+
+      [@wake_r, @wake_w].each do |io|
+        io.close unless io.closed?
+      end
     end
 
     protected
@@ -209,22 +218,16 @@ module OsCtld
     def tty_read(io)
       io.read_nonblock(4096)
     rescue IOError, Errno::ECONNRESET => e
-      log(:info, ct, "Closing TTY #{n} (#{e.class}: #{e.message})")
-
-      sync do
-        @opened = false
-        self.tty_pid = nil
-        self.tty_in_io = nil
-        self.tty_out_io = nil
-      end
-
-      on_close
+      handle_tty_close(io, e)
       nil
     end
 
     def tty_write(io, data)
       io.write(data)
       io.flush
+    rescue IOError, Errno::ECONNRESET, Errno::EPIPE => e
+      handle_tty_close(io, e)
+      nil
     end
 
     def client_read(io)
@@ -239,7 +242,33 @@ module OsCtld
       sync { @clients.delete(io) }
     end
 
-    def on_close; end
+    def handle_tty_close(io, error)
+      log(:info, ct, "Closing TTY #{n} (#{error.class}: #{error.message})")
+
+      closed = false
+      context = sync do
+        next unless io.equal?(tty_in_io) || io.equal?(tty_out_io)
+
+        closed = true
+        @opened = false
+        self.tty_pid = nil
+        self.tty_in_io = nil
+        self.tty_out_io = nil
+        close_context
+      end
+
+      begin
+        io.close unless io.closed?
+      rescue IOError
+        # The descriptor is already unusable
+      end
+
+      on_close(context) if closed
+    end
+
+    def close_context; end
+
+    def on_close(_context); end
 
     def sync(&)
       if @mutex.owned?

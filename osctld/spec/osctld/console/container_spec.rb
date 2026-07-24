@@ -10,13 +10,15 @@ RSpec.describe OsCtld::Console::Container do
 
   before do
     console_class = Class.new do
-      attr_reader :ct, :n, :clients, :connect_calls, :start_calls, :close_calls
+      attr_reader :ct, :n, :clients, :connect_calls, :attach_calls, :start_calls,
+                  :close_calls
 
       def initialize(ct, n)
         @ct = ct
         @n = n
         @clients = []
         @connect_calls = []
+        @attach_calls = []
         @start_calls = 0
         @close_calls = 0
       end
@@ -29,8 +31,17 @@ RSpec.describe OsCtld::Console::Container do
         @clients << io
       end
 
-      def connect(pid, socket)
-        @connect_calls << [pid, socket]
+      def connect(pid, socket, run_conf, retry_limit: nil)
+        @connect_calls << [pid, socket, run_conf, retry_limit]
+      end
+
+      def attach(pid, io, run_conf, ready: true)
+        @attach_calls << [pid, io, run_conf, ready]
+      end
+
+      def activate(run_conf)
+        @attach_calls << [:activate, run_conf]
+        true
       end
 
       def close
@@ -73,10 +84,38 @@ RSpec.describe OsCtld::Console::Container do
 
   it 'delegates tty0 connections through tty 0' do
     container = described_class.new(ct)
+    run_conf = Object.new
 
-    container.connect_tty0(101, '/tmp/tty0.sock')
+    container.connect_tty0(101, '/tmp/tty0.sock', run_conf)
 
-    expect(console_instances.first.connect_calls).to eq([[101, '/tmp/tty0.sock']])
+    expect(console_instances.first.connect_calls).to eq([
+                                                          [101, '/tmp/tty0.sock', run_conf, nil]
+                                                        ])
+  end
+
+  it 'reconnects tty0 without a timing retry loop' do
+    container = described_class.new(ct)
+    run_conf = Object.new
+
+    container.reconnect_tty0('/tmp/tty0.sock', run_conf)
+
+    expect(console_instances.first.connect_calls).to eq([
+                                                          [nil, '/tmp/tty0.sock', run_conf, 0]
+                                                        ])
+  end
+
+  it 'delegates preconnected tty0 sockets through tty 0' do
+    container = described_class.new(ct)
+    run_conf = Object.new
+    io = StringIO.new
+
+    container.attach_tty0(nil, io, run_conf, ready: false)
+    expect(container.activate_tty0(run_conf)).to be(true)
+
+    expect(console_instances.first.attach_calls).to eq([
+                                                         [nil, io, run_conf, false],
+                                                         [:activate, run_conf]
+                                                       ])
   end
 
   it 'closes every opened tty' do

@@ -36,7 +36,11 @@ module OsCtld
       @aborted = false
       @do_reboot = false
       @exit_promise = Promise.new
+      @runtime_resolution_promise = Promise.new
       @dist_network_configured = false
+      @start_pending = false
+      @runtime_phase = :inactive
+      @exit_cleanup_started = false
       self.load_conf(from_file: load_conf)
     end
 
@@ -143,11 +147,12 @@ module OsCtld
 
     # After the current container run stops, start it again
     def request_reboot
-      @do_reboot = true
+      exclusively { @do_reboot = true }
+      save
     end
 
     def reboot?
-      @do_reboot
+      inclusively { @do_reboot }
     end
 
     def get_exit_promise
@@ -155,7 +160,71 @@ module OsCtld
     end
 
     def fulfil_exit
+      exclusively { @start_pending = false }
+      @runtime_resolution_promise.fulfil
       @exit_promise.fulfil
+    end
+
+    def exited?
+      @exit_promise.fulfilled?
+    end
+
+    def start_pending
+      exclusively do
+        @start_pending = true
+        @runtime_phase = :launching
+      end
+    end
+
+    def start_pending?
+      inclusively { @start_pending }
+    end
+
+    def runtime_started
+      exclusively { @runtime_phase = :started }
+      @runtime_resolution_promise.fulfil
+    end
+
+    def runtime_started?
+      inclusively { @runtime_phase == :started }
+    end
+
+    def runtime_stopping
+      exclusively { @runtime_phase = :stopping }
+      @runtime_resolution_promise.fulfil
+    end
+
+    def runtime_stopping?
+      inclusively { @runtime_phase == :stopping }
+    end
+
+    def runtime_launching?
+      inclusively { @runtime_phase == :launching }
+    end
+
+    def runtime_unknown
+      exclusively { @runtime_phase = :unknown }
+    end
+
+    def runtime_unknown?
+      inclusively { @runtime_phase == :unknown }
+    end
+
+    def get_runtime_resolution_promise
+      @runtime_resolution_promise.add
+    end
+
+    # Claim post-stop cleanup
+    #
+    # Console EOF and an explicit wrapper failure can race each other. Only one
+    # of them is allowed to clean up the run.
+    def claim_exit_cleanup
+      exclusively do
+        next false if @exit_cleanup_started
+
+        @exit_cleanup_started = true
+        true
+      end
     end
 
     def dist_configure_network?
@@ -179,7 +248,8 @@ module OsCtld
           'vendor' => vendor,
           'variant' => variant,
           'cpu_package' => cpu_package,
-          'destroy_dataset_on_stop' => destroy_dataset_on_stop?
+          'destroy_dataset_on_stop' => destroy_dataset_on_stop?,
+          'reboot' => @do_reboot
         }
       end
     end
@@ -210,6 +280,7 @@ module OsCtld
       @vendor = cfg['vendor'] || ct.vendor
       @variant = cfg['variant'] || ct.variant
       @cpu_package = cfg['cpu_package']
+      @do_reboot = cfg.fetch('reboot', false)
       @destroy_dataset_on_stop =
         if cfg.has_key?('destroy_dataset_on_stop')
           cfg['destroy_dataset_on_stop']

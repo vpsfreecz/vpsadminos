@@ -11,14 +11,34 @@ module OsCtld
     end
 
     # Connect to tty0 of container `ct`
-    def self.connect_tty0(ct, pid)
+    def self.connect_tty0(ct, pid, run_conf)
       @mutex.synchronize do
-        container(ct).connect_tty0(pid, socket_path(ct))
+        container(ct).connect_tty0(pid, socket_path(ct), run_conf)
       end
     end
 
+    # Attach an already connected tty0 socket
+    def self.attach_tty0(ct, pid, io, run_conf, ready: true)
+      @mutex.synchronize do
+        container(ct).attach_tty0(pid, io, run_conf, ready:)
+      end
+    end
+
+    # Enable input after the wrapper reports that its PTY child is ready
+    def self.activate_tty0(ct, run_conf)
+      @mutex.synchronize do
+        container(ct).activate_tty0(run_conf)
+      end
+    end
+
+    # Handle a wrapper which exited before its console could be connected
+    def self.wrapper_exited(ct, run_conf)
+      console = @mutex.synchronize { container(ct).tty(0) }
+      console.wrapper_exited(run_conf)
+    end
+
     # Reconnect tty0 pipes on osctld restart
-    def self.reconnect_tty0(ct)
+    def self.reconnect_tty0(ct, run_conf)
       @mutex.synchronize do
         log(:info, ct, 'Reopening TTY0')
 
@@ -30,10 +50,11 @@ module OsCtld
             ct,
             "Socket '#{socket}' for tty0 not found, console will not work"
           )
-          return
+          return false
         end
 
-        container(ct).connect_tty0(nil, socket)
+        container(ct).reconnect_tty0(socket, run_conf)
+        true
       end
     end
 

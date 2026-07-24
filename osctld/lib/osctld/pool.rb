@@ -696,17 +696,72 @@ module OsCtld
 
         ct.reconfigure
 
-        running = ct.fresh_state == :running
+        runtime_state = ct.fresh_state
+        running = runtime_state == :running
 
         ct.ensure_run_conf if running
-        Monitor::Master.monitor(ct)
-        Console.reconnect_tty0(ct) if running
+        run_conf = ct.run_conf
+        wrapper_socket = run_conf && File.exist?(Console.socket_path(ct))
+        recover_pending = run_conf && runtime_state == :stopped && !wrapper_socket
 
+        if wrapper_socket || recover_pending
+          phase =
+            if recover_pending || %i[stopping aborting aborted].include?(runtime_state)
+              :stopping
+            elsif %i[starting running].include?(runtime_state)
+              :started
+            else
+              :unknown
+            end
+
+          ct.restore_start_pending(phase:)
+        end
+
+        # The pending marker has to be restored before monitoring starts, so an
+        # immediate state event cannot be lost between state discovery and
+        # reconstruction.
+        Monitor::Master.monitor(ct)
+
+        # Reconnect and synthetic stop handlers may finish immediately and
+        # invoke commands such as ephemeral deletion. Make the container
+        # discoverable before any such handler is scheduled.
         DB::Containers.add(ct)
+
+        if wrapper_socket
+          reconnect_ct_console(ct, run_conf, cleanup_on_gone: true)
+        elsif recover_pending
+          Console.wrapper_exited(ct, run_conf)
+        elsif running
+          reconnect_ct_console(ct, run_conf, cleanup_on_gone: false)
+        end
       end
 
       ep.wait
       log(:info, 'All containers loaded')
+    end
+
+    def reconnect_ct_console(ct, run_conf, cleanup_on_gone:)
+      delay = 0.1
+
+      loop do
+        connected = Console.reconnect_tty0(ct, run_conf)
+        Console.wrapper_exited(ct, run_conf) if !connected && cleanup_on_gone
+        return
+      rescue Errno::ENOENT, Errno::ECONNREFUSED
+        log(:warn, ct, 'Unable to reconnect tty0')
+        Console.wrapper_exited(ct, run_conf) if cleanup_on_gone
+        return
+      rescue Errno::EAGAIN, Errno::EMFILE, Errno::ENFILE, Errno::ENOMEM,
+             Errno::ENOBUFS, ThreadError => e
+        if Daemon.get.stopping?
+          log(:info, ct, 'osctld is shutting down, leaving tty0 for the next daemon')
+          return
+        end
+
+        log(:warn, ct, "Unable to allocate tty0 resources, retrying: #{e.message}")
+        sleep(delay)
+        delay = [delay * 2, 5].min
+      end
     end
 
     def load_repositories

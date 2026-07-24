@@ -110,15 +110,17 @@ module OsCtld
 
       return if ct.state == :error
 
-      # When transitioning to `running`, send the event only after init_pid was set
-      # below, so that when {Commands::Container::Start} finishes waiting and returns,
-      # the init_pid is not nil.
+      # Update cached state and the run phase atomically. In particular, no
+      # other start may observe :stopped while the old run is still classified
+      # as a launch.
+      ct.existing_runtime_state_changed(change[:state])
+      init_pid = nil
+
+      # Publish state only after the run phase and cached state agree. Running
+      # is published further below, after init_pid is available.
       if change[:state] != :running
         Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
       end
-
-      ct.state = change[:state]
-      init_pid = nil
 
       case ct.state
       when :running

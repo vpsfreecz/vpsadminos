@@ -24,7 +24,7 @@ module OsCtld
         ct.run_conf.request_reboot
       end
 
-      ct.stopped
+      ct.stopped(retain_run_conf: true)
 
       # User-defined hook
       Hook.run(ct, :post_stop)

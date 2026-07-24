@@ -312,7 +312,122 @@ RSpec.describe OsCtld::Container do
       end
     end
 
-    it 'moves the active run configuration to past_run_conf when stopped' do
+    it 'does not create a pending-start barrier for manually started LXC' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+
+        ct.starting
+
+        expect(ct.run_conf.start_pending?).to be(false)
+      end
+    end
+
+    it 'marks an osctld-managed start as pending' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.instance_variable_set('@run_conf', run_conf_class.new(ct, load_conf: false))
+
+        expect(ct.start_pending).to equal(ct.run_conf)
+        expect(ct.run_conf.start_pending?).to be(true)
+      end
+    end
+
+    it 'restores a pending runtime when reconnecting its wrapper' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+
+        ct.restore_start_pending(phase: :started)
+
+        expect(active.start_pending?).to be(true)
+        expect(active.runtime_started?).to be(true)
+        expect(active.runtime_stopping?).to be(false)
+      end
+    end
+
+    it 'restores a stopping runtime when reconnecting its wrapper' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+
+        ct.restore_start_pending(phase: :stopping)
+
+        expect(active.start_pending?).to be(true)
+        expect(active.runtime_started?).to be(false)
+        expect(active.runtime_stopping?).to be(true)
+      end
+    end
+
+    it 'restores an ambiguous stopped runtime without guessing its direction' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@state', :stopped)
+        ct.instance_variable_set('@run_conf', active)
+
+        ct.restore_start_pending(phase: :unknown)
+
+        expect(active.start_pending?).to be(true)
+        expect(active.runtime_unknown?).to be(true)
+        expect(ct.get_starting_run_conf).to be_nil
+        expect(ct.get_pending_run_conf).to equal(active)
+      end
+    end
+
+    it 'retains the stopped run configuration until console cleanup finishes' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+        active.start_pending
+
+        ct.stopped(retain_run_conf: true)
+
+        expect(active.destroy_calls).to eq(0)
+        expect(active.runtime_stopping?).to be(true)
+        expect(ct.run_conf).to be_nil
+        expect(ct.get_past_run_conf).to eq(active)
+
+        ct.forget_past_run_conf(active)
+
+        expect(active.destroy_calls).to eq(1)
+        expect(ct.get_past_run_conf).to be_nil
+      end
+    end
+
+    it 'does not retain a recovery marker for a halted unmanaged run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+
+        ct.stopped(retain_run_conf: true)
+
+        expect(active.start_pending?).to be(false)
+        expect(active.destroy_calls).to eq(1)
+        expect(ct.get_past_run_conf).to equal(active)
+      end
+    end
+
+    it 'does not retain a recovery marker for a rebooting unmanaged run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+        active.request_reboot
+
+        ct.stopped(retain_run_conf: true)
+
+        expect(active.reboot?).to be(true)
+        expect(active.start_pending?).to be(false)
+        expect(active.destroy_calls).to eq(1)
+        expect(ct.get_past_run_conf).to equal(active)
+      end
+    end
+
+    it 'destroys the runtime file immediately for non-console stop callers' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
         active = run_conf_class.new(ct, load_conf: false)
@@ -321,19 +436,202 @@ RSpec.describe OsCtld::Container do
         ct.stopped
 
         expect(active.destroy_calls).to eq(1)
-        expect(ct.run_conf).to be_nil
-        expect(ct.get_past_run_conf).to eq(active)
+        expect(ct.get_past_run_conf).to equal(active)
+      end
+    end
+
+    it 'marks a pending run as having entered the LXC lifecycle' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+        active.start_pending
+
+        ct.existing_runtime_state_changed(:starting)
+
+        expect(ct.state).to eq(:starting)
+        expect(active.runtime_started?).to be(true)
+      end
+    end
+
+    it 'keeps a stopped monitor snapshot classified as the same wrapper launch' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@state', :stopped)
+        ct.instance_variable_set('@run_conf', active)
+        active.start_pending
+
+        ct.existing_runtime_state_changed(:stopped)
+
+        expect(ct.state).to eq(:stopped)
+        expect(active.runtime_launching?).to be(true)
+        expect(active.runtime_stopping?).to be(false)
+        expect(ct.get_starting_run_conf).to equal(active)
+      end
+    end
+
+    it 'keeps a restored stopped runtime ambiguous until an exact event' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@state', :stopped)
+        ct.instance_variable_set('@run_conf', active)
+        ct.restore_start_pending(phase: :unknown)
+
+        ct.existing_runtime_state_changed(:stopped)
+
+        expect(active.runtime_unknown?).to be(true)
+        expect(active.runtime_stopping?).to be(false)
+        expect(ct.get_pending_run_conf).to equal(active)
+      end
+    end
+
+    it 'applies replacement monitor events to the active run, not retained past run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        old_run = run_conf_class.new(ct, load_conf: false)
+        active = run_conf_class.new(ct, load_conf: false)
+        old_run.start_pending
+        old_run.fulfil_exit
+        active.start_pending
+        active.runtime_started
+        ct.instance_variable_set('@state', :running)
+        ct.instance_variable_set('@past_run_conf', old_run)
+        ct.instance_variable_set('@run_conf', active)
+
+        ct.existing_runtime_state_changed(:stopped)
+
+        expect(active.runtime_stopping?).to be(true)
+        expect(ct.get_starting_run_conf).to be_nil
+        expect(ct.get_pending_run_conf).to equal(active)
       end
     end
 
     it 'forgets the past runtime configuration' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
-        ct.instance_variable_set('@past_run_conf', run_conf_class.new(ct, load_conf: false))
+        past = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@past_run_conf', past)
 
         ct.forget_past_run_conf
 
         expect(ct.get_past_run_conf).to be_nil
+        expect(past.destroy_calls).to eq(1)
+      end
+    end
+
+    it 'does not unlink an active replacement when forgetting its predecessor' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        past = run_conf_class.new(ct, load_conf: false)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@past_run_conf', past)
+        ct.instance_variable_set('@run_conf', active)
+
+        ct.forget_past_run_conf(past)
+
+        expect(ct.get_past_run_conf).to be_nil
+        expect(ct.run_conf).to equal(active)
+        expect(past.destroy_calls).to eq(0)
+      end
+    end
+
+    it 'returns pending runs which are stopped or stopping' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        past = run_conf_class.new(ct, load_conf: false)
+
+        ct.instance_variable_set('@state', :stopping)
+        ct.instance_variable_set('@run_conf', active)
+        active.start_pending
+        active.runtime_started
+        expect(ct.get_pending_run_conf).to eq(active)
+
+        ct.instance_variable_set('@state', :stopped)
+        active.runtime_stopping
+        expect(ct.get_pending_run_conf).to eq(active)
+
+        ct.instance_variable_set('@state', :stopped)
+        ct.instance_variable_set('@run_conf', nil)
+        ct.instance_variable_set('@past_run_conf', past)
+        past.start_pending
+        expect(ct.get_pending_run_conf).to eq(past)
+
+        ct.instance_variable_set('@state', :running)
+        expect(ct.get_pending_run_conf).to be_nil
+
+        ct.instance_variable_set('@state', :stopped)
+        past.exited = true
+        expect(ct.get_pending_run_conf).to be_nil
+      end
+    end
+
+    it 'keeps a pre-started runtime in the active launch until it begins stopping' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@state', :stopped)
+        ct.instance_variable_set('@run_conf', active)
+        active.start_pending
+
+        expect(ct.get_starting_run_conf).to equal(active)
+        expect(ct.get_pending_run_conf).to be_nil
+
+        active.runtime_started
+
+        expect(ct.get_starting_run_conf).to equal(active)
+        expect(ct.get_pending_run_conf).to be_nil
+
+        active.runtime_stopping
+
+        expect(ct.get_starting_run_conf).to be_nil
+        expect(ct.get_pending_run_conf).to equal(active)
+      end
+    end
+
+    it 'marks a pending active run as stopping before moving it to the past slot' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+        active.start_pending
+        active.runtime_started
+
+        ct.stopped
+
+        expect(active.runtime_stopping?).to be(true)
+        expect(ct.get_past_run_conf).to equal(active)
+      end
+    end
+
+    it 'moves only the matching run to the stopped slot' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        stale = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+
+        expect(ct.stop_run(stale)).to be(false)
+        expect(ct.stop_run(active)).to be(true)
+        expect(ct.run_conf).to be_nil
+        expect(ct.get_past_run_conf).to equal(active)
+      end
+    end
+
+    it 'aborts only the matching active start' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        stale = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+        active.start_pending
+
+        expect(ct.abort_start(stale)).to be(false)
+        expect(ct.abort_start(active)).to be(true)
+        expect(ct.run_conf).to be_nil
+        expect(active.exited?).to be(true)
       end
     end
   end
@@ -461,6 +759,28 @@ RSpec.describe OsCtld::Container do
         ct.instance_variable_set('@state', :staged)
         ct.state = :running
         expect(ct.state).to eq(:running)
+      end
+    end
+
+    it 'preserves staged transition rules for monitor state updates' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir, staged: true)
+        ct.configure('almalinux', '9', 'x86_64')
+        ct.instance_variable_set('@state', :staged)
+        ct.run_conf.start_pending
+        allow(ct).to receive(:save_config).and_call_original
+
+        ct.existing_runtime_state_changed(:starting)
+
+        expect(ct.state).to eq(:staged)
+        expect(ct.run_conf.runtime_launching?).to be(true)
+        expect(ct).not_to have_received(:save_config)
+
+        ct.existing_runtime_state_changed(:running)
+
+        expect(ct.state).to eq(:running)
+        expect(ct.run_conf.runtime_started?).to be(true)
+        expect(ct).to have_received(:save_config).once
       end
     end
 

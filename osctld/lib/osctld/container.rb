@@ -228,8 +228,53 @@ module OsCtld
       inclusively { @past_run_conf }
     end
 
-    def forget_past_run_conf
-      exclusively { @past_run_conf = nil }
+    # Return the active run configuration while its runtime is launching
+    #
+    # The pre-start hook can run before lxc-monitor changes the cached container
+    # state from :stopped. Treat both the wrapper launch and that monitor gap as
+    # the same start, so another start joins it instead of waiting for its exit.
+    # @return [Container::RunConfiguration, nil]
+    def get_starting_run_conf
+      inclusively do
+        next unless state == :stopped
+
+        run_conf = @run_conf
+        launching = run_conf&.runtime_launching? || run_conf&.runtime_started?
+
+        if run_conf&.start_pending? && launching && !run_conf.exited?
+          run_conf
+        end
+      end
+    end
+
+    # Return a run configuration whose stop is not yet complete
+    # @return [Container::RunConfiguration, nil]
+    def get_pending_run_conf
+      inclusively do
+        next unless %i[stopping stopped aborting aborted].include?(state)
+
+        [@past_run_conf, @run_conf].compact.detect do |run_conf|
+          stopping = state != :stopped \
+                     || @past_run_conf.equal?(run_conf) \
+                     || run_conf.runtime_stopping? \
+                     || run_conf.runtime_unknown?
+
+          stopping && run_conf.start_pending? && !run_conf.exited?
+        end
+      end
+    end
+
+    def forget_past_run_conf(run_conf = nil)
+      exclusively do
+        next unless @past_run_conf
+        next unless run_conf.nil? || @past_run_conf.equal?(run_conf)
+
+        # Keep unlink serialized with init_run_conf#save. Otherwise exit
+        # fulfillment can wake a replacement start between selecting the old
+        # run here and unlinking its shared config path.
+        @past_run_conf.destroy if @run_conf.nil?
+        @past_run_conf = nil
+      end
     end
 
     # @param next_run_conf [Container::RunConfiguration]
@@ -330,21 +375,7 @@ module OsCtld
     end
 
     def state=(v)
-      if state == :staged
-        case v
-        when :complete
-          exclusively { @state = :stopped }
-          save_config
-
-        when :running
-          exclusively { @state = v }
-          save_config
-        end
-
-        return
-      end
-
-      exclusively { @state = v }
+      exclusively { set_state(v) }
     end
 
     # Fetch current container state by forking into it
@@ -379,23 +410,115 @@ module OsCtld
       end
     end
 
-    def starting
+    # Mark the current run as pending before its wrapper is launched
+    # @return [Container::RunConfiguration]
+    def start_pending
       exclusively do
-        # Normally {#init_run_conf} is called from {Commands::Container::Start},
-        # but in case the lxc-start was invoked manually outside of osctld,
-        # initiate the run conf if needed.
-        ensure_run_conf
+        run_conf.start_pending
+        run_conf
       end
     end
 
-    def stopped
+    # Restore the in-memory pending marker when reconnecting to a wrapper after
+    # osctld restart.
+    def restore_start_pending(phase:)
+      exclusively do
+        run_conf&.start_pending
+
+        case phase
+        when :started
+          run_conf&.runtime_started
+        when :stopping
+          run_conf&.runtime_stopping
+        when :unknown
+          run_conf&.runtime_unknown
+        else
+          raise ArgumentError, "unsupported runtime phase #{phase.inspect}"
+        end
+      end
+    end
+
+    # Update cached state and the phase of an already pending run atomically
+    def existing_runtime_state_changed(new_state)
+      exclusively do
+        next unless set_state(new_state)
+
+        # A reboot keeps the completed run in @past_run_conf while its
+        # replacement starts. Monitor events belong to that active replacement;
+        # use the past run only when there is no active generation.
+        run_conf = @run_conf || @past_run_conf
+
+        next unless run_conf&.start_pending?
+
+        if %i[starting running].include?(new_state)
+          run_conf.runtime_started
+        elsif %i[stopping aborting].include?(new_state) \
+              || (
+                %i[stopped aborted].include?(new_state) \
+                && run_conf.runtime_started?
+              )
+          run_conf.runtime_stopping
+        end
+      end
+    end
+
+    def starting
+      exclusively do
+        # Normally {#init_run_conf} is called from {Commands::Container::Start},
+        # but in case lxc-start was invoked manually outside of osctld,
+        # initiate the run conf if needed.
+        ensure_run_conf
+
+        if run_conf.start_pending?
+          @state = :starting
+          run_conf.runtime_started
+        end
+      end
+    end
+
+    # @param retain_run_conf [Boolean] preserve a managed runtime file until
+    #   console cleanup is complete, so osctld can reconstruct the barrier after
+    #   restart. Unmanaged runs have no console observer and are never retained.
+    def stopped(retain_run_conf: false)
       exclusively do
         if run_conf
-          run_conf.destroy
+          managed = run_conf.start_pending?
+          run_conf.runtime_stopping if managed
+          run_conf.destroy unless retain_run_conf && managed
           @past_run_conf = @run_conf
           @run_conf = nil
         end
       end
+    end
+
+    # Move an exact run configuration to the stopped slot
+    #
+    # This is used when the wrapper exits before LXC's post-stop callback.
+    # @return [Boolean] true if this run is current or already stopped
+    def stop_run(run_conf)
+      exclusively do
+        if @run_conf.equal?(run_conf)
+          @past_run_conf = @run_conf
+          @run_conf = nil
+          true
+        else
+          @past_run_conf.equal?(run_conf)
+        end
+      end
+    end
+
+    # Discard an exact run whose wrapper failed before becoming ready
+    def abort_start(run_conf)
+      removed = exclusively do
+        next false unless @run_conf.equal?(run_conf)
+
+        run_conf.destroy
+        @run_conf = nil
+        true
+      end
+
+      run_conf.fulfil_exit if removed
+      removed
     end
 
     def can_dist_configure_network?
@@ -913,6 +1036,28 @@ module OsCtld
                           :cgparams, :cpu_package, :devices, :seccomp_profile, :apparmor, :attrs,
                           :lxc_config, :init_cmd, :start_menu, :impermanence
     attr_synchronized_accessor :mounted
+
+    # Change cached state with the staged-container rules from {#state=}.
+    #
+    # @return [Boolean] whether the transition was accepted
+    def set_state(new_state)
+      if @state == :staged
+        case new_state
+        when :complete
+          @state = :stopped
+        when :running
+          @state = new_state
+        else
+          return false
+        end
+
+        save_config
+      else
+        @state = new_state
+      end
+
+      true
+    end
 
     def load_config_file(path = nil, **)
       cfg = parse_yaml do

@@ -175,7 +175,7 @@ module ContainerHelpers
 
       attr_reader :ct, :destroy_calls, :save_calls, :distribution_updates
       attr_accessor :dataset, :distribution, :version, :arch, :vendor, :variant,
-                    :cpu_package, :init_pid
+                    :cpu_package, :init_pid, :exited
 
       def initialize(ct, load_conf: true)
         @ct = ct
@@ -190,6 +190,11 @@ module ContainerHelpers
         @destroy_calls = 0
         @distribution_updates = []
         @load_conf = load_conf
+        @exited = false
+        @do_reboot = false
+        @start_pending = false
+        @runtime_phase = :inactive
+        @exit_cleanup_started = false
       end
 
       def save
@@ -198,6 +203,67 @@ module ContainerHelpers
 
       def destroy
         @destroy_calls += 1
+      end
+
+      def exited?
+        exited
+      end
+
+      def request_reboot
+        @do_reboot = true
+      end
+
+      def reboot?
+        @do_reboot
+      end
+
+      def start_pending
+        @start_pending = true
+        @runtime_phase = :launching
+      end
+
+      def start_pending?
+        @start_pending
+      end
+
+      def runtime_started
+        @runtime_phase = :started
+      end
+
+      def runtime_started?
+        @runtime_phase == :started
+      end
+
+      def runtime_stopping
+        @runtime_phase = :stopping
+      end
+
+      def runtime_stopping?
+        @runtime_phase == :stopping
+      end
+
+      def runtime_launching?
+        @runtime_phase == :launching
+      end
+
+      def runtime_unknown
+        @runtime_phase = :unknown
+      end
+
+      def runtime_unknown?
+        @runtime_phase == :unknown
+      end
+
+      def claim_exit_cleanup
+        return false if @exit_cleanup_started
+
+        @exit_cleanup_started = true
+        true
+      end
+
+      def fulfil_exit
+        @start_pending = false
+        self.exited = true
       end
 
       def set_distribution(distribution:, version:, arch:, vendor:, variant:)

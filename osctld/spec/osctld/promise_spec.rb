@@ -20,4 +20,27 @@ RSpec.describe OsCtld::Promise do
     expect(token_a.wait(timeout: 0)).to be(true)
     expect(token_b.wait(timeout: 0)).to be(true)
   end
+
+  it 'immediately fulfils tokens added after fulfilment' do
+    promise.fulfil
+    token = promise.add
+
+    expect(token.wait(timeout: 0)).to be(true)
+  end
+
+  it 'can be fulfilled repeatedly' do
+    token = promise.add
+
+    expect(promise.fulfil).to be_nil
+    expect(promise.fulfil).to be_nil
+    expect(token.wait(timeout: 0)).to be(true)
+  end
+
+  it 'reports fulfilment' do
+    expect(promise.fulfilled?).to be(false)
+
+    promise.fulfil
+
+    expect(promise.fulfilled?).to be(true)
+  end
 end
