@@ -8,6 +8,8 @@ module OsCtld
   class Commands::Container::Move < Commands::Logged
     handle :ct_move
 
+    include Utils::Container
+
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
       ct || error!('container not found')
@@ -15,6 +17,8 @@ module OsCtld
 
     def execute(ct)
       manipulate(ct) do
+        guard_residual_generations!(ct, 'container move or rename')
+
         progress(type: :step, title: 'Preparing move')
         call_cmd!(Commands::Container::MoveConfig, **config_opts(ct))
 

@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/container/lifecycle_executor'
 require 'osctld/user_control/commands/base'
 
 module OsCtld
@@ -12,28 +13,47 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
-      ct.starting
+      run_conf = lifecycle_run_conf(ct)
+      return error('managed lifecycle run not found') unless run_conf
+      unless ct.lifecycle.consume_pre_start(
+        run_conf.run_id,
+        client_pid: opts[:client_pid],
+        callback_id: lifecycle_callback_id
+      )
+        return error('managed launch authorization missing; manual lxc-start is unsupported')
+      end
 
-      # Mark autostart as fulfilled
-      ct.pool.fulfil_autostart(ct)
+      return error('managed lifecycle run changed') unless ct.starting(run_conf.run_id)
 
-      # Fulfil possible reboot request
-      ct.pool.fulfil_reboot(ct)
+      unless ct.lifecycle.execution_run?(run_conf.run_id)
+        # Mark autostart as fulfilled
+        ct.pool.fulfil_autostart(ct)
+
+        # Fulfil possible reboot request
+        ct.pool.fulfil_reboot(ct)
+      end
 
       # Mount datasets
-      ct.run_conf.mount(force: true)
+      run_conf.mount(force: true)
 
       # Load AppArmor profile
-      ct.apparmor.setup if AppArmor.enabled?
+      ct.apparmor.setup(run_conf) if AppArmor.enabled?
 
       # Configure CGroups
       ret = call_cmd(
         Commands::Container::CGParamApply,
         id: ct.id,
         pool: ct.pool.name,
-        manipulation_lock: 'ignore'
+        manipulation_lock: 'ignore',
+        skip_cpuset: true
       )
       return ret unless ret[:status]
+
+      begin
+        ct.cgparams.apply_cpuset_for_start(run_id: run_conf.run_id)
+      rescue CGroup::CpusetPolicy::Error => e
+        return error(e.message)
+      end
 
       # Configure devices cgroup
       ct.devices.apply
@@ -46,6 +66,17 @@ module OsCtld
 
       # User-defined hook
       Hook.run(ct, :pre_start)
+
+      completed = ct.lifecycle.complete_pre_start(
+        run_conf.run_id,
+        callback_id: lifecycle_callback_id
+      )
+      return error('managed launch was superseded during pre-start') unless completed
+
+      effect_id = completed.last
+      if effect_id
+        Container::LifecycleExecutor.release(ct.pool, :start, effect_id)
+      end
 
       ok
     rescue HookFailed => e

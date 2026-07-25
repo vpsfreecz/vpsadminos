@@ -25,45 +25,27 @@ module OsCtld
       # @option opts [Boolean] :network setup network if the container is run?
       # @return [Integer] exit status
       def execute(opts)
-        runner_opts = {
-          args: opts[:args]
-        }
+        script = nil
 
-        mode =
-          if ct.running?
-            :running
-          elsif !ct.running? && opts[:run] && opts[:network]
-            :run_network
-          elsif !ct.running? && opts[:run]
-            :run
-          else
-            raise ContainerControl::Error, 'container not running'
-          end
+        with_execution_mode(run: opts[:run], network: opts[:network]) do |mode, lifecycle_opts|
+          runner_opts = {
+            args: opts[:args]
+          }
+          add_network_opts(runner_opts) if mode == :run_network
 
-        add_network_opts(runner_opts) if opts[:network]
+          script = copy_script(opts[:script], opts[:stdin])
+          runner_opts[:script] = File.join('/', File.basename(script.path))
 
-        script = copy_script(opts[:script], opts[:stdin])
-        runner_opts[:script] = File.join('/', File.basename(script.path))
+          ret = exec_runner(
+            **lifecycle_opts,
+            args: [mode, runner_opts],
+            stdin: opts[:script].nil? ? nil : opts[:stdin],
+            stdout: opts[:stdout],
+            stderr: opts[:stderr]
+          )
 
-        if %i[run run_network].include?(mode)
-          ct.ensure_run_conf
-
-          # Remove any left-over temporary mounts
-          ct.mounts.prune
-
-          # Pre-start distconfig hook
-          DistConfig.run(ct.run_conf, :pre_start)
+          ret.ok? ? ret.data : ret
         end
-
-        ret = exec_runner(
-          args: [mode, runner_opts],
-          stdin: opts[:script].nil? ? nil : opts[:stdin],
-          stdout: opts[:stdout],
-          stderr: opts[:stderr],
-          reset_subtree_control: mode != :running
-        )
-
-        ret.ok? ? ret.data : ret
       ensure
         if script
           script.close

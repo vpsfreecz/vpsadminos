@@ -5,6 +5,7 @@ require 'osctld/hook'
 require 'osctld/hook/base'
 require 'osctld/hook/manager'
 require 'osctld/hook/script'
+require 'osctld/container/lifecycle'
 
 RSpec.describe OsCtld::Hook do
   let(:event_class) do
@@ -65,7 +66,64 @@ RSpec.describe OsCtld::Hook do
       allow(Process).to receive(:fork).and_return(1234)
 
       expect(hook.exec(script)).to eq(:thread)
-      expect(described_class).to have_received(:watch).with(hook, script, kind_of(Integer))
+      expect(described_class).to have_received(:watch).with(
+        hook,
+        script,
+        kind_of(Integer),
+        lifecycle_owner: nil
+      )
+    end
+  end
+
+  it 'records a generation hook child before releasing it to exec' do
+    with_tmpdir do |dir|
+      lifecycle = instance_double(
+        OsCtld::Container::Lifecycle,
+        run: {
+          'resources' => {
+            'host_effects' => '/osctl/test/run-1/host-effects'
+          }
+        },
+        register_process: 'process-1',
+        finish_process: false
+      )
+      run_conf = Struct.new(:run_id).new('run-1')
+      owned_event_class = Class.new do
+        attr_reader :user_hook_script_dir, :lifecycle, :run_conf
+
+        def initialize(user_hook_script_dir, lifecycle, run_conf)
+          @user_hook_script_dir = user_hook_script_dir
+          @lifecycle = lifecycle
+          @run_conf = run_conf
+        end
+
+        def get_past_run_conf
+          nil
+        end
+      end
+      owned_hook_class = Class.new(OsCtld::Hook::Base)
+      owned_hook_class.hook(owned_event_class, :owned_event, owned_hook_class)
+      owned_hook_class.blocking(true)
+      event = owned_event_class.new(dir, lifecycle, run_conf)
+      hook = owned_hook_class.new(event, {})
+      script = write_executable(File.join(dir, 'owned'))
+      allow(OsCtld::CGroup).to receive(:mkpath_all)
+      allow(OsCtld::CGroup).to receive(:attach_to_all)
+
+      expect(hook.exec(script)).to be(true)
+      expect(OsCtld::CGroup).to have_received(:attach_to_all).with(
+        ['', 'osctl', 'test', 'run-1', 'host-effects'],
+        pid: kind_of(Integer)
+      )
+      expect(lifecycle).to have_received(:register_process).with(
+        'run-1',
+        kind: 'hook:owned_event',
+        pid: kind_of(Integer)
+      )
+      expect(lifecycle).to have_received(:finish_process).with(
+        'run-1',
+        'process-1'
+      )
     end
   end
 

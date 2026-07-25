@@ -312,6 +312,14 @@ module OsCtld
 
     # @return [Boolean]
     def self.set_param(path, value)
+      if File.basename(path) == 'cpuset.cpus'
+        return sync { set_param_unlocked(path, value) }
+      end
+
+      set_param_unlocked(path, value)
+    end
+
+    def self.set_param_unlocked(path, value)
       raise CGroupFileNotFound.new(path, value) unless File.exist?(path)
 
       ret = true
@@ -333,27 +341,30 @@ module OsCtld
 
       ret
     end
+    private_class_method :set_param_unlocked
 
     # Remove cgroup path
     # @param subsystem [String]
     # @param path [String] path to remove, relative to the subsystem
     def self.rmpath(subsystem, path)
-      abs_path = abs_cgroup_path(subsystem, path)
+      sync do
+        abs_path = abs_cgroup_path(subsystem, path)
 
-      # Remove subdirectories recursively
-      Dir.entries(abs_path).each do |dir|
-        next if ['.', '..'].include?(dir)
-        next unless Dir.exist?(File.join(abs_path, dir))
+        # Remove subdirectories recursively
+        Dir.entries(abs_path).each do |dir|
+          next if ['.', '..'].include?(dir)
+          next unless Dir.exist?(File.join(abs_path, dir))
 
-        rmpath(subsystem, File.join(path, dir))
-      end
+          rmpath(subsystem, File.join(path, dir))
+        end
 
-      # Remove directory
-      Dir.rmdir(abs_path)
+        # Remove directory
+        Dir.rmdir(abs_path)
 
-      if CGroup.v2?
-        # Remove pinned links for the cgroup
-        Devices::V2::BpfProgramCache.prune_cgroup_links(abs_path)
+        if CGroup.v2?
+          # Remove pinned links for the cgroup
+          Devices::V2::BpfProgramCache.prune_cgroup_links(abs_path)
+        end
       end
     rescue Errno::ENOENT
       # pass
@@ -429,6 +440,41 @@ module OsCtld
       end
 
       pids
+    end
+
+    # Get processes in a cgroup and all descendants.
+    # @param path [String] path relative to the subsystem
+    # @return [Array<Integer>]
+    def self.get_tree_pids(path)
+      subsystem = v1? && subsystems.include?('pids') ? 'pids' : subsystems.first
+      root = abs_cgroup_path(subsystem, path)
+      return [] unless Dir.exist?(root)
+
+      files = [File.join(root, 'cgroup.procs')]
+      files.concat(Dir.glob(File.join(root, '**', 'cgroup.procs')))
+
+      files.each_with_object([]) do |file, ret|
+        File.foreach(file) do |line|
+          pid = line.strip.to_i
+          ret << pid if pid > 0
+        end
+      rescue Errno::ENOENT
+        # The cgroup disappeared during enumeration.
+      end.uniq
+    end
+
+    # Prevent new tasks from being created in a generation where supported.
+    def self.prevent_forks(path)
+      subsystem = v1? && subsystems.include?('pids') ? 'pids' : subsystems.first
+      root = abs_cgroup_path(subsystem, path)
+
+      files = [File.join(root, 'pids.max')]
+      files.concat(Dir.glob(File.join(root, '**', 'pids.max')))
+      files.each do |file|
+        File.write(file, '0')
+      rescue Errno::ENOENT, Errno::EOPNOTSUPP
+        # The cgroup disappeared or the controller is unavailable.
+      end
     end
 
     # Freeze cgroup at path

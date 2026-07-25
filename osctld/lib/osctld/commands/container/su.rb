@@ -11,7 +11,15 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
-      ok(ct_attach(ct, 'bash', '--rcfile', File.join(ct.lxc_dir, '.bashrc')))
+      ok(
+        ct_attach(
+          ct,
+          'bash',
+          '--rcfile',
+          File.join(ct.lxc_dir, '.bashrc'),
+          cgroup_path: ct_su_cgroup_path(ct)
+        )
+      )
     end
   end
 end

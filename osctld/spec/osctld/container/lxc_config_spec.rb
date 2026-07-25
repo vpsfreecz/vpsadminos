@@ -3,13 +3,28 @@
 # rubocop:disable RSpec/VerifiedDoubles
 
 require 'osctld/container/lxc_config'
+require 'osctld/container/run_id'
 require 'osctld/assets/definition'
 require 'osctld/erb_template'
 
 RSpec.describe OsCtld::Container::LxcConfig do
-  let(:run_conf) { double(distribution: 'alpine', version: '3.20', rootfs: '/tank/ct/ct1/private') }
+  let(:run_id) do
+    OsCtld::Container::RunId.new(
+      pool_name: 'tank',
+      container_id: 'ct1',
+      key: 'a' * 32
+    )
+  end
+  let(:run_conf) do
+    double(
+      distribution: 'alpine',
+      version: '3.20',
+      rootfs: '/tank/ct/ct1/private',
+      run_id:
+    )
+  end
   let(:mounts) { double(all_entries: ['/mnt/data']) }
-  let(:raw_configs) { double(lxc: 'lxc.include = common.conf') }
+  let(:raw_configs) { double(lxc: 'lxc.environment = RAW_CONFIG=1') }
   let(:ct) do
     double(
       lxc_dir: '/var/lib/lxc/ct1',
@@ -18,7 +33,8 @@ RSpec.describe OsCtld::Container::LxcConfig do
       prlimits: ['nofile=1024'],
       netifs: ['eth0'],
       mounts: mounts,
-      raw_configs: raw_configs
+      raw_configs: raw_configs,
+      lifecycle: double(active_run_id: run_id)
     )
   end
 
@@ -46,14 +62,20 @@ RSpec.describe OsCtld::Container::LxcConfig do
         distribution: 'alpine',
         version: '3.20',
         ct: ct,
+        run_conf:,
         rootfs: '/tank/ct/ct1/private',
         cgparams: ['memory.max = 1G'],
         prlimits: ['nofile=1024'],
         netifs: ['eth0'],
         mounts: ['/mnt/data'],
-        raw: 'lxc.include = common.conf'
+        raw: 'lxc.environment = RAW_CONFIG=1'
       ),
       '/var/lib/lxc/ct1/config'
+    ).twice
+    expect(OsCtld::ErbTemplate).to have_received(:render_to).with(
+      'ct/config',
+      include(run_conf:),
+      "/var/lib/lxc/ct1/config.#{run_id.key}"
     ).twice
   end
 
@@ -107,6 +129,27 @@ RSpec.describe OsCtld::Container::LxcConfig do
     copy = described_class.new(ct).dup(new_ct)
 
     expect(copy.config_path).to eq('/var/lib/lxc/ct2/config')
+  end
+
+  it 'rejects raw configuration that overrides lifecycle hooks or cgroups' do
+    allow(raw_configs).to receive(:lxc).and_return(
+      "lxc.cgroup.dir.monitor = custom\n"
+    )
+
+    expect { described_class.new(ct).configure }
+      .to raise_error(OsCtld::ConfigError, /managed by osctld/)
+  end
+
+  it 'rejects raw includes which can hide lifecycle-owned keys' do
+    allow(raw_configs).to receive(:lxc).and_return(
+      "lxc.include = /etc/lxc/custom.conf\n"
+    )
+
+    expect { described_class.new(ct).configure }
+      .to raise_error(
+        OsCtld::ConfigError,
+        "raw LXC key 'lxc.include' is managed by osctld"
+      )
   end
 end
 # rubocop:enable RSpec/VerifiedDoubles

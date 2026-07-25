@@ -2065,12 +2065,18 @@ module OsCtl::Cli
           r.desc 'Kill all container processes'
           r.arg_name '<ctid> [signal]'
           r.command :kill do |c|
+            c.desc 'Target lifecycle run ID or generation key'
+            c.flag 'run-id'
+
             c.action(&Command.run(Container, :recover_kill))
           end
 
           r.desc 'Check current container state'
           r.arg_name '<ctid>'
           r.command :state do |c|
+            c.desc 'Target lifecycle run ID or generation key'
+            c.flag 'run-id'
+
             c.action(&Command.run(Container, :recover_state))
 
             c.desc 'Ignore the manipulation lock mechanism'
@@ -2080,6 +2086,9 @@ module OsCtl::Cli
           r.desc 'Clean up leftover cgroups and network interfaces'
           r.arg_name '<ctid>'
           r.command :cleanup do |c|
+            c.desc 'Target lifecycle run ID or generation key'
+            c.flag 'run-id'
+
             c.desc 'Force the cleanup even on an unstopped container'
             c.switch %i[f force], negatable: false
 

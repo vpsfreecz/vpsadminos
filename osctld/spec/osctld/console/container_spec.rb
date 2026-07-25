@@ -2,6 +2,7 @@
 
 require 'osctld/console'
 require 'osctld/console/container'
+require 'osctld/container/run_configuration'
 
 RSpec.describe OsCtld::Console::Container do
   let(:ct) { Struct.new(:id).new('ct1') }
@@ -29,8 +30,8 @@ RSpec.describe OsCtld::Console::Container do
         @clients << io
       end
 
-      def connect(pid, socket)
-        @connect_calls << [pid, socket]
+      def connect(pid, socket, run_conf)
+        @connect_calls << [pid, socket, run_conf]
       end
 
       def close
@@ -73,10 +74,13 @@ RSpec.describe OsCtld::Console::Container do
 
   it 'delegates tty0 connections through tty 0' do
     container = described_class.new(ct)
+    run_conf = instance_double(OsCtld::Container::RunConfiguration)
 
-    container.connect_tty0(101, '/tmp/tty0.sock')
+    container.connect_tty0(101, '/tmp/tty0.sock', run_conf)
 
-    expect(console_instances.first.connect_calls).to eq([[101, '/tmp/tty0.sock']])
+    expect(console_instances.first.connect_calls).to eq(
+      [[101, '/tmp/tty0.sock', run_conf]]
+    )
   end
 
   it 'closes every opened tty' do

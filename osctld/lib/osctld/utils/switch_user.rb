@@ -3,8 +3,32 @@ require 'tempfile'
 
 module OsCtld
   module Utils::SwitchUser
-    def ct_attach(ct, *args)
-      CGroup.mkpath_all(ct.entry_cgroup_path.split('/'), chown: ct.user.ugid)
+    def ct_attach(
+      ct,
+      *args,
+      cgroup_path: ct.entry_cgroup_path,
+      lifecycle: false
+    )
+      attachment = nil
+      if lifecycle
+        run_id = ct.lifecycle.active_run_id
+        pid = client_pid
+        unless run_id && pid
+          raise CommandFailed, 'managed lifecycle attachment is unavailable'
+        end
+
+        process_id = ct.lifecycle.register_attachment(run_id, pid:)
+        unless process_id
+          raise CommandFailed,
+                'container stopped before command attachment'
+        end
+        attachment = {
+          pool: ct.pool.name,
+          id: ct.id,
+          run_id: run_id.to_s,
+          process_id:
+        }
+      end
 
       {
         cmd: ::OsCtld.bin('osctld-ct-exec'),
@@ -14,11 +38,25 @@ module OsCtld
           user: ct.user.sysusername,
           ugid: ct.user.ugid,
           homedir: ct.user.homedir,
-          cgroup_path: ct.entry_cgroup_path,
+          cgroup_path:,
           prlimits: ct.prlimits.export,
-          syslogns_pid: ct.init_pid
+          syslogns_pid: ct.init_pid,
+          attachment:
         }
       }
+    rescue StandardError
+      ct.lifecycle.finish_process(run_id, process_id) \
+        if lifecycle && run_id && process_id
+      raise
+    end
+
+    def ct_su_cgroup_path(ct)
+      File.join(
+        CGroup::ROOT_GROUP,
+        'admin',
+        "pool.#{ct.pool.name}",
+        "user.#{ct.user.name}"
+      )
     end
 
     # Run a command `cmd` within container `ct`

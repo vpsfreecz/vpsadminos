@@ -70,5 +70,6 @@ RSpec.describe OsCtld::ContainerControl::Commands::Stop do
     expect(call[:args].last[:halt_from_inside]).to be(true)
     expect(call[:args].last[:timeout]).to eq(60)
     expect(call[:args].last[:message]).to include('Message from host machine test-host')
+    expect(call[:lifecycle_owned]).to be(true)
   end
 end

@@ -137,7 +137,7 @@ module OsCtl::Lib
 
               pool = ::Regexp.last_match(1)
 
-              next if %r{ct\.([^/]+)/user-owned(/|$)} !~ path
+              next if %r{ct\.([^/]+)/(?:runs/[^/]+/)?user-owned(/|$)} !~ path
 
               ctid = ::Regexp.last_match(1)
 

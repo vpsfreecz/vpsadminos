@@ -1,3 +1,5 @@
+require 'socket'
+
 module OsCtld
   class Commands::Base
     def self.handle(name)
@@ -86,13 +88,31 @@ module OsCtld
       ret
     end
 
+    def client_pid
+      return unless client_handler
+
+      client_handler.socket.getsockopt(
+        Socket::SOL_SOCKET,
+        Socket::SO_PEERCRED
+      ).unpack1('L')
+    end
+
     # @param manipulable [Object, Array<Object>]
     # @yield [] block called with the lock held
-    def manipulate(manipulable, &codeblock)
+    def manipulate(manipulable, lifecycle: false, &codeblock)
       block = opts[:manipulation_lock] == 'wait'
+      guarded_block = proc do
+        unless lifecycle == true || opts[:manipulation_lock] == 'ignore'
+          guard_container_lifecycle!(
+            manipulable,
+            allow_policy_taint: lifecycle == :policy_update
+          )
+        end
+        codeblock.call
+      end
 
       if opts[:manipulation_lock] == 'ignore'
-        codeblock.call
+        guarded_block.call
 
       elsif manipulable.is_a?(Array)
         locked = []
@@ -110,13 +130,29 @@ module OsCtld
 
         # Call the block and release locks
         begin
-          codeblock.call
+          guarded_block.call
         ensure
           locked.reverse_each(&:release_manipulation_lock)
         end
 
       else
-        manipulable.manipulate(self, block:, &codeblock)
+        manipulable.manipulate(self, block:, &guarded_block)
+      end
+    end
+
+    def guard_container_lifecycle!(manipulable, allow_policy_taint: false)
+      Array(manipulable).each do |object|
+        next unless object.is_a?(OsCtld::Container)
+
+        blocker = object.lifecycle.manipulation_blocker(
+          allow_policy_taint:
+        )
+        next unless blocker
+
+        detail = blocker[:effect] ? " effect #{blocker[:effect]}" : ''
+        raise CommandFailed,
+              "container lifecycle is #{blocker[:phase]}#{detail}; " \
+              'wait for it to settle or use an explicit recovery command'
       end
     end
 

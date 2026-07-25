@@ -13,8 +13,18 @@ module OsCtld
       tty(tty_n).add_client(io)
     end
 
-    def connect_tty0(pid, socket)
-      tty(0).connect(pid, socket)
+    def connect_tty0(pid, socket, run_conf, effect_id: nil, intent_id: nil)
+      if effect_id || intent_id
+        tty(0).connect(
+          pid,
+          socket,
+          run_conf,
+          effect_id:,
+          intent_id:
+        )
+      else
+        tty(0).connect(pid, socket, run_conf)
+      end
     end
 
     def tty(n)

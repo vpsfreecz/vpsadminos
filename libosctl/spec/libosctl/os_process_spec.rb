@@ -92,6 +92,20 @@ RSpec.describe OsCtl::Lib::OsProcess do
     end
   end
 
+  it 'derives container identity from a lifecycle generation cgroup' do
+    with_tmpdir do |dir|
+      write_status_files(
+        dir,
+        123,
+        cgroup: "0::/osctl/pool.tank/ct.ct1/runs/abc123/user-owned/payload\n"
+      )
+
+      process = build_process(dir, 123)
+
+      expect(process.ct_id).to eq(%w[tank ct1])
+    end
+  end
+
   it 'builds parent and grandparent processes through the constructor' do
     with_tmpdir do |dir|
       write_status_files(dir, 123, cgroup: "0::/user.slice\n")

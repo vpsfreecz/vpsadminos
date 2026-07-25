@@ -1,6 +1,7 @@
 require 'libosctl/zfs/stream'
 require 'osctld/commands/logged'
 require 'osctld/local_transfer/log'
+require 'osctld/utils/container'
 require 'securerandom'
 
 module OsCtld
@@ -9,6 +10,7 @@ module OsCtld
   class Commands::Container::LocalTransfer::Base < Commands::Logged
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include Utils::Container
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])

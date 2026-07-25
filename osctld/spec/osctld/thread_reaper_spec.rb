@@ -138,6 +138,92 @@ RSpec.describe OsCtld::ThreadReaper do
     join_thread!(worker) if worker
   end
 
+  it 'detaches durable lifecycle effects when the daemon process is stopping' do
+    worker_started = Queue.new
+    finish_worker = Queue.new
+    worker = Thread.new do
+      worker_started << true
+      finish_worker.pop
+    end
+
+    reaper.start
+    reaper.add(worker, nil, group: :durable_lifecycle)
+    worker_started.pop
+    wait_until { reaper.export == [[worker, nil]] }
+
+    reaper.stop
+
+    expect(worker).to be_alive
+    expect(reaper.export).to be_empty
+  ensure
+    finish_worker << true if worker&.alive?
+    join_thread!(worker) if worker
+  end
+
+  it 'detaches lifecycle hook callbacks when the daemon process is stopping' do
+    worker_started = Queue.new
+    finish_worker = Queue.new
+    worker = Thread.new do
+      worker_started << true
+      finish_worker.pop
+    end
+
+    reaper.start
+    reaper.add(worker, nil, group: :user_control)
+    worker_started.pop
+    wait_until { reaper.export == [[worker, nil]] }
+
+    reaper.stop
+
+    expect(worker).to be_alive
+    expect(reaper.export).to be_empty
+  ensure
+    finish_worker << true if worker&.alive?
+    join_thread!(worker) if worker
+  end
+
+  it 'does not track durable lifecycle effects added after stop begins' do
+    first_worker_started = Queue.new
+    finish_first_worker = Queue.new
+    first_stop_requested = Queue.new
+    first_manager = Struct.new(:stop_requested) do
+      def request_stop
+        stop_requested << true
+      end
+    end.new(first_stop_requested)
+    first_worker = Thread.new do
+      first_worker_started << true
+      finish_first_worker.pop
+    end
+
+    late_worker_started = Queue.new
+    finish_late_worker = Queue.new
+    late_worker = Thread.new do
+      late_worker_started << true
+      finish_late_worker.pop
+    end
+
+    reaper.start
+    reaper.add(first_worker, first_manager)
+    first_worker_started.pop
+    late_worker_started.pop
+    wait_until { reaper.export == [[first_worker, first_manager]] }
+
+    stop_thread = Thread.new { reaper.stop }
+    first_stop_requested.pop
+    reaper.add(late_worker, nil, group: :durable_lifecycle)
+    finish_first_worker << true
+    join_thread!(stop_thread)
+
+    expect(late_worker).to be_alive
+    expect(reaper.export).to be_empty
+  ensure
+    finish_first_worker << true if first_worker&.alive?
+    finish_late_worker << true if late_worker&.alive?
+    join_thread!(first_worker) if first_worker
+    join_thread!(late_worker) if late_worker
+  end
+
   it 'requests stop from managers added after stop begins' do
     first_worker_started = Queue.new
     finish_first_worker = Queue.new
@@ -251,7 +337,7 @@ RSpec.describe OsCtld::ThreadReaper do
 
     reaper.stop
 
-    expect(user_control_stop_requested).not_to be_empty
+    expect(user_control_stop_requested).to be_empty
     expect(reaper.export).to be_empty
   ensure
     finish_management_worker << true if management_worker&.alive?

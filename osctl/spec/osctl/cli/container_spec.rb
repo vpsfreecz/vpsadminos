@@ -7,6 +7,14 @@ RSpec.describe OsCtl::Cli::Container do
     build_command(described_class, args:, opts:, gopts:)
   end
 
+  it 'exposes durable cgroup policy hazards as selectable fields' do
+    expect(described_class::FIELDS).to include(
+      :lifecycle_policy_tainted,
+      :lifecycle_policy_error,
+      :lifecycle_policy_rollback_error
+    )
+  end
+
   it 'initializes cgroup subsystems in bisect using the open client connection' do
     client = FakeClientHelpers::ClientDouble.new(
       cmd_data: { ct_list: [[{ pool: 'tank', id: 'ct1', group_path: '/grp', state: 'running' }]] }
@@ -111,6 +119,21 @@ RSpec.describe OsCtl::Cli::Container do
     expect(cmd(opts: { foreground: true }).send(:get_ct_wait, '10')).to be(false)
     expect { cmd.send(:get_ct_wait, '-1') }.to raise_error(GLI::BadCommandLine, 'invalid value for --wait')
     expect { cmd.send(:get_ct_wait, 'abc') }.to raise_error(GLI::BadCommandLine, 'invalid value for --wait')
+  end
+
+  it 'matches relative lifecycle cgroup roots against proc cgroup paths' do
+    command = cmd
+    allow(File).to receive(:foreach)
+      .with('/proc/123/cgroup')
+      .and_return(["0::/osctl/pool.tank/ct.ct1/runs/abc/payload\n"])
+
+    expect(
+      command.send(
+        :process_in_cgroup_tree?,
+        123,
+        'osctl/pool.tank/ct.ct1/runs/abc'
+      )
+    ).to be(true)
   end
 
   it 'adds load averages for running containers and tolerates reader failures' do

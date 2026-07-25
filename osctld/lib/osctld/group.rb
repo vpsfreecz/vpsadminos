@@ -21,6 +21,7 @@ module OsCtld
       @cgparams = nil
       @devices = nil
       @attrs = Attributes.new
+      @cgroup_policy_state = nil
       load_config(config) if load
       devices.init if load && devices
     end
@@ -45,6 +46,7 @@ module OsCtld
       @path = path if root?
       @cgparams = CGroup::Params.new(self)
       @devices = Devices::Manager.new_for(self)
+      @cgroup_policy_state = nil
       @devices.init if devices
       save_config
     end
@@ -58,6 +60,15 @@ module OsCtld
           group: 0,
           mode: 0o400
         )
+        if cgroup_policy_tainted?
+          add.file(
+            cgroup_policy_state_path,
+            desc: "osctld's group cgroup policy quarantine",
+            user: 0,
+            group: 0,
+            mode: 0o400
+          )
+        end
 
         users.each do |u|
           add.directory(
@@ -111,6 +122,10 @@ module OsCtld
 
     def config_path
       File.join(pool.conf_path, 'group', id, 'config.yml')
+    end
+
+    def cgroup_policy_state_path
+      File.join(config_dir, 'cgroup-policy.yml')
     end
 
     def cgroup_path
@@ -236,16 +251,91 @@ module OsCtld
       ret
     end
 
+    # Return containers assigned to this group or any descendant group.
+    def containers_in_subtree
+      groups = [self] + descendants
+
+      DB::Containers.get.select do |ct|
+        ct.pool == pool && groups.include?(ct.group)
+      end
+    end
+
     # Return `true` if any container from this or any descendant group is
     # running.
     def any_container_running?
-      groups = [self] + descendants
+      containers_in_subtree.any?(&:running?)
+    end
 
-      DB::Containers.get.each do |ct|
-        return true if ct.pool == pool && groups.include?(ct.group) && ct.running?
+    # Persist parent-policy ownership independently of current container
+    # membership. The marker is written before kernel changes, so daemon loss
+    # and rollback failure quarantine empty groups and future descendants.
+    def begin_cgroup_policy_update!(kind:, cleanup_params: [])
+      state = {
+        'status' => 'updating',
+        'kind' => kind.to_s,
+        'started_at' => Time.now.to_f,
+        'cleanup_params' => cleanup_params
+      }
+      @cgroup_policy_state = state
+      persist_cgroup_policy_state(state)
+      state
+    end
+
+    def taint_cgroup_policy!(
+      kind:,
+      error:,
+      rollback_error:,
+      cleanup_params: nil
+    )
+      state = {
+        'status' => 'tainted',
+        'kind' => kind.to_s,
+        'failed_at' => Time.now.to_f,
+        'error' => error,
+        'rollback_error' => rollback_error,
+        'cleanup_params' =>
+          cleanup_params \
+          || @cgroup_policy_state&.fetch('cleanup_params', nil)
+      }
+      @cgroup_policy_state = state
+      persist_cgroup_policy_state(state)
+      state
+    end
+
+    def restore_cgroup_policy_state!(state)
+      @cgroup_policy_state = state && state.dup
+      if state
+        persist_cgroup_policy_state(@cgroup_policy_state)
+      else
+        clear_cgroup_policy_state!
+      end
+      true
+    end
+
+    def clear_cgroup_policy_state!
+      File.unlink(cgroup_policy_state_path)
+      @cgroup_policy_state = nil
+      true
+    rescue Errno::ENOENT
+      @cgroup_policy_state = nil
+      true
+    end
+
+    def cgroup_policy_tainted?
+      !@cgroup_policy_state.nil?
+    end
+
+    def cgroup_policy_state
+      @cgroup_policy_state && @cgroup_policy_state.dup
+    end
+
+    def inherited_cgroup_policy_state
+      groups_in_path.reverse_each do |grp|
+        state = grp.cgroup_policy_state
+        return [grp, state] if state
       end
 
-      false
+      nil
     end
 
     def users
@@ -323,7 +413,11 @@ module OsCtld
           full_path: cgroup_path,
           cpu_limit: find_cpu_limit(parents: false),
           memory_limit: find_memory_limit(parents: false),
-          swap_limit: find_swap_limit(parents: false)
+          swap_limit: find_swap_limit(parents: false),
+          cgroup_policy_status: @cgroup_policy_state&.fetch('status'),
+          cgroup_policy_error: @cgroup_policy_state&.fetch('error', nil),
+          cgroup_policy_rollback_error:
+            @cgroup_policy_state&.fetch('rollback_error', nil)
         }
       end
     end
@@ -367,6 +461,20 @@ module OsCtld
       @cgparams = CGroup::Params.load(self, cfg['cgparams'])
       @devices = Devices::Manager.load(self, cfg['devices'] || [])
       @attrs = Attributes.load(cfg['attrs'] || {})
+      @cgroup_policy_state =
+        begin
+          OsCtl::Lib::ConfigFile.load_yaml_file(cgroup_policy_state_path)
+        rescue Errno::ENOENT
+          nil
+        end
+    end
+
+    def persist_cgroup_policy_state(state)
+      FileUtils.mkdir_p(config_dir)
+      regenerate_file(cgroup_policy_state_path, 0o400) do |f|
+        f.write(OsCtl::Lib::ConfigFile.dump_yaml(state))
+      end
+      File.chown(0, 0, cgroup_policy_state_path)
     end
   end
 end

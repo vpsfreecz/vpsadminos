@@ -24,6 +24,8 @@ module OsCtl::Lib
     MS_SLAVE = 1 << 19
     MS_SHARED = 1 << 20
 
+    PR_SET_PDEATHSIG = 1
+
     SYSLOGNS_MAX_TAG_BYTESIZE = 12
 
     module Int
@@ -43,6 +45,8 @@ module OsCtl::Lib
       extern 'int chroot(const char *path)'
       extern 'int syncfs(int fd)'
       extern 'int klogctl(int type, char *bufp, int len)'
+      extern 'int prctl(int option, unsigned long arg2, unsigned long arg3, ' \
+             'unsigned long arg4, unsigned long arg5)'
     end
 
     def setresuid(ruid, euid, suid)
@@ -189,6 +193,22 @@ module OsCtl::Lib
     # @param pid [Integer] attach to syslogns of PID
     def attach_syslogns(pid)
       setns_path(File.join('/proc', pid.to_s, 'ns/syslog'), 0)
+    end
+
+    # Ask the kernel to deliver +signal+ when this process's current parent
+    # exits. Callers have to verify the parent PID after this call to close the
+    # race where the parent exits immediately before prctl(2).
+    def set_parent_death_signal(signal)
+      signum =
+        if signal.is_a?(Integer)
+          signal
+        else
+          Signal.list.fetch(signal.to_s)
+        end
+      ret = Int.prctl(PR_SET_PDEATHSIG, signum, 0, 0, 0)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
     end
 
     # @param path [String] filesystem directory

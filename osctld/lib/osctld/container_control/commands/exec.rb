@@ -24,44 +24,22 @@ module OsCtld
       # @option opts [Boolean] :network setup network if the container is run?
       # @return [Integer] exit status
       def execute(opts)
-        runner_opts = {
-          cmd: opts[:cmd]
-        }
+        with_execution_mode(run: opts[:run], network: opts[:network]) do |mode, lifecycle_opts|
+          runner_opts = {
+            cmd: opts[:cmd]
+          }
+          add_network_opts(runner_opts) if mode == :run_network
 
-        mode =
-          if ct.running?
-            :running
-          elsif !ct.running? && opts[:run] && opts[:network]
-            :run_network
-          elsif !ct.running? && opts[:run]
-            :run
-          else
-            raise ContainerControl::Error, 'container not running'
-          end
+          ret = exec_runner(
+            **lifecycle_opts,
+            args: [mode, runner_opts],
+            stdin: opts[:stdin],
+            stdout: opts[:stdout],
+            stderr: opts[:stderr]
+          )
 
-        if opts[:network]
-          add_network_opts(runner_opts)
+          ret.ok? ? ret.data : ret
         end
-
-        if %i[run run_network].include?(mode)
-          ct.ensure_run_conf
-
-          # Remove any left-over temporary mounts
-          ct.mounts.prune
-
-          # Pre-start distconfig hook
-          DistConfig.run(ct.run_conf, :pre_start)
-        end
-
-        ret = exec_runner(
-          args: [mode, runner_opts],
-          stdin: opts[:stdin],
-          stdout: opts[:stdout],
-          stderr: opts[:stderr],
-          reset_subtree_control: mode != :running
-        )
-
-        ret.ok? ? ret.data : ret
       ensure
         cleanup_init_script
       end
@@ -117,6 +95,7 @@ module OsCtld
             'lxc-execute',
             '-P', lxc_home,
             '-n', ctid,
+            '-f', lxc_config,
             '-o', log_file,
             '-s', "lxc.environment=PATH=#{system_path.join(':')}",
             '-s', 'lxc.environment=HOME=/root',

@@ -13,7 +13,8 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
-      run_conf = ct.run_conf
+      run_conf = lifecycle_run_conf(ct)
+      return error('managed lifecycle run not found') unless run_conf
 
       if ct.map_mode == 'native'
         ct.mounts.shared_dir.cleanup_pushed(run_conf.rootfs)

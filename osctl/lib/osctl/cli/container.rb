@@ -1,3 +1,4 @@
+require 'digest'
 require 'highline'
 require 'io/console'
 require 'ipaddress'
@@ -38,6 +39,16 @@ module OsCtl::Cli
       variant
       state
       init_pid
+      lifecycle_desired_state
+      lifecycle_state
+      lifecycle_run_id
+      lifecycle_revision
+      lifecycle_residuals
+      lifecycle_residual_run_ids
+      lifecycle_hazards
+      lifecycle_policy_tainted
+      lifecycle_policy_error
+      lifecycle_policy_rollback_error
       cpu_package_inuse
       cpu_package_set
       cpu_limit
@@ -1617,19 +1628,43 @@ module OsCtl::Cli
         signal = 'KILL'
       end
 
-      pl = OsCtl::Lib::ProcessList.new do |p|
-        ctid = p.ct_id
+      recovery_target = lifecycle_recovery_target(pool, id, opts['run-id'])
+      identities = {}
 
-        next(false) if ctid.nil?
+      if recovery_target
+        pool = recovery_target.fetch(:pool)
+        cgroup_root = recovery_target.fetch(:run)
+                                     .fetch('resources')
+                                     .fetch('cgroup_root')
+        puts(
+          'Targeting lifecycle run ' \
+          "#{lifecycle_run_id(recovery_target.fetch(:run))} in #{cgroup_root}"
+        )
 
-        if pool.nil?
-          next(false) unless ctid[1] == id
+        pl = OsCtl::Lib::ProcessList.new do |p|
+          next(false) unless process_in_cgroup_tree?(p.pid, cgroup_root)
 
-          pool = ctid[0]
+          start_ticks = proc_start_ticks(p.pid)
+          next(false) unless start_ticks
 
+          identities[p.pid] = start_ticks
+          true
         end
+      else
+        warn 'Lifecycle record not found, falling back to legacy container-wide matching'
+        pl = OsCtl::Lib::ProcessList.new do |p|
+          ctid = p.ct_id
 
-        ctid[0] == pool && ctid[1] == id
+          next(false) if ctid.nil?
+
+          if pool.nil?
+            next(false) unless ctid[1] == id
+
+            pool = ctid[0]
+          end
+
+          ctid[0] == pool && ctid[1] == id
+        end
       end
 
       if pl.empty?
@@ -1656,8 +1691,17 @@ module OsCtl::Cli
 
       if $stdin.readline.strip.downcase == 'yes'
         pl.each do |p|
+          if recovery_target
+            next unless proc_start_ticks(p.pid) == identities[p.pid]
+            next unless process_in_cgroup_tree?(p.pid, cgroup_root)
+          end
+
           puts "kill -SIG#{signal} #{p.pid}"
-          Process.kill(signal, p.pid)
+          begin
+            Process.kill(signal, p.pid)
+          rescue Errno::ESRCH
+            # The process exited after the confirmation prompt.
+          end
         end
       else
         puts 'Aborted'
@@ -1670,6 +1714,7 @@ module OsCtl::Cli
       osctld_fmt(:ct_recover_state, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
+        run_id: opts['run-id'],
         manipulation_lock: opts[:lock] ? nil : 'ignore'
       })
     end
@@ -1686,9 +1731,98 @@ module OsCtl::Cli
       osctld_fmt(:ct_recover_cleanup, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
+        run_id: opts['run-id'],
         force: opts[:force],
         cleanup:
       })
+    end
+
+    def lifecycle_recovery_target(pool, id, requested_run_id)
+      paths =
+        if pool
+          [File.join('/run/osctl/pools', pool, 'containers', id, 'lifecycle.yml')]
+        else
+          Dir.glob(File.join('/run/osctl/pools', '*', 'containers', id, 'lifecycle.yml'))
+        end
+
+      records = paths.filter_map do |path|
+        next unless File.file?(path)
+
+        [
+          path.split(File::SEPARATOR)[4],
+          OsCtl::Lib::ConfigFile.load_yaml_file(path)
+        ]
+      rescue Psych::Exception, SystemCallError
+        nil
+      end
+
+      return if records.empty?
+
+      if records.length > 1
+        raise GLI::BadCommandLine, 'container ID is ambiguous, specify --pool'
+      end
+
+      found_pool, lifecycle = records.first
+      runs = lifecycle.fetch('runs').values
+      run =
+        if requested_run_id
+          matches = runs.select do |candidate|
+            id_cfg = candidate.fetch('id')
+            lifecycle_run_id(candidate) == requested_run_id \
+              || id_cfg['key'] == requested_run_id
+          end
+          if matches.empty?
+            raise GLI::BadCommandLine, "lifecycle run '#{requested_run_id}' not found"
+          elsif matches.length > 1
+            raise GLI::BadCommandLine, "lifecycle run '#{requested_run_id}' is ambiguous"
+          end
+
+          matches.first
+        elsif lifecycle['active_run_id']
+          lifecycle.fetch('runs').fetch(lifecycle['active_run_id'])
+        else
+          residuals = runs.select { |candidate| candidate['role'] == 'residual' }
+          if residuals.length > 1
+            raise GLI::BadCommandLine, 'multiple residual runs found, use --run-id'
+          end
+
+          residuals.first
+        end
+
+      raise GLI::BadCommandLine, 'no recoverable lifecycle run found' unless run
+
+      { pool: found_pool, run: }
+    end
+
+    def lifecycle_run_id(run)
+      cfg = run.fetch('id')
+      key =
+        cfg['key'] || Digest::SHA256.hexdigest(
+          [
+            cfg.fetch('pool_name'),
+            cfg.fetch('container_id'),
+            cfg.fetch('timestamp')
+          ].join(':')
+        )[0, 32]
+      [cfg.fetch('pool_name'), cfg.fetch('container_id'), key].join(':')
+    end
+
+    def process_in_cgroup_tree?(pid, root)
+      normalized_root = "/#{root.to_s.sub(%r{\A/+}, '')}"
+
+      File.foreach(File.join('/proc', pid.to_s, 'cgroup')).any? do |line|
+        path = line.split(':', 3)[2]&.strip
+        path == normalized_root || path&.start_with?("#{normalized_root}/")
+      end
+    rescue Errno::ENOENT, Errno::ESRCH
+      false
+    end
+
+    def proc_start_ticks(pid)
+      stat = File.read(File.join('/proc', pid.to_s, 'stat'))
+      stat[(stat.rindex(')') + 2)..].split.fetch(19)
+    rescue Errno::ENOENT, Errno::ESRCH
+      nil
     end
 
     def parse_target_arg

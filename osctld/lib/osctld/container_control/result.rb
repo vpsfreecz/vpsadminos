@@ -6,7 +6,11 @@ module OsCtld
       if data[:status]
         new(true, data: data[:output])
       else
-        new(false, message: data[:message])
+        new(
+          false,
+          message: data[:message],
+          user_runner: data.fetch(:user_runner, false)
+        )
       end
     end
 

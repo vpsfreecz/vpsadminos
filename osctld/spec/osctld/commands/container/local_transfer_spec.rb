@@ -73,6 +73,10 @@ module LocalTransferSpec
       !!send_log || !!local_transfer_log
     end
 
+    def lifecycle
+      @lifecycle ||= Struct.new(:runtime_generations, :residuals).new([], [])
+    end
+
     def open_local_transfer_log(role, opts)
       self.local_transfer_log = OsCtld::LocalTransfer::Log.new(role:, opts:)
       save_config
@@ -738,6 +742,81 @@ RSpec.describe 'local container transfer commands' do
       expect(source.local_transfer_log).to eq(log)
       expect(log.state_snapshot).to be_nil
       expect(log.state_running).to be(true)
+    end
+
+    it 'does not snapshot a move when stop quarantines a residual' do
+      stub_daemon
+      log = local_log(operation: :move, state: :base)
+      source = source_ct(state: :running, log:)
+      target = target_ct
+      stub_target_lookup(target)
+      run_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      source.lifecycle.runtime_generations = [
+        { 'id' => run_id.dump, 'role' => 'residual' }
+      ]
+      command = described_class.new(
+        { id: 'ct1', pool: 'tank', start: true },
+        {}
+      )
+
+      allow(command).to receive(:call_cmd!)
+        .with(OsCtld::Commands::Container::Stop, id: 'ct1', pool: 'tank')
+        .and_return(
+          status: true,
+          output: { lifecycle_state: 'quarantined' }
+        )
+      allow(command).to receive(:snapshot_datasets)
+
+      expect do
+        command.execute(source)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        /consistent local container transfer is blocked.*residual/
+      )
+      expect(command).not_to have_received(:snapshot_datasets)
+      expect(log.state_snapshot).to be_nil
+    end
+
+    it 'does not stop a healthy replacement when a residual already exists' do
+      stub_daemon
+      log = local_log(operation: :move, state: :base)
+      source = source_ct(state: :running, log:)
+      target = target_ct
+      stub_target_lookup(target)
+      active_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      residual_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      residual = { 'id' => residual_id.dump, 'role' => 'residual' }
+      source.lifecycle.runtime_generations = [
+        { 'id' => active_id.dump, 'role' => 'active' },
+        residual
+      ]
+      source.lifecycle.residuals = [residual]
+      command = described_class.new(
+        { id: 'ct1', pool: 'tank', start: true },
+        {}
+      )
+
+      allow(command).to receive(:call_cmd!)
+      allow(command).to receive(:snapshot_datasets)
+
+      expect do
+        command.execute(source)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        /consistent local container transfer is blocked.*residual/
+      )
+      expect(command).not_to have_received(:call_cmd!)
+      expect(command).not_to have_received(:snapshot_datasets)
+      expect(log.state_snapshot).to be_nil
     end
 
     it 'stops the source and starts the completed target when requested' do

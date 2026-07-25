@@ -4,6 +4,10 @@
 
 require 'osctld/exceptions'
 require 'osctld/command'
+require 'osctld/cgroup/param'
+require 'osctld/cgroup/params'
+require 'osctld/group'
+require 'osctld/container/lifecycle'
 require 'osctld/utils/assets'
 require 'osctld/utils/devices'
 require 'osctld/utils/cgroup_params'
@@ -52,6 +56,10 @@ RSpec.describe 'group commands' do
 
       def any_container_running?
         true
+      end
+
+      def cgroup_policy_tainted?
+        false
       end
 
       def has_containers?
@@ -301,8 +309,13 @@ RSpec.describe 'group commands' do
     allow(cgroup).to receive(:abs_cgroup_path) { |subsystem| "/sys/fs/cgroup/#{subsystem}" }
 
     apply = OsCtld::Commands::Group::CGParamApply.new({ name: '/default', pool: 'tank' }, {})
+    allow(apply).to receive(:apply_cpuset_hierarchy)
+      .with(grp, recover: true)
+      .and_return(status: true, output: nil)
     allow(apply).to receive(:apply).and_return(status: true, output: nil)
     expect(apply.execute).to eq(status: true, output: nil)
+    expect(apply).to have_received(:apply_cpuset_hierarchy)
+      .with(grp, recover: true)
     expect(apply).to have_received(:apply).twice
 
     list = OsCtld::Commands::Group::CGParamList.new({ name: '/default', pool: 'tank' }, {})
@@ -326,6 +339,419 @@ RSpec.describe 'group commands' do
         'pids' => '/sys/fs/cgroup/pids'
       }
     )
+  end
+
+  it 'rejects group cpuset writes while a descendant runtime is residual' do
+    grp = OsCtld::Group.allocate
+    cpuset = OsCtld::CGroup::Param.new(
+      2,
+      'cpuset',
+      'cpuset.cpus',
+      ['0-7'],
+      true
+    )
+    cgparams = instance_double(OsCtld::CGroup::Params, detect: cpuset)
+    allow(cgparams).to receive(:apply)
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      residuals: [{ 'id' => 'run-1' }]
+    )
+    ct = Struct.new(:ident, :lifecycle).new('tank:ct1', lifecycle)
+    allow(grp).to receive_messages(
+      any_container_running?: true,
+      cgparams:,
+      containers_in_subtree: [ct],
+      descendants: [],
+      groups_in_path: [grp],
+      name: '/default',
+      path: '/osctl/pool.tank/group.default',
+      cgroup_path: '/osctl/pool.tank/group.default',
+      pool: Struct.new(:name).new('tank'),
+      cgroup_policy_state: nil,
+      taint_cgroup_policy!: true
+    )
+    allow(grp).to receive(:manipulate) do |_holder, **, &callback|
+      callback.call
+    end
+    db = stub_const('OsCtld::DB::Groups', Class.new do
+      def self.find(_name, _pool); end
+    end)
+    allow(db).to receive(:find).with('/default', 'tank').and_return(grp)
+    allow(OsCtld::CGroup).to receive(:version).and_return(2)
+    allow(OsCtld::CGroup).to receive(:mkpath)
+    command = OsCtld::Commands::Group::CGParamApply.new(
+      { name: '/default', pool: 'tank' },
+      {}
+    )
+    hierarchy = instance_double(
+      OsCtld::CGroup::GroupCpusetPolicy,
+      applied?: true
+    )
+    allow(OsCtld::CGroup::GroupCpusetPolicy).to receive(:new)
+      .and_return(hierarchy)
+    policy_calls = []
+    allow(grp).to receive(:begin_cgroup_policy_update!) do |**opts|
+      policy_calls << [:begin, opts]
+      true
+    end
+    allow(grp).to receive(:containers_in_subtree) do
+      policy_calls << :snapshot
+      [ct]
+    end
+    allow(grp).to receive(:restore_cgroup_policy_state!) do |state|
+      policy_calls << [:restore, state]
+      true
+    end
+
+    expect(command.execute).to match(
+      status: false,
+      message: a_string_matching(
+        /tank:ct1 has residual runtime cgroups/
+      )
+    )
+    expect(policy_calls).to eq(
+      [
+        [:begin, { kind: :group_cpuset, cleanup_params: [] }],
+        :snapshot,
+        [:restore, nil]
+      ]
+    )
+    expect(cgparams).not_to have_received(:apply)
+    expect(grp).not_to have_received(:taint_cgroup_policy!)
+  end
+
+  it 'recovers a quarantined group with no configured cpuset' do
+    grp = OsCtld::Group.allocate
+    cgparams = instance_double(
+      OsCtld::CGroup::Params,
+      detect: nil,
+      reset: nil,
+      apply: nil
+    )
+    leaked_pids = OsCtld::CGroup::Param.new(
+      2,
+      nil,
+      'pids.max',
+      ['100'],
+      true
+    )
+    original_state = {
+      'status' => 'updating',
+      'kind' => 'group_cpuset',
+      'cleanup_params' => [leaked_pids.dump]
+    }
+    allow(grp).to receive_messages(
+      any_container_running?: false,
+      cgparams:,
+      containers_in_subtree: [],
+      groups_in_path: [grp],
+      name: '/default',
+      path: '/osctl/pool.tank/group.default',
+      cgroup_path: '/osctl/pool.tank/group.default',
+      pool: Struct.new(:name).new('tank'),
+      cgroup_policy_tainted?: true,
+      cgroup_policy_state: original_state,
+      begin_cgroup_policy_update!: original_state,
+      clear_cgroup_policy_state!: true,
+      abs_cgroup_path: '/sys/fs/cgroup/group.default'
+    )
+    allow(grp).to receive(:manipulate) do |_holder, **, &callback|
+      callback.call
+    end
+    db = stub_const('OsCtld::DB::Groups', Class.new do
+      def self.find(_name, _pool); end
+    end)
+    allow(db).to receive(:find).with('/default', 'tank').and_return(grp)
+    allow(OsCtld::CGroup).to receive(:version).and_return(2)
+    allow(OsCtld::CGroup).to receive(:mkpath_all)
+    command = OsCtld::Commands::Group::CGParamApply.new(
+      { name: '/default', pool: 'tank' },
+      {}
+    )
+
+    expect(
+      command.send(:apply, grp, only_cpuset: true)
+    ).to match(
+      status: false,
+      message: a_string_matching(/group cgroup policy is quarantined/)
+    )
+    expect(grp).not_to have_received(:clear_cgroup_policy_state!)
+
+    expect(command.execute).to eq(status: true, output: nil)
+    expect(OsCtld::CGroup).to have_received(:mkpath_all).with(
+      ['', 'osctl', 'pool.tank', 'group.default'],
+      leaf: false
+    )
+    expect(cgparams).to have_received(:reset).with(
+      have_attributes(
+        version: 2,
+        subsystem: nil,
+        name: 'pids.max'
+      ),
+      true
+    )
+    expect(cgparams).to have_received(:reset).with(
+      have_attributes(
+        version: 2,
+        subsystem: 'cpuset',
+        name: 'cpuset.cpus'
+      ),
+      false
+    )
+    expect(cgparams).to have_received(:apply).with(
+      keep_going: false,
+      cpuset: false,
+      only_cpuset: false
+    )
+    expect(grp).to have_received(:clear_cgroup_policy_state!)
+  end
+
+  it 'does not refence descendants when the group cpuset already matches' do
+    grp = OsCtld::Group.allocate
+    cpuset = OsCtld::CGroup::Param.new(
+      2,
+      'cpuset',
+      'cpuset.cpus',
+      ['0-3'],
+      true
+    )
+    cgparams = instance_double(OsCtld::CGroup::Params, detect: cpuset, apply: nil)
+    lifecycle = instance_spy(
+      OsCtld::Container::Lifecycle,
+      residuals: [],
+      policy_tainted?: false
+    )
+    ct = Struct.new(:ident, :lifecycle).new('tank:ct1', lifecycle)
+    allow(grp).to receive_messages(
+      any_container_running?: false,
+      cgparams:,
+      containers_in_subtree: [ct],
+      descendants: [],
+      groups_in_path: [grp],
+      name: '/default',
+      path: '/osctl/pool.tank/group.default',
+      pool: Struct.new(:name).new('tank'),
+      cgroup_policy_tainted?: false,
+      abs_cgroup_path: '/sys/fs/cgroup/group.default'
+    )
+    allow(grp).to receive(:manipulate) do |_holder, **, &callback|
+      callback.call
+    end
+    db = stub_const('OsCtld::DB::Groups', Class.new do
+      def self.find(_name, _pool); end
+    end)
+    allow(db).to receive(:find).with('/default', 'tank').and_return(grp)
+    allow(OsCtld::CGroup).to receive(:version).and_return(2)
+    allow(OsCtld::CGroup::CpusetPolicy).to receive(:read_effective_mask)
+      .with('/sys/fs/cgroup/group.default')
+      .and_return('0-3')
+    allow(File).to receive(:read)
+      .with('/sys/fs/cgroup/group.default/cpuset.cpus')
+      .and_return('0-3')
+    command = OsCtld::Commands::Group::CGParamApply.new(
+      { name: '/default', pool: 'tank' },
+      {}
+    )
+    hierarchy = instance_double(
+      OsCtld::CGroup::GroupCpusetPolicy,
+      applied?: true
+    )
+    allow(OsCtld::CGroup::GroupCpusetPolicy).to receive(:new)
+      .and_return(hierarchy)
+
+    allow(lifecycle).to receive(:begin_parent_policy_update)
+    expect(command.execute).to eq(status: true, output: nil)
+    expect(cgparams).to have_received(:apply).with(
+      keep_going: false,
+      cpuset: false,
+      only_cpuset: false
+    )
+    expect(lifecycle).not_to have_received(:begin_parent_policy_update)
+
+    allow(OsCtld::CGroup::CpusetPolicy).to receive(:read_effective_mask)
+      .with('/sys/fs/cgroup/group.default')
+      .and_return('0-1')
+    expect(command.send(:group_cpuset_applied?, grp)).to be(false)
+
+    allow(OsCtld::CGroup::CpusetPolicy).to receive(:read_effective_mask)
+      .with('/sys/fs/cgroup/group.default')
+      .and_return('0-3')
+    allow(File).to receive(:read)
+      .with('/sys/fs/cgroup/group.default/cpuset.cpus')
+      .and_return('')
+    expect(command.send(:group_cpuset_applied?, grp)).to be(false)
+  end
+
+  it 'allows transactional set, unset, and replace to repair quarantine' do
+    valid_cpuset = OsCtld::CGroup::Param.new(
+      2,
+      'cpuset',
+      'cpuset.cpus',
+      ['0-3'],
+      true
+    )
+    original_state = {
+      'status' => 'tainted',
+      'kind' => 'group_cpuset',
+      'cleanup_params' => []
+    }
+    allow(OsCtld::CGroup).to receive_messages(
+      version: 2,
+      mkpath_all: true
+    )
+
+    build_quarantined = lambda do |cgparams|
+      OsCtld::Group.allocate.tap do |grp|
+        allow(grp).to receive_messages(
+          cgparams:,
+          containers_in_subtree: [],
+          cgroup_path: '/osctl/pool.tank/group.default',
+          cgroup_policy_tainted?: true,
+          cgroup_policy_state: original_state,
+          begin_cgroup_policy_update!: original_state,
+          clear_cgroup_policy_state!: true,
+          abs_cgroup_path: '/sys/fs/cgroup/group.default'
+        )
+        allow(grp).to receive(:manipulate) do |_holder, **, &callback|
+          callback.call
+        end
+      end
+    end
+
+    set_params = instance_double(
+      OsCtld::CGroup::Params,
+      import: [valid_cpuset],
+      each: [valid_cpuset].each,
+      transactional_set: nil
+    )
+    set_group = build_quarantined.call(set_params)
+    set_command = OsCtld::Commands::Group::CGParamSet.new({}, {})
+    expect(
+      set_command.send(
+        :set,
+        set_group,
+        {
+          parameters: [valid_cpuset.export],
+          append: false
+        },
+        apply: true
+      )
+    ).to eq(status: true, output: nil)
+    expect(set_params).to have_received(:transactional_set).with(
+      [valid_cpuset],
+      append: false,
+      apply: true
+    )
+    expect(set_group).to have_received(:clear_cgroup_policy_state!)
+
+    unset_params = instance_double(
+      OsCtld::CGroup::Params,
+      transactional_unset: nil
+    )
+    unset_group = build_quarantined.call(unset_params)
+    unset_command = OsCtld::Commands::Group::CGParamUnset.new({}, {})
+    expect(
+      unset_command.send(
+        :unset,
+        unset_group,
+        { parameters: [valid_cpuset.export] },
+        reset: true,
+        keep_going: true
+      )
+    ).to eq(status: true, output: nil)
+    expect(unset_params).to have_received(:transactional_unset).with(
+      [valid_cpuset.export],
+      reset: true,
+      keep_going: true,
+      apply_all: true
+    )
+    expect(unset_group).to have_received(:clear_cgroup_policy_state!)
+
+    replace_params = instance_double(
+      OsCtld::CGroup::Params,
+      import: [valid_cpuset],
+      each: [valid_cpuset].each,
+      transactional_replace: nil
+    )
+    replace_group = build_quarantined.call(replace_params)
+    replace_command = OsCtld::Commands::Group::CGParamReplace.new(
+      { parameters: [valid_cpuset.export] },
+      {}
+    )
+    expect(replace_command.send(:replace, replace_group)).to eq(
+      status: true,
+      output: nil
+    )
+    expect(replace_params).to have_received(:transactional_replace).with(
+      [valid_cpuset]
+    )
+    expect(replace_group).to have_received(:clear_cgroup_policy_state!)
+  end
+
+  it 'quarantines an incomplete guarded group apply' do
+    grp = OsCtld::Group.allocate
+    cpuset = OsCtld::CGroup::Param.new(
+      2,
+      'cpuset',
+      'cpuset.cpus',
+      ['0-3'],
+      true
+    )
+    cgparams = instance_double(OsCtld::CGroup::Params, detect: cpuset)
+    allow(cgparams).to receive(:apply)
+      .and_raise(
+        OsCtld::CGroup::CpusetPolicy::Error,
+        'kernel rejected pids.max'
+      )
+    allow(grp).to receive_messages(
+      any_container_running?: false,
+      cgparams:,
+      containers_in_subtree: [],
+      descendants: [],
+      groups_in_path: [grp],
+      name: '/default',
+      path: '/osctl/pool.tank/group.default',
+      cgroup_path: '/osctl/pool.tank/group.default',
+      pool: Struct.new(:name).new('tank'),
+      cgroup_policy_tainted?: false,
+      cgroup_policy_state: nil,
+      begin_cgroup_policy_update!: true,
+      taint_cgroup_policy!: true,
+      clear_cgroup_policy_state!: true,
+      abs_cgroup_path: '/sys/fs/cgroup/group.default'
+    )
+    allow(grp).to receive(:manipulate) do |_holder, **, &callback|
+      callback.call
+    end
+    db = stub_const('OsCtld::DB::Groups', Class.new do
+      def self.find(_name, _pool); end
+    end)
+    allow(db).to receive(:find).with('/default', 'tank').and_return(grp)
+    allow(OsCtld::CGroup).to receive_messages(version: 2, mkpath: true)
+    allow(OsCtld::CGroup::CpusetPolicy).to receive(:read_effective_mask)
+      .and_return('0-1')
+    command = OsCtld::Commands::Group::CGParamApply.new(
+      { name: '/default', pool: 'tank' },
+      {}
+    )
+    hierarchy = instance_double(
+      OsCtld::CGroup::GroupCpusetPolicy,
+      applied?: true
+    )
+    allow(OsCtld::CGroup::GroupCpusetPolicy).to receive(:new)
+      .and_return(hierarchy)
+
+    expect(command.execute).to match(
+      status: false,
+      message: 'kernel rejected pids.max'
+    )
+    expect(grp).to have_received(:taint_cgroup_policy!).with(
+      kind: :group_cpuset,
+      error: 'kernel rejected pids.max',
+      rollback_error: 'runtime group policy apply did not complete',
+      cleanup_params: []
+    )
+    expect(grp).not_to have_received(:clear_cgroup_policy_state!)
   end
 
   it 'delegates the remaining device helpers through manipulate or inclusively' do

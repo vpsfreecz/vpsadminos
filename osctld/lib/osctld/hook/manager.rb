@@ -54,7 +54,7 @@ module OsCtld
     def run(hook_class, opts)
       hook = hook_class.new(event_instance, opts)
 
-      list_scripts(hook_class).each do |v|
+      list_scripts(hook_class).map do |v|
         hook.exec(v.abs_path)
       end
     end

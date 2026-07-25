@@ -67,6 +67,10 @@ RSpec.describe OsCtld::Container do
         expect(ct.base_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1')
         expect(ct.cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned')
         expect(ct.entry_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned/lxc.monitor.ct1')
+        expect(ct.lxc_inner_cgroup_path).to eq(
+          '/osctl/pool.tank/group.default/user.alice/ct.ct1/' \
+          'user-owned/lxc.payload.ct1/inner'
+        )
       end
     end
 
@@ -158,6 +162,152 @@ RSpec.describe OsCtld::Container do
           'version' => '24.04',
           'arch' => 'x86_64'
         )
+      end
+    end
+  end
+
+  describe 'incarnation identity during configuration replacement' do
+    def quarantine_generation(ct)
+      ct.instance_variable_set(:@run_conf, nil)
+      ct.instance_variable_set(:@next_run_conf, nil)
+      lifecycle = ct.lifecycle
+      request = lifecycle.request_start
+      lifecycle.claim_effect(request.run_id, :start)
+      lease = lifecycle.begin_recovery(request.run_id)
+      lifecycle.quarantine(
+        request.run_id,
+        recovery_id: lease.id,
+        evidence: { 'survivors' => [{ 'pid' => 123 }] },
+        hazards: ['unkillable process']
+      )
+
+      [lifecycle, request.run_id]
+    end
+
+    it 'rejects a replaced incarnation before discarding residual evidence' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        lifecycle, run_id = quarantine_generation(ct)
+        original_incarnation = ct.incarnation_id
+        replacement = ct.dump_config.merge(
+          'incarnation_id' => SecureRandom.uuid
+        )
+
+        expect do
+          ct.replace_config(dump_yaml(replacement))
+        end.to raise_error(
+          OsCtld::ConfigError,
+          /incarnation_id cannot be changed/
+        )
+
+        expect(ct.incarnation_id).to eq(original_incarnation)
+        expect(ct.lifecycle).to equal(lifecycle)
+        expect(ct.lifecycle.residuals.map { |run| run.fetch('id') })
+          .to include(run_id.dump)
+        expect(load_yaml_file(ct.config_path).fetch('incarnation_id'))
+          .to eq(original_incarnation)
+      end
+    end
+
+    it 'rejects an incarnation changed in the on-disk config on reload' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        lifecycle, run_id = quarantine_generation(ct)
+        original_incarnation = ct.incarnation_id
+        replacement = ct.dump_config.merge(
+          'incarnation_id' => SecureRandom.uuid
+        )
+        File.chmod(0o600, ct.config_path)
+        File.write(ct.config_path, dump_yaml(replacement))
+
+        expect do
+          ct.reload_config
+        end.to raise_error(
+          OsCtld::ConfigError,
+          /incarnation_id cannot be changed/
+        )
+
+        expect(ct.incarnation_id).to eq(original_incarnation)
+        expect(ct.lifecycle).to equal(lifecycle)
+        expect(ct.lifecycle.residuals.map { |run| run.fetch('id') })
+          .to include(run_id.dump)
+      end
+    end
+
+    it 'durably backfills an omitted incarnation on reload' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        lifecycle = ct.lifecycle
+        original_incarnation = ct.incarnation_id
+        replacement = ct.dump_config
+        replacement.delete('incarnation_id')
+        File.chmod(0o600, ct.config_path)
+        File.write(ct.config_path, dump_yaml(replacement))
+
+        ct.reload_config
+
+        expect(ct.lifecycle).to equal(lifecycle)
+        expect(load_yaml_file(ct.config_path).fetch('incarnation_id'))
+          .to eq(original_incarnation)
+
+        _lifecycle, run_id = quarantine_generation(ct)
+        restarted = build_container(
+          root: dir,
+          pool: ct.pool,
+          user: ct.user,
+          group: ct.group,
+          dataset: ct.dataset,
+          load: true,
+          load_from: File.read(ct.config_path),
+          devices: false
+        )
+
+        expect(restarted.incarnation_id).to eq(original_incarnation)
+        expect(restarted.lifecycle.residuals.map { |run| run.fetch('id') })
+          .to include(run_id.dump)
+      end
+    end
+
+    it 'preserves incarnation and residual evidence when replacement omits it' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        _lifecycle, run_id = quarantine_generation(ct)
+        original_incarnation = ct.incarnation_id
+        replacement = ct.dump_config
+        replacement.delete('incarnation_id')
+        replacement['hostname'] = 'replaced.example'
+
+        ct.replace_config(dump_yaml(replacement))
+
+        expect(ct.incarnation_id).to eq(original_incarnation)
+        expect(ct.lifecycle.residuals.map { |run| run.fetch('id') })
+          .to include(run_id.dump)
+        expect(load_yaml_file(ct.config_path)).to include(
+          'incarnation_id' => original_incarnation,
+          'hostname' => 'replaced.example'
+        )
+      end
+    end
+
+    it 'rejects an incarnation supplied by a configuration patch' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        lifecycle, run_id = quarantine_generation(ct)
+        original_incarnation = ct.incarnation_id
+
+        expect do
+          ct.patch_config('incarnation_id' => SecureRandom.uuid)
+        end.to raise_error(
+          OsCtld::ConfigError,
+          /incarnation_id cannot be changed/
+        )
+
+        expect(ct.incarnation_id).to eq(original_incarnation)
+        expect(ct.lifecycle).to equal(lifecycle)
+        expect(ct.lifecycle.residuals.map { |run| run.fetch('id') })
+          .to include(run_id.dump)
+        expect(load_yaml_file(ct.config_path).fetch('incarnation_id'))
+          .to eq(original_incarnation)
       end
     end
   end
@@ -299,6 +449,21 @@ RSpec.describe OsCtld::Container do
       end
     end
 
+    it 'rejects a planned run configuration from another lifecycle generation' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        next_run_conf = run_conf_class.new(ct, load_conf: false)
+        allow(next_run_conf).to receive(:run_id).and_return('run-1')
+        ct.set_next_run_conf(next_run_conf)
+
+        expect do
+          ct.init_run_conf(run_id: 'run-2')
+        end.to raise_error(OsCtld::ConfigError, /planned run configuration/)
+        expect(ct.run_conf).to be_nil
+        expect(ct.next_run_conf).to eq(next_run_conf)
+      end
+    end
+
     it 'initializes a run configuration only once in ensure_run_conf' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
@@ -312,6 +477,17 @@ RSpec.describe OsCtld::Container do
       end
     end
 
+    it 'leaves the active run configuration unset when a lifecycle generation is missing' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        run_id = Object.new
+        allow(run_conf_class).to receive(:load_generation).with(ct, run_id).and_return(nil)
+
+        expect(ct.load_lifecycle_run_conf(run_id)).to be_nil
+        expect(ct.run_conf).to be_nil
+      end
+    end
+
     it 'moves the active run configuration to past_run_conf when stopped' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
@@ -320,9 +496,23 @@ RSpec.describe OsCtld::Container do
 
         ct.stopped
 
-        expect(active.destroy_calls).to eq(1)
+        expect(active.destroy_calls).to eq(0)
         expect(ct.run_conf).to be_nil
         expect(ct.get_past_run_conf).to eq(active)
+      end
+    end
+
+    it 'does not let a stale post-stop callback detach a replacement run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        replacement = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', replacement)
+        ct.state = :running
+
+        expect(ct.stopped('stale-run')).to be(false)
+        expect(ct.state).to eq(:running)
+        expect(ct.run_conf).to eq(replacement)
+        expect(ct.get_past_run_conf).to be_nil
       end
     end
 

@@ -12,29 +12,29 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
-      manipulate(ct) do
-        if ct.state != :stopped && !opts[:force]
-          error!('the container has to be stopped')
-        end
-
+      manipulate(ct, lifecycle: true) do
         recovery = Container::Recovery.new(ct)
-
-        if opts[:cleanup] == 'all' || opts[:cleanup].include?('cgroups')
-          recovery.cleanup_cgroups
+        ret = recovery.cleanup(
+          run_id: opts[:run_id],
+          cleanup: opts[:cleanup],
+          force: opts[:force]
+        ) do |veth, routes|
+          progress(
+            "#{veth}: " + routes.map do |route|
+              route.respond_to?(:addr) ? route.addr.to_string : route.to_s
+            end.join(' ')
+          )
         end
 
-        if opts[:cleanup] == 'all' || opts[:cleanup].include?('netifs')
-          progress('Searching for stray network interfaces')
-
-          recovery.cleanup_netifs do |veth, routes|
-            progress(
-              "#{veth}: " + routes.map { |v| v.addr.to_string }.join(' ')
-            )
-          end
+        if %i[blocked ambiguous].include?(ret[:outcome])
+          error(ret.to_json)
+        else
+          progress(ret[:hazards].join('; ')) if ret[:hazards].any?
+          ok(ret)
         end
-
-        ok
       end
+    rescue ArgumentError => e
+      error(e.message)
     end
   end
 end

@@ -9,8 +9,21 @@ module OsCtld
         stopped = stop_source_for_state?(running)
 
         if stopped
+          guard_residual_generations!(
+            ct,
+            'consistent local container transfer'
+          )
           call_cmd!(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
+          guard_no_runtime_generations!(
+            ct,
+            'consistent local container transfer'
+          )
           force_writeout(ct)
+        elsif !running && (operation == :move || opts.fetch(:consistent, true))
+          guard_no_runtime_generations!(
+            ct,
+            'consistent local container transfer'
+          )
         end
 
         clear_failed_state_snapshot(ct, log)

@@ -95,8 +95,16 @@ RSpec.describe 'container recovery and send wrappers' do
         def self.new(_ct); end
       end)
       route = Struct.new(:addr).new(Struct.new(:to_string).new('192.0.2.0/24'))
-      recovery = double('Recovery', cleanup_cgroups: nil)
-      allow(recovery).to receive(:cleanup_netifs).and_yield('veth0', [route])
+      result = {
+        outcome: :cleaned,
+        hazards: [],
+        run_id: 'tank:ct1:run1'
+      }
+      recovery = double('Recovery')
+      allow(recovery).to receive(:cleanup)
+        .with(run_id: nil, cleanup: 'all', force: true)
+        .and_yield('veth0', [route])
+        .and_return(result)
       ct = build_send_ct(state: :running)
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
@@ -110,9 +118,12 @@ RSpec.describe 'container recovery and send wrappers' do
       )
       allow(command).to receive(:progress)
 
-      expect(command.execute).to eq(status: true, output: nil)
-      expect(recovery).to have_received(:cleanup_cgroups)
-      expect(command).to have_received(:progress).with('Searching for stray network interfaces')
+      expect(command.execute).to eq(status: true, output: result)
+      expect(recovery).to have_received(:cleanup).with(
+        run_id: nil,
+        cleanup: 'all',
+        force: true
+      )
       expect(command).to have_received(:progress).with('veth0: 192.0.2.0/24')
     end
   end
@@ -122,7 +133,9 @@ RSpec.describe 'container recovery and send wrappers' do
       recovery_class = stub_const('OsCtld::Container::Recovery', Class.new do
         def self.new(_ct); end
       end)
-      recovery = double('Recovery', recover_state: nil)
+      result = { state: :stopped, run_id: 'tank:ct1:run1' }
+      recovery = double('Recovery')
+      allow(recovery).to receive(:recover_state).with(run_id: nil).and_return(result)
       ct = build_send_ct
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
@@ -130,8 +143,11 @@ RSpec.describe 'container recovery and send wrappers' do
       allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
       allow(recovery_class).to receive(:new).with(ct).and_return(recovery)
 
-      expect(described_class.run(id: 'ct1', pool: 'tank')).to eq(status: true, output: nil)
-      expect(recovery).to have_received(:recover_state)
+      expect(described_class.run(id: 'ct1', pool: 'tank')).to eq(
+        status: true,
+        output: result
+      )
+      expect(recovery).to have_received(:recover_state).with(run_id: nil)
     end
   end
 

@@ -6,9 +6,9 @@ require 'osctld/container/run_id'
 require 'osctld/container/run_configuration'
 
 RSpec.describe OsCtld::Container::RunConfiguration do
-  def build_run_configuration(root:, **opts)
+  def build_run_configuration(root:, run_id: nil, **opts)
     ct = build_run_config_container(root:, **opts)
-    [ct, described_class.new(ct, load_conf: false)]
+    [ct, described_class.new(ct, load_conf: false, run_id:)]
   end
 
   it 'initializes from container defaults when no runtime config exists' do
@@ -175,16 +175,47 @@ RSpec.describe OsCtld::Container::RunConfiguration do
 
   it 'tracks abort and reboot state' do
     with_tmpdir do |dir|
-      _ct, rc = build_run_configuration(root: dir)
+      ct, rc = build_run_configuration(root: dir)
 
       expect(rc.aborted?).to be(false)
       expect(rc.reboot?).to be(false)
 
-      rc.aborted = true
+      rc.mark_aborted
       rc.request_reboot
 
       expect(rc.aborted?).to be(true)
       expect(rc.reboot?).to be(true)
+
+      loaded = described_class.load(ct)
+
+      expect(loaded.aborted?).to be(true)
+      expect(loaded.reboot?).to be(true)
+    end
+  end
+
+  it 'keeps runtime files generation-scoped when an old run is destroyed late' do
+    with_tmpdir do |dir|
+      ct = build_run_config_container(root: dir)
+      first_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1',
+        key: 'a' * 32
+      )
+      second_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1',
+        key: 'b' * 32
+      )
+      first = described_class.new(ct, load_conf: false, run_id: first_id)
+      second = described_class.new(ct, load_conf: false, run_id: second_id)
+
+      first.save
+      second.save
+      first.destroy
+
+      expect(described_class.load(ct).run_id).to eq(second_id)
+      expect(described_class.load_generation(ct, first_id)).to be_nil
+      expect(described_class.load_generation(ct, second_id).run_id).to eq(second_id)
     end
   end
 

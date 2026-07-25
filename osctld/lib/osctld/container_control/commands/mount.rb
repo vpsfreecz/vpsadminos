@@ -28,6 +28,7 @@ module OsCtld
         r, w = IO.pipe
 
         pid = ct.attach(stdout: w) do
+          protect_runner_child
           r.close
 
           begin

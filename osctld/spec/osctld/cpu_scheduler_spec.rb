@@ -54,6 +54,10 @@ RSpec.describe OsCtld::CpuScheduler do
         ct.id
       end
 
+      def cgroup_root
+        File.join(ct.base_cgroup_path, 'runs', 'run-1')
+      end
+
       def save
         self.save_calls += 1
       end
@@ -198,7 +202,7 @@ RSpec.describe OsCtld::CpuScheduler do
     expect(scheduler.export_packages.sum { |pkg| pkg[:containers] }).to eq(0)
   end
 
-  it 'applies cpuset configuration and unschedules containers' do
+  it 'stages cpuset configuration and unschedules containers' do
     scheduler = fresh_singleton(described_class)
     scheduler.enable_package(0)
     ct = build_ct(pool:, id: 'ct1', usage_us: 10)
@@ -210,20 +214,37 @@ RSpec.describe OsCtld::CpuScheduler do
 
     scheduler.schedule_ct(ctrc)
 
-    expect(OsCtld::CGroup).to have_received(:mkpath).with('cpuset', ['', 'osctl', 'pool.tank', 'ct.ct1'], leaf: false)
-    expect(OsCtld::CGroup).to have_received(:set_param).with(
-      '/sys/fs/cgroup/cpuset/osctl/pool.tank/ct.ct1/cpuset.cpus',
-      [match(/\A[0-9,]+\z/)]
+    expect(OsCtld::CGroup).to have_received(:mkpath).with(
+      'cpuset',
+      ['', 'osctl', 'pool.tank', 'ct.ct1', 'runs', 'run-1'],
+      leaf: false
     )
+    expect(OsCtld::CGroup).not_to have_received(:set_param)
     expect(ct.cgparams).to have_received(:set).with(
       [hash_including(subsystem: 'cpuset', parameter: 'cpuset.cpus', persistent: false)]
     )
     expect(ctrc.cpu_package).not_to be_nil
+    expect(scheduler.package_mask(ctrc.cpu_package)).to match(/\A[0-9,]+\z/)
     expect(ctrc.save_calls).to eq(1)
 
     scheduler.unschedule_ct(ct)
 
     expect(scheduler.get_preschedule_package_id(ct)).to be_nil
+  end
+
+  it 'reuses a quarantined generation assignment without double-counting it' do
+    scheduler = fresh_singleton(described_class)
+    scheduler.enable_package(0)
+    ct = build_ct(pool:, id: 'ct1', usage_us: 10)
+    first = build_run_configuration(ct)
+    replacement = build_run_configuration(ct)
+
+    scheduler.schedule_ct(first)
+    before = scheduler.export_packages
+    scheduler.schedule_ct(replacement)
+
+    expect(replacement.cpu_package).to eq(first.cpu_package)
+    expect(scheduler.export_packages).to eq(before)
   end
 
   it 'exports and reloads persisted scheduler state' do

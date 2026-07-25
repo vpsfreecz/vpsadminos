@@ -2,7 +2,7 @@
 require 'json'
 require 'socket'
 
-pool, ctid = ARGV
+pool, ctid, run_id = ARGV
 
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 
@@ -11,6 +11,7 @@ payload = {
   opts: {
     id: ctid,
     pool:,
+    run_id:,
     pid: Process.pid
   }
 }
@@ -21,7 +22,7 @@ ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 
 if ret[:status]
-  Process.exec(*ARGV[2..])
+  Process.exec(*ARGV[3..])
 else
   warn "Error: #{ret[:message]}"
   exit(false)

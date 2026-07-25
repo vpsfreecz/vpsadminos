@@ -6,33 +6,36 @@ require 'osctld/dist_config'
 require 'stringio'
 
 RSpec.describe OsCtld::ContainerControl::Commands::Exec do
-  def build_mounts
-    Struct.new(:pruned, keyword_init: true) do
-      def prune
-        self.pruned = true
+  def build_ct(running:)
+    lifecycle = Struct.new(:active_run_id) do
+      def run(_run_id)
+        {
+          'resources' => {
+            'lxc_monitor' => '/osctl/ct.ct1/runs/run-1/user-owned/monitor',
+            'lxc_config' => '/var/lib/lxc/ct1/config.run-1'
+          }
+        }
       end
-    end.new(pruned: false)
-  end
-
-  def build_run_conf
-    Struct.new(:name, keyword_init: true).new(name: 'run-conf')
-  end
-
-  def build_ct(running:, mounts:, run_conf:)
-    Struct.new(:running, :mounts, :run_conf, :ensure_calls, keyword_init: true) do
+    end.new('run-1')
+    Struct.new(:running, :lifecycle, keyword_init: true) do
       def running?
         running
       end
-
-      def ensure_run_conf
-        self.ensure_calls += 1
-      end
-    end.new(running:, mounts:, run_conf:, ensure_calls: 0)
+    end.new(running:, lifecycle:)
   end
 
   subject(:frontend) do
     Class.new(described_class::Frontend) do
-      attr_accessor :exec_result, :cleanup_calls, :exec_calls
+      attr_accessor :exec_result, :cleanup_calls, :exec_calls, :mode_override,
+                    :runner_opts_override
+
+      def with_execution_mode(...)
+        if mode_override
+          yield(mode_override, runner_opts_override || {})
+        else
+          super
+        end
+      end
 
       def exec_runner(**opts)
         self.exec_calls ||= []
@@ -48,13 +51,7 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
   end
 
   let(:running) { true }
-  let(:mounts) { build_mounts }
-  let(:run_conf) { build_run_conf }
-  let(:ct) { build_ct(running:, mounts:, run_conf:) }
-
-  before do
-    allow(OsCtld::DistConfig).to receive(:run)
-  end
+  let(:ct) { build_ct(running:) }
 
   it 'uses running mode when the container is already up' do
     frontend.exec_result = OsCtld::ContainerControl::Result.new(true, data: 0)
@@ -66,26 +63,30 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
     expect(call[:stdin]).to be_nil
     expect(call[:stdout]).to be_a(StringIO)
     expect(call[:stderr]).to be_a(StringIO)
-    expect(call[:reset_subtree_control]).to be(false)
+    expect(call[:on_spawn]).to be_a(Proc)
+    expect(call[:on_reap]).to be_a(Proc)
     expect(frontend.cleanup_calls).to eq(1)
   end
 
-  it 'prepares run mode for stopped containers when run is requested' do
+  it 'passes transient lifecycle runner options in stopped run mode' do
     ct.running = false
+    frontend.mode_override = :run
+    frontend.runner_opts_override = {
+      run_id: 'run-2',
+      lxc_config: '/var/lib/lxc/ct1/config.run-2'
+    }
     frontend.exec_result = OsCtld::ContainerControl::Result.new(true, data: 0)
 
     frontend.execute(cmd: %w[id], run: true, stdin: nil, stdout: StringIO.new, stderr: StringIO.new)
 
-    expect(ct.ensure_calls).to eq(1)
-    expect(mounts.pruned).to be(true)
-    expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :pre_start)
     call = frontend.exec_calls.first
 
     expect(call[:args]).to eq([:run, { cmd: %w[id] }])
+    expect(call[:run_id]).to eq('run-2')
+    expect(call[:lxc_config]).to eq('/var/lib/lxc/ct1/config.run-2')
     expect(call[:stdin]).to be_nil
     expect(call[:stdout]).to be_a(StringIO)
     expect(call[:stderr]).to be_a(StringIO)
-    expect(call[:reset_subtree_control]).to be(true)
     expect(frontend.cleanup_calls).to eq(1)
   end
 

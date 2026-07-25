@@ -12,7 +12,7 @@ module OsCtld
     end
 
     def execute(grp)
-      set(grp, opts, apply: grp.any_container_running?)
+      set(grp, opts, apply: true)
     end
   end
 end

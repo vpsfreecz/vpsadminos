@@ -27,9 +27,17 @@ lxc.idmap = g <%= entry.ns_id %> <%= entry.host_id %> <%= entry.id_count %>
 # Security
 lxc.seccomp.profile = <%= ct.seccomp_profile %>
 <% if AppArmor.enabled? -%>
-lxc.apparmor.profile = <%= ct.apparmor.namespace_profile_name %>
+lxc.apparmor.profile = <%= ct.apparmor.namespace_profile_name(run_conf) %>
 <% end -%>
 lxc.autodev = 1
+
+# Exact lifecycle-generation cgroups
+<% if run_conf.generation_cgroups? -%>
+lxc.cgroup.dir.container = payload
+lxc.cgroup.dir.monitor = monitor
+lxc.cgroup.dir.monitor.pivot = monitor-pivot
+lxc.cgroup.dir.container.inner = inner
+<% end -%>
 
 # Time namespace
 <% if OsCtld::Daemon.get.config.enable_time_namespace? -%>
@@ -44,16 +52,16 @@ lxc.init.cmd = <%= ct.format_exec_init_cmd %>
 
 # Internal hooks into osctld
 lxc.hook.version = 1
-lxc.hook.pre-start = <%= OsCtld::hook_run('ct-pre-start', ct.pool) %>
-lxc.hook.pre-mount = <%= OsCtld::hook_run('ct-pre-mount', ct.pool) %>
-lxc.hook.mount = <%= OsCtld::hook_run('ct-post-mount', ct.pool) %>
-lxc.hook.autodev = <%= OsCtld::hook_run('ct-autodev', ct.pool) %>
-lxc.hook.start-host = <%= OsCtld::hook_run('ct-on-start', ct.pool) %>
-lxc.hook.post-stop = <%= OsCtld::hook_run('ct-post-stop', ct.pool) %>
+lxc.hook.pre-start = <%= OsCtld::hook_run('ct-pre-start', ct.pool) %> <%= run_conf.run_id.to_s %>
+lxc.hook.pre-mount = <%= OsCtld::hook_run('ct-pre-mount', ct.pool) %> <%= run_conf.run_id.to_s %>
+lxc.hook.mount = <%= OsCtld::hook_run('ct-post-mount', ct.pool) %> <%= run_conf.run_id.to_s %>
+lxc.hook.autodev = <%= OsCtld::hook_run('ct-autodev', ct.pool) %> <%= run_conf.run_id.to_s %>
+lxc.hook.start-host = <%= OsCtld::hook_run('ct-on-start', ct.pool) %> <%= run_conf.run_id.to_s %>
+lxc.hook.post-stop = <%= OsCtld::hook_run('ct-post-stop', ct.pool) %> <%= run_conf.run_id.to_s %>
 
 # Network interfaces
 <% netifs.each_with_index do |netif, i| -%>
-<%= ErbTemplate.render("ct/net_interface/#{netif.type}", netif.render_opts) %>
+<%= ErbTemplate.render("ct/net_interface/#{netif.type}", netif.render_opts(run_conf: run_conf)) %>
 <% end -%>
 
 # Cgroup parameters

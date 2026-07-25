@@ -684,7 +684,11 @@ module OsCtld
         log(:info, "Loading container #{ctid}")
 
         ct = load_entity('container', ctid) do
-          Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
+          loaded_ct =
+            Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
+          loaded_ct.ensure_incarnation_id_persisted
+          loaded_ct.lifecycle
+          loaded_ct
         end
         next unless ct
 
@@ -696,13 +700,88 @@ module OsCtld
 
         ct.reconfigure
 
-        running = ct.fresh_state == :running
-
-        ct.ensure_run_conf if running
-        Monitor::Master.monitor(ct)
-        Console.reconnect_tty0(ct) if running
-
         DB::Containers.add(ct)
+
+        runtime_state = ct.fresh_state
+        running = runtime_state == :running
+        ct.ensure_run_conf if running
+
+        lifecycle = ct.lifecycle
+        if lifecycle.active_run_id \
+            && (!ct.run_conf || ct.run_conf.run_id != lifecycle.active_run_id)
+          ct.load_lifecycle_run_conf(lifecycle.active_run_id)
+        end
+        if ct.run_conf && lifecycle.active_run_id.nil?
+          lifecycle.adopt_legacy(
+            ct.run_conf,
+            runtime_state,
+            managers: legacy_manager_identities(ct, runtime_state)
+          )
+        end
+        ct.reconfigure
+
+        if lifecycle.residuals.any?
+          log(
+            :warn,
+            "#{ct.ident} has residual lifecycle generations. Rolling back to " \
+            'an osctld version without generation fencing can let late events ' \
+            'or cleanup affect a newer run'
+          )
+        end
+
+        Monitor::Master.monitor(ct)
+
+        active_run_id = lifecycle.active_run_id
+        active_run_conf = [ct.run_conf, ct.get_past_run_conf].compact.detect do |run_conf|
+          run_conf.run_id == active_run_id
+        end
+        if active_run_id
+          begin
+            Container::Recovery.new(ct).recover_state(run_id: active_run_id)
+          rescue Container::Recovery::Busy
+            if active_run_conf
+              Container::LifecycleFinalizer.watch_reconciliation(
+                ct,
+                active_run_conf
+              )
+            end
+          rescue StandardError => e
+            log(
+              :warn,
+              "Unable to reconcile lifecycle of #{ct.ident}: " \
+              "#{e.message} (#{e.class})"
+            )
+          end
+        elsif lifecycle.desired_state == :running
+          intent_id = lifecycle.current_intent_id
+          thread = Thread.new do
+            Commands::Container::Start.run(
+              pool: ct.pool.name,
+              id: ct.id,
+              lifecycle_source: 'daemon-restart',
+              lifecycle_intent_id: intent_id,
+              manipulation_lock: 'wait'
+            )
+          end
+          ThreadReaper.add(thread, nil, group: :durable_lifecycle)
+        end
+
+        active_run_id = lifecycle.active_run_id
+        active_run_conf = [ct.run_conf, ct.get_past_run_conf].compact.detect do |run_conf|
+          run_conf.run_id == active_run_id
+        end
+        active_lifecycle_run = active_run_id && lifecycle.run(active_run_id)
+        recorded_managers = active_lifecycle_run && (
+          %w[wrapper lxc_start].any? do |name|
+            active_lifecycle_run.fetch(name, nil)
+          end || active_lifecycle_run.fetch('legacy_managers', []).any?
+        )
+        if active_run_conf && recorded_managers
+          Container::LifecycleFinalizer.watch_wrapper(ct, active_run_conf)
+        end
+        if active_run_conf && !lifecycle.execution_run?(active_run_id)
+          Console.reconnect_tty0(ct, active_run_conf)
+        end
       end
 
       ep.wait
@@ -722,6 +801,25 @@ module OsCtld
 
         DB::Repositories.add(repo)
         repo.start
+      end
+    end
+
+    def legacy_manager_identities(ct, runtime_state)
+      return [] unless runtime_state == :running
+
+      {
+        'legacy_wrapper' => ct.legacy_wrapper_cgroup_path,
+        'legacy_lxc_monitor' => File.join(
+          ct.legacy_cgroup_path,
+          "lxc.monitor.#{ct.id}"
+        )
+      }.flat_map do |kind, path|
+        CGroup.get_tree_pids(path).filter_map do |pid|
+          identity = ProcessIdentity.capture(pid)
+          identity&.dump&.merge('kind' => kind)
+        end
+      end.uniq do |identity|
+        [identity.fetch('pid'), identity.fetch('start_time_ticks')]
       end
     end
 

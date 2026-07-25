@@ -27,7 +27,7 @@ module OsCtld
       ]
 
       if opts[:user_shell]
-        ok(ct_attach(ct, *base_args))
+        ok(ct_attach(ct, *base_args, lifecycle: true))
 
       else
         shell = find_shell(ct)
@@ -39,7 +39,8 @@ module OsCtld
              '--keep-var', 'LANG',
              '-v', "PS1=#{prompt(ct, shell)}",
              '--',
-             *shell_args(shell)
+             *shell_args(shell),
+             lifecycle: true
            ))
       end
     end
