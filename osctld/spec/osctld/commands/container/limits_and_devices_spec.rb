@@ -4,6 +4,9 @@
 
 require 'osctld/exceptions'
 require 'osctld/command'
+require 'osctld/cgroup'
+require 'osctld/cgroup/container_params'
+require 'osctld/container/lifecycle'
 require 'osctld/utils/devices'
 require 'osctld/utils/cgroup_params'
 
@@ -173,6 +176,47 @@ RSpec.describe 'container limits and device commands' do
   end
 
   describe OsCtld::Commands::Container::CGParamApply do
+    it 'admits configured CPU policy reapplication as a policy update' do
+      stub_const('OsCtld::Group', Class.new)
+      cpuset_policy = Class.new
+      cpuset_policy.const_set(:Error, Class.new(StandardError))
+      stub_const('OsCtld::CGroup::CpusetPolicy', cpuset_policy)
+      ct = OsCtld::Container.allocate
+      cpu_limit = Struct.new(:version, :name).new(
+        OsCtld::CGroup.version,
+        OsCtld::CGroup.v1? ? 'cpu.cfs_quota_us' : 'cpu.max'
+      )
+      cgparams = instance_double(OsCtld::CGroup::ContainerParams)
+      lifecycle = instance_double(
+        OsCtld::Container::Lifecycle,
+        manipulation_blocker: nil
+      )
+      allow(cgparams).to receive(:detect) do |&block|
+        [cpu_limit].detect(&block)
+      end
+      allow(cgparams).to receive(:apply)
+      ct.define_singleton_method(:cgparams) { cgparams }
+      ct.define_singleton_method(:lifecycle) { lifecycle }
+      ct.define_singleton_method(:abs_apply_cgroup_path) do |_subsystem|
+        '/sys/fs/cgroup/ct.test'
+      end
+      ct.define_singleton_method(:manipulate) do |_holder, **_options, &code|
+        code.call
+      end
+      command = described_class.new({}, {})
+
+      expect(
+        command.apply(ct, force: true, cpuset: false)
+      ).to eq(status: true, output: nil)
+      expect(lifecycle).to have_received(:manipulation_blocker).with(
+        allow_policy_taint: true
+      )
+      expect(cgparams).to have_received(:apply).with(
+        keep_going: true,
+        cpuset: false
+      )
+    end
+
     it 'passes through group command failures' do
       db = build_db_containers
       group_apply = stub_const('OsCtld::Commands::Group::CGParamApply', Class.new)

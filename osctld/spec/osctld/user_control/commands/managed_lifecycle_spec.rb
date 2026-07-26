@@ -15,6 +15,7 @@ require 'osctld/container/run_id'
 require 'osctld/cgroup/container_params'
 require 'osctld/utils/cgroup_params'
 require 'osctld/commands/container/cgparam_apply'
+require 'osctld/commands/group/cgparam_apply'
 require 'osctld/devices/manager'
 require 'osctld/dist_config'
 require 'osctld/hook'
@@ -55,6 +56,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
       id: 'ct1',
       user:,
       pool:,
+      group: Struct.new(:name).new('/default'),
       run_conf:,
       get_past_run_conf: nil,
       lifecycle:
@@ -252,6 +254,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
     )
     cgparams = instance_double(
       OsCtld::CGroup::ContainerParams,
+      apply_for_start: nil,
       apply_cpuset_for_start: nil
     )
     devices = instance_double(OsCtld::Devices::Manager, apply: nil)
@@ -266,8 +269,10 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
     allow(ct).to receive_messages(
       id: 'ct1',
       starting: true,
+      running?: false,
       pool:,
       cgparams:,
+      abs_apply_cgroup_path: '/sys/fs/cgroup/ct.ct1',
       devices:,
       mounts:,
       setup_start_menu: nil
@@ -284,14 +289,16 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
     )
     command.instance_variable_set(:@lifecycle_callback_id, 'callback-1')
     allow(command).to receive(:call_cmd).with(
-      OsCtld::Commands::Container::CGParamApply,
-      id: 'ct1',
+      OsCtld::Commands::Group::CGParamApply,
+      name: ct.group.name,
       pool: 'tank',
       manipulation_lock: 'ignore',
       skip_cpuset: true
     ).and_return(status: true, output: nil)
 
     expect(command.execute).to eq(status: true, output: nil)
+    expect(cgparams).to have_received(:apply_for_start)
+      .with(run_id:, keep_going: false)
     expect(cgparams).to have_received(:apply_cpuset_for_start)
       .with(run_id:)
     expect(lifecycle).to have_received(:complete_pre_start).with(
@@ -305,6 +312,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
   it 'reconciles the namespaced root from the exact start-host callback' do
     cgparams = instance_double(
       OsCtld::CGroup::ContainerParams,
+      apply_for_start: nil,
       apply_cpuset_for_start: nil
     )
     allow(ct).to receive(:cgparams).and_return(cgparams)
@@ -346,8 +354,10 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
     allow(ct).to receive_messages(
       id: 'ct1',
       starting: true,
+      running?: false,
       pool:,
       cgparams:,
+      abs_apply_cgroup_path: '/sys/fs/cgroup/ct.ct1',
       devices:,
       mounts:
     )
@@ -361,14 +371,15 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
     )
     command.instance_variable_set(:@lifecycle_callback_id, 'callback-1')
     allow(command).to receive(:call_cmd).with(
-      OsCtld::Commands::Container::CGParamApply,
-      id: 'ct1',
+      OsCtld::Commands::Group::CGParamApply,
+      name: ct.group.name,
       pool: 'tank',
       manipulation_lock: 'ignore',
       skip_cpuset: true
-    ).and_return(
-      status: false,
-      message: 'kernel rejected stable container cgroup parameters: pids.max'
+    ).and_return(status: true, output: nil)
+    allow(cgparams).to receive(:apply_for_start).and_raise(
+      OsCtld::CGroup::CpusetPolicy::Error,
+      'kernel rejected stable container cgroup parameters: pids.max'
     )
 
     expect(command.execute).to eq(

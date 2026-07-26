@@ -175,9 +175,11 @@ module OsCtld
               'parameter apply before starting containers'
       end
       policy_update =
-        cpuset \
-        && groupable.is_a?(Container) \
-        && groupable.cgparams.detect { |param| param.name == 'cpuset.cpus' }
+        groupable.is_a?(Container) \
+        && groupable.cgparams.detect do |param|
+          container_policy_param?(param) \
+            && (cpuset || param.name != 'cpuset.cpus')
+        end
       group_cpuset_recovery =
         cpuset \
         && group_policy_recovery \
@@ -336,7 +338,14 @@ module OsCtld
     end
 
     def container_policy_parameter?(version, name)
-      version == CGroup.version && name == 'cpuset.cpus'
+      return false unless version == CGroup.version
+      return true if name == 'cpuset.cpus'
+
+      if version == 1
+        %w[cpu.cfs_period_us cpu.cfs_quota_us].include?(name)
+      else
+        name == 'cpu.max'
+      end
     end
 
     def group_cpuset_configured?(groupable, additional = [])

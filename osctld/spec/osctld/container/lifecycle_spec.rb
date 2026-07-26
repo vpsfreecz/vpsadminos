@@ -526,6 +526,36 @@ RSpec.describe OsCtld::Container::Lifecycle do
     end
   end
 
+  it 'retains the exact launch policy kind when rollback is incomplete' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      lifecycle.claim_effect(start.run_id, :start)
+      lease = lifecycle.begin_launch_policy(
+        start.run_id,
+        kind: :cpu_bandwidth
+      )
+
+      expect(
+        lifecycle.record_launch_policy(
+          start.run_id,
+          lease_id: lease.id,
+          target: {
+            'quota_us' => 50_000,
+            'period_us' => 100_000
+          },
+          error: 'CPU launch apply failed',
+          rollback_error: 'CPU launch rollback failed'
+        )
+      ).to be(true)
+      expect(lifecycle.snapshot.fetch('policy')).to include(
+        'kind' => 'cpu_bandwidth',
+        'tainted' => true,
+        'rollback_error' => 'CPU launch rollback failed'
+      )
+    end
+  end
+
   it 'admits exact child-policy reconciliation after pre-start handoff' do
     with_tmpdir do |root|
       lifecycle = described_class.new(build_container(root))

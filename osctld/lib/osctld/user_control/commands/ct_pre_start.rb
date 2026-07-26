@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/commands/group/cgparam_apply'
 require 'osctld/container/lifecycle_executor'
 require 'osctld/user_control/commands/base'
 
@@ -41,8 +42,8 @@ module OsCtld
 
       # Configure CGroups
       ret = call_cmd(
-        Commands::Container::CGParamApply,
-        id: ct.id,
+        Commands::Group::CGParamApply,
+        name: ct.group.name,
         pool: ct.pool.name,
         manipulation_lock: 'ignore',
         skip_cpuset: true
@@ -50,6 +51,12 @@ module OsCtld
       return ret unless ret[:status]
 
       begin
+        ct.cgparams.apply_for_start(
+          run_id: run_conf.run_id,
+          keep_going: ct.running?
+        ) do |subsystem|
+          ct.abs_apply_cgroup_path(subsystem)
+        end
         ct.cgparams.apply_cpuset_for_start(run_id: run_conf.run_id)
       rescue CGroup::CpusetPolicy::Error => e
         return error(e.message)
