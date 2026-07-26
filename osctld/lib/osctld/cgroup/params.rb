@@ -1,5 +1,6 @@
 require 'libosctl'
 require 'osctld/lockable'
+require 'osctld/cgroup/cpuset_policy'
 
 module OsCtld
   class CGroup::Params
@@ -70,6 +71,31 @@ module OsCtld
       owner.save_config if save
     end
 
+    # Strict group transaction used whenever a parent cpuset can affect
+    # descendant container hierarchies.
+    def transactional_set(new_params, append: false, apply: true, &path)
+      before = snapshot_params
+      set(new_params, append:, save: false)
+      staged = snapshot_params
+      if apply
+        validate_runtime_resets!(
+          added_params(before, staged)
+        )
+      end
+
+      parameter_transaction(
+        before,
+        staged:,
+        apply_runtime: apply,
+        path:
+      ) do
+        self.apply(keep_going: true, &path) if apply
+      end
+    rescue StandardError
+      restore_params(before) if before
+      raise
+    end
+
     # @param save [Boolean] save config file
     # @param reset [Boolean] reset cgroup parameter value
     # @param keep_going [Boolean] skip parameters that do not exist
@@ -95,6 +121,39 @@ module OsCtld
       owner.save_config if save
     end
 
+    def transactional_unset(
+      del_params,
+      reset: true,
+      keep_going: false,
+      apply_all: false,
+      &path
+    )
+      before = snapshot_params
+      imported = del_params.map { |spec| CGroup::Param.import(spec) }
+      deleted = before.select do |param|
+        imported.any? { |candidate| same_param?(param, candidate) }
+      end
+      staged = before.reject do |param|
+        deleted.any? { |candidate| same_param?(param, candidate) }
+      end
+      validate_runtime_resets!(deleted) if reset
+      restore_params(staged)
+
+      parameter_transaction(
+        before,
+        staged:,
+        apply_runtime: reset,
+        path:
+      ) do
+        if reset
+          deleted.each do |param|
+            reset(param, keep_going, &path) if param.version == CGroup.version
+          end
+        end
+        apply(keep_going: true, &path) if apply_all
+      end
+    end
+
     def each(&)
       params.each(&)
     end
@@ -116,8 +175,39 @@ module OsCtld
     # @param keep_going [Boolean] skip parameters that do not exist
     # @yieldparam subsystem [String] cgroup subsystem
     # @yieldreturn [String] absolute path to the cgroup directory
-    def apply(keep_going: false, &)
-      apply_params_and_retry(usable_params, keep_going:, &)
+    def apply(
+      keep_going: false,
+      cpuset: true,
+      only_cpuset: false,
+      &path
+    )
+      selected =
+        if only_cpuset
+          if cpuset
+            usable_params.select { |param| param.name == 'cpuset.cpus' }
+          else
+            []
+          end
+        elsif cpuset
+          usable_params
+        else
+          usable_params.reject { |param| param.name == 'cpuset.cpus' }
+        end
+      failed = apply_params_and_retry(selected, keep_going:, &path)
+      unless failed.empty?
+        names = failed.map(&:name).uniq.join(', ')
+        raise CGroup::CpusetPolicy::Error,
+              "kernel rejected group cgroup parameters: #{names}"
+      end
+
+      selected.each do |param|
+        next unless param.name == 'cpuset.cpus'
+
+        verify_cpuset_path(
+          path.call(param.subsystem),
+          param.value.last.to_s
+        )
+      end
     end
 
     # Replace all parameters by a new list of parameters
@@ -129,11 +219,35 @@ module OsCtld
           n.version == p.version && n.subsystem == p.subsystem && n.name == p.name
         end
 
-        reset(p, true, &) unless found
+        reset(p, true, &) if !found && p.version == CGroup.version
       end
 
       @params = new_params
       owner.save_config if save
+    end
+
+    def transactional_replace(new_params, &path)
+      before = snapshot_params
+      staged = copy_params(new_params)
+      removed = before.reject do |param|
+        staged.any? { |candidate| same_param?(param, candidate) }
+      end
+      validate_runtime_resets!(
+        removed + added_params(before, staged)
+      )
+      restore_params(staged)
+
+      parameter_transaction(
+        before,
+        staged:,
+        apply_runtime: true,
+        path:
+      ) do
+        removed.each do |param|
+          reset(param, true, &path) if param.version == CGroup.version
+        end
+        apply(keep_going: true, &path)
+      end
     end
 
     # Reset cgroup parameter to its initial/unlimited value.
@@ -145,11 +259,30 @@ module OsCtld
     # @yieldparam subsystem [String] cgroup subsystem
     # @yieldreturn [String] absolute path to the cgroup directory
     def reset(param, keep_going)
-      v = reset_value(param)
-      return unless v
-
       path = File.join(yield(param.subsystem), param.name)
-      CGroup.set_param(path, v)
+      value =
+        if param.name == 'cpuset.cpus'
+          [
+            CGroup::CpusetPolicy.read_effective_mask(
+              File.dirname(path, 2)
+            )
+          ]
+        else
+          reset_value(param)
+        end
+      unless value
+        raise CGroup::CpusetPolicy::Error,
+              "no runtime reset value is known for #{param.name}"
+      end
+      if CGroup.set_param(path, value)
+        if param.name == 'cpuset.cpus'
+          verify_cpuset_path(File.dirname(path), value.last.to_s)
+        end
+        return
+      end
+
+      raise CGroup::CpusetPolicy::Error,
+            "kernel rejected group cgroup parameter #{param.name}"
     rescue CGroupFileNotFound
       raise unless keep_going
 
@@ -321,11 +454,16 @@ module OsCtld
         param_list,
         keep_going:,
         &
-      ).select { |p| p.name.start_with?('memory.') }
+      )
+      memory, final = failed.partition do |param|
+        param.name.start_with?('memory.')
+      end
 
-      return unless failed.any?
+      if memory.any?
+        final.concat(apply_params(memory, keep_going:, &))
+      end
 
-      apply_params(failed, keep_going:, &)
+      final
     end
 
     def reset_value(param)
@@ -333,15 +471,113 @@ module OsCtld
       when 'cpu.cfs_quota_us', 'memory.limit_in_bytes', 'memory.memsw.limit_in_bytes'
         [-1]
 
-      when 'cpu.max', 'memory.high', 'memory.max'
-        ['max']
+      when 'cpu.cfs_period_us'
+        [100_000]
 
-      when 'cpuset.cpus'
-        ['all']
+      when 'cpu.max', 'memory.high', 'memory.max', 'pids.max'
+        ['max']
 
       when 'memory.min', 'memory.low'
         [0]
       end
+    end
+
+    def verify_cpuset_path(cgroup_path, target)
+      explicit = File.read(File.join(cgroup_path, 'cpuset.cpus')).strip
+      effective = CGroup::CpusetPolicy.read_effective_mask(cgroup_path)
+      expected = OsCtl::Lib::CpuMask.new(target).to_s
+      requested = OsCtl::Lib::CpuMask.new(explicit).to_s
+      return if requested == expected && effective == expected
+
+      raise CGroup::CpusetPolicy::Error,
+            "group cpuset verification failed at #{cgroup_path}: " \
+            "requested=#{requested.inspect}, effective=#{effective.inspect}, " \
+            "expected=#{expected.inspect}"
+    end
+
+    def parameter_transaction(before, staged:, apply_runtime:, path:)
+      yield
+      owner.save_config
+    rescue StandardError => e
+      restore_params(before)
+      rollback_errors = []
+
+      if apply_runtime
+        begin
+          added_params(before, staged).each do |param|
+            next unless param.version == CGroup.version
+
+            reset(param, true, &path)
+          end
+          apply(keep_going: true, &path)
+        rescue StandardError => rollback
+          rollback_errors << rollback
+        end
+      end
+
+      begin
+        owner.save_config
+      rescue StandardError => rollback
+        rollback_errors << rollback
+      end
+
+      message = "unable to update group cgroup parameters: #{e.message}"
+      rollback_error =
+        unless rollback_errors.empty?
+          CGroup::CpusetPolicy::Error.new(
+            rollback_errors.map(&:message).join('; ')
+          )
+        end
+      if rollback_error
+        message = "#{message}; rollback failed: #{rollback_error.message}"
+      end
+      raise CGroup::CpusetPolicy::Error.new(
+        message,
+        rollback_error:,
+        cleanup_params:
+          added_params(before, staged)
+            .select { |param| param.version == CGroup.version }
+            .map(&:dump)
+      )
+    end
+
+    def validate_runtime_resets!(param_list)
+      unsupported = param_list.select do |param|
+        param.version == CGroup.version \
+          && param.name != 'cpuset.cpus' \
+          && reset_value(param).nil?
+      end
+      return if unsupported.empty?
+
+      names = unsupported.map(&:name).uniq.join(', ')
+      raise CGroup::CpusetPolicy::Error,
+            "no runtime reset value is known for #{names}"
+    end
+
+    def added_params(before, staged)
+      staged.reject do |param|
+        before.any? { |old_param| same_param?(param, old_param) }
+      end
+    end
+
+    def snapshot_params
+      exclusively { copy_params(params) }
+    end
+
+    def restore_params(new_params)
+      exclusively { @params = copy_params(new_params) }
+    end
+
+    def copy_params(list)
+      list.map do |param|
+        param.clone.tap { |copy| copy.value = param.value.dup }
+      end
+    end
+
+    def same_param?(left, right)
+      left.version == right.version \
+        && left.subsystem == right.subsystem \
+        && left.name == right.name
     end
   end
 end

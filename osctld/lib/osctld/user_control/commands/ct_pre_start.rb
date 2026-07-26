@@ -44,9 +44,16 @@ module OsCtld
         Commands::Container::CGParamApply,
         id: ct.id,
         pool: ct.pool.name,
-        manipulation_lock: 'ignore'
+        manipulation_lock: 'ignore',
+        skip_cpuset: true
       )
       return ret unless ret[:status]
+
+      begin
+        ct.cgparams.apply_cpuset_for_start(run_id: run_conf.run_id)
+      rescue CGroup::CpusetPolicy::Error => e
+        return error(e.message)
+      end
 
       # Configure devices cgroup
       ct.devices.apply

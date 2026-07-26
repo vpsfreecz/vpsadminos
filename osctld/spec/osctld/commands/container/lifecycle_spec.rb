@@ -130,6 +130,71 @@ RSpec.describe 'container lifecycle commands' do
       )
     end
 
+    it 'locks group membership through stopped launch admission' do
+      run_id = double(to_s: 'tank:ct1:run-1')
+      request = OsCtld::Container::Lifecycle::Request.new(
+        action: :launch,
+        run_id:,
+        revision: 8,
+        intent_id: 'intent-1'
+      )
+      lifecycle = double(
+        active_run_id: nil,
+        request_start: request
+      )
+      group = Struct.new(:name).new('/default')
+      container = Struct.new(
+        :can_start?,
+        :lifecycle,
+        :group,
+        :pool
+      ) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(true, lifecycle, group, pool)
+      command = described_class.new({ wait: false }, {})
+      lock_held = false
+      call_order = []
+      allow(container).to receive(:manipulate) do |_holder, **, &callback|
+        lock_held = true
+        callback.call
+      ensure
+        lock_held = false
+      end
+      allow(command).to receive(:call_cmd) do
+        call_order << :group_policy
+        expect(lock_held).to be(true)
+        { status: true, output: nil }
+      end
+      allow(lifecycle).to receive(:request_start) do
+        call_order << :lifecycle
+        expect(lock_held).to be(true)
+        request
+      end
+      allow(command).to receive(:launch_in_background)
+
+      expect(command.execute(container)).to eq(
+        status: true,
+        output: {
+          run_id: 'tank:ct1:run-1',
+          lifecycle_revision: 8,
+          lifecycle_state: 'accepted'
+        }
+      )
+      expect(command).to have_received(:launch_in_background)
+        .with(container, request)
+      expect(command).to have_received(:call_cmd).with(
+        OsCtld::Commands::Group::CGParamApply,
+        name: '/default',
+        pool: 'tank',
+        manipulation_lock: 'wait',
+        only_cpuset: true
+      )
+      expect(lifecycle).to have_received(:request_start)
+      expect(call_order).to eq(%i[group_policy lifecycle])
+    end
+
     it 'maps dataset mount failures to command errors' do
       run_conf = Struct.new(:mount).new(nil)
       allow(run_conf).to receive(:mount)

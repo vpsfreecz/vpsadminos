@@ -7,6 +7,7 @@ require 'osctld/container/recovery'
 require 'osctld/lockable'
 require 'osctld/cpu_scheduler'
 require 'osctld/dist_config'
+require 'osctld/commands/group/cgparam_apply'
 
 module OsCtld
   module ContainerControl::Utils::Runscript
@@ -23,6 +24,19 @@ module OsCtld
 
         loop do
           request = ct.manipulate(self, block: true) do
+            if ct.lifecycle.active_run_id.nil?
+              ret = Commands::Group::CGParamApply.run(
+                name: ct.group.name,
+                pool: ct.pool.name,
+                manipulation_lock: 'wait',
+                only_cpuset: true
+              )
+              unless ret[:status]
+                raise ContainerControl::Error,
+                      "unable to reconcile ancestor cgroups: #{ret[:message]}"
+              end
+            end
+
             ct.lifecycle.request_execution(source: 'container-control')
           end
 
@@ -168,6 +182,8 @@ module OsCtld
         DistConfig.run(run_conf, :pre_start)
         ensure_execution_effect!(request.run_id, effect_id)
         CpuScheduler.schedule_ct(run_conf)
+        ensure_execution_effect!(request.run_id, effect_id)
+        ct.cgparams.apply_cpuset_for_start(run_id: request.run_id)
         ensure_execution_effect!(request.run_id, effect_id)
         unless ct.lxc_config.configure(run_conf:)
           raise ContainerControl::Error,

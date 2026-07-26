@@ -58,6 +58,26 @@ let
             expect(host_output).to eq(ct_output)
           end
 
+          def self.container_cpuset
+            ${
+              if cgroupsVersion == 2 then
+                ''
+                  _, cpus = machine.succeeds(
+                    "osctl ct exec #{testct} cat /sys/fs/cgroup/cpuset.cpus"
+                  )
+                ''
+              else
+                ''
+                  _, cpus = machine.succeeds(
+                    "osctl ct exec #{testct} " \
+                      "cat /sys/fs/cgroup/cpuset/cpuset.cpus"
+                  )
+                ''
+            }
+
+            cpus.strip
+          end
+
           def self.nolimit_checks
             it 'has unmodified /proc/stat' do
               compare_exec("cat /proc/stat | grep -P '^cpu\[\\d+\]* ' | awk '{ print $1; }'")
@@ -112,18 +132,7 @@ let
             end
 
             it 'has configured cpuset' do
-              ${
-                if cgroupsVersion == 2 then
-                  ''
-                    _, cpus = machine.succeeds("osctl ct exec #{testct} cat /sys/fs/cgroup/cpuset.cpus")
-                  ''
-                else
-                  ''
-                    _, cpus = machine.succeeds("osctl ct exec #{testct} cat /sys/fs/cgroup/cpuset/cpuset.cpus")
-                  ''
-              }
-
-              expect(cpus.strip).to eq('2-4')
+              expect(container_cpuset).to eq('2-4')
             end
 
             nolimit_checks
@@ -146,6 +155,127 @@ let
               expect(cpuset_affinity.strip).to eq(cpu_mask)
 
               machine.succeeds("osctl ct runscript #{testct} /scripts/sched_setaffinity.py #{cpuset_affinity.strip}")
+            end
+          end
+
+          describe 'Dynamic cpuset hierarchy changes' do
+            after(:context) do
+              machine.succeeds(
+                "osctl ct cgparams set #{testct} cpuset.cpus 2-4"
+              )
+            end
+
+            it 'expands the active hierarchy' do
+              machine.succeeds(
+                "osctl ct cgparams set #{testct} cpuset.cpus 1-6"
+              )
+
+              expect(container_cpuset).to eq('1-6')
+            end
+
+            it 'switches to a disjoint mask' do
+              machine.succeeds(
+                "osctl ct cgparams set #{testct} cpuset.cpus 7"
+              )
+
+              expect(container_cpuset).to eq('7')
+            end
+
+            it 'keeps the policy across a managed restart' do
+              machine.succeeds("osctl ct restart #{testct}")
+              machine.wait_until_container_online(testct, timeout: 60)
+
+              expect(container_cpuset).to eq('7')
+            end
+
+            it 'resets to the scheduler or parent mask' do
+              machine.succeeds(
+                "osctl ct cgparams unset #{testct} cpuset.cpus"
+              )
+
+              expect(container_cpuset).to eq('0-7')
+            end
+          end
+
+          describe 'Configured group hierarchy reconstruction' do
+            ctid = "#{get_container_id('${prefix}-group')}"
+            parent_group = "/${prefix}-launch"
+            child_group = "#{parent_group}/child"
+            ${
+              if cgroupsVersion == 2 then
+                ''
+                  group_cgroup_root =
+                    "/sys/fs/cgroup/osctl/pool.tank/" \
+                      "group.${prefix}-launch"
+                ''
+              else
+                ''
+                  group_cgroup_root =
+                    "/sys/fs/cgroup/cpuset/osctl/pool.tank/" \
+                      "group.${prefix}-launch"
+                ''
+            }
+
+            before(:context) do
+              delete_test_container(ctid)
+              machine.succeeds("osctl group del #{child_group} || true")
+              machine.succeeds("osctl group del #{parent_group} || true")
+              machine.all_succeed(
+                "osctl ct new --distribution alpine #{ctid}",
+                "osctl ct unset start-menu #{ctid}",
+                "osctl group new --parents #{child_group}",
+                "osctl group cgparams set #{parent_group} " \
+                  "cpuset.cpus 0-5",
+                "osctl group cgparams set #{child_group} " \
+                  "cpuset.cpus 2-4",
+                "rmdir #{group_cgroup_root}/group.child",
+                "rmdir #{group_cgroup_root}",
+                "sv -w 60 restart osctld"
+              )
+              machine.wait_for_osctl_pool('tank')
+              machine.all_succeed(
+                "osctl group cgparams apply #{child_group}",
+                "osctl ct chgrp #{ctid} #{child_group}",
+                "osctl ct cgparams set #{ctid} cpuset.cpus 3-4"
+              )
+            end
+
+            after(:context) do
+              delete_test_container(ctid)
+              machine.succeeds("osctl group del #{child_group}")
+              machine.succeeds("osctl group del #{parent_group}")
+            end
+
+            it 'rebuilds parent cpusets before stopped execution' do
+              _, cpus = machine.succeeds(
+                "osctl ct exec -r #{ctid} " \
+                  "awk '/Cpus_allowed_list/ { print $2 }' /proc/self/status"
+              )
+
+              expect(cpus.strip).to eq('3-4')
+            end
+
+            it 'starts below reconstructed group controller policy' do
+              machine.succeeds("osctl ct start #{ctid}")
+
+              ${
+                if cgroupsVersion == 2 then
+                  ''
+                    _, cpus = machine.succeeds(
+                      "osctl ct exec #{ctid} " \
+                        "cat /sys/fs/cgroup/cpuset.cpus"
+                    )
+                  ''
+                else
+                  ''
+                    _, cpus = machine.succeeds(
+                      "osctl ct exec #{ctid} " \
+                        "cat /sys/fs/cgroup/cpuset/cpuset.cpus"
+                    )
+                  ''
+              }
+
+              expect(cpus.strip).to eq('3-4')
             end
           end
 

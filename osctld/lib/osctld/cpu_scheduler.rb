@@ -1,5 +1,6 @@
 require 'singleton'
 require 'libosctl'
+require 'osctld/lockable'
 require 'osctld/run_state'
 
 module OsCtld
@@ -31,6 +32,7 @@ module OsCtld
         preschedule_ct
         get_preschedule_package_id
         cancel_preschedule_ct
+        package_mask
         upkeep
         export_status
         export_packages
@@ -284,6 +286,15 @@ module OsCtld
       nil
     end
 
+    # @param package_id [Integer]
+    # @return [String, nil]
+    def package_mask(package_id)
+      exclusively do
+        package = package_info[package_id]
+        package && package.cpu_mask.to_s
+      end
+    end
+
     def upkeep
       sync_control do
         upkeep_queue << :upkeep if upkeep_running?
@@ -359,19 +370,10 @@ module OsCtld
       pkg, sched = assign_package_for(ctrc.ct)
       return if pkg.nil?
 
-      # cpuset cannot be configured when child groups already exists, so set it
-      # as soon as possible.
-      CGroup.mkpath('cpuset', ctrc.ct.base_cgroup_path.split('/'), leaf: false)
-      package_set = CGroup.set_param(
-        File.join(CGroup.abs_cgroup_path('cpuset', ctrc.ct.base_cgroup_path), 'cpuset.cpus'),
-        [pkg.cpu_mask.to_s]
-      )
-
-      # Even when we fail here, the cpuset configuration is propagated to LXC
-      # config and it should still work.
-      unless package_set
-        log(:warn, "Unable to set cpuset for #{ctrc.ident}")
-      end
+      # Create the exact generation root before the hierarchy-wide cpuset
+      # transaction. ContainerParams applies the selected mask after scheduling
+      # and before LXC is launched.
+      CGroup.mkpath('cpuset', ctrc.cgroup_root.split('/'), leaf: false)
 
       # To make sure that LXC also sets it, add it also among the container's
       # cgroup parameters.
@@ -436,12 +438,14 @@ module OsCtld
 
         sched = scheduled_cts[ct.ident]
 
-        if sched && sched.reservation
-          sched.reservation = false
-          sched.reserved_at = nil
+        if sched
+          if sched.reservation && !reservation
+            sched.reservation = false
+            sched.reserved_at = nil
+          end
           pkg = package_info[sched.package_id]
 
-          log(:info, "Using reservation of #{ct.ident} on CPU package #{pkg.id}")
+          log(:info, "Reusing assignment of #{ct.ident} on CPU package #{pkg.id}")
         else
           pkg =
             if wanted_pkg_id

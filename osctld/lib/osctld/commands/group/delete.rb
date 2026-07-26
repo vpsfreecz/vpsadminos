@@ -9,6 +9,9 @@ module OsCtld
       error!('group not found') unless grp
       error!('group is used by containers') if grp.has_containers?
       error!('group has children') if grp.children.any?
+      if grp.cgroup_policy_tainted?
+        error!('group cgroup policy is quarantined; reapply it before deletion')
+      end
       grp
     end
 
@@ -19,6 +22,11 @@ module OsCtld
           # can we be sure
           error!('group is used by containers') if grp.has_containers?
           error!('group has children') if grp.children.any?
+          if grp.cgroup_policy_tainted?
+            error!(
+              'group cgroup policy is quarantined; reapply it before deletion'
+            )
+          end
 
           File.unlink(grp.config_path)
           Dir.rmdir(grp.config_dir)

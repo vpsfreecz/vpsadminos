@@ -6,6 +6,10 @@ require 'osctld/run_state'
 require 'osctld/cgroup'
 
 RSpec.describe OsCtld::CGroup do
+  before do
+    allow(OsCtl::Lib::Logger).to receive(:log)
+  end
+
   around do |example|
     version = described_class.instance_variable_get(:@version)
     subsystems = described_class.instance_variable_get(:@subsystems)
@@ -236,6 +240,52 @@ RSpec.describe OsCtld::CGroup do
     end
   end
 
+  it 'enumerates process ids throughout a generation tree on cgroup v2' do
+    with_tmpdir do |tmpdir|
+      stub_const('OsCtld::CGroup::FS', tmpdir)
+      force_cgroup(2, [''])
+      root = File.join(tmpdir, 'osctl', 'ct.ct1', 'runs', 'run1')
+      child = File.join(root, 'user-owned', 'payload')
+      FileUtils.mkdir_p(child)
+      File.write(File.join(root, 'cgroup.procs'), "10\n")
+      File.write(File.join(child, 'cgroup.procs'), "11\n10\n")
+
+      expect(
+        described_class.get_tree_pids('osctl/ct.ct1/runs/run1')
+      ).to contain_exactly(10, 11)
+    end
+  end
+
+  it 'uses the pids hierarchy for generation process ids on cgroup v1' do
+    with_tmpdir do |tmpdir|
+      stub_const('OsCtld::CGroup::FS', tmpdir)
+      force_cgroup(1, %w[memory pids])
+      root = File.join(tmpdir, 'pids', 'osctl', 'ct.ct1', 'runs', 'run1')
+      FileUtils.mkdir_p(root)
+      File.write(File.join(root, 'cgroup.procs'), "42\n")
+
+      expect(
+        described_class.get_tree_pids('osctl/ct.ct1/runs/run1')
+      ).to eq([42])
+    end
+  end
+
+  it 'prevents forks in every descendant with a pids.max file' do
+    with_tmpdir do |tmpdir|
+      stub_const('OsCtld::CGroup::FS', tmpdir)
+      force_cgroup(2, [''])
+      root = File.join(tmpdir, 'osctl', 'ct.ct1', 'runs', 'run1')
+      child = File.join(root, 'user-owned')
+      FileUtils.mkdir_p(child)
+      [root, child].each { |dir| File.write(File.join(dir, 'pids.max'), 'max') }
+
+      described_class.prevent_forks('osctl/ct.ct1/runs/run1')
+
+      expect(File.read(File.join(root, 'pids.max'))).to eq('0')
+      expect(File.read(File.join(child, 'pids.max'))).to eq('0')
+    end
+  end
+
   it 'is re-entrant when sync is called while holding the mutex' do
     calls = []
 
@@ -247,5 +297,21 @@ RSpec.describe OsCtld::CGroup do
     end
 
     expect(calls).to eq(%i[outer inner])
+  end
+
+  it 'serializes every cpuset parameter write with hierarchy transactions' do
+    with_tmpdir do |tmpdir|
+      path = File.join(tmpdir, 'cpuset.cpus')
+      File.write(path, '0-3')
+      mutex_owned = nil
+      allow(File).to receive(:write).and_wrap_original do |method, *args|
+        mutex_owned = described_class::MUTEX.owned? if args.first == path
+        method.call(*args)
+      end
+
+      expect(described_class.set_param(path, ['2,3'])).to be(true)
+      expect(mutex_owned).to be(true)
+      expect(File.read(path)).to eq('2,3')
+    end
   end
 end

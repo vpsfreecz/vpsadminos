@@ -156,6 +156,32 @@ import ../../make-test.nix (
         end
       end
 
+      describe 'cpuset-constrained stopped execution' do
+        ctid = "#{get_container_id}-execution"
+
+        before(:context) do
+          cleanup_ct(ctid)
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{ctid}",
+            "osctl ct unset start-menu #{ctid}",
+            "osctl ct cgparams set #{ctid} cpuset.cpus 0"
+          )
+        end
+
+        after(:context) do
+          cleanup_ct(ctid)
+        end
+
+        it 'applies the selected mask to the LXC-created namespaced root' do
+          _, cpus = machine.succeeds(
+            "osctl ct exec -r #{ctid} cat /sys/fs/cgroup/cpuset.cpus"
+          )
+
+          expect(cpus.strip).to eq('0')
+          expect(lifecycle_record(ctid).fetch('active_run_id')).to be_nil
+        end
+      end
+
       describe 'an unkillable residual generation' do
         ctid = "#{get_container_id}-residual"
 
@@ -166,6 +192,7 @@ import ../../make-test.nix (
           machine.all_succeed(
             "osctl ct new --distribution alpine #{ctid}",
             "osctl ct unset start-menu #{ctid}",
+            "osctl ct cgparams set #{ctid} cpuset.cpus 0",
             "osctl ct mounts new --fs #{DM_MOUNT} --type bind " \
               "--opts bind,create=dir --mountpoint /mnt/blocked #{ctid}",
             "osctl ct start #{ctid}"
@@ -261,10 +288,33 @@ import ../../make-test.nix (
           replacement_run = lifecycle_run(ctid, replacement_run_id)
           replacement_cgroup =
             replacement_run.fetch('resources').fetch('cgroup_root')
+          replacement_inner =
+            replacement_run.fetch('resources').fetch('lxc_inner')
 
           expect(replacement_run_id).not_to eq(@old_run_id)
           expect(replacement_cgroup).not_to eq(old_cgroup)
           expect(replacement_info.fetch('lifecycle_residuals')).to eq(1)
+
+          machine.succeeds(
+            "osctl ct cgparams set #{ctid} cpuset.cpus 0-1"
+          )
+          _, old_mask = machine.succeeds(
+            "cat /sys/fs/cgroup/#{old_cgroup}/cpuset.cpus.effective"
+          )
+          _, replacement_mask = machine.succeeds(
+            "cat /sys/fs/cgroup/#{replacement_inner}/cpuset.cpus.effective"
+          )
+          expect(old_mask.strip).to eq('0')
+          expect(replacement_mask.strip).to eq('0-1')
+
+          _, rejected = machine.fails(
+            "osctl ct cgparams set #{ctid} cpuset.cpus 1"
+          )
+          expect(rejected).to include('residual cgroup')
+          _, replacement_mask = machine.succeeds(
+            "cat /sys/fs/cgroup/#{replacement_inner}/cpuset.cpus.effective"
+          )
+          expect(replacement_mask.strip).to eq('0-1')
 
           machine.succeeds(
             "dmsetup --noudevrules --noudevsync resume #{DM_NAME}"
@@ -296,6 +346,13 @@ import ../../make-test.nix (
           expect(final_info.fetch('state')).to eq('running')
           expect(final_info.fetch('lifecycle_run_id')).to eq(replacement_run_id)
           expect(final_info.fetch('lifecycle_residuals')).to eq(0)
+          machine.succeeds(
+            "osctl ct cgparams set #{ctid} cpuset.cpus 1"
+          )
+          _, replacement_mask = machine.succeeds(
+            "cat /sys/fs/cgroup/#{replacement_inner}/cpuset.cpus.effective"
+          )
+          expect(replacement_mask.strip).to eq('1')
           machine.succeeds(
             "test \"$(osctl ct exec #{ctid} cat " \
               "/tmp/lifecycle-generation)\" = replacement-ok"

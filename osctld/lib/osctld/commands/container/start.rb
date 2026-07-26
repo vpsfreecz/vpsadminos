@@ -1,4 +1,5 @@
 require 'osctld/commands/logged'
+require 'osctld/commands/group/cgparam_apply'
 
 module OsCtld
   class Commands::Container::Start < Commands::Logged
@@ -23,12 +24,27 @@ module OsCtld
       intent_id = opts[:lifecycle_intent_id]
 
       loop do
-        request = manipulate(ct, lifecycle: true) do
-          ct.lifecycle.request_start(
-            source: opts[:lifecycle_source] || 'external',
-            expected_intent_id: intent_id
-          )
+        request, preflight_error = manipulate(ct, lifecycle: true) do
+          if ct.lifecycle.active_run_id.nil?
+            ret = call_cmd(
+              Commands::Group::CGParamApply,
+              name: ct.group.name,
+              pool: ct.pool.name,
+              manipulation_lock: 'wait',
+              only_cpuset: true
+            )
+            next [nil, ret] unless ret[:status]
+          end
+
+          [
+            ct.lifecycle.request_start(
+              source: opts[:lifecycle_source] || 'external',
+              expected_intent_id: intent_id
+            ),
+            nil
+          ]
         end
+        return preflight_error if preflight_error
 
         intent_id ||= request.intent_id
         progress(request.warning) if request.warning
@@ -246,6 +262,11 @@ module OsCtld
 
       # CPU scheduler
       CpuScheduler.schedule_ct(run_conf)
+      ensure_effect!(ct, run_id, effect_id, expected_intent_id: intent_id)
+
+      # Apply configured or scheduler-selected cpusets to the stable policy
+      # root and every live lifecycle generation before LXC creates children.
+      ct.cgparams.apply_cpuset_for_start(run_id:)
       ensure_effect!(ct, run_id, effect_id, expected_intent_id: intent_id)
 
       # Optionally add new mounts
