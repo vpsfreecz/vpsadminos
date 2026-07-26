@@ -197,6 +197,32 @@ let
             end
           end
 
+          describe 'Persisted CPU bandwidth lifecycle' do
+            before(:context) do
+              machine.all_succeed(
+                "osctl ct cgparams unset #{testct} cpuset.cpus",
+                "osctl ct set cpu-limit #{testct} 250"
+              )
+            end
+
+            it 'starts with the persisted limit' do
+              machine.succeeds("osctl ct stop #{testct}")
+              machine.succeeds("osctl ct start #{testct}")
+              machine.wait_until_container_online(testct, timeout: 60)
+
+              _, nproc = machine.succeeds("osctl ct exec #{testct} nproc")
+              expect(nproc.strip.to_i).to eq(3)
+            end
+
+            it 'restarts with the persisted limit' do
+              machine.succeeds("osctl ct restart #{testct}")
+              machine.wait_until_container_online(testct, timeout: 60)
+
+              _, nproc = machine.succeeds("osctl ct exec #{testct} nproc")
+              expect(nproc.strip.to_i).to eq(3)
+            end
+          end
+
           describe 'Configured group hierarchy reconstruction' do
             ctid = "#{get_container_id('${prefix}-group')}"
             parent_group = "/${prefix}-launch"

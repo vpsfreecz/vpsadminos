@@ -2008,7 +2008,7 @@ module OsCtld
           update.fetch('started_tainted', false) || !rollback_error.nil?
         record['policy_update'] = nil
         record['policy'] = {
-          'kind' => 'cpuset_cpus',
+          'kind' => update.fetch('kind'),
           'target' => target,
           'applied_at' => Time.now.to_f,
           'record_revision' => policy_revision,
@@ -2017,7 +2017,7 @@ module OsCtld
           'tainted' => tainted
         }
 
-        unless error
+        if !error && update.fetch('kind') == 'cpuset_cpus'
           run_masks.each do |run_key, mask|
             policy_run = find_run_locked(run_key)
             next unless policy_run

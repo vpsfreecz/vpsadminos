@@ -1,5 +1,6 @@
 require 'osctld/cgroup/params'
 require 'osctld/cgroup/cpuset_policy'
+require 'osctld/cgroup/cpu_bandwidth_policy'
 require 'osctld/cpu_scheduler'
 
 module OsCtld
@@ -32,7 +33,13 @@ module OsCtld
         rollback_non_cpuset: apply,
         path:
       ) do
-        apply_non_cpuset_strict(keep_going: false, &path) if apply
+        if apply
+          apply_non_cpuset_strict(
+            keep_going: false,
+            policy_lease: false,
+            &path
+          )
+        end
       end
     end
 
@@ -106,7 +113,11 @@ module OsCtld
           true,
           &path
         )
-        apply_non_cpuset_strict(keep_going: true, &path)
+        apply_non_cpuset_strict(
+          keep_going: true,
+          policy_lease: false,
+          &path
+        )
       end
     end
 
@@ -126,6 +137,18 @@ module OsCtld
       end
 
       apply_cpuset_with_lease(target)
+    end
+
+    # Reapply persisted parameters from an exact managed launch callback. The
+    # callback already owns the generation, but CPU hierarchy writes need a
+    # durable launch-policy marker so an interrupted rollback is quarantined.
+    def apply_for_start(run_id:, keep_going: false, &path)
+      apply_non_cpuset_strict(
+        keep_going:,
+        policy_lease: false,
+        launch_run_id: run_id,
+        &path
+      )
     end
 
     def reset(param, keep_going, &)
@@ -150,41 +173,14 @@ module OsCtld
       target = cpuset_target
       return unless target
 
-      lease = owner.lifecycle.begin_launch_policy(
-        run_id,
-        kind: :cpuset_cpus
-      )
-      unless lease
-        raise CGroup::CpusetPolicy::Error,
-              'container lifecycle changed before launch policy could be fenced'
-      end
-
       prepare_launch_cpuset_root(run_id)
-      result = CGroup::CpusetPolicy.new(owner, target).apply
-      recorded = owner.lifecycle.record_launch_policy(
+      apply_launch_policy(
         run_id,
-        lease_id: lease.id,
-        target: result.target,
-        run_masks: result.run_masks
-      )
-      unless recorded
-        raise CGroup::CpusetPolicy::Error,
-              'container lifecycle changed during launch policy application'
+        kind: :cpuset_cpus,
+        target:
+      ) do
+        CGroup::CpusetPolicy.new(owner, target).apply
       end
-
-      result
-    rescue StandardError => e
-      if lease
-        owner.lifecycle.record_launch_policy(
-          run_id,
-          lease_id: lease.id,
-          target:,
-          error: e.message,
-          rollback_error: e.respond_to?(:rollback_error) \
-            && e.rollback_error&.message
-        )
-      end
-      raise
     end
 
     # Temporarily expand container memory by given percentage
@@ -227,13 +223,47 @@ module OsCtld
       apply_container_params_and_retry(selected, keep_going:)
     end
 
-    def apply_non_cpuset_strict(keep_going:, &path)
+    def apply_non_cpuset_strict(
+      keep_going:,
+      policy_lease: true,
+      launch_run_id: nil,
+      &path
+    )
       selected = usable_params.reject { |param| cpuset_param?(param) }
-      apply_params_strict(selected, keep_going:, &path)
+      cpu_bandwidth, ordinary = selected.partition do |param|
+        cpu_bandwidth_param?(param)
+      end
+
+      apply_params_strict(ordinary, keep_going:, &path)
+
+      if cpu_bandwidth.any?
+        if cpu_bandwidth_runtime_active?
+          if launch_run_id
+            apply_cpu_bandwidth_for_start(
+              cpu_bandwidth,
+              root: path.call('cpu'),
+              run_id: launch_run_id
+            )
+          elsif policy_lease
+            apply_cpu_bandwidth_with_lease(
+              cpu_bandwidth,
+              root: path.call('cpu')
+            )
+          else
+            CGroup::CpuBandwidthPolicy.new(
+              owner,
+              cpu_bandwidth,
+              root: path.call('cpu')
+            ).apply
+          end
+        else
+          apply_params_strict(cpu_bandwidth, keep_going:, &path)
+        end
+      end
 
       return unless runtime_active?
 
-      apply_container_params_strict(selected, keep_going:)
+      apply_container_params_strict(ordinary, keep_going:)
     end
 
     def temporarily_expand_memory_v1(percent:)
@@ -382,8 +412,36 @@ module OsCtld
     end
 
     def reset_non_cpuset_params_strict(param_list, keep_going, &path)
-      param_list.each do |param|
+      cpu_bandwidth, ordinary = param_list.partition do |param|
+        cpu_bandwidth_param?(param)
+      end
+      ordinary.each do |param|
         reset_non_cpuset_strict(param, keep_going, &path)
+      end
+      return if cpu_bandwidth.empty?
+
+      resets = cpu_bandwidth.filter_map do |param|
+        value = reset_value(param)
+        next unless value
+
+        CGroup::Param.new(
+          param.version,
+          param.subsystem,
+          param.name,
+          value,
+          false
+        )
+      end
+      return if resets.empty?
+
+      if cpu_bandwidth_runtime_active?
+        CGroup::CpuBandwidthPolicy.new(
+          owner,
+          resets,
+          root: path.call('cpu')
+        ).apply
+      else
+        apply_params_strict(resets, keep_going:, &path)
       end
     end
 
@@ -462,7 +520,11 @@ module OsCtld
               'remove the affected cgroups with explicit recovery'
       end
 
-      lease_target = target
+      lease_target =
+        target \
+        || staged.select do |param|
+          param.version == CGroup.version && cpu_limit_param?(param)
+        end.map(&:dump)
       lease = policy_kind && begin_policy_lease(policy_kind)
       policy_result = target && CGroup::CpusetPolicy.new(owner, target).apply
 
@@ -535,6 +597,67 @@ module OsCtld
       result
     end
 
+    def apply_cpu_bandwidth_for_start(params, root:, run_id:)
+      apply_launch_policy(
+        run_id,
+        kind: :cpu_bandwidth,
+        target: params.map(&:dump)
+      ) do
+        CGroup::CpuBandwidthPolicy.new(owner, params, root:).apply
+      end
+    end
+
+    def apply_launch_policy(run_id, kind:, target:)
+      lease = owner.lifecycle.begin_launch_policy(run_id, kind:)
+      unless lease
+        raise CGroup::CpusetPolicy::Error,
+              'container lifecycle changed before launch policy could be fenced'
+      end
+
+      result = yield
+      recorded = owner.lifecycle.record_launch_policy(
+        run_id,
+        lease_id: lease.id,
+        target: result.target,
+        run_masks: policy_run_masks(result)
+      )
+      unless recorded
+        raise CGroup::CpusetPolicy::Error,
+              'container lifecycle changed during launch policy application'
+      end
+
+      result
+    rescue StandardError => e
+      if lease
+        owner.lifecycle.record_launch_policy(
+          run_id,
+          lease_id: lease.id,
+          target:,
+          error: e.message,
+          rollback_error: e.respond_to?(:rollback_error) \
+            && e.rollback_error&.message
+        )
+      end
+      raise
+    end
+
+    def apply_cpu_bandwidth_with_lease(params, root:)
+      lease = begin_policy_lease(:cpu_bandwidth)
+      result = CGroup::CpuBandwidthPolicy.new(owner, params, root:).apply
+    rescue StandardError => e
+      finish_policy_lease(
+        lease,
+        target: params.map(&:dump),
+        error: e.message,
+        rollback_error: e.respond_to?(:rollback_error) \
+          && e.rollback_error&.message
+      )
+      raise
+    else
+      finish_policy_lease(lease, result:)
+      result
+    end
+
     def begin_policy_lease(kind)
       lease = owner.lifecycle.begin_policy_update(kind:)
       return lease if lease
@@ -566,7 +689,7 @@ module OsCtld
       completion = owner.lifecycle.finish_policy_update(
         lease.id,
         target:,
-        run_masks: result&.run_masks || {},
+        run_masks: policy_run_masks(result),
         error:,
         rollback_error:
       )
@@ -592,6 +715,14 @@ module OsCtld
       end
     end
 
+    def policy_run_masks(result)
+      if result && result.respond_to?(:run_masks)
+        result.run_masks
+      else
+        {}
+      end
+    end
+
     def rollback_non_cpuset_params(before, staged, &)
       added = staged.reject do |param|
         before.any? { |old_param| same_param?(param, old_param) }
@@ -604,7 +735,11 @@ module OsCtld
         &
       )
 
-      apply_non_cpuset_strict(keep_going: true, &)
+      apply_non_cpuset_strict(
+        keep_going: true,
+        policy_lease: false,
+        &
+      )
     end
 
     def persist_params
@@ -648,8 +783,37 @@ module OsCtld
       param.version == CGroup.version && param.name == CPUSET_PARAMETER
     end
 
-    def runtime_policy_kind(_params, target:)
-      :cpuset_cpus if target
+    def cpu_bandwidth_param?(param)
+      return false unless param.version == CGroup.version
+      return false unless param.subsystem == 'cpu'
+
+      if CGroup.v1?
+        CGroup::CpuBandwidthPolicy::V1_PARAMETERS.include?(param.name)
+      else
+        param.name == CGroup::CpuBandwidthPolicy::V2_PARAMETER
+      end
+    end
+
+    def cpu_limit_param?(param)
+      return false unless param.version == CGroup.version
+
+      if CGroup.v1?
+        cpu_bandwidth_param?(param)
+      else
+        param.subsystem == 'cpu' && param.name == 'cpu.max'
+      end
+    end
+
+    def runtime_policy_kind(params, target:)
+      return :cpuset_cpus if target
+      return unless cpu_bandwidth_runtime_active?
+      return unless params.any? { |param| cpu_limit_param?(param) }
+
+      :cpu_bandwidth
+    end
+
+    def cpu_bandwidth_runtime_active?
+      runtime_active? || owner.lifecycle.residuals.any?
     end
 
     def cpuset_mutation?(new_params)

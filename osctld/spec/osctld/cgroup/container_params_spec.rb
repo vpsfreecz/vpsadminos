@@ -320,6 +320,89 @@ RSpec.describe OsCtld::CGroup::ContainerParams do
     )
   end
 
+  it 'applies persisted CPU bandwidth with an exact launch-policy lease' do
+    cpu_max = param(
+      2,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::V2_PARAMETER,
+      ['50000 100000']
+    )
+    params = described_class.new(owner, params: [cpu_max])
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      begin_launch_policy: Struct.new(:id).new('launch-lease-1'),
+      record_launch_policy: true
+    )
+    policy = instance_double(
+      OsCtld::CGroup::CpuBandwidthPolicy,
+      apply: OsCtld::CGroup::CpuBandwidthPolicy::Result.new(
+        target: {
+          'quota_us' => 50_000,
+          'period_us' => 100_000
+        }
+      )
+    )
+    allow(owner).to receive(:lifecycle).and_return(lifecycle)
+    allow(OsCtld::CGroup::CpuBandwidthPolicy).to receive(:new)
+      .and_return(policy)
+
+    params.apply_for_start(
+      run_id: 'run-1'
+    ) { |subsystem| owner.abs_apply_cgroup_path(subsystem) }
+
+    expect(lifecycle).to have_received(:begin_launch_policy).with(
+      'run-1',
+      kind: :cpu_bandwidth
+    )
+    expect(lifecycle).to have_received(:record_launch_policy).with(
+      'run-1',
+      lease_id: 'launch-lease-1',
+      target: {
+        'quota_us' => 50_000,
+        'period_us' => 100_000
+      },
+      run_masks: {}
+    )
+  end
+
+  it 'quarantines a failed launch CPU rollback against the exact run' do
+    cpu_max = param(
+      2,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::V2_PARAMETER,
+      ['50000 100000']
+    )
+    params = described_class.new(owner, params: [cpu_max])
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      begin_launch_policy: Struct.new(:id).new('launch-lease-1'),
+      record_launch_policy: true
+    )
+    policy = instance_double(OsCtld::CGroup::CpuBandwidthPolicy)
+    error = OsCtld::CGroup::CpuBandwidthPolicy::Error.new(
+      'CPU launch apply failed',
+      rollback_error: RuntimeError.new('CPU launch rollback failed')
+    )
+    allow(owner).to receive(:lifecycle).and_return(lifecycle)
+    allow(policy).to receive(:apply).and_raise(error)
+    allow(OsCtld::CGroup::CpuBandwidthPolicy).to receive(:new)
+      .and_return(policy)
+
+    expect do
+      params.apply_for_start(
+        run_id: 'run-1'
+      ) { |subsystem| owner.abs_apply_cgroup_path(subsystem) }
+    end.to raise_error(error)
+
+    expect(lifecycle).to have_received(:record_launch_policy).with(
+      'run-1',
+      lease_id: 'launch-lease-1',
+      target: [cpu_max.dump],
+      error: 'CPU launch apply failed',
+      rollback_error: 'CPU launch rollback failed'
+    )
+  end
+
   it 'taints a mixed transaction when strict runtime rollback fails' do
     memory_path = '/sys/fs/cgroup/memory/ct.ct1/memory.max'
     cgroup_state.rejected_paths << memory_path
@@ -397,6 +480,160 @@ RSpec.describe OsCtld::CGroup::ContainerParams do
     expect(OsCtld::CGroup.set_param_calls).to be_empty
     expect(owner.save_config_calls).to eq(0)
     expect(OsCtld::CGroup::CpusetPolicy).not_to have_received(:new)
+  end
+
+  it 'resets a v1 CPU limit as one fenced hierarchy transaction' do
+    cgroup_state.version = 1
+    period = param(
+      1,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::PERIOD_PARAMETER,
+      [250_000]
+    )
+    quota = param(
+      1,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::QUOTA_PARAMETER,
+      [500_000]
+    )
+    params = described_class.new(owner, params: [period, quota])
+    lease = Struct.new(:id).new('lease-1')
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      begin_policy_update: lease,
+      finish_policy_update: nil,
+      policy_tainted?: false,
+      residuals: []
+    )
+    policy = instance_double(
+      OsCtld::CGroup::CpuBandwidthPolicy,
+      apply: OsCtld::CGroup::CpuBandwidthPolicy::Result.new(
+        target: {
+          'quota_us' => -1,
+          'period_us' => 100_000
+        }
+      )
+    )
+    allow(owner).to receive(:lifecycle).and_return(lifecycle)
+    allow(OsCtld::CGroup::CpuBandwidthPolicy).to receive(:new)
+      .and_return(policy)
+
+    params.transactional_unset(
+      [period.export, quota.export]
+    ) { |subsystem| owner.abs_apply_cgroup_path(subsystem) }
+
+    expect(params.each.to_a).to be_empty
+    expect(OsCtld::CGroup::CpuBandwidthPolicy).to have_received(:new).with(
+      owner,
+      contain_exactly(
+        have_attributes(
+          name: OsCtld::CGroup::CpuBandwidthPolicy::PERIOD_PARAMETER,
+          value: [100_000]
+        ),
+        have_attributes(
+          name: OsCtld::CGroup::CpuBandwidthPolicy::QUOTA_PARAMETER,
+          value: [-1]
+        )
+      ),
+      root: '/sys/fs/cgroup/cpu/ct.ct1'
+    )
+    expect(lifecycle).to have_received(:begin_policy_update).with(
+      kind: :cpu_bandwidth
+    )
+    expect(lifecycle).to have_received(:finish_policy_update).with(
+      'lease-1',
+      target: [],
+      run_masks: {},
+      error: nil,
+      rollback_error: nil
+    )
+  end
+
+  it 'applies cgroup v2 cpu.max through the hierarchy policy' do
+    cpu_max = param(
+      2,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::V2_PARAMETER,
+      ['50000 100000']
+    )
+    params = described_class.new(owner, params: [cpu_max])
+    policy = instance_double(
+      OsCtld::CGroup::CpuBandwidthPolicy,
+      apply: OsCtld::CGroup::CpuBandwidthPolicy::Result.new(
+        target: {
+          'quota_us' => 50_000,
+          'period_us' => 100_000
+        }
+      )
+    )
+    lease = Struct.new(:id).new('lease-1')
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      begin_policy_update: lease,
+      finish_policy_update: nil
+    )
+    allow(owner).to receive(:lifecycle).and_return(lifecycle)
+    allow(OsCtld::CGroup::CpuBandwidthPolicy).to receive(:new)
+      .and_return(policy)
+
+    params.apply { |subsystem| owner.abs_apply_cgroup_path(subsystem) }
+
+    expect(OsCtld::CGroup::CpuBandwidthPolicy).to have_received(:new).with(
+      owner,
+      [cpu_max],
+      root: '/sys/fs/cgroup/cpu/ct.ct1'
+    )
+    expect(lifecycle).to have_received(:begin_policy_update).with(
+      kind: :cpu_bandwidth
+    )
+    expect(lifecycle).to have_received(:finish_policy_update).with(
+      'lease-1',
+      target: {
+        'quota_us' => 50_000,
+        'period_us' => 100_000
+      },
+      run_masks: {},
+      error: nil,
+      rollback_error: nil
+    )
+    expect(OsCtld::CGroup.set_param_calls).to be_empty
+  end
+
+  it 'records a failed CPU apply with rollback evidence on its policy lease' do
+    cpu_max = param(
+      2,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::V2_PARAMETER,
+      ['50000 100000']
+    )
+    params = described_class.new(owner, params: [cpu_max])
+    lease = Struct.new(:id).new('lease-1')
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      begin_policy_update: lease,
+      finish_policy_update: nil
+    )
+    policy = instance_double(OsCtld::CGroup::CpuBandwidthPolicy)
+    error = OsCtld::CGroup::CpuBandwidthPolicy::Error.new(
+      'CPU apply failed; rollback failed',
+      rollback_error: RuntimeError.new('rollback failed')
+    )
+    allow(owner).to receive(:lifecycle).and_return(lifecycle)
+    allow(policy).to receive(:apply).and_raise(error)
+    allow(OsCtld::CGroup::CpuBandwidthPolicy).to receive(:new)
+      .and_return(policy)
+
+    expect do
+      params.apply { |subsystem| owner.abs_apply_cgroup_path(subsystem) }
+    end.to raise_error(error)
+
+    expect(lifecycle).to have_received(:finish_policy_update).with(
+      'lease-1',
+      target: [cpu_max.dump],
+      run_masks: {},
+      error: 'CPU apply failed; rollback failed',
+      rollback_error: 'rollback failed'
+    )
   end
 
   it 'allows an unsupported reset when no runtime hierarchy exists' do
