@@ -2675,13 +2675,16 @@ transfer and start again.
 
   Before rolling a node back to an osctld version without lifecycle
   generations, drain all container lifecycle activity and stop all containers.
-  Verify that no lifecycle effect, recovery, or residual generation remains.
-  The old daemon cannot interpret generation-qualified cgroups, hooks, process
-  identities, or quarantine evidence and must not manage a live generation.
-  If the drain cannot be proven, do not roll back: roll forward to the
-  generation-aware version and finish exact-run recovery there. After a
-  rollback, start containers only after the old daemon has inventoried the
-  fully stopped node.
+  Verify that no lifecycle effect, recovery, residual generation, container
+  policy taint, persistent group `cgroup-policy.yml` marker, or
+  generation-qualified cgroup remains. The old daemon cannot interpret
+  generation-qualified cgroups, hooks, process identities, or quarantine
+  evidence and must not manage a live or quarantined generation. Use exact
+  container recovery and group cgroup-parameter apply before the downgrade to
+  clear every hazard. If the drain cannot be proven, do not roll back: roll
+  forward to the generation-aware version and finish exact-run recovery there.
+  After a rollback, start containers only after the old daemon has inventoried
+  the fully stopped node.
 
 `group new` *options* *group*
   Create a new group for resource management.
@@ -2801,6 +2804,20 @@ transfer and start again.
 `group cgparams apply` *group*
   Apply all cgroup parameters defined for group *group* and all its parent
   groups, all the way up to the root group.
+
+  Cpuset and CPU-bandwidth changes are applied as fenced hierarchy
+  transactions. If osctld is interrupted or cannot prove that a failed
+  transaction was rolled back completely, it stores a persistent group policy
+  quarantine. Starts, stopped-container executions, group membership changes,
+  and overlapping policy changes below the quarantined group are blocked.
+  `group show` reports the policy status and error.
+
+  Recover the exact group named by the error with
+  `osctl group cgparams apply` *group*. The command replays the recorded
+  cleanup, reconstructs the configured controller hierarchy, verifies it, and
+  clears the quarantine only after success. Do not delete
+  `cgroup-policy.yml` by hand: it is the durable record of kernel state which
+  may still require reconciliation.
 
 `group cgparams replace` *group*
   Replace all configured cgroup parameters by data in JSON read from standard

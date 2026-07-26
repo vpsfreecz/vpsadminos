@@ -671,7 +671,11 @@ RSpec.describe OsCtld::Container::Lifecycle do
 
       expect(request.action).to eq(:blocked)
       expect(request.warning).to match(
-        %r{ancestor group tank:/quarantined.*parent rollback failed}
+        %r{
+          ancestor\ group\ tank:/quarantined
+          .*parent\ rollback\ failed
+          .*osctl\ group\ cgparams\ apply\ tank:/quarantined
+        }x
       )
       expect(lifecycle.request_execution.action).to eq(:blocked)
       expect(lifecycle.request_restart.action).to eq(:blocked)
@@ -1661,6 +1665,15 @@ RSpec.describe OsCtld::Container::Lifecycle do
 
       execution = lifecycle.request_execution
       expect(execution.action).to eq(:blocked)
+      expect(
+        lifecycle.begin_parent_policy_update(kind: :group_cpuset)
+      ).to be_nil
+      cpu_policy = lifecycle.begin_parent_policy_update(
+        kind: :group_cpu_bandwidth,
+        allow_residuals: true
+      )
+      expect(cpu_policy).not_to be_nil
+      lifecycle.finish_parent_policy_update(cpu_policy.id)
 
       second = lifecycle.request_start
 

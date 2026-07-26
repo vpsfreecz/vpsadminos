@@ -135,7 +135,29 @@ RSpec.describe OsCtld::Group do
       ]
       root.begin_cgroup_policy_update!(
         kind: :group_cpuset,
-        cleanup_params:
+        cleanup_params:,
+        policy_anchors: {
+          cpuset: '/app',
+          cpu_bandwidth: '/'
+        },
+        cpu_bandwidth_resets: [
+          OsCtld::CGroup::Param.new(
+            1,
+            'cpu',
+            'cpu.cfs_quota_us',
+            ['250000'],
+            true
+          ).dump
+        ],
+        cpu_bandwidth_reset_target: [
+          OsCtld::CGroup::Param.new(
+            1,
+            'cpu',
+            'cpu.cfs_period_us',
+            ['100000'],
+            true
+          ).dump
+        ]
       )
 
       expect(root.cgroup_policy_tainted?).to be(true)
@@ -154,7 +176,17 @@ RSpec.describe OsCtld::Group do
       expect(restored.cgroup_policy_state).to include(
         'status' => 'updating',
         'kind' => 'group_cpuset',
-        'cleanup_params' => cleanup_params
+        'cleanup_params' => cleanup_params,
+        'policy_anchors' => {
+          'cpuset' => '/app',
+          'cpu_bandwidth' => '/'
+        },
+        'cpu_bandwidth_resets' => [
+          hash_including('name' => 'cpu.cfs_quota_us')
+        ],
+        'cpu_bandwidth_reset_target' => [
+          hash_including('name' => 'cpu.cfs_period_us')
+        ]
       )
 
       root.taint_cgroup_policy!(
@@ -165,7 +197,17 @@ RSpec.describe OsCtld::Group do
       expect(root.cgroup_policy_state).to include(
         'status' => 'tainted',
         'rollback_error' => 'rollback failed',
-        'cleanup_params' => cleanup_params
+        'cleanup_params' => cleanup_params,
+        'policy_anchors' => {
+          'cpuset' => '/app',
+          'cpu_bandwidth' => '/'
+        },
+        'cpu_bandwidth_resets' => [
+          hash_including('name' => 'cpu.cfs_quota_us')
+        ],
+        'cpu_bandwidth_reset_target' => [
+          hash_including('name' => 'cpu.cfs_period_us')
+        ]
       )
 
       root.clear_cgroup_policy_state!

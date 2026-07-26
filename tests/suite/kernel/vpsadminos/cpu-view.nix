@@ -305,6 +305,233 @@ let
             end
           end
 
+          describe 'Configured group CPU bandwidth hierarchy' do
+            ctid = "#{get_container_id('${prefix}-group-cpu')}"
+            parent_group = "/${prefix}-cpu"
+            child_group = "#{parent_group}/child"
+            stopped_group = "#{parent_group}/stopped"
+            ${
+              if cgroupsVersion == 2 then
+                ''
+                  group_cpu_root =
+                    "/sys/fs/cgroup/osctl/pool.tank/" \
+                      "group.${prefix}-cpu"
+                ''
+              else
+                ''
+                  group_cpu_root =
+                    "/sys/fs/cgroup/cpu,cpuacct/osctl/pool.tank/" \
+                      "group.${prefix}-cpu"
+                ''
+            }
+            child_cpu_cgroup = "#{group_cpu_root}/group.child"
+            stopped_cpu_cgroup = "#{group_cpu_root}/group.stopped"
+            cgroup_task_file =
+              '${if cgroupsVersion == 2 then "cgroup.procs" else "tasks"}'
+            read_group_cpu = lambda do |path|
+              ${
+                if cgroupsVersion == 2 then
+                  ''
+                    _, value = machine.succeeds("cat #{path}/cpu.max")
+                    quota, period = value.strip.split
+                    {
+                      quota: quota == 'max' ? -1 : quota.to_i,
+                      period: period.to_i
+                    }
+                  ''
+                else
+                  ''
+                    _, quota = machine.succeeds(
+                      "cat #{path}/cpu.cfs_quota_us"
+                    )
+                    _, period = machine.succeeds(
+                      "cat #{path}/cpu.cfs_period_us"
+                    )
+                    {
+                      quota: quota.strip.to_i,
+                      period: period.strip.to_i
+                    }
+                  ''
+              }
+            end
+
+            before(:context) do
+              delete_test_container(ctid)
+              machine.succeeds("osctl group del #{stopped_group} || true")
+              machine.succeeds("osctl group del #{child_group} || true")
+              machine.succeeds("osctl group del #{parent_group} || true")
+              machine.all_succeed(
+                "osctl ct new --distribution alpine #{ctid}",
+                "osctl ct unset start-menu #{ctid}",
+                "osctl group new --parents #{child_group}",
+                "osctl group new #{stopped_group}",
+                "osctl group set cpu-limit #{parent_group} 400",
+                "osctl group set cpu-limit #{child_group} 300",
+                "osctl group set cpu-limit #{stopped_group} 200",
+                "osctl ct chgrp #{ctid} #{child_group}"
+              )
+              _, lxc_path = machine.succeeds(
+                "osctl ct show -H -o lxc_path #{ctid}"
+              )
+              _, system_user = machine.succeeds(
+                "osctl user show -H -o username #{ctid}"
+              )
+              machine.all_succeed(
+                "sv -w 120 stop osctld",
+                "chpst -u #{system_user.strip} " \
+                  "lxc-monitor -P #{lxc_path.strip} --quit || true"
+              )
+              machine.wait_until_succeeds(
+                "test -z \"$(find #{group_cpu_root} " \
+                  "-name #{cgroup_task_file} -exec cat {} +)\"",
+                timeout: 120
+              )
+              machine.all_succeed(
+                "find #{group_cpu_root} -depth -type d -exec rmdir {} +",
+                "sv start osctld"
+              )
+              machine.wait_for_osctl_pool('tank')
+            end
+
+            after(:context) do
+              delete_test_container(ctid)
+              machine.succeeds("osctl group del #{stopped_group}")
+              machine.succeeds("osctl group del #{child_group}")
+              machine.succeeds("osctl group del #{parent_group}")
+            end
+
+            it 'applies configured policy to the existing group subtree' do
+              ${
+                if cgroupsVersion == 2 then
+                  ''
+                    expect(
+                      read_group_cpu.call(stopped_cpu_cgroup)
+                    ).to eq(
+                      quota: -1,
+                      period: 100_000
+                    )
+                  ''
+                else
+                  ''
+                    machine.fails("test -d #{stopped_cpu_cgroup}")
+                  ''
+              }
+              _, nproc = machine.succeeds(
+                "osctl ct exec -r #{ctid} nproc"
+              )
+
+              expect(nproc.strip.to_i).to eq(3)
+              expect(read_group_cpu.call(group_cpu_root)).to eq(
+                quota: 400_000,
+                period: 100_000
+              )
+              expect(read_group_cpu.call(child_cpu_cgroup)).to eq(
+                quota: 300_000,
+                period: 100_000
+              )
+              ${
+                if cgroupsVersion == 2 then
+                  ''
+                    expect(
+                      read_group_cpu.call(stopped_cpu_cgroup)
+                    ).to eq(
+                      quota: 200_000,
+                      period: 100_000
+                    )
+                  ''
+                else
+                  ''
+                    machine.fails("test -d #{stopped_cpu_cgroup}")
+                  ''
+              }
+            end
+
+            it 'retains the configured hierarchy across start and restart' do
+              machine.succeeds("osctl ct start #{ctid}")
+              machine.wait_for_osctl_container(ctid)
+              _, started_nproc = machine.succeeds(
+                "osctl ct exec #{ctid} nproc"
+              )
+              expect(started_nproc.strip.to_i).to eq(3)
+
+              machine.succeeds("osctl ct restart #{ctid}")
+              machine.wait_for_osctl_container(ctid)
+              _, restarted_nproc = machine.succeeds(
+                "osctl ct exec #{ctid} nproc"
+              )
+              expect(restarted_nproc.strip.to_i).to eq(3)
+            end
+
+            it 'expands ancestors before descendants' do
+              machine.all_succeed(
+                "osctl group set cpu-limit #{parent_group} 500",
+                "osctl group set cpu-limit #{child_group} 400"
+              )
+
+              _, nproc = machine.succeeds("osctl ct exec #{ctid} nproc")
+              expect(nproc.strip.to_i).to eq(4)
+            end
+
+            it 'restricts descendants before ancestors' do
+              machine.all_succeed(
+                "osctl group set cpu-limit #{child_group} 200",
+                "osctl group set cpu-limit #{parent_group} 250"
+              )
+
+              _, nproc = machine.succeeds("osctl ct exec #{ctid} nproc")
+              expect(nproc.strip.to_i).to eq(2)
+            end
+
+            it 'handles a child request wider than its parent' do
+              ${
+                if cgroupsVersion == 2 then
+                  ''
+                    machine.succeeds(
+                      "osctl group set cpu-limit #{child_group} 400"
+                    )
+                    expect(read_group_cpu.call(child_cpu_cgroup)).to eq(
+                      quota: 400_000,
+                      period: 100_000
+                    )
+                    _, nproc = machine.succeeds(
+                      "osctl ct exec #{ctid} nproc"
+                    )
+                    expect(nproc.strip.to_i).to eq(3)
+                  ''
+                else
+                  ''
+                    _, error = machine.fails(
+                      "osctl group set cpu-limit #{child_group} 400"
+                    )
+                    expect(error).to include(
+                      'exceeds prospective parent bandwidth'
+                    )
+                    expect(read_group_cpu.call(child_cpu_cgroup)).to eq(
+                      quota: 200_000,
+                      period: 100_000
+                    )
+                    _, nproc = machine.succeeds(
+                      "osctl ct exec #{ctid} nproc"
+                    )
+                    expect(nproc.strip.to_i).to eq(2)
+                  ''
+              }
+            end
+
+            it 'inherits the finite parent after unsetting the child limit' do
+              machine.succeeds(
+                "osctl group unset cpu-limit #{child_group}"
+              )
+
+              expect(read_group_cpu.call(child_cpu_cgroup)).to eq(
+                quota: -1,
+                period: 100_000
+              )
+              _, nproc = machine.succeeds("osctl ct exec #{ctid} nproc")
+              expect(nproc.strip.to_i).to eq(3)
+            end
+          end
+
           def self.check_cpus(limit, cpu_count)
             before(:context) do
               if limit

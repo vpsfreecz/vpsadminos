@@ -46,7 +46,8 @@ module OsCtld
         name: ct.group.name,
         pool: ct.pool.name,
         manipulation_lock: 'ignore',
-        skip_cpuset: true
+        skip_cpuset: true,
+        skip_cpu_bandwidth: true
       )
       return ret unless ret[:status]
 

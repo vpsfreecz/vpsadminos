@@ -53,7 +53,17 @@ module OsCtld
       keyword_init: true
     )
 
-    Result = Struct.new(:target, keyword_init: true)
+    Result = Struct.new(:target, :rollback_proc, keyword_init: true) do
+      def rollback!
+        return true unless rollback_proc
+
+        error = rollback_proc.call
+        raise error if error
+
+        self.rollback_proc = nil
+        true
+      end
+    end
 
     class Error < CGroup::CpusetPolicy::Error; end
 
@@ -69,18 +79,25 @@ module OsCtld
     # @return [Result]
     def apply
       CGroup.sync do
-        entries = scan_entries
-        target = target_state(entries)
-        validate_target!(target)
-        desired = desired_states(entries, target)
-        plan = build_plan(entries, desired)
+        preflight
         journal = []
+        preparation_started = false
+        target = nil
 
         begin
+          preparation_started = true
+          prepare
+          entries = scan_entries
+          target = target_state(entries)
+          validate_target!(target)
+          desired = desired_states(entries, target)
+          plan = build_plan(entries, desired)
           execute_plan(plan, journal)
           verify!(desired, target)
         rescue StandardError => e
           rollback_error = rollback(journal)
+          rollback_error ||= preparation_rollback_error \
+            if preparation_started
           message = "unable to apply CPU bandwidth policy: #{e.message}"
           if rollback_error
             message = "#{message}; rollback failed: #{rollback_error.message}"
@@ -88,13 +105,28 @@ module OsCtld
           raise Error.new(message, rollback_error:)
         end
 
-        Result.new(target: dump_state(target))
+        preparation_error =
+          preparation_started ? preparation_rollback_error : nil
+        Result.new(
+          target: dump_state(target),
+          rollback_proc: proc do
+            CGroup.sync do
+              rollback(journal) || preparation_error
+            end
+          end
+        )
       end
     end
 
     protected
 
     attr_reader :ct, :params, :root
+
+    def preflight; end
+
+    def prepare; end
+
+    def preparation_rollback_error; end
 
     def scan_entries
       unless File.exist?(parameter_path(root))
@@ -175,15 +207,17 @@ module OsCtld
       stable = entries.detect { |entry| entry.path == root }
       raise Error, "stable CPU cgroup #{root} is missing" unless stable
 
-      return configured_v2_state(stable.current) if CGroup.v2?
+      return configured_v2_state(stable.current, params) if CGroup.v2?
 
-      quota = configured_value(QUOTA_PARAMETER) || stable.current.quota
-      period = configured_value(PERIOD_PARAMETER) || stable.current.period
+      quota =
+        configured_value(QUOTA_PARAMETER, params) || stable.current.quota
+      period =
+        configured_value(PERIOD_PARAMETER, params) || stable.current.period
       State.new(quota:, period:)
     end
 
-    def configured_v2_state(current)
-      param = params.reverse_each.detect do |candidate|
+    def configured_v2_state(current, configured_params)
+      param = configured_params.reverse_each.detect do |candidate|
         candidate.name == V2_PARAMETER
       end
       return copy_state(current) unless param
@@ -191,8 +225,10 @@ module OsCtld
       parse_v2_state(param.value.last, current.period)
     end
 
-    def configured_value(name)
-      param = params.reverse_each.detect { |candidate| candidate.name == name }
+    def configured_value(name, configured_params)
+      param = configured_params.reverse_each.detect do |candidate|
+        candidate.name == name
+      end
       return unless param
 
       value = Integer(param.value.last.to_s, 10)
@@ -397,6 +433,7 @@ module OsCtld
     end
 
     def hierarchy_valid?(entry, candidate)
+      return true if CGroup.v2?
       return true if candidate.unlimited?
 
       @transition_entries.each do |other|

@@ -29,7 +29,7 @@ module OsCtld
                 name: ct.group.name,
                 pool: ct.pool.name,
                 manipulation_lock: 'wait',
-                only_cpuset: true
+                only_policies: true
               )
               unless ret[:status]
                 raise ContainerControl::Error,

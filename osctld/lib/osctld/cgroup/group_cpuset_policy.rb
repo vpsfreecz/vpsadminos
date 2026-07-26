@@ -10,6 +10,18 @@ module OsCtld
   # group are included so user and stopped-container paths cannot retain a
   # mask wider than their group.
   class CGroup::GroupCpusetPolicy
+    Result = Struct.new(:rollback_proc, keyword_init: true) do
+      def rollback!
+        return true unless rollback_proc
+
+        error = rollback_proc.call
+        raise error if error
+
+        self.rollback_proc = nil
+        true
+      end
+    end
+
     Entry = Struct.new(
       :path,
       :depth,
@@ -19,9 +31,10 @@ module OsCtld
       keyword_init: true
     )
 
-    def initialize(anchor)
+    def initialize(anchor, reconstruct_to: nil)
       @anchor = anchor
       @groups = [anchor, *anchor.descendants]
+      @reconstruct_group = validate_reconstruct_group(reconstruct_to)
       @targets = configured_targets
       raise CGroup::CpusetPolicy::Error, 'group has no configured cpuset' \
         unless @targets.has_key?(abs_path(anchor.cgroup_path))
@@ -30,9 +43,15 @@ module OsCtld
     end
 
     def applied?
+      if @reconstruct_group \
+          && !File.exist?(
+            File.join(abs_path(@reconstruct_group.cgroup_path), 'cpuset.cpus')
+          )
+        return false
+      end
+
       entries = scan_entries
       return false unless entries
-      return false unless (targets.keys - entries.map(&:path)).empty?
 
       desired = desired_masks(entries)
       entries.all? do |entry|
@@ -44,7 +63,11 @@ module OsCtld
     end
 
     def apply
+      originals = nil
+      preparation_started = false
+
       CGroup.sync do
+        preparation_started = true
         ensure_paths
         entries = scan_entries
         unless entries
@@ -54,24 +77,31 @@ module OsCtld
 
         originals = entries.to_h { |entry| [entry.path, entry.dup] }
         desired = desired_masks(entries)
-
-        begin
-          apply_masks(entries, desired)
-          verify!
-        rescue StandardError => e
-          rollback_error = rollback(originals)
-          message = "unable to apply group cpuset policy: #{e.message}"
-          if rollback_error
-            message = "#{message}; rollback failed: #{rollback_error.message}"
-          end
-          raise CGroup::CpusetPolicy::Error.new(
-            message,
-            rollback_error:
-          )
+        apply_masks(entries, desired)
+        verify!
+      rescue StandardError => e
+        rollback_error = originals && rollback(originals)
+        rollback_error ||= preparation_rollback_error \
+          if preparation_started
+        message = "unable to apply group cpuset policy: #{e.message}"
+        if rollback_error
+          message = "#{message}; rollback failed: #{rollback_error.message}"
         end
+        raise CGroup::CpusetPolicy::Error.new(
+          message,
+          rollback_error:
+        )
       end
 
-      true
+      preparation_error =
+        preparation_started ? preparation_rollback_error : nil
+      Result.new(
+        rollback_proc: proc do
+          CGroup.sync do
+            rollback(originals) || preparation_error
+          end
+        end
+      )
     end
 
     protected
@@ -108,13 +138,33 @@ module OsCtld
     end
 
     def ensure_paths
-      groups.each do |group|
-        CGroup.mkpath(
-          'cpuset',
-          group.cgroup_path.split('/'),
-          leaf: false
-        )
+      return unless @reconstruct_group
+
+      CGroup.mkpath(
+        'cpuset',
+        @reconstruct_group.cgroup_path.split('/'),
+        leaf: false
+      )
+    end
+
+    def preparation_rollback_error
+      return unless @reconstruct_group
+
+      CGroup::CpusetPolicy::Error.new(
+        'requested cpuset cgroup path/controller reconstruction cannot be ' \
+        'rolled back exactly'
+      )
+    end
+
+    def validate_reconstruct_group(group)
+      return unless group
+
+      unless groups.include?(group)
+        raise CGroup::CpusetPolicy::Error,
+              'cpuset reconstruction target is outside its group subtree'
       end
+
+      group
     end
 
     def scan_entries

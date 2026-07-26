@@ -269,13 +269,25 @@ module OsCtld
     # Persist parent-policy ownership independently of current container
     # membership. The marker is written before kernel changes, so daemon loss
     # and rollback failure quarantine empty groups and future descendants.
-    def begin_cgroup_policy_update!(kind:, cleanup_params: [])
+    def begin_cgroup_policy_update!(
+      kind:,
+      cleanup_params: [],
+      policy_anchors: nil,
+      cpu_bandwidth_resets: nil,
+      cpu_bandwidth_reset_target: nil
+    )
       state = {
         'status' => 'updating',
         'kind' => kind.to_s,
         'started_at' => Time.now.to_f,
         'cleanup_params' => cleanup_params
       }
+      state['policy_anchors'] = policy_anchors.transform_keys(&:to_s) \
+        if policy_anchors
+      if cpu_bandwidth_resets
+        state['cpu_bandwidth_resets'] = cpu_bandwidth_resets
+        state['cpu_bandwidth_reset_target'] = cpu_bandwidth_reset_target
+      end
       @cgroup_policy_state = state
       persist_cgroup_policy_state(state)
       state
@@ -297,6 +309,18 @@ module OsCtld
           cleanup_params \
           || @cgroup_policy_state&.fetch('cleanup_params', nil)
       }
+      if @cgroup_policy_state&.fetch('policy_anchors', nil)
+        state['policy_anchors'] =
+          @cgroup_policy_state.fetch('policy_anchors').dup
+      end
+      if @cgroup_policy_state&.fetch('cpu_bandwidth_resets', nil)
+        state['cpu_bandwidth_resets'] =
+          @cgroup_policy_state.fetch('cpu_bandwidth_resets').dup
+        reset_target =
+          @cgroup_policy_state.fetch('cpu_bandwidth_reset_target', nil)
+        state['cpu_bandwidth_reset_target'] = reset_target.dup \
+          if reset_target
+      end
       @cgroup_policy_state = state
       persist_cgroup_policy_state(state)
       state

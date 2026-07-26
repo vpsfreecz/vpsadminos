@@ -38,12 +38,18 @@ module OsCtld
     )
 
     class Error < StandardError
-      attr_reader :cleanup_params, :rollback_error
+      attr_reader :cleanup_params, :policy_compensated, :rollback_error
 
-      def initialize(message, rollback_error: nil, cleanup_params: [])
+      def initialize(
+        message,
+        rollback_error: nil,
+        cleanup_params: [],
+        policy_compensated: false
+      )
         super(message)
         @rollback_error = rollback_error
         @cleanup_params = cleanup_params
+        @policy_compensated = policy_compensated
       end
     end
 

@@ -184,14 +184,21 @@ import ../../make-test.nix (
 
       describe 'an unkillable residual generation' do
         ctid = "#{get_container_id}-residual"
+        group = "/#{ctid}-cpu"
+        group_cpu_cgroup =
+          "/sys/fs/cgroup/osctl/pool.tank/group.#{ctid}-cpu"
 
         before(:context) do
           cleanup_ct(ctid)
+          machine.execute("osctl group del #{Shellwords.escape(group)}")
           cleanup_block_device
           setup_block_device
           machine.all_succeed(
             "osctl ct new --distribution alpine #{ctid}",
             "osctl ct unset start-menu #{ctid}",
+            "osctl group new #{group}",
+            "osctl group set cpu-limit #{group} 100",
+            "osctl ct chgrp #{ctid} #{group}",
             "osctl ct cgparams set #{ctid} cpuset.cpus 0",
             "osctl ct mounts new --fs #{DM_MOUNT} --type bind " \
               "--opts bind,create=dir --mountpoint /mnt/blocked #{ctid}",
@@ -214,6 +221,7 @@ import ../../make-test.nix (
           end
 
           cleanup_ct(ctid)
+          machine.execute("osctl group del #{Shellwords.escape(group)}")
           cleanup_block_device
         end
 
@@ -296,6 +304,18 @@ import ../../make-test.nix (
           expect(replacement_info.fetch('lifecycle_residuals')).to eq(1)
 
           machine.succeeds(
+            "osctl group set cpu-limit #{group} 200"
+          )
+          _, old_cpu_limit = machine.succeeds(
+            "cat /sys/fs/cgroup/#{old_cgroup}/cpu.max"
+          )
+          _, group_cpu_limit = machine.succeeds(
+            "cat #{group_cpu_cgroup}/cpu.max"
+          )
+          expect(old_cpu_limit.strip).to eq('100000 100000')
+          expect(group_cpu_limit.strip).to eq('200000 100000')
+
+          machine.succeeds(
             "osctl ct cgparams set #{ctid} cpuset.cpus 0-1"
           )
           _, old_mask = machine.succeeds(
@@ -306,6 +326,10 @@ import ../../make-test.nix (
           )
           expect(old_mask.strip).to eq('0')
           expect(replacement_mask.strip).to eq('0-1')
+          _, replacement_nproc = machine.succeeds(
+            "osctl ct exec #{ctid} nproc"
+          )
+          expect(replacement_nproc.strip.to_i).to eq(2)
 
           _, rejected = machine.fails(
             "osctl ct cgparams set #{ctid} cpuset.cpus 1"
@@ -346,6 +370,20 @@ import ../../make-test.nix (
           expect(final_info.fetch('state')).to eq('running')
           expect(final_info.fetch('lifecycle_run_id')).to eq(replacement_run_id)
           expect(final_info.fetch('lifecycle_residuals')).to eq(0)
+          machine.succeeds(
+            "osctl group set cpu-limit #{group} 100"
+          )
+          _, restricted_nproc = machine.succeeds(
+            "osctl ct exec #{ctid} nproc"
+          )
+          expect(restricted_nproc.strip.to_i).to eq(1)
+          machine.succeeds(
+            "osctl group set cpu-limit #{group} 200"
+          )
+          _, expanded_nproc = machine.succeeds(
+            "osctl ct exec #{ctid} nproc"
+          )
+          expect(expanded_nproc.strip.to_i).to eq(2)
           machine.succeeds(
             "osctl ct cgparams set #{ctid} cpuset.cpus 1"
           )

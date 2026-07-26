@@ -3,6 +3,7 @@
 require 'fileutils'
 require 'tmpdir'
 require 'osctld/cgroup/group_cpuset_policy'
+require 'osctld/cgroup/param'
 
 RSpec.describe OsCtld::CGroup::GroupCpusetPolicy do
   let(:cgroup_fs) { Dir.mktmpdir('osctld-group-cpuset-policy') }
@@ -66,8 +67,9 @@ RSpec.describe OsCtld::CGroup::GroupCpusetPolicy do
   end
 
   it 'reconstructs inherited v1 children before narrowing their parents' do
-    expect(described_class.new(parent_group).apply).to be(true)
+    result = described_class.new(parent_group).apply
 
+    expect(result).to respond_to(:rollback!)
     expect(configured(parent_group.cgroup_path)).to eq('0-5')
     expect(configured(child_group.cgroup_path)).to eq('2-4')
     expect(configured("#{child_group.cgroup_path}/user.test")).to eq('2-4')
@@ -77,12 +79,75 @@ RSpec.describe OsCtld::CGroup::GroupCpusetPolicy do
       .to be < write_index(parent_group.cgroup_path, '0-5')
   end
 
+  it 'reconstructs only the requested missing descendant group path' do
+    live_sibling = test_classes.fetch(:group).new(
+      '/osctl/pool.tank/group.parent/group.sibling',
+      test_classes.fetch(:param_set).new(cpuset_param('4-5')),
+      []
+    )
+    stopped_sibling = test_classes.fetch(:group).new(
+      '/osctl/pool.tank/group.parent/group.stopped',
+      test_classes.fetch(:param_set).new(cpuset_param('0-1')),
+      []
+    )
+    parent_group.descendants = [
+      child_group,
+      live_sibling,
+      stopped_sibling
+    ]
+    create_cgroup(live_sibling.cgroup_path, '0-7')
+    recompute_effective_masks
+    FileUtils.rm_rf(
+      File.join(cgroup_fs, 'cpuset', child_group.cgroup_path)
+    )
+    allow(OsCtld::CGroup).to receive(:mkpath) do |subsystem, path, leaf:|
+      expect(subsystem).to eq('cpuset')
+      expect(path.join('/')).to eq(child_group.cgroup_path)
+      expect(leaf).to be(false)
+      create_cgroup(child_group.cgroup_path, '0-7')
+      recompute_effective_masks
+    end
+
+    policy = described_class.new(
+      parent_group,
+      reconstruct_to: child_group
+    )
+    expect(policy.applied?).to be(false)
+
+    policy.apply
+
+    expect(OsCtld::CGroup).to have_received(:mkpath).once
+    expect(configured(child_group.cgroup_path)).to eq('2-4')
+    expect(configured(live_sibling.cgroup_path)).to eq('4,5')
+    expect(
+      File.exist?(
+        File.join(cgroup_fs, 'cpuset', stopped_sibling.cgroup_path)
+      )
+    ).to be(false)
+  end
+
   it 'recognizes an already-applied group hierarchy without writing' do
     described_class.new(parent_group).apply
     writes.clear
 
     expect(described_class.new(parent_group).applied?).to be(true)
     expect(writes).to be_empty
+  end
+
+  it 'reports reconstruction as non-compensable after a later failure' do
+    result = described_class.new(
+      parent_group,
+      reconstruct_to: parent_group
+    ).apply
+
+    expect do
+      result.rollback!
+    end.to raise_error(
+      OsCtld::CGroup::CpusetPolicy::Error,
+      /reconstruction cannot be rolled back exactly/
+    )
+    expect(configured(parent_group.cgroup_path)).to eq('0-7')
+    expect(configured(child_group.cgroup_path)).to eq('0-7')
   end
 
   def cpuset_param(mask)

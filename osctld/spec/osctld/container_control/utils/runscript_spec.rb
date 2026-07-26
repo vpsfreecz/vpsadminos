@@ -207,7 +207,7 @@ RSpec.describe OsCtld::ContainerControl::Utils::Runscript::Frontend do
       name: '/default',
       pool: 'tank',
       manipulation_lock: 'wait',
-      only_cpuset: true
+      only_policies: true
     )
     expect(lifecycle).to have_received(:request_execution)
     expect(admission_frontend.generation_calls).to eq([[request, false]])

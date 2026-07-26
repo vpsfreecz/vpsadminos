@@ -293,7 +293,8 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
       name: ct.group.name,
       pool: 'tank',
       manipulation_lock: 'ignore',
-      skip_cpuset: true
+      skip_cpuset: true,
+      skip_cpu_bandwidth: true
     ).and_return(status: true, output: nil)
 
     expect(command.execute).to eq(status: true, output: nil)
@@ -375,7 +376,8 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
       name: ct.group.name,
       pool: 'tank',
       manipulation_lock: 'ignore',
-      skip_cpuset: true
+      skip_cpuset: true,
+      skip_cpu_bandwidth: true
     ).and_return(status: true, output: nil)
     allow(cgparams).to receive(:apply_for_start).and_raise(
       OsCtld::CGroup::CpusetPolicy::Error,

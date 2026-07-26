@@ -162,6 +162,170 @@ RSpec.describe OsCtld::CGroup::Params do
     )
   end
 
+  it 'keeps group cpuset and CPU parameters out of generic writes' do
+    group = OsCtld::Group.allocate
+    params = described_class.new(
+      group,
+      params: [
+        param(2, 'cpuset', 'cpuset.cpus', ['0-3']),
+        param(2, 'cpu', 'cpu.max', ['50000 100000']),
+        param(2, 'pids', 'pids.max', [100])
+      ]
+    )
+    allow(group).to receive(:save_config)
+    allow(OsCtld::CGroup::GroupCpuBandwidthPolicy).to receive(:new)
+    allow(OsCtld::CGroup::GroupCpusetPolicy).to receive(:new)
+
+    params.apply(cpuset: false, cpu_bandwidth: false) do |subsystem|
+      File.join('/cg', subsystem, 'group.app')
+    end
+
+    expect(OsCtld::CGroup.set_param_calls).to eq(
+      [['/cg/pids/group.app/pids.max', [100]]]
+    )
+    expect(
+      OsCtld::CGroup::GroupCpuBandwidthPolicy
+    ).not_to have_received(:new)
+    expect(OsCtld::CGroup::GroupCpusetPolicy).not_to have_received(:new)
+  end
+
+  it 'applies both group hierarchy policies before generic parameters' do
+    group = OsCtld::Group.allocate
+    params = described_class.new(
+      group,
+      params: [
+        param(2, 'cpuset', 'cpuset.cpus', ['0-3']),
+        param(2, 'cpu', 'cpu.max', ['50000 100000']),
+        param(2, 'pids', 'pids.max', [100])
+      ]
+    )
+    cpu_policy = instance_double(
+      OsCtld::CGroup::GroupCpuBandwidthPolicy,
+      apply: true
+    )
+    cpuset_policy = instance_double(
+      OsCtld::CGroup::GroupCpusetPolicy,
+      apply: true
+    )
+    calls = []
+    allow(OsCtld::CGroup::GroupCpuBandwidthPolicy).to receive(:new)
+      .with(group, reconstruct_to: group, containers: nil)
+      .and_return(cpu_policy)
+    allow(OsCtld::CGroup::GroupCpusetPolicy).to receive(:new)
+      .with(group, reconstruct_to: group)
+      .and_return(cpuset_policy)
+    allow(cpu_policy).to receive(:apply) { calls << :cpu }
+    allow(cpuset_policy).to receive(:apply) { calls << :cpuset }
+    allow(params).to receive(:verify_cpuset_path)
+    allow(OsCtld::CGroup).to receive(:set_param) do |path, value|
+      calls << [path, value]
+      true
+    end
+
+    params.apply do |subsystem|
+      File.join('/cg', subsystem, 'group.app')
+    end
+
+    expect(calls).to eq(
+      [
+        :cpu,
+        :cpuset,
+        ['/cg/pids/group.app/pids.max', [100]]
+      ]
+    )
+  end
+
+  it 'uses the exact CPU journal when a later group parameter write fails' do
+    group = OsCtld::Group.allocate
+    params = described_class.new(group)
+    cpu = param(2, 'cpu', 'cpu.max', ['50000 100000'])
+    pids = param(2, 'pids', 'pids.max', [100])
+    cpu_result = instance_double(
+      OsCtld::CGroup::CpuBandwidthPolicy::Result,
+      rollback!: true
+    )
+    cpu_policy = instance_double(
+      OsCtld::CGroup::GroupCpuBandwidthPolicy,
+      apply: cpu_result
+    )
+    allow(group).to receive(:save_config)
+    allow(OsCtld::CGroup::GroupCpuBandwidthPolicy).to receive(:new)
+      .with(group, reconstruct_to: group, containers: [])
+      .and_return(cpu_policy)
+    cgroup_state.rejected_writes << [
+      '/cg/pids/group.app/pids.max',
+      [100]
+    ]
+
+    expect do
+      params.transactional_set(
+        [cpu, pids],
+        cpuset: false,
+        policy_containers: []
+      ) { |subsystem| File.join('/cg', subsystem, 'group.app') }
+    end.to raise_error(
+      OsCtld::CGroup::CpusetPolicy::Error,
+      /kernel rejected group cgroup parameters: pids.max/
+    )
+
+    expect(cpu_result).to have_received(:rollback!).once
+    expect(
+      OsCtld::CGroup::GroupCpuBandwidthPolicy
+    ).to have_received(:new).once
+    expect(params.each.to_a).to be_empty
+    expect(OsCtld::CGroup.set_param_calls).to include(
+      ['/cg/pids/group.app/pids.max', [100]],
+      ['/cg/pids/group.app/pids.max', ['max']]
+    )
+  end
+
+  it 'passes removed v1 CPU components to the hierarchy policy as resets' do
+    cgroup_state.version = 1
+    group = OsCtld::Group.allocate
+    quota = param(
+      1,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::QUOTA_PARAMETER,
+      [250_000]
+    )
+    period = param(
+      1,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::PERIOD_PARAMETER,
+      [200_000]
+    )
+    params = described_class.new(group, params: [quota, period])
+    policy = instance_double(
+      OsCtld::CGroup::GroupCpuBandwidthPolicy,
+      apply: true
+    )
+    allow(group).to receive(:save_config)
+    allow(OsCtld::CGroup::GroupCpuBandwidthPolicy).to receive(:new)
+      .and_return(policy)
+
+    params.transactional_unset(
+      [quota.export],
+      cpuset: false
+    ) { |subsystem| File.join('/cg', subsystem, 'group.app') }
+
+    expect(
+      OsCtld::CGroup::GroupCpuBandwidthPolicy
+    ).to have_received(:new).with(
+      group,
+      reconstruct_to: group,
+      containers: nil,
+      resets: contain_exactly(
+        have_attributes(
+          version: 1,
+          name: OsCtld::CGroup::CpuBandwidthPolicy::QUOTA_PARAMETER
+        )
+      )
+    )
+    expect(params.each.map(&:name)).to eq(
+      [OsCtld::CGroup::CpuBandwidthPolicy::PERIOD_PARAMETER]
+    )
+  end
+
   it 'resets a group cpuset to its effective parent mask' do
     params = described_class.new(owner)
     allow(OsCtld::CGroup::CpusetPolicy).to receive(:read_effective_mask)
@@ -198,7 +362,7 @@ RSpec.describe OsCtld::CGroup::Params do
     )
   end
 
-  it 'rolls back newly added group parameters after a late failure' do
+  it 'does not write staged runtime when durable configuration fails' do
     params = described_class.new(
       owner,
       params: [param(2, 'memory', 'memory.max', [100_000])]
@@ -226,9 +390,7 @@ RSpec.describe OsCtld::CGroup::Params do
       /injected config failure/
     )
 
-    expect(OsCtld::CGroup.set_param_calls).to include(
-      ['/cg/cpuset/group.app/cpuset.cpus', ['2-3']],
-      ['/cg/pids/group.app/pids.max', [100]],
+    expect(OsCtld::CGroup.set_param_calls).to contain_exactly(
       ['/cg/cpuset/group.app/cpuset.cpus', ['0-7']],
       ['/cg/pids/group.app/pids.max', ['max']],
       ['/cg/memory/group.app/memory.max', [100_000]]
