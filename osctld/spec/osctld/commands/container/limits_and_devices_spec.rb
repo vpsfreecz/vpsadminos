@@ -197,10 +197,35 @@ RSpec.describe 'container limits and device commands' do
       allow(command).to receive(:call_cmd)
         .with(group_apply, name: '/default', pool: 'tank')
         .and_return(status: true, output: nil)
-      allow(command).to receive(:apply).with(ct, force: true)
+      allow(command).to receive(:apply)
+        .with(ct, force: true, cpuset: true)
+        .and_return(status: true, output: nil)
 
       expect(command.execute).to eq(status: true, output: nil)
-      expect(command).to have_received(:apply).with(ct, force: true)
+      expect(command).to have_received(:apply).with(
+        ct,
+        force: true,
+        cpuset: true
+      )
+    end
+
+    it 'passes through container parameter failures' do
+      db = build_db_containers
+      group_apply = stub_const('OsCtld::Commands::Group::CGParamApply', Class.new)
+      ct = build_ct(running: true)
+      allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+      command = described_class.new({ id: 'ct1', pool: 'tank' }, {})
+      allow(command).to receive(:call_cmd)
+        .with(group_apply, name: '/default', pool: 'tank')
+        .and_return(status: true, output: nil)
+      allow(command).to receive(:apply)
+        .with(ct, force: true, cpuset: true)
+        .and_return(status: false, message: 'container apply failed')
+
+      expect(command.execute).to eq(
+        status: false,
+        message: 'container apply failed'
+      )
     end
   end
 

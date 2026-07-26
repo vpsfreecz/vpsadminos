@@ -115,6 +115,65 @@ RSpec.describe OsCtld::Group do
     end
   end
 
+  it 'persists parent cgroup quarantine across empty groups and reloads' do
+    with_tmpdir do |dir|
+      pool = build_fake_pool(root: dir)
+      root = build_group(pool, '/', root: true)
+      child = build_group(pool, '/app')
+      root.configure(path: '/osctl/pool.tank', devices: false)
+      child.configure(devices: false)
+      stub_groups_registry([root, child], root:)
+
+      cleanup_params = [
+        OsCtld::CGroup::Param.new(
+          2,
+          nil,
+          'pids.max',
+          ['100'],
+          true
+        ).dump
+      ]
+      root.begin_cgroup_policy_update!(
+        kind: :group_cpuset,
+        cleanup_params:
+      )
+
+      expect(root.cgroup_policy_tainted?).to be(true)
+      expect(child.inherited_cgroup_policy_state).to match(
+        [root, hash_including('status' => 'updating')]
+      )
+      expect(File).to exist(root.cgroup_policy_state_path)
+
+      restored = build_group(
+        pool,
+        '/',
+        load: true,
+        root: true,
+        devices: false
+      )
+      expect(restored.cgroup_policy_state).to include(
+        'status' => 'updating',
+        'kind' => 'group_cpuset',
+        'cleanup_params' => cleanup_params
+      )
+
+      root.taint_cgroup_policy!(
+        kind: :group_cpuset,
+        error: 'write failed',
+        rollback_error: 'rollback failed'
+      )
+      expect(root.cgroup_policy_state).to include(
+        'status' => 'tainted',
+        'rollback_error' => 'rollback failed',
+        'cleanup_params' => cleanup_params
+      )
+
+      root.clear_cgroup_policy_state!
+      expect(root.cgroup_policy_tainted?).to be(false)
+      expect(File).not_to exist(root.cgroup_policy_state_path)
+    end
+  end
+
   it 'enumerates child and descendant groups' do
     with_tmpdir do |dir|
       pool = build_fake_pool(root: dir)
@@ -159,6 +218,8 @@ RSpec.describe OsCtld::Group do
       expect(child.has_containers?(alice)).to be(true)
       expect(child.has_containers?(FakeObjects::FakeNamed.new('carol'))).to be(false)
       expect(child.containers).to eq([ct1, ct2])
+      expect(child.containers_in_subtree).to eq([ct1, ct2, ct3])
+      expect(root.containers_in_subtree).to eq([ct1, ct2, ct3])
       expect(child.users).to eq([alice, bob])
     end
   end

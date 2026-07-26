@@ -27,7 +27,10 @@ RSpec.describe OsCtld::CGroup::Params do
   end
 
   let(:owner) { FakeObjects::FakeRuntimeContainer.new(pool: Struct.new(:name).new('tank'), id: 'ct1') }
-  let(:cgroup_state) { Struct.new(:version, :set_param_calls).new(2, []) }
+  let(:cgroup_state) do
+    Struct.new(:version, :set_param_calls, :rejected_writes)
+          .new(2, [], [])
+  end
 
   before do
     OsCtl::Lib::Logger.setup(:none)
@@ -41,10 +44,36 @@ RSpec.describe OsCtld::CGroup::Params do
     end
     OsCtld::CGroup.define_singleton_method(:set_param) do |path, value|
       state.set_param_calls << [path, value]
-      true
+      !state.rejected_writes.include?([path, value])
     end
     OsCtld::CGroup.define_singleton_method(:set_param_calls) { state.set_param_calls }
     allow(File).to receive(:exist?).and_call_original
+    allow(File).to receive(:read).and_wrap_original do |method, path, *args|
+      if path.start_with?('/cg/') && File.basename(path) == 'cpuset.cpus'
+        write = state.set_param_calls.reverse_each.detect do |set_path, _value|
+          set_path == path
+        end
+        write ? write.last.last.to_s : ''
+      else
+        method.call(path, *args)
+      end
+    end
+    allow(OsCtld::CGroup::CpusetPolicy)
+      .to receive(:read_effective_mask)
+      .and_wrap_original do |method, path|
+        if path.start_with?('/cg/')
+          write = state.set_param_calls.reverse_each.detect do |set_path, _value|
+            set_path == File.join(path, 'cpuset.cpus')
+          end
+          if write
+            OsCtl::Lib::CpuMask.new(write.last.last.to_s).to_s
+          else
+            '0-7'
+          end
+        else
+          method.call(path)
+        end
+      end
   end
 
   it 'loads, imports, and validates parameters for the active cgroup version' do
@@ -97,6 +126,158 @@ RSpec.describe OsCtld::CGroup::Params do
     copy = params.dup(owner)
     copy.detect { |p| p.name == 'memory.high' }.value << 2
     expect(params.detect { |p| p.name == 'memory.high' }.value).to eq([1])
+  end
+
+  it 'reports rejected group parameter writes' do
+    path = '/cg/pids/pids.max'
+    cgroup_state.rejected_writes << [path, [100]]
+    params = described_class.new(
+      owner,
+      params: [param(2, 'pids', 'pids.max', [100])]
+    )
+
+    expect do
+      params.apply { |subsystem| File.join('/cg', subsystem) }
+    end.to raise_error(
+      OsCtld::CGroup::CpusetPolicy::Error,
+      /kernel rejected group cgroup parameters: pids.max/
+    )
+  end
+
+  it 'applies only the configured cpuset when requested' do
+    params = described_class.new(
+      owner,
+      params: [
+        param(2, 'cpuset', 'cpuset.cpus', ['0-3']),
+        param(2, 'pids', 'pids.max', [100])
+      ]
+    )
+
+    params.apply(only_cpuset: true) do |subsystem|
+      File.join('/cg', subsystem, 'group.app')
+    end
+
+    expect(OsCtld::CGroup.set_param_calls).to eq(
+      [['/cg/cpuset/group.app/cpuset.cpus', ['0-3']]]
+    )
+  end
+
+  it 'resets a group cpuset to its effective parent mask' do
+    params = described_class.new(owner)
+    allow(OsCtld::CGroup::CpusetPolicy).to receive(:read_effective_mask)
+      .with('/cg/cpuset')
+      .and_return('0-7')
+
+    params.reset(
+      param(2, 'cpuset', 'cpuset.cpus', ['2-3']),
+      false
+    ) { |subsystem| File.join('/cg', subsystem, 'group.app') }
+
+    expect(OsCtld::CGroup.set_param_calls).to include(
+      ['/cg/cpuset/group.app/cpuset.cpus', ['0-7']]
+    )
+    expect(OsCtld::CGroup.set_param_calls.flatten).not_to include('all')
+  end
+
+  it 'rejects a cpuset write whose effective mask remains narrower' do
+    params = described_class.new(
+      owner,
+      params: [param(2, 'cpuset', 'cpuset.cpus', ['0-3'])]
+    )
+    allow(OsCtld::CGroup::CpusetPolicy).to receive(:read_effective_mask)
+      .with('/cg/cpuset/group.app')
+      .and_return('0-1')
+
+    expect do
+      params.apply do |subsystem|
+        File.join('/cg', subsystem, 'group.app')
+      end
+    end.to raise_error(
+      OsCtld::CGroup::CpusetPolicy::Error,
+      /requested="0-3", effective="0-1", expected="0-3"/
+    )
+  end
+
+  it 'rolls back newly added group parameters after a late failure' do
+    params = described_class.new(
+      owner,
+      params: [param(2, 'memory', 'memory.max', [100_000])]
+    )
+    saves = 0
+    allow(owner).to receive(:save_config).and_wrap_original do |method|
+      saves += 1
+      raise 'injected config failure' if saves == 1
+
+      method.call
+    end
+    allow(OsCtld::CGroup::CpusetPolicy).to receive(:read_effective_mask)
+      .with('/cg/cpuset')
+      .and_return('0-7')
+
+    expect do
+      params.transactional_set(
+        [
+          param(2, 'cpuset', 'cpuset.cpus', ['2-3']),
+          param(2, 'pids', 'pids.max', [100])
+        ]
+      ) { |subsystem| File.join('/cg', subsystem, 'group.app') }
+    end.to raise_error(
+      OsCtld::CGroup::CpusetPolicy::Error,
+      /injected config failure/
+    )
+
+    expect(OsCtld::CGroup.set_param_calls).to include(
+      ['/cg/cpuset/group.app/cpuset.cpus', ['2-3']],
+      ['/cg/pids/group.app/pids.max', [100]],
+      ['/cg/cpuset/group.app/cpuset.cpus', ['0-7']],
+      ['/cg/pids/group.app/pids.max', ['max']],
+      ['/cg/memory/group.app/memory.max', [100_000]]
+    )
+    expect(params.each.map(&:name)).to eq(['memory.max'])
+    expect(saves).to eq(2)
+  end
+
+  it 'exports a rollback error when an added parameter cannot be reset' do
+    params = described_class.new(owner)
+    allow(owner).to receive(:save_config)
+      .and_raise('injected config failure')
+    cgroup_state.rejected_writes << [
+      '/cg/pids/group.app/pids.max',
+      ['max']
+    ]
+    allow(OsCtld::CGroup::CpusetPolicy).to receive(:read_effective_mask)
+      .and_return('0-7')
+
+    error =
+      begin
+        params.transactional_set(
+          [
+            param(2, 'cpuset', 'cpuset.cpus', ['2-3']),
+            param(2, 'pids', 'pids.max', [100])
+          ]
+        ) { |subsystem| File.join('/cg', subsystem, 'group.app') }
+        nil
+      rescue OsCtld::CGroup::CpusetPolicy::Error => e
+        e
+      end
+
+    expect(error).not_to be_nil
+    expect(error.rollback_error).not_to be_nil
+    expect(error.message).to match(/rollback failed/)
+    expect(params.each.to_a).to be_empty
+  end
+
+  it 'never resets inactive-version parameters during replacement' do
+    params = described_class.new(
+      owner,
+      params: [param(1, 'cpuset', 'cpuset.cpus', ['0-3'])]
+    )
+
+    params.replace([]) do |subsystem|
+      File.join('/cg', subsystem, 'group.app')
+    end
+
+    expect(OsCtld::CGroup.set_param_calls).to be_empty
   end
 
   it 'finds memory, swap, and cpu limits for cgroup v2' do

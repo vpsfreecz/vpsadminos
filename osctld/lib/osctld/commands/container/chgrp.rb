@@ -26,7 +26,25 @@ module OsCtld
       end
 
       old_group = ct.group
-      manipulate([ct, new_group, old_group]) do
+      membership_groups = (
+        old_group.groups_in_path + new_group.groups_in_path
+      ).uniq.sort_by { |grp| [grp.pool.name, grp.name] }
+
+      # A cgroup policy transaction holds the manipulated group's lock while
+      # it snapshots and leases all current descendants. Locking both complete
+      # group paths prevents this container from crossing that snapshot at any
+      # ancestor on either side of the move.
+      manipulate([ct, *membership_groups]) do
+        if (taint = new_group.inherited_cgroup_policy_state)
+          tainted_group, state = taint
+          detail =
+            state['rollback_error'] || state['error'] || state['status']
+          error!(
+            'cannot move container below quarantined group ' \
+            "#{tainted_group.name}: #{detail}"
+          )
+        end
+
         # Double check state
         error!('container has to be stopped first') if ct.state != :stopped
         guard_no_runtime_generations!(ct, 'container group change')

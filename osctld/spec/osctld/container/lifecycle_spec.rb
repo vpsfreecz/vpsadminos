@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'osctld/container/lifecycle'
+require 'osctld/group'
 
 RSpec.describe OsCtld::Container::Lifecycle do
   let(:pool_class) { Struct.new(:name, :ct_dir) }
@@ -338,11 +339,11 @@ RSpec.describe OsCtld::Container::Lifecycle do
   it 'rejects a launch callback woken by ancestor group quarantine' do
     with_tmpdir do |root|
       state = nil
-      group = Struct.new(
-        :pool,
-        :name,
-        :inherited_cgroup_policy_state
-      ).new(Struct.new(:name).new('tank'), '/limited', nil)
+      group = instance_double(
+        OsCtld::Group,
+        pool: Struct.new(:name).new('tank'),
+        name: '/limited'
+      )
       allow(group).to receive(:inherited_cgroup_policy_state) do
         state && [group, state]
       end
@@ -625,11 +626,12 @@ RSpec.describe OsCtld::Container::Lifecycle do
         'status' => 'tainted',
         'rollback_error' => 'parent rollback failed'
       }
-      group = Struct.new(
-        :pool,
-        :name,
-        :inherited_cgroup_policy_state
-      ).new(Struct.new(:name).new('tank'), '/quarantined', nil)
+      group = instance_double(
+        OsCtld::Group,
+        pool: Struct.new(:name).new('tank'),
+        name: '/quarantined',
+        inherited_cgroup_policy_state: nil
+      )
       allow(group).to receive(:inherited_cgroup_policy_state)
         .and_return([group, state])
       ct = build_container(root)

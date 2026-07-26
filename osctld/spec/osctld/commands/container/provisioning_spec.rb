@@ -901,6 +901,119 @@ RSpec.describe 'container provisioning commands' do
       expect(monitor).to have_received(:monitor).with(ct)
       expect(ct.missing_devices).to eq('remove')
     end
+
+    it 'waits for ancestor policy transactions before changing membership' do
+      stub_db
+      monitor = stub_const('OsCtld::Monitor::Master', Class.new do
+        def self.demonitor(*); end
+
+        def self.monitor(*); end
+      end)
+      pool = build_pool
+      user = Struct.new(:ugid).new(1000)
+
+      build_group = lambda do |name, path_groups, userdir|
+        Struct.new(:name, :pool, :path_groups, :userdir_path) do
+          def groups_in_path
+            path_groups
+          end
+
+          def setup_for?(_user)
+            true
+          end
+
+          def userdir(_user)
+            userdir_path
+          end
+
+          def has_containers?(_user)
+            false
+          end
+
+          def inherited_cgroup_policy_state
+            nil
+          end
+        end.new(name, pool, path_groups, userdir).tap do |grp|
+          grp.extend(OsCtld::Manipulable)
+          grp.send(:init_manipulable)
+        end
+      end
+
+      ancestor = build_group.call('/parent', nil, '/lxc/parent')
+      ancestor.path_groups = [ancestor]
+      old_group = build_group.call('/old', nil, '/lxc/old')
+      old_group.path_groups = [old_group]
+      new_group = build_group.call(
+        '/parent/new',
+        [ancestor],
+        '/lxc/parent/new'
+      )
+      new_group.path_groups << new_group
+
+      devices = Struct.new do
+        def check_all_available!(*, **); end
+      end.new
+      ct = without_residual_generations(
+        Struct.new(:pool, :user, :group, :devices) do
+          attr_accessor :state
+
+          def lxc_dir(group: self.group)
+            File.join(group.userdir(user), 'ct1')
+          end
+
+          def chgrp(new_group, missing_devices:)
+            self.group = new_group
+            @missing_devices = missing_devices
+          end
+        end.new(pool, user, old_group, devices)
+      )
+      ct.extend(OsCtld::Manipulable)
+      ct.send(:init_manipulable)
+      ct.state = :stopped
+
+      allow(OsCtld::DB::Groups).to receive(:find)
+        .with('/parent/new', pool)
+        .and_return(new_group)
+      allow(monitor).to receive(:demonitor)
+      allow(monitor).to receive(:monitor)
+      allow(Dir).to receive(:rmdir)
+
+      command = described_class.new(
+        {
+          group: '/parent/new',
+          missing_devices: 'remove',
+          manipulation_lock: 'wait'
+        },
+        {}
+      )
+      allow(command).to receive(:syscmd).with(
+        'mv /lxc/old/ct1 /lxc/parent/new/ct1'
+      )
+
+      ancestor.acquire_manipulation_lock(:group_policy)
+      ancestor_acquire = ancestor.method(:acquire_manipulation_lock)
+      ancestor_attempted = Queue.new
+      ancestor.define_singleton_method(:acquire_manipulation_lock) do |holder, block: false|
+        ancestor_attempted << true
+        ancestor_acquire.call(holder, block:)
+      end
+
+      thread = Thread.new { command.execute(ct) }
+      ancestor_attempted.pop
+
+      expect(thread).to be_alive
+      expect(ct.group).to equal(old_group)
+
+      ancestor.release_manipulation_lock
+      expect(thread.value).to eq(status: true, output: nil)
+      expect(ct.group).to equal(new_group)
+    ensure
+      if ancestor&.is_being_manipulated? \
+          && ancestor.manipulated_by == :group_policy
+        ancestor.release_manipulation_lock
+      end
+      thread&.join
+    end
   end
 end
 

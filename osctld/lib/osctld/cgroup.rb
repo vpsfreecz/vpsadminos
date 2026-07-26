@@ -312,6 +312,14 @@ module OsCtld
 
     # @return [Boolean]
     def self.set_param(path, value)
+      if File.basename(path) == 'cpuset.cpus'
+        return sync { set_param_unlocked(path, value) }
+      end
+
+      set_param_unlocked(path, value)
+    end
+
+    def self.set_param_unlocked(path, value)
       raise CGroupFileNotFound.new(path, value) unless File.exist?(path)
 
       ret = true
@@ -333,27 +341,30 @@ module OsCtld
 
       ret
     end
+    private_class_method :set_param_unlocked
 
     # Remove cgroup path
     # @param subsystem [String]
     # @param path [String] path to remove, relative to the subsystem
     def self.rmpath(subsystem, path)
-      abs_path = abs_cgroup_path(subsystem, path)
+      sync do
+        abs_path = abs_cgroup_path(subsystem, path)
 
-      # Remove subdirectories recursively
-      Dir.entries(abs_path).each do |dir|
-        next if ['.', '..'].include?(dir)
-        next unless Dir.exist?(File.join(abs_path, dir))
+        # Remove subdirectories recursively
+        Dir.entries(abs_path).each do |dir|
+          next if ['.', '..'].include?(dir)
+          next unless Dir.exist?(File.join(abs_path, dir))
 
-        rmpath(subsystem, File.join(path, dir))
-      end
+          rmpath(subsystem, File.join(path, dir))
+        end
 
-      # Remove directory
-      Dir.rmdir(abs_path)
+        # Remove directory
+        Dir.rmdir(abs_path)
 
-      if CGroup.v2?
-        # Remove pinned links for the cgroup
-        Devices::V2::BpfProgramCache.prune_cgroup_links(abs_path)
+        if CGroup.v2?
+          # Remove pinned links for the cgroup
+          Devices::V2::BpfProgramCache.prune_cgroup_links(abs_path)
+        end
       end
     rescue Errno::ENOENT
       # pass

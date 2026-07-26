@@ -18,6 +18,9 @@ module OsCtl::Cli
       cpu_limit
       memory_limit
       swap_limit
+      cgroup_policy_status
+      cgroup_policy_error
+      cgroup_policy_rollback_error
     ] + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i[
@@ -29,6 +32,7 @@ module OsCtl::Cli
       name
       memory
       cpu_us
+      cgroup_policy_status
     ].freeze
 
     def list

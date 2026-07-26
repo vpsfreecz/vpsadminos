@@ -13,10 +13,20 @@ module OsCtld
 
       log(:info, ct, 'Configuring cgroups')
 
-      ret = call_cmd(Commands::Group::CGParamApply, name: ct.group.name, pool: ct.pool.name)
+      group_opts = {
+        name: ct.group.name,
+        pool: ct.pool.name
+      }
+      group_opts[:skip_cpuset] = true if opts[:skip_cpuset]
+      ret = call_cmd(Commands::Group::CGParamApply, **group_opts)
       return ret unless ret[:status]
 
-      apply(ct, force: ct.running?)
+      ret = apply(
+        ct,
+        force: ct.running?,
+        cpuset: !opts[:skip_cpuset]
+      )
+      return ret unless ret[:status]
 
       ok
     end
