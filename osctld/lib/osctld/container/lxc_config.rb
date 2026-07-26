@@ -10,6 +10,9 @@ module OsCtld
 
     PROTECTED_RAW_KEYS = %w[
       lxc.cgroup.dir
+      lxc.cgroup.cpu.cfs_period_us
+      lxc.cgroup.cpu.cfs_quota_us
+      lxc.cgroup2.cpu.max
       lxc.include
       lxc.apparmor.profile
       lxc.hook.version

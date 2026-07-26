@@ -403,6 +403,96 @@ RSpec.describe OsCtld::CGroup::ContainerParams do
     )
   end
 
+  it 'reconciles adopted legacy CPU bandwidth through an exact policy lease' do
+    run_id = 'run-1'
+    cpu_max = param(
+      2,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::V2_PARAMETER,
+      ['250000 100000']
+    )
+    params = described_class.new(owner, params: [cpu_max])
+    lease = Struct.new(:id).new('lease-1')
+    result = OsCtld::CGroup::CpuBandwidthPolicy::Result.new(
+      target: {
+        'quota_us' => 250_000,
+        'period_us' => 100_000
+      }
+    )
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      adopted_legacy_callback_run_id: run_id,
+      begin_policy_update: lease,
+      finish_policy_update: nil
+    )
+    policy = instance_double(
+      OsCtld::CGroup::CpuBandwidthPolicy,
+      apply: result
+    )
+    allow(owner).to receive(:lifecycle).and_return(lifecycle)
+    allow(OsCtld::CGroup::CpuBandwidthPolicy).to receive(:new)
+      .and_return(policy)
+
+    expect(
+      params.reconcile_adopted_cpu_bandwidth(run_id:)
+    ).to equal(result)
+
+    expect(lifecycle).to have_received(:begin_policy_update).with(
+      kind: :cpu_bandwidth
+    )
+    expect(OsCtld::CGroup::CpuBandwidthPolicy).to have_received(:new).with(
+      owner,
+      [cpu_max],
+      root: '/sys/fs/cgroup/cpu/ct.ct1'
+    )
+    expect(lifecycle).to have_received(:finish_policy_update).with(
+      'lease-1',
+      target: result.target,
+      run_masks: {},
+      error: nil,
+      rollback_error: nil
+    )
+  end
+
+  it 'quarantines adopted CPU bandwidth when reconciliation fails' do
+    run_id = 'run-1'
+    cpu_max = param(
+      2,
+      'cpu',
+      OsCtld::CGroup::CpuBandwidthPolicy::V2_PARAMETER,
+      ['250000 100000']
+    )
+    params = described_class.new(owner, params: [cpu_max])
+    lease = Struct.new(:id).new('lease-1')
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      adopted_legacy_callback_run_id: run_id,
+      begin_policy_update: lease,
+      finish_policy_update: nil
+    )
+    policy = instance_double(OsCtld::CGroup::CpuBandwidthPolicy)
+    error = OsCtld::CGroup::CpuBandwidthPolicy::Error.new(
+      'legacy payload disappeared'
+    )
+    allow(owner).to receive(:lifecycle).and_return(lifecycle)
+    allow(policy).to receive(:apply).and_raise(error)
+    allow(OsCtld::CGroup::CpuBandwidthPolicy).to receive(:new)
+      .and_return(policy)
+
+    expect do
+      params.reconcile_adopted_cpu_bandwidth(run_id:)
+    end.to raise_error(error)
+
+    expect(lifecycle).to have_received(:finish_policy_update).with(
+      'lease-1',
+      target: [cpu_max.dump],
+      run_masks: {},
+      error: 'legacy payload disappeared',
+      rollback_error:
+        described_class::ADOPTED_CPU_RECONCILIATION_HAZARD
+    )
+  end
+
   it 'taints a mixed transaction when strict runtime rollback fails' do
     memory_path = '/sys/fs/cgroup/memory/ct.ct1/memory.max'
     cgroup_state.rejected_paths << memory_path

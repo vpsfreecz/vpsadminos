@@ -1938,6 +1938,50 @@ module OsCtld
       end
     end
 
+    # Quarantine policy state when reconciliation could not acquire a topology
+    # lease. A live worker retains its lease, but the hazard is appended to its
+    # durable record and must be carried into the worker's final policy state.
+    # Existing taint evidence is retained.
+    def record_policy_hazard(kind:, target:, error:, rollback_error:)
+      sync do
+        evidence = {
+          'kind' => kind.to_s,
+          'at' => Time.now.to_f,
+          'target' => target,
+          'error' => error,
+          'rollback_error' => rollback_error
+        }
+        update = live_policy_update_locked
+        if update
+          update['pending_hazards'] ||= []
+          update['pending_hazards'] << evidence
+          commit
+          next true
+        end
+
+        policy_revision = revision + 1
+        if policy_tainted_locked?
+          record['policy']['pending_hazards'] ||= []
+          record['policy']['pending_hazards'] << evidence
+          record['policy']['last_reconciliation'] = evidence
+          record['policy']['record_revision'] = policy_revision
+        else
+          record['policy'] = {
+            'kind' => kind.to_s,
+            'target' => target,
+            'applied_at' => evidence.fetch('at'),
+            'record_revision' => policy_revision,
+            'error' => error,
+            'rollback_error' => rollback_error,
+            'tainted' => true,
+            'pending_hazards' => [evidence]
+          }
+        end
+        commit
+        true
+      end
+    end
+
     def clear_policy_taint_after_recovery(policy_root_removed:)
       sync do
         return false unless policy_root_removed
@@ -2003,19 +2047,12 @@ module OsCtld
         return false if run['recovery']
         return false unless Container::RunId.load(update.fetch('run_id')) == load_run_id(run)
 
-        policy_revision = revision + 1
-        tainted =
-          update.fetch('started_tainted', false) || !rollback_error.nil?
-        record['policy_update'] = nil
-        record['policy'] = {
-          'kind' => update.fetch('kind'),
-          'target' => target,
-          'applied_at' => Time.now.to_f,
-          'record_revision' => policy_revision,
-          'error' => error,
-          'rollback_error' => rollback_error,
-          'tainted' => tainted
-        }
+        policy_revision = complete_policy_update_locked(
+          update,
+          target:,
+          error:,
+          rollback_error:
+        )
 
         if !error && update.fetch('kind') == 'cpuset_cpus'
           run_masks.each do |run_key, mask|
@@ -2045,33 +2082,12 @@ module OsCtld
         return unless record.dig('policy_update', 'id') == lease_id
 
         update = record['policy_update']
-        previous_policy = record['policy']
-        record['policy_update'] = nil
-        policy_revision = revision + 1
-        started_tainted = update.fetch('started_tainted', false)
-        tainted = !rollback_error.nil? || started_tainted
-        record['policy'] = {
-          'kind' => update.fetch('kind'),
-          'target' => target,
-          'applied_at' => Time.now.to_f,
-          'record_revision' => policy_revision,
-          'error' => started_tainted ? previous_policy&.fetch('error', nil) : error,
-          'rollback_error' =>
-            if started_tainted
-              previous_policy&.fetch('rollback_error', nil)
-            else
-              rollback_error
-            end,
-          'tainted' => tainted
-        }
-        if started_tainted
-          record['policy']['last_reconciliation'] = {
-            'at' => Time.now.to_f,
-            'target' => target,
-            'error' => error,
-            'rollback_error' => rollback_error
-          }
-        end
+        policy_revision = complete_policy_update_locked(
+          update,
+          target:,
+          error:,
+          rollback_error:
+        )
 
         unless error
           run_masks.each do |run_key, mask|
@@ -2105,6 +2121,16 @@ module OsCtld
         return unless update['scope'] == 'parent'
 
         record['policy_update'] = nil
+        pending_hazards = update.fetch('pending_hazards', [])
+        install_pending_policy_hazards_locked(
+          pending_hazards,
+          reconciliation: {
+            'at' => Time.now.to_f,
+            'target' => nil,
+            'error' => error,
+            'rollback_error' => nil
+          }
+        )
         commit
         active = active_run_locked
         effect_id = (active && claim_finalize_locked(active)) || nil
@@ -2585,23 +2611,106 @@ module OsCtld
 
       if update['scope'] == 'parent'
         record['policy_update'] = nil
+        pending_hazards = update.fetch('pending_hazards', [])
+        install_pending_policy_hazards_locked(
+          pending_hazards,
+          reconciliation: {
+            'at' => Time.now.to_f,
+            'target' => nil,
+            'error' =>
+              'parent policy worker disappeared before completing the ' \
+              'transaction',
+            'rollback_error' => nil
+          }
+        )
         commit
         return
       end
 
-      policy_revision = revision + 1
-      record['policy_update'] = nil
-      record['policy'] = {
-        'kind' => update.fetch('kind'),
-        'target' => nil,
-        'applied_at' => Time.now.to_f,
-        'record_revision' => policy_revision,
-        'error' => 'policy worker disappeared before completing the transaction',
-        'rollback_error' => 'runtime cgroup policy may be partially applied',
-        'tainted' => true
-      }
+      complete_policy_update_locked(
+        update,
+        target: nil,
+        error: 'policy worker disappeared before completing the transaction',
+        rollback_error: 'runtime cgroup policy may be partially applied'
+      )
       commit
       nil
+    end
+
+    def complete_policy_update_locked(
+      update,
+      target:,
+      error:,
+      rollback_error:
+    )
+      previous_policy = record['policy']
+      record['policy_update'] = nil
+      policy_revision = revision + 1
+      started_tainted = update.fetch('started_tainted', false)
+      pending_hazards = update.fetch('pending_hazards', [])
+      worker_tainted = !rollback_error.nil?
+      pending_hazard = pending_hazards.last
+      tainted = worker_tainted || started_tainted || !pending_hazards.empty?
+      promoted_hazard =
+        if started_tainted || worker_tainted
+          nil
+        else
+          pending_hazard
+        end
+      record['policy'] = {
+        'kind' => promoted_hazard&.fetch('kind') || update.fetch('kind'),
+        'target' => promoted_hazard&.fetch('target') || target,
+        'applied_at' => promoted_hazard&.fetch('at') || Time.now.to_f,
+        'record_revision' => policy_revision,
+        'error' =>
+          if started_tainted
+            previous_policy&.fetch('error', nil)
+          else
+            promoted_hazard&.fetch('error') || error
+          end,
+        'rollback_error' =>
+          if started_tainted
+            previous_policy&.fetch('rollback_error', nil)
+          else
+            promoted_hazard&.fetch('rollback_error') || rollback_error
+          end,
+        'tainted' => tainted
+      }
+      retained_hazards = []
+      if started_tainted && previous_policy
+        retained_hazards.concat(previous_policy.fetch('pending_hazards', []))
+      end
+      retained_hazards.concat(pending_hazards)
+      unless retained_hazards.empty?
+        record['policy']['pending_hazards'] = retained_hazards
+      end
+      if started_tainted || pending_hazard
+        record['policy']['last_reconciliation'] = {
+          'at' => Time.now.to_f,
+          'target' => target,
+          'error' => error,
+          'rollback_error' => rollback_error
+        }
+      end
+
+      policy_revision
+    end
+
+    def install_pending_policy_hazards_locked(hazards, reconciliation:)
+      return if hazards.empty?
+
+      hazard = hazards.last
+      record['policy'] = {
+        'kind' => hazard.fetch('kind'),
+        'target' => hazard.fetch('target'),
+        'applied_at' => hazard.fetch('at'),
+        'record_revision' => revision + 1,
+        'error' => hazard.fetch('error'),
+        'rollback_error' => hazard.fetch('rollback_error'),
+        'tainted' => true,
+        'pending_hazards' => hazards,
+        'last_reconciliation' => reconciliation
+      }
     end
 
     def live_workers_locked(run)

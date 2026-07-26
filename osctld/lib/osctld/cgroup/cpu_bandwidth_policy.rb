@@ -42,6 +42,7 @@ module OsCtld
       :effective,
       :managed_role,
       :generation_role,
+      :generation_root,
       keyword_init: true
     )
 
@@ -152,7 +153,8 @@ module OsCtld
           current: read_state(path),
           effective: nil,
           managed_role: managed[path],
-          generation_role: generation && generation.fetch(:role)
+          generation_role: generation && generation.fetch(:role),
+          generation_root: generation && generation.fetch(:root)
         )
       end.sort_by { |entry| [entry.depth, entry.path] }
 
@@ -245,12 +247,17 @@ module OsCtld
       entries.to_h do |entry|
         desired =
           if entry.generation_role == :residual
-            narrower(entry.effective, target)
+            if entry.path == entry.generation_root
+              narrower(entry.effective, target)
+            else
+              unlimited_state(entry.current)
+            end
+          elsif entry.managed_role == :active
+            unlimited_state(entry.current)
           elsif entry.path == root \
-             || entry.managed_role == :active \
-             || (!entry.current.unlimited? \
-                 && !target.unlimited? \
-                 && compare(entry.current, target) > 0)
+              || (!entry.current.unlimited? \
+                  && !target.unlimited? \
+                  && compare(entry.current, target) > 0)
             target
           else
             entry.current
@@ -281,7 +288,8 @@ module OsCtld
           current: copy_state(entry.current),
           effective: copy_state(entry.effective),
           managed_role: entry.managed_role,
-          generation_role: entry.generation_role
+          generation_role: entry.generation_role,
+          generation_root: entry.generation_root
         )
       end
       final_entries = planned_entries.map do |entry|
@@ -306,14 +314,28 @@ module OsCtld
     end
 
     def apply_states(entries, desired)
-      # Pin every residual request to its pre-transaction effective grant
-      # before expanding an ancestor. A residual's local request can be
-      # unlimited or wider than the bandwidth it currently receives.
-      entries.reverse_each do |entry|
+      # Transfer each residual's effective grant to its osctld-owned generation
+      # root before expanding an ancestor. Descendants are then made unlimited,
+      # so an LXC-owned cgroup can disappear without leaving a finite scheduler
+      # object behind.
+      entries.each do |entry|
         next unless entry.generation_role == :residual
+        next unless entry.path == entry.generation_root
         next unless compare(entry.current, entry.effective) > 0
 
         transition(entry, entry.effective)
+      end
+
+      # Release finite LXC-owned payloads before changing any ancestor. LXC
+      # teardown is not serialized by CGroup.sync and can remove a payload at
+      # any time. Once the unlimited write succeeds, asynchronous removal
+      # cannot leave an invisible finite v1 scheduler object. Residual
+      # descendants are released deepest-first below the generation-root pin.
+      entries.reverse_each do |entry|
+        wanted = desired.fetch(entry.path)
+        next unless release_before_ancestor_update?(entry, wanted)
+
+        transition(entry, wanted)
       end
 
       # First make every configured boundary broad enough for both its current
@@ -334,6 +356,14 @@ module OsCtld
       entries.reverse_each do |entry|
         transition(entry, desired.fetch(entry.path))
       end
+    end
+
+    def release_before_ancestor_update?(entry, wanted)
+      return false unless wanted.unlimited?
+      return true if entry.managed_role == :active
+
+      entry.generation_role == :residual \
+        && entry.path != entry.generation_root
     end
 
     def transition(entry, wanted)
@@ -661,6 +691,10 @@ module OsCtld
 
     def copy_state(state)
       State.new(quota: state.quota, period: state.period)
+    end
+
+    def unlimited_state(state)
+      State.new(quota: -1, period: state.period)
     end
 
     def dump_state(state)

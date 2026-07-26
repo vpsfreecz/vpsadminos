@@ -140,6 +140,22 @@ RSpec.describe OsCtld::Container::LxcConfig do
       .to raise_error(OsCtld::ConfigError, /managed by osctld/)
   end
 
+  it 'rejects raw CPU bandwidth on LXC-owned payload cgroups' do
+    %w[
+      lxc.cgroup.cpu.cfs_period_us
+      lxc.cgroup.cpu.cfs_quota_us
+      lxc.cgroup2.cpu.max
+    ].each do |key|
+      allow(raw_configs).to receive(:lxc).and_return("#{key} = 250000\n")
+
+      expect { described_class.new(ct).configure }
+        .to raise_error(
+          OsCtld::ConfigError,
+          "raw LXC key '#{key}' is managed by osctld"
+        )
+    end
+  end
+
   it 'rejects raw includes which can hide lifecycle-owned keys' do
     allow(raw_configs).to receive(:lxc).and_return(
       "lxc.include = /etc/lxc/custom.conf\n"

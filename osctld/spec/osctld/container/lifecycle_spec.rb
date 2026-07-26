@@ -556,6 +556,260 @@ RSpec.describe OsCtld::Container::Lifecycle do
     end
   end
 
+  it 'records a reconciliation hazard when no topology lease was acquired' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+
+      expect(
+        lifecycle.record_policy_hazard(
+          kind: :cpu_bandwidth,
+          target: [{ 'name' => 'cpu.max', 'value' => ['250000 100000'] }],
+          error: 'adopted payload disappeared',
+          rollback_error: 'adopted payload bandwidth is not proven safe'
+        )
+      ).to be(true)
+
+      expect(lifecycle.snapshot.fetch('policy')).to include(
+        'kind' => 'cpu_bandwidth',
+        'error' => 'adopted payload disappeared',
+        'rollback_error' =>
+          'adopted payload bandwidth is not proven safe',
+        'tainted' => true
+      )
+      expect(
+        lifecycle.snapshot.dig(
+          'policy',
+          'pending_hazards',
+          0,
+          'kind'
+        )
+      ).to eq('cpu_bandwidth')
+      expect(lifecycle.request_start.action).to eq(:blocked)
+    end
+  end
+
+  it 'carries an adoption hazard through a live container policy lease' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      lease = lifecycle.begin_policy_update(kind: :cpuset_cpus)
+      target = [{ 'name' => 'cpu.max', 'value' => ['250000 100000'] }]
+
+      expect(
+        lifecycle.record_policy_hazard(
+          kind: :cpu_bandwidth,
+          target:,
+          error: 'adopted CPU reconciliation could not acquire a lease',
+          rollback_error: 'adopted payload bandwidth is not proven safe'
+        )
+      ).to be(true)
+      expect(
+        lifecycle.snapshot.dig(
+          'policy_update',
+          'pending_hazards',
+          0,
+          'kind'
+        )
+      ).to eq('cpu_bandwidth')
+
+      lifecycle.finish_policy_update(lease.id, target: '0-3')
+
+      policy = lifecycle.snapshot.fetch('policy')
+      expect(policy).to include(
+        'kind' => 'cpu_bandwidth',
+        'target' => target,
+        'error' => 'adopted CPU reconciliation could not acquire a lease',
+        'rollback_error' =>
+          'adopted payload bandwidth is not proven safe',
+        'tainted' => true
+      )
+      expect(policy.fetch('pending_hazards')).to contain_exactly(
+        hash_including('kind' => 'cpu_bandwidth', 'target' => target)
+      )
+      expect(policy.fetch('last_reconciliation')).to include(
+        'target' => '0-3',
+        'error' => nil,
+        'rollback_error' => nil
+      )
+      expect(lifecycle.request_start.action).to eq(:blocked)
+    end
+  end
+
+  it 'carries an adoption hazard through a live parent policy lease' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      lease = lifecycle.begin_parent_policy_update(kind: :group_cpuset)
+      target = [{ 'name' => 'cpu.max', 'value' => ['250000 100000'] }]
+
+      expect(
+        lifecycle.record_policy_hazard(
+          kind: :cpu_bandwidth,
+          target:,
+          error: 'adopted CPU reconciliation could not acquire a lease',
+          rollback_error: 'adopted payload bandwidth is not proven safe'
+        )
+      ).to be(true)
+
+      lifecycle.finish_parent_policy_update(lease.id)
+
+      expect(lifecycle.snapshot.fetch('policy')).to include(
+        'kind' => 'cpu_bandwidth',
+        'target' => target,
+        'error' => 'adopted CPU reconciliation could not acquire a lease',
+        'rollback_error' =>
+          'adopted payload bandwidth is not proven safe',
+        'tainted' => true
+      )
+      expect(lifecycle.request_start.action).to eq(:blocked)
+    end
+  end
+
+  it 'carries an adoption hazard through an exact launch policy lease' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      lifecycle.claim_effect(start.run_id, :start)
+      lease = lifecycle.begin_launch_policy(
+        start.run_id,
+        kind: :cpuset_cpus
+      )
+      target = [{ 'name' => 'cpu.max', 'value' => ['250000 100000'] }]
+
+      expect(
+        lifecycle.record_policy_hazard(
+          kind: :cpu_bandwidth,
+          target:,
+          error: 'adopted CPU reconciliation could not acquire a lease',
+          rollback_error: 'adopted payload bandwidth is not proven safe'
+        )
+      ).to be(true)
+      expect(
+        lifecycle.record_launch_policy(
+          start.run_id,
+          lease_id: lease.id,
+          target: '0-3'
+        )
+      ).to be(true)
+
+      policy = lifecycle.snapshot.fetch('policy')
+      expect(policy).to include(
+        'kind' => 'cpu_bandwidth',
+        'target' => target,
+        'error' => 'adopted CPU reconciliation could not acquire a lease',
+        'rollback_error' =>
+          'adopted payload bandwidth is not proven safe',
+        'tainted' => true
+      )
+      expect(policy.fetch('last_reconciliation')).to include(
+        'target' => '0-3',
+        'error' => nil,
+        'rollback_error' => nil
+      )
+      expect(lifecycle.request_start.action).to eq(:blocked)
+    end
+  end
+
+  it 'retains an adoption hazard when a container policy worker dies' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      lifecycle.begin_policy_update(kind: :cpuset_cpus)
+      target = [{ 'name' => 'cpu.max', 'value' => ['250000 100000'] }]
+      lifecycle.record_policy_hazard(
+        kind: :cpu_bandwidth,
+        target:,
+        error: 'adopted CPU reconciliation could not acquire a lease',
+        rollback_error: 'adopted payload bandwidth is not proven safe'
+      )
+      worker_cfg = lifecycle.snapshot.fetch('policy_update').fetch('worker')
+      dead_worker = instance_double(OsCtld::ProcessIdentity, alive?: false)
+      allow(OsCtld::ProcessIdentity).to receive(:load)
+        .with(worker_cfg)
+        .and_return(dead_worker)
+
+      policy = lifecycle.snapshot.fetch('policy')
+
+      expect(policy).to include(
+        'kind' => 'cpuset_cpus',
+        'tainted' => true,
+        'rollback_error' => 'runtime cgroup policy may be partially applied'
+      )
+      expect(policy.fetch('pending_hazards')).to contain_exactly(
+        hash_including('kind' => 'cpu_bandwidth', 'target' => target)
+      )
+      expect(lifecycle.request_start.action).to eq(:blocked)
+    end
+  end
+
+  it 'retains a promoted adoption hazard when reconciliation dies' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      target = [{ 'name' => 'cpu.max', 'value' => ['250000 100000'] }]
+      lifecycle.record_policy_hazard(
+        kind: :cpu_bandwidth,
+        target:,
+        error: 'adopted CPU reconciliation could not acquire a lease',
+        rollback_error: 'adopted payload bandwidth is not proven safe'
+      )
+      lifecycle.begin_policy_update(kind: :cpuset_cpus)
+      worker_cfg = lifecycle.snapshot.fetch('policy_update').fetch('worker')
+      dead_worker = instance_double(OsCtld::ProcessIdentity, alive?: false)
+      allow(OsCtld::ProcessIdentity).to receive(:load)
+        .with(worker_cfg)
+        .and_return(dead_worker)
+
+      policy = lifecycle.snapshot.fetch('policy')
+
+      expect(policy).to include(
+        'kind' => 'cpuset_cpus',
+        'tainted' => true,
+        'error' => 'adopted CPU reconciliation could not acquire a lease',
+        'rollback_error' =>
+          'adopted payload bandwidth is not proven safe'
+      )
+      expect(policy.fetch('pending_hazards')).to contain_exactly(
+        hash_including('kind' => 'cpu_bandwidth', 'target' => target)
+      )
+      expect(policy.fetch('last_reconciliation')).to include(
+        'target' => nil,
+        'error' =>
+          'policy worker disappeared before completing the transaction',
+        'rollback_error' => 'runtime cgroup policy may be partially applied'
+      )
+      expect(lifecycle.request_start.action).to eq(:blocked)
+    end
+  end
+
+  it 'retains an adoption hazard when a parent policy worker dies' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      lifecycle.begin_parent_policy_update(kind: :group_cpuset)
+      target = [{ 'name' => 'cpu.max', 'value' => ['250000 100000'] }]
+      lifecycle.record_policy_hazard(
+        kind: :cpu_bandwidth,
+        target:,
+        error: 'adopted CPU reconciliation could not acquire a lease',
+        rollback_error: 'adopted payload bandwidth is not proven safe'
+      )
+      worker_cfg = lifecycle.snapshot.fetch('policy_update').fetch('worker')
+      dead_worker = instance_double(OsCtld::ProcessIdentity, alive?: false)
+      allow(OsCtld::ProcessIdentity).to receive(:load)
+        .with(worker_cfg)
+        .and_return(dead_worker)
+
+      policy = lifecycle.snapshot.fetch('policy')
+
+      expect(policy).to include(
+        'kind' => 'cpu_bandwidth',
+        'target' => target,
+        'tainted' => true,
+        'rollback_error' => 'adopted payload bandwidth is not proven safe'
+      )
+      expect(policy.fetch('last_reconciliation').fetch('error')).to match(
+        /parent policy worker disappeared/
+      )
+      expect(lifecycle.request_start.action).to eq(:blocked)
+    end
+  end
+
   it 'admits exact child-policy reconciliation after pre-start handoff' do
     with_tmpdir do |root|
       lifecycle = described_class.new(build_container(root))

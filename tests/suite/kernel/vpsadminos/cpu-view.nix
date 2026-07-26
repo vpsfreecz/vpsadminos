@@ -13,6 +13,8 @@ let
         '';
 
         script = common.useMachine cgroupsVersion + ''
+          require 'shellwords'
+
           @cpu_view_testct = nil
 
           def self.testct
@@ -76,6 +78,40 @@ let
             }
 
             cpus.strip
+          end
+
+          def self.active_payload_cpu_quota
+            ${
+              if cgroupsVersion == 2 then
+                ''
+                  root = '/sys/fs/cgroup/osctl'
+                  parameter = 'cpu.max'
+                ''
+              else
+                ''
+                  root = '/sys/fs/cgroup/cpu,cpuacct/osctl'
+                  parameter = 'cpu.cfs_quota_us'
+                ''
+            }
+            _, value = machine.succeeds(
+              "find #{root} " \
+                "-path '*/ct.#{testct}/runs/*/user-owned/payload/" \
+                "#{parameter}' -exec cat {} +"
+            )
+
+            value.strip.split.first
+          end
+
+          def self.install_failing_pre_start(ctid)
+            path = "/tank/hook/ct/#{ctid}/pre-start"
+            machine.succeeds(<<~CMD)
+              install -d -m 700 #{File.dirname(path)}
+              cat > #{path} <<'EOF'
+              #!/bin/sh
+              exit 1
+              EOF
+              chmod 700 #{path}
+            CMD
           end
 
           def self.nolimit_checks
@@ -212,6 +248,9 @@ let
 
               _, nproc = machine.succeeds("osctl ct exec #{testct} nproc")
               expect(nproc.strip.to_i).to eq(3)
+              expect(active_payload_cpu_quota).to eq(
+                '${if cgroupsVersion == 2 then "max" else "-1"}'
+              )
             end
 
             it 'restarts with the persisted limit' do
@@ -220,8 +259,178 @@ let
 
               _, nproc = machine.succeeds("osctl ct exec #{testct} nproc")
               expect(nproc.strip.to_i).to eq(3)
+              expect(active_payload_cpu_quota).to eq(
+                '${if cgroupsVersion == 2 then "max" else "-1"}'
+              )
+            end
+
+            it 'can restrict the policy after a managed restart' do
+              machine.succeeds("osctl ct set cpu-limit #{testct} 201")
+
+              _, nproc = machine.succeeds("osctl ct exec #{testct} nproc")
+              expect(nproc.strip.to_i).to eq(3)
             end
           end
+
+          describe 'Failed start CPU bandwidth cleanup' do
+            ctid = "#{get_container_id('${prefix}-failed-start')}"
+
+            before(:context) do
+              delete_test_container(ctid)
+              machine.all_succeed(
+                "osctl ct new --distribution alpine #{ctid}",
+                "osctl ct unset start-menu #{ctid}",
+                "osctl ct set cpu-limit #{ctid} 250"
+              )
+              install_failing_pre_start(ctid)
+            end
+
+            after(:context) do
+              delete_test_container(ctid)
+            end
+
+            it 'leaves no finite LXC-owned quota after pre-start aborts' do
+              machine.fails("osctl ct start #{ctid}")
+              machine.wait_until_succeeds(
+                "test \"$(osctl ct show -H -o state #{ctid})\" = stopped",
+                timeout: 60
+              )
+
+              machine.succeeds("osctl ct set cpu-limit #{ctid} 201")
+            end
+          end
+
+          ${
+            if cgroupsVersion == 1 then
+              ''
+                describe 'Legacy CPU bandwidth adoption' do
+                  ctid = "#{get_container_id('${prefix}-legacy-cpu')}"
+                  legacy_pid_file = '/tmp/cpu-view-legacy-osctld.pid'
+
+                  before(:context) do
+                    delete_test_container(ctid)
+                    machine.all_succeed(
+                      "osctl ct new --distribution alpine #{ctid}",
+                      "osctl ct unset start-menu #{ctid}",
+                      "osctl ct set cpu-limit #{ctid} 250"
+                    )
+                    _, daemon_config = machine.succeeds(
+                      "awk '$1 == \"--config\" { print $2; exit }' " \
+                        '/service/osctld/run'
+                    )
+                    _, daemon_path = machine.succeeds(<<~'SH')
+                      pid=$(sv status osctld |
+                        sed -n 's/.*(pid \([0-9][0-9]*\)).*/\1/p')
+                      test -n "$pid"
+                      tr '\0' '\n' <"/proc/$pid/environ" |
+                        sed -n 's/^PATH=//p'
+                    SH
+
+                    machine.succeeds('sv -w 120 stop osctld')
+                    machine.succeeds(
+                      "rm -f /run/osctl/pools/tank/containers/#{ctid}/" \
+                        'lifecycle.yml'
+                    )
+                    machine.succeeds(<<~SH)
+                      nohup env PATH=#{Shellwords.escape(daemon_path.strip)} \
+                        LANG=en_US.UTF-8 \
+                        LOCALE_ARCHIVE=/run/current-system/sw/lib/locale/locale-archive \
+                        /run/current-system/sw/bin/legacy-osctld \
+                        --config #{Shellwords.escape(daemon_config.strip)} \
+                        --log syslog </dev/null \
+                        >/tmp/cpu-view-legacy-osctld.log 2>&1 &
+                      printf '%s\n' "$!" >#{legacy_pid_file}
+                    SH
+                    machine.wait_until_succeeds(
+                      'test -S /run/osctl/osctld.sock && ' \
+                        'osctl pool show tank >/dev/null',
+                      timeout: 120
+                    )
+                    machine.succeeds(
+                      "osctl ct start --wait infinity #{ctid}"
+                    )
+                    machine.wait_for_osctl_container(ctid)
+
+                    _, old_payload_quota = machine.succeeds(<<~SH)
+                      payload_path="*/ct.#{ctid}/user-owned/lxc.payload.#{ctid}"
+                      file=$(find /sys/fs/cgroup/cpu,cpuacct/osctl \
+                        -path "$payload_path/cpu.cfs_quota_us" \
+                        -print -quit)
+                      test -n "$file"
+                      cat "$file"
+                    SH
+                    expect(old_payload_quota.strip).to eq('250000')
+
+                    machine.succeeds(<<~SH)
+                      pid=$(cat #{legacy_pid_file})
+                      kill -TERM "$pid"
+                      timeout 120 sh -c \
+                        'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done' \
+                        sh "$pid"
+                      rm -f #{legacy_pid_file}
+                      sv start osctld
+                    SH
+                    machine.wait_for_service('osctld')
+                    machine.wait_for_osctl_pool('tank')
+                  end
+
+                  after(:context) do
+                    machine.execute(<<~SH)
+                      if test -s #{legacy_pid_file}; then
+                        pid=$(cat #{legacy_pid_file})
+                        kill -TERM "$pid" 2>/dev/null || true
+                        timeout 120 sh -c \
+                          'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done' \
+                          sh "$pid" || true
+                      fi
+                      rm -f #{legacy_pid_file}
+                      sv start osctld
+                    SH
+                    machine.wait_for_service('osctld')
+                    machine.wait_for_osctl_pool('tank')
+                    delete_test_container(ctid)
+                  end
+
+                  it 'neutralizes the adopted payload before managed stop' do
+                    info = machine.osctl_json("ct show #{ctid}")
+                    expect(info.fetch('state')).to eq('running')
+                    expect(info.fetch('lifecycle_run_id')).not_to be_nil
+
+                    _, adopted_payload_quota = machine.succeeds(<<~SH)
+                      payload_path="*/ct.#{ctid}/user-owned/lxc.payload.#{ctid}"
+                      file=$(find /sys/fs/cgroup/cpu,cpuacct/osctl \
+                        -path "$payload_path/cpu.cfs_quota_us" \
+                        -print -quit)
+                      test -n "$file"
+                      cat "$file"
+                    SH
+                    expect(adopted_payload_quota.strip).to eq('-1')
+
+                    machine.succeeds("osctl ct stop #{ctid}")
+                    machine.succeeds("osctl ct start #{ctid}")
+                    machine.wait_for_osctl_container(ctid)
+                    machine.succeeds("osctl ct set cpu-limit #{ctid} 201")
+
+                    _, nproc = machine.succeeds(
+                      "osctl ct exec #{ctid} nproc"
+                    )
+                    expect(nproc.strip.to_i).to eq(3)
+                    _, replacement_payload_quota =
+                      machine.succeeds(<<~SH)
+                        payload_path="*/ct.#{ctid}/runs/*/user-owned/payload"
+                        file=$(find /sys/fs/cgroup/cpu,cpuacct/osctl \
+                          -path "$payload_path/cpu.cfs_quota_us" \
+                          -print -quit)
+                        test -n "$file"
+                        cat "$file"
+                      SH
+                    expect(replacement_payload_quota.strip).to eq('-1')
+                  end
+                end
+              ''
+            else
+              ""
+          }
 
           describe 'Configured group hierarchy reconstruction' do
             ctid = "#{get_container_id('${prefix}-group')}"

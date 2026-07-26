@@ -249,6 +249,28 @@ RSpec.describe OsCtld::CGroup::GroupCpuBandwidthPolicy do
     )
   end
 
+  it 'moves active payload bandwidth to its stable container root' do
+    run_root = "#{container.base_cgroup_path}/runs/active"
+    payload = "#{run_root}/user-owned/payload"
+    container.cgparams = v1_params(200_000)
+    create_cgroup(container.base_cgroup_path, quota: 200_000)
+    create_cgroup(run_root, quota: -1)
+    create_cgroup("#{run_root}/user-owned", quota: -1)
+    create_cgroup(payload, quota: 200_000)
+    container.lifecycle.runs['active'] = {
+      'role' => 'active',
+      'resources' => {
+        'cgroup_root' => run_root,
+        'lxc_payload' => payload
+      }
+    }
+
+    described_class.new(parent_group).apply
+
+    expect(state(container.base_cgroup_path)).to eq([200_000, 100_000])
+    expect(state(payload)).to eq([-1, 100_000])
+  end
+
   it 'rejects a wider configured v1 child before creating paths or writing' do
     parent_group.cgparams = v1_params(250_000)
     child_group.cgparams = v1_params(400_000)
@@ -666,6 +688,28 @@ RSpec.describe OsCtld::CGroup::GroupCpuBandwidthPolicy do
       )
       expect(residual_write).to be < parent_write
       expect(v2_state(residual)).to eq('250000 100000')
+    end
+
+    it 'moves an active v2 payload limit to its stable container root' do
+      run_root = "#{container.base_cgroup_path}/runs/active"
+      payload = "#{run_root}/user-owned/payload"
+      container.cgparams = v2_params('200000 100000')
+      create_v2_cgroup(container.base_cgroup_path, '200000 100000')
+      create_v2_cgroup(run_root, 'max 100000')
+      create_v2_cgroup("#{run_root}/user-owned", 'max 100000')
+      create_v2_cgroup(payload, '200000 100000')
+      container.lifecycle.runs['active'] = {
+        'role' => 'active',
+        'resources' => {
+          'cgroup_root' => run_root,
+          'lxc_payload' => payload
+        }
+      }
+
+      described_class.new(parent_group).apply
+
+      expect(v2_state(container.base_cgroup_path)).to eq('200000 100000')
+      expect(v2_state(payload)).to eq('max 100000')
     end
 
     it 'restores a broad v2 residual request when expansion fails' do

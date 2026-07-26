@@ -8,7 +8,8 @@ require 'osctld/cgroup/param'
 RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
   attr_reader :tmpdir, :root, :active_root, :active_payload,
               :residual_root, :residual_host_effects, :residual_payload,
-              :runs, :lifecycle, :owner, :writes, :rejections
+              :runs, :lifecycle, :owner, :writes, :rejections,
+              :disappearances
 
   def param(name, value)
     OsCtld::CGroup::Param.new(1, 'cpu', name, [value], true)
@@ -92,6 +93,7 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
     @owner = Struct.new(:lifecycle).new(lifecycle)
     @writes = []
     @rejections = []
+    @disappearances = []
 
     create_cgroup(root, quota: 400_000, period: 100_000)
     create_cgroup(active_root, quota: -1, period: 100_000)
@@ -120,6 +122,11 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
       writes << [cgroup, parameter, value]
 
       rejected = rejections.delete([cgroup, parameter, value])
+      disappeared = disappearances.delete([cgroup, parameter, value])
+      if disappeared
+        FileUtils.rm_rf(cgroup)
+        next false
+      end
       next false if rejected || !valid_write?(cgroup, proposed)
 
       File.write(path, value.to_s)
@@ -131,7 +138,7 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
     FileUtils.remove_entry(tmpdir)
   end
 
-  it 'restricts payloads before the stable parent' do
+  it 'moves an active payload limit to the stable parent' do
     policy = described_class.new(
       owner,
       [
@@ -145,15 +152,15 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
 
     expect(writes).to eq(
       [
-        [active_payload, described_class::QUOTA_PARAMETER, 250_000],
+        [active_payload, described_class::QUOTA_PARAMETER, -1],
         [root, described_class::QUOTA_PARAMETER, 250_000]
       ]
     )
     expect(state(root)).to eq([250_000, 100_000])
-    expect(state(active_payload)).to eq([250_000, 100_000])
+    expect(state(active_payload)).to eq([-1, 100_000])
   end
 
-  it 'expands the stable parent before active payloads' do
+  it 'releases the active payload before expanding the stable parent' do
     File.write(
       File.join(root, described_class::QUOTA_PARAMETER),
       '250000'
@@ -175,10 +182,47 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
 
     expect(writes).to eq(
       [
-        [root, described_class::QUOTA_PARAMETER, 400_000],
-        [active_payload, described_class::QUOTA_PARAMETER, 400_000]
+        [active_payload, described_class::QUOTA_PARAMETER, -1],
+        [root, described_class::QUOTA_PARAMETER, 400_000]
       ]
     )
+    expect(state(root)).to eq([400_000, 100_000])
+    expect(state(active_payload)).to eq([-1, 100_000])
+  end
+
+  it 'does not change an ancestor when the payload disappears on release' do
+    File.write(
+      File.join(root, described_class::QUOTA_PARAMETER),
+      '250000'
+    )
+    File.write(
+      File.join(active_payload, described_class::QUOTA_PARAMETER),
+      '250000'
+    )
+    disappearances << [
+      active_payload,
+      described_class::QUOTA_PARAMETER,
+      -1
+    ]
+    policy = described_class.new(
+      owner,
+      [
+        param(described_class::PERIOD_PARAMETER, 100_000),
+        param(described_class::QUOTA_PARAMETER, 400_000)
+      ],
+      root:
+    )
+
+    expect { policy.apply }.to raise_error(
+      described_class::Error,
+      /kernel rejected cpu\.cfs_quota_us=-1/
+    )
+
+    expect(writes).to eq(
+      [[active_payload, described_class::QUOTA_PARAMETER, -1]]
+    )
+    expect(state(root)).to eq([250_000, 100_000])
+    expect(File).not_to exist(active_payload)
   end
 
   it 'rejects an impossible live quota and period transition without writes' do
@@ -239,14 +283,13 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
 
     expect(writes).to eq(
       [
-        [active_payload, described_class::QUOTA_PARAMETER, 250_000],
-        [active_payload, described_class::PERIOD_PARAMETER, 200_000],
+        [active_payload, described_class::QUOTA_PARAMETER, -1],
         [root, described_class::QUOTA_PARAMETER, 250_000],
         [root, described_class::PERIOD_PARAMETER, 200_000]
       ]
     )
     expect(state(root)).to eq([250_000, 200_000])
-    expect(state(active_payload)).to eq([250_000, 200_000])
+    expect(state(active_payload)).to eq([-1, 100_000])
   end
 
   it 'applies a safe paired expansion from root to leaves' do
@@ -279,21 +322,20 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
 
     expect(writes).to eq(
       [
+        [active_payload, described_class::QUOTA_PARAMETER, -1],
         [root, described_class::QUOTA_PARAMETER, 400_000],
-        [root, described_class::PERIOD_PARAMETER, 100_000],
-        [active_payload, described_class::QUOTA_PARAMETER, 400_000],
-        [active_payload, described_class::PERIOD_PARAMETER, 100_000]
+        [root, described_class::PERIOD_PARAMETER, 100_000]
       ]
     )
     expect(state(root)).to eq([400_000, 100_000])
-    expect(state(active_payload)).to eq([400_000, 100_000])
+    expect(state(active_payload)).to eq([-1, 200_000])
   end
 
   it 'does not broaden a residual generation' do
     create_cgroup(residual_root, quota: -1, period: 100_000)
     create_cgroup(
       residual_host_effects,
-      quota: 500_000,
+      quota: 250_000,
       period: 100_000
     )
     create_cgroup(
@@ -327,10 +369,10 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
     policy.apply
 
     expect(state(root)).to eq([400_000, 100_000])
-    expect(state(active_payload)).to eq([400_000, 100_000])
+    expect(state(active_payload)).to eq([-1, 100_000])
     expect(state(residual_root)).to eq([250_000, 100_000])
-    expect(state(residual_host_effects)).to eq([250_000, 100_000])
-    expect(state(residual_payload)).to eq([250_000, 100_000])
+    expect(state(residual_host_effects)).to eq([-1, 100_000])
+    expect(state(residual_payload)).to eq([-1, 100_000])
 
     stable_expansion = writes.index(
       [root, described_class::QUOTA_PARAMETER, 400_000]
@@ -341,15 +383,15 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
         [residual_root, described_class::QUOTA_PARAMETER, 250_000]
       )
     ).to be < stable_expansion
-    expect(
-      writes.index(
-        [
-          residual_host_effects,
-          described_class::QUOTA_PARAMETER,
-          250_000
-        ]
-      )
-    ).to be < stable_expansion
+    released = [
+      [active_payload, described_class::QUOTA_PARAMETER, -1],
+      [residual_host_effects, described_class::QUOTA_PARAMETER, -1],
+      [residual_payload, described_class::QUOTA_PARAMETER, -1]
+    ]
+    expect(writes).to include(*released)
+    released.each do |write|
+      expect(writes.index(write)).to be < stable_expansion
+    end
   end
 
   it 'preflights an impossible transition before pinning residuals' do
@@ -418,11 +460,7 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
       File.join(active_payload, described_class::QUOTA_PARAMETER),
       '250000'
     )
-    rejections << [
-      active_payload,
-      described_class::QUOTA_PARAMETER,
-      400_000
-    ]
+    rejections << [active_payload, described_class::QUOTA_PARAMETER, -1]
     policy = described_class.new(
       owner,
       [
@@ -434,7 +472,7 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
 
     expect { policy.apply }.to raise_error(
       described_class::Error,
-      /kernel rejected cpu.cfs_quota_us=400000/
+      /kernel rejected cpu.cfs_quota_us=-1/
     )
 
     expect(state(root)).to eq([250_000, 100_000])
@@ -569,7 +607,7 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
         quota: -1,
         period: 100_000
       )
-      create_v2_cgroup(residual_payload, quota: -1, period: 100_000)
+      create_v2_cgroup(residual_payload, quota: 500_000, period: 100_000)
       runs['residual'] = lifecycle_run(
         :residual,
         'ct.test/runs/residual',
@@ -584,10 +622,10 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
       policy.apply
 
       expect(v2_state(root)).to eq([400_000, 100_000])
-      expect(v2_state(active_payload)).to eq([400_000, 100_000])
+      expect(v2_state(active_payload)).to eq([-1, 100_000])
       expect(v2_state(residual_root)).to eq([250_000, 100_000])
-      expect(v2_state(residual_host_effects)).to eq([250_000, 100_000])
-      expect(v2_state(residual_payload)).to eq([250_000, 100_000])
+      expect(v2_state(residual_host_effects)).to eq([-1, 100_000])
+      expect(v2_state(residual_payload)).to eq([-1, 100_000])
 
       stable_expansion = writes.index(
         [root, described_class::V2_PARAMETER, '400000 100000']
@@ -602,15 +640,27 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
           ]
         )
       ).to be < stable_expansion
-      expect(
-        writes.index(
-          [
-            residual_host_effects,
-            described_class::V2_PARAMETER,
-            '250000 100000'
-          ]
-        )
-      ).to be < stable_expansion
+      released = [
+        [
+          active_payload,
+          described_class::V2_PARAMETER,
+          'max 100000'
+        ],
+        [
+          residual_host_effects,
+          described_class::V2_PARAMETER,
+          'max 100000'
+        ],
+        [
+          residual_payload,
+          described_class::V2_PARAMETER,
+          'max 100000'
+        ]
+      ]
+      expect(writes).to include(*released)
+      released.each do |write|
+        expect(writes.index(write)).to be < stable_expansion
+      end
     end
 
     it 'rolls back cpu.max without broadening residual requests' do
@@ -634,7 +684,7 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
       rejections << [
         active_payload,
         described_class::V2_PARAMETER,
-        '400000 100000'
+        'max 100000'
       ]
       policy = described_class.new(
         owner,
@@ -644,7 +694,7 @@ RSpec.describe OsCtld::CGroup::CpuBandwidthPolicy do
 
       expect { policy.apply }.to raise_error(
         described_class::Error,
-        /kernel rejected cpu.max=400000 100000/
+        /kernel rejected cpu.max=max 100000/
       )
 
       expect(v2_state(root)).to eq([250_000, 100_000])
