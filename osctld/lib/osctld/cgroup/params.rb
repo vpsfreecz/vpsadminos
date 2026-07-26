@@ -1,11 +1,37 @@
 require 'libosctl'
 require 'osctld/lockable'
 require 'osctld/cgroup/cpuset_policy'
+require 'osctld/cgroup/group_cpu_bandwidth_policy'
+require 'osctld/cgroup/group_cpuset_policy'
 
 module OsCtld
   class CGroup::Params
     include Lockable
     include OsCtl::Lib::Utils::Log
+
+    class ApplyResult
+      def initialize
+        @policies = []
+      end
+
+      def add(policy_result)
+        @policies << policy_result if policy_result.respond_to?(:rollback!)
+      end
+
+      def rollback!
+        errors = []
+        @policies.reverse_each do |policy|
+          policy.rollback!
+        rescue StandardError => e
+          errors << e
+        end
+        @policies.clear
+        return true if errors.empty?
+
+        raise CGroup::CpusetPolicy::Error,
+              errors.map(&:message).join('; ')
+      end
+    end
 
     # Load CGroup parameters from config
     def self.load(owner, cfg)
@@ -71,9 +97,19 @@ module OsCtld
       owner.save_config if save
     end
 
-    # Strict group transaction used whenever a parent cpuset can affect
+    # Strict group transaction used whenever a parent cgroup policy can affect
     # descendant container hierarchies.
-    def transactional_set(new_params, append: false, apply: true, &path)
+    def transactional_set(
+      new_params,
+      append: false,
+      apply: true,
+      cpuset: true,
+      cpu_bandwidth: true,
+      force_cpu_bandwidth: false,
+      cpu_bandwidth_resets: [],
+      policy_containers: nil,
+      &path
+    )
       before = snapshot_params
       set(new_params, append:, save: false)
       staged = snapshot_params
@@ -87,9 +123,22 @@ module OsCtld
         before,
         staged:,
         apply_runtime: apply,
+        cpuset:,
+        cpu_bandwidth:,
+        policy_containers:,
         path:
       ) do
-        self.apply(keep_going: true, &path) if apply
+        if apply
+          self.apply(
+            keep_going: true,
+            cpuset:,
+            cpu_bandwidth:,
+            force_cpu_bandwidth:,
+            cpu_bandwidth_resets:,
+            policy_containers:,
+            &path
+          )
+        end
       end
     rescue StandardError
       restore_params(before) if before
@@ -126,6 +175,11 @@ module OsCtld
       reset: true,
       keep_going: false,
       apply_all: false,
+      cpuset: true,
+      cpu_bandwidth: true,
+      force_cpu_bandwidth: false,
+      cpu_bandwidth_resets: [],
+      policy_containers: nil,
       &path
     )
       before = snapshot_params
@@ -138,19 +192,42 @@ module OsCtld
       end
       validate_runtime_resets!(deleted) if reset
       restore_params(staged)
+      cpu_bandwidth_removed = deleted.any? do |param|
+        group_cpu_bandwidth_param?(param)
+      end
 
       parameter_transaction(
         before,
         staged:,
         apply_runtime: reset,
+        cpuset:,
+        cpu_bandwidth:,
+        policy_containers:,
         path:
       ) do
         if reset
           deleted.each do |param|
+            next if group_cpu_bandwidth_param?(param)
+
             reset(param, keep_going, &path) if param.version == CGroup.version
           end
         end
-        apply(keep_going: true, &path) if apply_all
+        if apply_all || cpu_bandwidth_removed || force_cpu_bandwidth
+          apply(
+            keep_going: true,
+            cpuset:,
+            cpu_bandwidth:,
+            force_cpu_bandwidth:
+              cpu_bandwidth_removed || force_cpu_bandwidth,
+            cpu_bandwidth_resets:
+              merge_cpu_bandwidth_resets(
+                cpu_bandwidth_resets,
+                deleted
+              ),
+            policy_containers:,
+            &path
+          )
+        end
       end
     end
 
@@ -179,6 +256,10 @@ module OsCtld
       keep_going: false,
       cpuset: true,
       only_cpuset: false,
+      cpu_bandwidth: true,
+      force_cpu_bandwidth: false,
+      cpu_bandwidth_resets: [],
+      policy_containers: nil,
       &path
     )
       selected =
@@ -193,21 +274,92 @@ module OsCtld
         else
           usable_params.reject { |param| param.name == 'cpuset.cpus' }
         end
-      failed = apply_params_and_retry(selected, keep_going:, &path)
-      unless failed.empty?
-        names = failed.map(&:name).uniq.join(', ')
-        raise CGroup::CpusetPolicy::Error,
-              "kernel rejected group cgroup parameters: #{names}"
-      end
+      cpu_params, generic =
+        if owner.is_a?(Group) && !only_cpuset
+          policy, ordinary =
+            selected.partition { |param| group_cpu_bandwidth_param?(param) }
+          [cpu_bandwidth ? policy : [], ordinary]
+        else
+          [[], selected]
+        end
+      cpuset_params, generic =
+        if owner.is_a?(Group) && !only_cpuset
+          policy, ordinary =
+            generic.partition { |param| param.name == 'cpuset.cpus' }
+          [cpuset ? policy : [], ordinary]
+        else
+          [[], generic]
+        end
+      cpu_policy =
+        if owner.is_a?(Group) \
+            && cpu_bandwidth \
+            && (force_cpu_bandwidth || cpu_params.any?)
+          policy_opts = {
+            reconstruct_to: owner,
+            containers: policy_containers
+          }
+          policy_opts[:resets] = cpu_bandwidth_resets \
+            unless cpu_bandwidth_resets.empty?
+          CGroup::GroupCpuBandwidthPolicy.new(
+            owner,
+            **policy_opts
+          )
+        end
+      cpuset_policy =
+        if owner.is_a?(Group) && cpuset && cpuset_params.any?
+          CGroup::GroupCpusetPolicy.new(owner, reconstruct_to: owner)
+        end
+      result = ApplyResult.new
 
-      selected.each do |param|
-        next unless param.name == 'cpuset.cpus'
+      begin
+        result.add(cpu_policy.apply) if cpu_policy
+        result.add(cpuset_policy.apply) if cpuset_policy
 
-        verify_cpuset_path(
-          path.call(param.subsystem),
-          param.value.last.to_s
+        failed = apply_params_and_retry(generic, keep_going:, &path)
+        unless failed.empty?
+          names = failed.map(&:name).uniq.join(', ')
+          raise CGroup::CpusetPolicy::Error,
+                "kernel rejected group cgroup parameters: #{names}"
+        end
+
+        selected.each do |param|
+          next unless param.name == 'cpuset.cpus'
+
+          verify_cpuset_path(
+            path.call(param.subsystem),
+            param.value.last.to_s
+          )
+        end
+      rescue StandardError => e
+        rollback_errors = []
+        if e.respond_to?(:rollback_error) && e.rollback_error
+          rollback_errors << e.rollback_error
+        end
+        begin
+          result.rollback!
+        rescue StandardError => rollback
+          rollback_errors << rollback
+        end
+        rollback_error = combine_rollback_errors(rollback_errors)
+        message = e.message
+        missing_rollback_messages = rollback_errors
+                                    .map(&:message)
+                                    .uniq
+                                    .reject { |item| message.include?(item) }
+        unless missing_rollback_messages.empty?
+          message = "#{message}; rollback failed: " \
+                    "#{missing_rollback_messages.join('; ')}"
+        end
+        raise CGroup::CpusetPolicy::Error.new(
+          message,
+          rollback_error:,
+          cleanup_params:
+            e.respond_to?(:cleanup_params) ? e.cleanup_params : [],
+          policy_compensated: rollback_error.nil?
         )
       end
+
+      result
     end
 
     # Replace all parameters by a new list of parameters
@@ -226,7 +378,15 @@ module OsCtld
       owner.save_config if save
     end
 
-    def transactional_replace(new_params, &path)
+    def transactional_replace(
+      new_params,
+      cpuset: true,
+      cpu_bandwidth: true,
+      force_cpu_bandwidth: false,
+      cpu_bandwidth_resets: [],
+      policy_containers: nil,
+      &path
+    )
       before = snapshot_params
       staged = copy_params(new_params)
       removed = before.reject do |param|
@@ -241,12 +401,31 @@ module OsCtld
         before,
         staged:,
         apply_runtime: true,
+        cpuset:,
+        cpu_bandwidth:,
+        policy_containers:,
         path:
       ) do
         removed.each do |param|
+          next if group_cpu_bandwidth_param?(param)
+
           reset(param, true, &path) if param.version == CGroup.version
         end
-        apply(keep_going: true, &path)
+        apply(
+          keep_going: true,
+          cpuset:,
+          cpu_bandwidth:,
+          force_cpu_bandwidth:
+            force_cpu_bandwidth \
+            || removed.any? { |param| group_cpu_bandwidth_param?(param) },
+          cpu_bandwidth_resets:
+            merge_cpu_bandwidth_resets(
+              cpu_bandwidth_resets,
+              removed
+            ),
+          policy_containers:,
+          &path
+        )
       end
     end
 
@@ -495,21 +674,46 @@ module OsCtld
             "expected=#{expected.inspect}"
     end
 
-    def parameter_transaction(before, staged:, apply_runtime:, path:)
-      yield
+    def parameter_transaction(
+      before,
+      staged:,
+      apply_runtime:,
+      path:,
+      cpuset: true,
+      cpu_bandwidth: true,
+      policy_containers: nil
+    )
       owner.save_config
+      yield
     rescue StandardError => e
       restore_params(before)
       rollback_errors = []
+      if e.respond_to?(:rollback_error) && e.rollback_error
+        rollback_errors << e.rollback_error
+      end
+      policy_compensated =
+        e.respond_to?(:policy_compensated) && e.policy_compensated
 
       if apply_runtime
         begin
-          added_params(before, staged).each do |param|
+          added = added_params(before, staged)
+          added.each do |param|
             next unless param.version == CGroup.version
+            next if group_cpu_bandwidth_param?(param)
+            next if policy_compensated && param.name == 'cpuset.cpus'
 
             reset(param, true, &path)
           end
-          apply(keep_going: true, &path)
+          apply(
+            keep_going: true,
+            cpuset: cpuset && !policy_compensated,
+            cpu_bandwidth: cpu_bandwidth && !policy_compensated,
+            force_cpu_bandwidth:
+              !policy_compensated \
+              && added.any? { |param| group_cpu_bandwidth_param?(param) },
+            policy_containers:,
+            &path
+          )
         rescue StandardError => rollback
           rollback_errors << rollback
         end
@@ -522,14 +726,16 @@ module OsCtld
       end
 
       message = "unable to update group cgroup parameters: #{e.message}"
-      rollback_error =
-        unless rollback_errors.empty?
-          CGroup::CpusetPolicy::Error.new(
-            rollback_errors.map(&:message).join('; ')
-          )
-        end
+      rollback_error = combine_rollback_errors(rollback_errors)
       if rollback_error
-        message = "#{message}; rollback failed: #{rollback_error.message}"
+        missing_rollback_messages = rollback_errors
+                                    .map(&:message)
+                                    .uniq
+                                    .reject { |item| message.include?(item) }
+        unless missing_rollback_messages.empty?
+          message = "#{message}; rollback failed: " \
+                    "#{missing_rollback_messages.join('; ')}"
+        end
       end
       raise CGroup::CpusetPolicy::Error.new(
         message,
@@ -560,6 +766,23 @@ module OsCtld
       end
     end
 
+    def merge_cpu_bandwidth_resets(*lists)
+      lists
+        .flatten
+        .select { |param| group_cpu_bandwidth_param?(param) }
+        .uniq { |param| [param.version, param.subsystem, param.name] }
+    end
+
+    def combine_rollback_errors(errors)
+      unique = errors.compact.uniq(&:message)
+      return if unique.empty?
+      return unique.first if unique.length == 1
+
+      CGroup::CpusetPolicy::Error.new(
+        unique.map(&:message).join('; ')
+      )
+    end
+
     def snapshot_params
       exclusively { copy_params(params) }
     end
@@ -578,6 +801,13 @@ module OsCtld
       left.version == right.version \
         && left.subsystem == right.subsystem \
         && left.name == right.name
+    end
+
+    def group_cpu_bandwidth_param?(param)
+      return false unless owner.is_a?(Group)
+      return false unless param.version == CGroup.version
+
+      CGroup::CpuBandwidthPolicy::PARAMETERS.include?(param.name)
     end
   end
 end

@@ -1897,7 +1897,7 @@ module OsCtld
     # Fence a parent-group policy write across this container. Unlike a
     # container policy reconciliation, this lease cannot repair or clear
     # taint and is admitted only when no residual or recovery state exists.
-    def begin_parent_policy_update(kind:)
+    def begin_parent_policy_update(kind:, allow_residuals: false)
       worker = ProcessIdentity.capture_thread
       return unless worker
 
@@ -1905,7 +1905,7 @@ module OsCtld
         return if live_policy_update_locked
         return if policy_tainted_locked?
         return if record.fetch('runs').values.any? do |run|
-          run['role'] == 'residual' || run['recovery']
+          (!allow_residuals && run['role'] == 'residual') || run['recovery']
         end
 
         active = active_run_locked
@@ -2535,7 +2535,8 @@ module OsCtld
         return [
           "ancestor group #{group.pool.name}:#{group.name} cgroup policy is quarantined",
           detail,
-          'reapply the group cpuset policy before starting containers'
+          "run 'osctl group cgparams apply " \
+          "#{group.pool.name}:#{group.name}' before starting containers"
         ].compact.join(': ')
       end
 

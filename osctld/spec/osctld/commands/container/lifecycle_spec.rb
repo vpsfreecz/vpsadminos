@@ -189,7 +189,7 @@ RSpec.describe 'container lifecycle commands' do
         name: '/default',
         pool: 'tank',
         manipulation_lock: 'wait',
-        only_cpuset: true
+        only_policies: true
       )
       expect(lifecycle).to have_received(:request_start)
       expect(call_order).to eq(%i[group_policy lifecycle])
