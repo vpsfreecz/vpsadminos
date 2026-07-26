@@ -9,6 +9,7 @@ module OsCtld
   # threads to prematurely exit and waits for all of them to finish their job.
   class ThreadReaper
     DEFAULT_GROUP = :default
+    DETACH_ON_STOP_GROUPS = %i[durable_lifecycle user_control].freeze
 
     class << self
       %i[start stop drain add export].each do |m|
@@ -87,6 +88,7 @@ module OsCtld
         elsif v == :stop
           @stopping = true
           @stop_at = Time.now
+          detach_on_stop_threads
           request_stop_threads
 
         elsif v.is_a?(Array) && v[0] == :drain
@@ -98,8 +100,10 @@ module OsCtld
         elsif v.is_a?(Array) && v[0] == :add
           _cmd, thread, manager, group = v
 
-          request_stop_thread(thread, manager) if stop_thread_group?(group)
-          sync { threads << [thread, manager, group] }
+          unless @stopping && detach_on_stop_group?(group)
+            request_stop_thread(thread, manager) if stop_thread_group?(group)
+            sync { threads << [thread, manager, group] }
+          end
 
         else
           raise "unknown command '#{v}'"
@@ -125,6 +129,18 @@ module OsCtld
           request_stop_thread(thread, manager)
         end
       end
+    end
+
+    def detach_on_stop_threads
+      sync do
+        threads.delete_if do |_thread, _manager, group|
+          detach_on_stop_group?(group)
+        end
+      end
+    end
+
+    def detach_on_stop_group?(group)
+      DETACH_ON_STOP_GROUPS.include?(thread_group(group))
     end
 
     def request_stop_thread(thread, manager)

@@ -12,6 +12,7 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
+      return error('managed lifecycle run not found') unless lifecycle_run_conf(ct)
 
       # Filter out devices that have to be created
       devices = ct.devices.select { |dev| dev.can_create? && dev.name }.map do |dev|

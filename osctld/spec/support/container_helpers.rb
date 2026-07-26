@@ -171,14 +171,19 @@ module ContainerHelpers
 
           load_return
         end
+
+        def load_generation(_ct, _run_id)
+          nil
+        end
       end
 
       attr_reader :ct, :destroy_calls, :save_calls, :distribution_updates
       attr_accessor :dataset, :distribution, :version, :arch, :vendor, :variant,
-                    :cpu_package, :init_pid
+                    :cpu_package, :init_pid, :run_id
 
-      def initialize(ct, load_conf: true)
+      def initialize(ct, load_conf: true, run_id: nil)
         @ct = ct
+        @run_id = run_id || Object.new
         @dataset = ct.dataset
         @distribution = ct.distribution
         @version = ct.version

@@ -6,6 +6,7 @@ module OsCtld
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include Utils::Container
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -21,6 +22,7 @@ module OsCtld
 
       manipulate(ct) do
         error!('container is running') if ct.running?
+        guard_no_runtime_generations!(ct, 'container map-mode change')
 
         if ct.map_mode == 'native' && opts[:map_mode] == 'zfs'
           native_to_zfs(ct)

@@ -191,12 +191,17 @@ import ../../make-test.nix (
 
       def self.wait_shell_job_ready(job, timeout: 30)
         wait_until_block_succeeds(name: "#{job[:name]} becomes ready", timeout:) do
+          ready_status, = machine.execute(
+            "test -f #{Shellwords.escape(job.fetch(:ready_path))}"
+          )
+          next true if ready_status == 0
+
           if shell_job_finished?(job)
             status, output = shell_job_result(job)
             fail "job #{job[:name]} exited before becoming ready with #{status}: #{output}"
           end
 
-          machine.succeeds("test -f #{Shellwords.escape(job.fetch(:ready_path))}")
+          false
         end
       end
 
@@ -254,22 +259,12 @@ import ../../make-test.nix (
         status, log = wait_shell_job_exit(job, timeout: 30)
         expected = [
           'osctld closed connection',
+          'osctld is shutting down',
           "No such file or directory - connect(2) for #{OSCTLD_SOCKET}"
         ]
 
         expect(status).not_to eq(0)
         expect(log).to satisfy { |v| expected.any? { |msg| v.include?(msg) } }
-      end
-
-      def self.wait_restart_draining_clients(job)
-        wait_until_block_succeeds(name: 'osctld restart reaches client drain', timeout: 30) do
-          machine.succeeds("test ! -S #{OSCTLD_SOCKET}")
-        end
-
-        if shell_job_finished?(job)
-          status, output = shell_job_result(job)
-          fail "restart finished before blocked command was released: #{status}: #{output}"
-        end
       end
 
       configure_examples do |config|
@@ -371,13 +366,71 @@ import ../../make-test.nix (
             shell: 'restart',
             timeout: 240
           )
-          wait_restart_draining_clients(restart_job)
-
+          machine.wait_until_succeeds("test ! -S #{OSCTLD_SOCKET}", timeout: 30)
+          expect_osctl_lost_osctld(start_job)
           release_block('ct-start')
-          wait_shell_job(start_job)
           wait_shell_job(restart_job, timeout: 240)
           wait_osctld_ready
+
+          machine.wait_until_succeeds(
+            "test \"$(osctl ct show -H -o state #{ctid})\" = stopped",
+            timeout: 120
+          )
+
+          machine.succeeds("osctl ct start --wait infinity #{ctid}")
           wait_ct_running(ctid)
+        end
+      end
+
+      describe 'in-container reboot with a concurrent external start' do
+        ctid = "#{get_container_id}-reboot-start"
+
+        before(:context) do
+          wait_osctld_ready
+          cleanup_ct(ctid)
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{ctid}",
+            "osctl ct unset start-menu #{ctid}",
+            "osctl ct start #{ctid}"
+          )
+          wait_ct_running(ctid)
+        end
+
+        after(:context) do
+          release_block_if_present('ct-reboot-start')
+          remove_hook(ctid, 'post-stop')
+          cleanup_ct(ctid)
+        end
+
+        it 'converges on one replacement generation' do
+          old_run_id = machine.osctl_json("ct show #{ctid}")['lifecycle_run_id']
+          install_blocking_hook(ctid, 'post-stop', 'ct-reboot-start')
+
+          reboot_job = shell_job(
+            'ct-reboot-start-trigger',
+            "osctl ct exec #{ctid} /sbin/reboot -f >/dev/null 2>&1 || true",
+            shell: 'client'
+          )
+          wait_block_started('ct-reboot-start')
+
+          start_job = shell_job(
+            'ct-reboot-start-external',
+            "osctl ct start --wait infinity #{ctid}",
+            shell: 'restart',
+            timeout: 240
+          )
+
+          expect(shell_job_finished?(start_job)).to be(false)
+          release_block('ct-reboot-start')
+
+          wait_shell_job(reboot_job)
+          wait_shell_job(start_job, timeout: 240)
+          wait_ct_running(ctid)
+
+          info = machine.osctl_json("ct show #{ctid}")
+          expect(info['lifecycle_run_id']).not_to eq(old_run_id)
+          expect(info['lifecycle_state']).to eq('running')
+          expect(info['lifecycle_residuals']).to eq(0)
         end
       end
 
@@ -460,13 +513,18 @@ import ../../make-test.nix (
             shell: 'restart',
             timeout: 240
           )
-          wait_restart_draining_clients(restart_job)
-
+          machine.wait_until_succeeds("test ! -S #{OSCTLD_SOCKET}", timeout: 30)
+          expect_osctl_lost_osctld(state_job)
           release_block('ct-copy-state')
-          wait_shell_job(state_job, timeout: 180)
           wait_shell_job(restart_job, timeout: 240)
           wait_osctld_ready
 
+          machine.wait_until_succeeds(
+            "test \"$(osctl ct show -H -o state #{ctid})\" = stopped",
+            timeout: 120
+          )
+
+          machine.succeeds("osctl ct cp state #{ctid}")
           machine.succeeds("osctl ct cp cleanup #{ctid}")
           machine.succeeds("osctl ct start #{target}")
           wait_ct_running(target)

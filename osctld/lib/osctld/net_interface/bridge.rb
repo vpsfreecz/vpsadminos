@@ -66,9 +66,9 @@ module OsCtld
       end
     end
 
-    def render_opts
+    def render_opts(run_conf: nil)
       inclusively do
-        super.merge({
+        super(run_conf:).merge({
           link:
         })
       end

@@ -7,6 +7,7 @@ module OsCtld
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include Utils::Container
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -31,6 +32,7 @@ module OsCtld
       manipulate([ct, new_user, old_user]) do
         # Double check state
         error!('container has to be stopped first') if ct.state != :stopped
+        guard_no_runtime_generations!(ct, 'container ownership change')
 
         progress('Moving LXC configuration')
 

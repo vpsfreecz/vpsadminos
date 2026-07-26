@@ -49,6 +49,8 @@ module OsCtld
     # @option opts [Boolean] :keep_stdfds (true)
     # @option opts [String, nil] :syslogns_tag (nil)
     # @option opts [Integer, nil] :syslogns_pid (nil)
+    # @option opts [Proc, nil] :before_continue called with the child PID while
+    #   the switched child is still blocked
     def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, **opts, &block)
       chown_cgroups = opts.has_key?(:chown_cgroups) ? opts[:chown_cgroups] : true
 
@@ -93,9 +95,20 @@ module OsCtld
 
       apply_prlimits(pid, opts[:prlimits]) if opts[:prlimits]
 
+      opts[:before_continue]&.call(pid)
       w.puts('ready')
       w.close
       pid
+    rescue Exception # rubocop:disable Lint/RescueException
+      begin
+        w.puts('cancel') unless w.closed?
+      rescue IOError, Errno::EPIPE
+        nil
+      ensure
+        w.close unless w.closed?
+      end
+      Process.wait(pid) if pid
+      raise
     end
 
     # Switch the current process to an unprivileged user

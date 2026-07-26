@@ -20,7 +20,7 @@ end
 pool = Regexp.last_match(1)
 
 base = File.basename($0)
-ctid2, ifname = base.split('.')
+ctid2, ifname, run_key = base.split('.', 3)
 
 if ctid != ctid2
   warn "Expected to handle CT '#{ctid2}', but was called for '#{ctid}' instead"
@@ -37,7 +37,8 @@ s.puts({ cmd: :veth_up, opts: {
   id: ctid,
   pool:,
   interface: ifname,
-  veth:
+  veth:,
+  run_id: run_key && "#{pool}:#{ctid}:#{run_key}"
 } }.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close

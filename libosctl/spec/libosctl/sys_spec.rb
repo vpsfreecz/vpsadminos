@@ -192,6 +192,24 @@ RSpec.describe OsCtl::Lib::Sys do
     expect(sys_instance.setns_args).to eq(['/proc/4321/ns/syslog', 0])
   end
 
+  it 'sets a parent-death signal by name and raises on failure' do
+    allow(described_class::Int).to receive(:prctl)
+      .with(
+        described_class::PR_SET_PDEATHSIG,
+        Signal.list.fetch('KILL'),
+        0,
+        0,
+        0
+      )
+      .and_return(0, -1)
+
+    expect(sys.set_parent_death_signal('KILL')).to eq(0)
+    allow(Fiddle).to receive(:last_error).and_return(Errno::EPERM::Errno)
+    expect do
+      sys.set_parent_death_signal('KILL')
+    end.to raise_error(SystemCallError)
+  end
+
   it 'syncs the filesystem using a tempfile-backed file descriptor and cleans it up' do
     tempfile = instance_double(Tempfile, fileno: 7, close: nil, unlink: nil)
 

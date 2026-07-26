@@ -1,9 +1,11 @@
 require 'libosctl'
+require 'osctld/eventd'
 require 'osctld/user_control/commands/base'
 
 module OsCtld
   class UserControl::Commands::CtPostStop < UserControl::Commands::Base
     handle :ct_post_stop
+    allow_adopted_legacy_callbacks
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::Exception
@@ -13,28 +15,37 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
-      if AppArmor.enabled?
-        # Unload AppArmor profile and destroy namespace
-        ct.apparmor.destroy_namespace
-        ct.apparmor.unload_profile
-      end
+      run_conf = lifecycle_run_conf(ct)
+      return error('managed lifecycle run not found') unless run_conf
 
-      if opts[:target] == 'reboot'
+      execution_run = ct.lifecycle.execution_run?(run_conf.run_id)
+
+      if opts[:target] == 'reboot' && !execution_run
         log(:info, ct, 'Reboot requested')
-        ct.run_conf.request_reboot
+        run_conf.request_reboot
       end
 
-      ct.stopped
+      return error('managed lifecycle run changed') unless ct.stopped(run_conf.run_id)
 
-      # User-defined hook
-      Hook.run(ct, :post_stop)
+      effect_id = ct.lifecycle.observe_post_stop(
+        run_conf.run_id,
+        aborted: run_conf.aborted?,
+        reboot: opts[:target] == 'reboot' && !execution_run
+      )
+      run = ct.lifecycle.run(run_conf.run_id)
+      return error('managed lifecycle run changed') unless run&.fetch('post_stop', false)
+
+      unless execution_run
+        Eventd.report(
+          :state,
+          pool: ct.pool.name,
+          id: ct.id,
+          state: :stopped
+        )
+      end
+      Container::LifecycleFinalizer.spawn(ct, run_conf, effect_id) if effect_id
 
       ok
-    rescue HookFailed => e
-      log(:warn, ct, 'Error during post-stop hook')
-      log(:warn, ct, "#{e.class}: #{e.message}")
-      log(:warn, ct, denixstorify(e.backtrace).join("\n"))
-      error(e.message)
     end
   end
 end

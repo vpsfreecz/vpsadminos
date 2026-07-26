@@ -161,6 +161,7 @@ let
         "osctl/pool/export-cleanup"
         "osctl-exportfs/mount"
         "osctld/resilience"
+        "osctld/lifecycle"
         "osctld/restart"
         "prometheus/exporters"
         "podman/almalinux"

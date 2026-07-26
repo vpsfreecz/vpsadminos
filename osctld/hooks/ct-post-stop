@@ -18,11 +18,13 @@ if %r{^/run/osctl/pools/([^/]+)/hooks} !~ $0
 end
 
 pool = Regexp.last_match(1)
+run_id = ARGV[0]
 
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.puts({ cmd: :ct_post_stop, opts: {
   id: ctid,
   pool:,
+  run_id:,
   target:
 } }.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)

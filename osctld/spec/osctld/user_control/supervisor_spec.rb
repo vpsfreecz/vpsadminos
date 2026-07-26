@@ -168,6 +168,34 @@ RSpec.describe OsCtld::UserControl::Supervisor do
     end
   end
 
+  describe described_class::ClientHandler do
+    it 'adds the authenticated peer pid to command options' do
+      credentials = instance_double(
+        Socket::Option,
+        unpack: [123, 1000, 1000]
+      )
+      socket = instance_double(UNIXSocket, getsockopt: credentials)
+      user = Object.new
+      command = Class.new do
+        def self.run(_user, _opts); end
+      end
+      handler = described_class.new(socket, user:)
+      allow(OsCtld::UserControl::Command).to receive(:find)
+        .with(:probe)
+        .and_return(command)
+      allow(command).to receive(:run).and_return(status: true, output: nil)
+
+      expect(
+        handler.handle_cmd(cmd: 'probe', opts: { value: 1 })
+      ).to eq(status: true, output: nil)
+      expect(command).to have_received(:run).with(
+        user,
+        value: 1,
+        client_pid: 123
+      )
+    end
+  end
+
   describe described_class::NamespacedClientHandler do
     subject(:handler) { described_class.new(Object.new, {}) }
 

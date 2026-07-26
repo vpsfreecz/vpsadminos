@@ -219,6 +219,8 @@ module OsCtld
     def stop
       @stopping = true
       log(:info, 'Stopping daemon')
+      DB::Containers.get.each { |ct| ct.lifecycle.wake_all }
+      Container::LifecycleExecutor.wake_all
       run_pre_stop_hooks
       @server.stop if @server
       join_server if @server_thread && @server_thread != Thread.current

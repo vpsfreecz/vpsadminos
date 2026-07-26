@@ -17,9 +17,44 @@ RSpec.describe OsCtld::Monitor::Master do
     pool = Struct.new(:name).new(pool_name)
     user = Struct.new(:name).new(user_name)
     group = Struct.new(:name).new(group_name)
-    run_conf = Struct.new(:init_pid).new(nil)
+    run_conf = Struct.new(:init_pid, :run_id).new(nil, 'run-1')
+    lifecycle = Struct.new(:observations) do
+      def active_run_id
+        'run-1'
+      end
 
-    Struct.new(:id, :pool, :user, :group, :state, :run_conf, keyword_init: true) do
+      def run(_run_id)
+        { 'resources' => { 'cgroup_root' => '/osctl/test/run-1' } }
+      end
+
+      def execution_run?(_run_id)
+        false
+      end
+
+      def begin_state_observation(run_id, state, source:, init_pid: nil)
+        observations << [run_id, state, init_pid, source]
+        'observer-1'
+      end
+
+      def state_observation_current?(_run_id, _observer_id)
+        true
+      end
+
+      def finish_state_observation(_run_id, _observer_id)
+        false
+      end
+    end.new([])
+
+    Struct.new(
+      :id,
+      :pool,
+      :user,
+      :group,
+      :state,
+      :run_conf,
+      :lifecycle,
+      keyword_init: true
+    ) do
       def ident
         "#{pool.name}:#{id}"
       end
@@ -27,7 +62,20 @@ RSpec.describe OsCtld::Monitor::Master do
       def ensure_run_conf
         run_conf
       end
-    end.new(id:, pool:, user:, group:, state: :stopped, run_conf:)
+
+      def get_past_run_conf
+        nil
+      end
+
+      def observe_run_state(run_id, value, init_pid: nil)
+        return false unless run_conf
+        return false unless run_conf.run_id == run_id
+
+        self.state = value
+        run_conf.init_pid = init_pid if value == :running
+        true
+      end
+    end.new(id:, pool:, user:, group:, state: :stopped, run_conf:, lifecycle:)
   end
 
   it 'creates one monitor thread per pool/user/group key' do
@@ -89,6 +137,9 @@ RSpec.describe OsCtld::Monitor::Master do
     end)
     allow(state_class).to receive(:run!).with(ct).and_return(state)
     allow(eventd).to receive(:report)
+    allow(OsCtld::CGroup).to receive(:get_tree_pids)
+      .with('/osctl/test/run-1')
+      .and_return([4321])
 
     master.send(:update_state, ct)
 
@@ -100,6 +151,7 @@ RSpec.describe OsCtld::Monitor::Master do
       id: 'ct1',
       init_pid: 4321
     )
+    expect(ct.lifecycle.observations).to eq([['run-1', :running, 4321, 'state_query']])
   end
 
   it 'does not clear an existing error state from container-control state' do

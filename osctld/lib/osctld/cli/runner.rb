@@ -4,6 +4,8 @@ require 'json'
 module OsCtld
   class Cli::Runner
     def self.run
+      ret = nil
+
       unless ARGV.empty?
         warn "Usage: #{$0}"
         exit(false)
@@ -33,12 +35,26 @@ module OsCtld
         lxc_home: cfg[:lxc_home],
         user_home: cfg[:user_home],
         log_file: cfg[:log_file],
+        run_id: cfg[:run_id],
+        lxc_config: cfg[:lxc_config],
         stdin:,
         stdout:,
         stderr:
       )
       val = runner.execute(*cfg[:args], **cfg[:kwargs])
       ret.puts(val.to_json)
+    rescue Exception => e # rubocop:disable Lint/RescueException
+      raise unless ret
+
+      warn(
+        "osctld-ct-runner failed: #{e.class}: #{e.message}\n" \
+        "#{Array(e.backtrace).join("\n")}"
+      )
+      ret.puts({
+        status: false,
+        message: "user runner raised #{e.class}: #{e.message}",
+        user_runner: true
+      }.to_json)
     end
   end
 end

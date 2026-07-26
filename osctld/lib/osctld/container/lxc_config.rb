@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/exceptions'
 require 'osctld/lockable'
 
 module OsCtld
@@ -6,6 +7,19 @@ module OsCtld
   class Container::LxcConfig
     include Lockable
     include OsCtl::Lib::Utils::Log
+
+    PROTECTED_RAW_KEYS = %w[
+      lxc.cgroup.dir
+      lxc.include
+      lxc.apparmor.profile
+      lxc.hook.version
+      lxc.hook.pre-start
+      lxc.hook.pre-mount
+      lxc.hook.mount
+      lxc.hook.autodev
+      lxc.hook.start-host
+      lxc.hook.post-stop
+    ].freeze
 
     def initialize(ct)
       init_lock
@@ -22,9 +36,9 @@ module OsCtld
       )
     end
 
-    def configure
+    def configure(run_conf: nil)
       exclusively do
-        run_conf = ct.get_run_conf
+        run_conf ||= ct.get_run_conf
         rootfs = run_conf.rootfs
 
         unless rootfs
@@ -38,17 +52,32 @@ module OsCtld
           next false
         end
 
-        ErbTemplate.render_to('ct/config', {
+        validate_raw_config!
+        ct.netifs.each do |netif|
+          netif.prepare_run_hooks(run_conf) if netif.respond_to?(:prepare_run_hooks)
+        end
+
+        render_opts = {
           distribution: run_conf.distribution,
           version: run_conf.version,
           ct:,
+          run_conf:,
           rootfs:,
           cgparams: ct.cgparams,
           prlimits: ct.prlimits,
           netifs: ct.netifs,
           mounts: ct.mounts.all_entries,
           raw: ct.raw_configs.lxc
-        }, config_path)
+        }
+
+        ErbTemplate.render_to('ct/config', render_opts, run_config_path(run_conf))
+
+        active_run_id = ct.lifecycle.active_run_id
+        if active_run_id.nil? || active_run_id == run_conf.run_id
+          ErbTemplate.render_to('ct/config', render_opts, config_path)
+        end
+
+        true
       end
     end
 
@@ -62,6 +91,16 @@ module OsCtld
       File.join(ct.lxc_dir, 'config')
     end
 
+    def run_config_path(run_conf)
+      File.join(ct.lxc_dir, "config.#{run_conf.run_id.key}")
+    end
+
+    def remove_run_hooks(run_conf)
+      ct.netifs.each do |netif|
+        netif.remove_run_hooks(run_conf) if netif.respond_to?(:remove_run_hooks)
+      end
+    end
+
     def dup(new_ct)
       ret = super()
       ret.init_lock
@@ -72,5 +111,22 @@ module OsCtld
     protected
 
     attr_reader :ct
+
+    def validate_raw_config!
+      raw = ct.raw_configs.lxc
+      return unless raw
+
+      raw.each_line do |line|
+        key = line.split('=', 2).first&.strip
+        next unless key
+        next unless protected_raw_key?(key)
+
+        raise ConfigError, "raw LXC key '#{key}' is managed by osctld"
+      end
+    end
+
+    def protected_raw_key?(key)
+      PROTECTED_RAW_KEYS.include?(key) || key.start_with?('lxc.cgroup.dir.')
+    end
   end
 end

@@ -10,12 +10,23 @@ require 'osctld/lock_registry'
 require 'osctld/lockable'
 require 'osctld/utils/ip'
 require 'osctld/utils/switch_user'
+require 'osctld/container'
 require 'osctld/net_interface'
 require 'osctld/net_interface/base'
 require 'osctld/net_interface/veth'
 require 'osctld/net_interface/bridge'
 
 RSpec.describe OsCtld::NetInterface::Bridge do
+  def running_container_with_lifecycle(pool, lifecycle)
+    OsCtld::Container.allocate.tap do |ct|
+      ct.send(:init_lock)
+      ct.instance_variable_set(:@pool, pool)
+      ct.instance_variable_set(:@id, 'ct1')
+      ct.instance_variable_set(:@state, :running)
+      ct.instance_variable_set(:@lifecycle, lifecycle)
+    end
+  end
+
   def bridge_ifaddr(name, address, version)
     addr = Struct.new(:ip_address, :version) do
       def ip?
@@ -93,5 +104,24 @@ RSpec.describe OsCtld::NetInterface::Bridge do
 
     expect(bridge.gateway(4)).to eq('192.0.2.1')
     expect(copy.gateway(4)).to eq('192.0.2.254')
+  end
+
+  it 'runs container commands while the initialized lifecycle is read-locked' do
+    lifecycle = Object.new
+    running_ct = running_container_with_lifecycle(pool, lifecycle)
+    interface = described_class.new(running_ct, 0)
+    interface.create(
+      name: 'eth0',
+      hwaddr: nil,
+      link: 'br0',
+      gateways: { 4 => '192.0.2.1', 6 => 'none' }
+    )
+    allow(interface).to receive(:ct_syscmd) do |target, *|
+      expect(target.lifecycle).to equal(lifecycle)
+    end
+
+    interface.add_ip(IPAddress.parse('192.0.2.10/24'))
+
+    expect(interface).to have_received(:ct_syscmd).once
   end
 end

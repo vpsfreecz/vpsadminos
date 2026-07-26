@@ -6,8 +6,12 @@ require 'fileutils'
 require 'ostruct'
 require 'osctld/exceptions'
 require 'osctld/command'
+require 'osctld/container/lifecycle'
 require 'osctld/container_control/command'
+require 'osctld/container/lifecycle_executor'
+require 'osctld/console'
 require 'osctld/switch_user'
+require 'osctld/thread_reaper'
 require 'osctld/utils/container'
 require 'osctld/utils/switch_user'
 require 'osctld/commands/container/start'
@@ -92,17 +96,38 @@ RSpec.describe 'container lifecycle commands' do
 
     it 'rejects starts when the container cannot start' do
       container = Struct.new(:can_start?, :state).new(false, :stopped)
-      command = described_class.new({}, {})
+      command = described_class.new({ wait: 'infinity' }, {})
 
-      expect { command.send(:start_now, container) }
+      expect { command.execute(container) }
         .to raise_error(OsCtld::CommandFailed, 'start not available')
     end
 
-    it 'returns ok when the container is already running and force is not set' do
-      container = Struct.new(:can_start?, :state).new(true, :running)
-      command = described_class.new({}, {})
+    it 'joins the active lifecycle run when the container is already running' do
+      run_id = double(to_s: 'tank:ct1:run-1')
+      request = Struct.new(
+        :action,
+        :run_id,
+        :revision,
+        :intent_id,
+        :warning,
+        keyword_init: true
+      ).new(action: :running, run_id:, revision: 7, intent_id: 'intent-1')
+      lifecycle = double(request_start: request, active_run_id: run_id)
+      container = Struct.new(:can_start?, :lifecycle) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(true, lifecycle)
+      command = described_class.new({ wait: 'infinity' }, {})
 
-      expect(command.send(:start_now, container)).to eq(status: true, output: nil)
+      expect(command.execute(container)).to eq(
+        status: true,
+        output: {
+          run_id: 'tank:ct1:run-1',
+          lifecycle_revision: 7,
+          lifecycle_state: 'running'
+        }
+      )
     end
 
     it 'maps dataset mount failures to command errors' do
@@ -112,248 +137,196 @@ RSpec.describe 'container lifecycle commands' do
       mounts = Struct.new(:prune).new(nil)
       allow(mounts).to receive(:prune)
       container = Struct.new(
-        :can_start?,
-        :state,
-        :run_conf,
         :impermanence,
         :distribution,
         :mounts,
         keyword_init: true
-      ) do
-        def init_run_conf; end
-      end.new(
-        can_start?: true,
-        state: :stopped,
-        run_conf:,
+      ).new(
         impermanence: false,
         distribution: 'almalinux',
         mounts:
       )
       command = described_class.new({}, {})
-      allow(command).to receive(:remove_accounting_cgroups)
+      allow(command).to receive(:ensure_effect!).and_return(true)
 
-      expect(command.send(:start_now, container)).to eq(
-        status: false,
-        message: "failed to mount dataset: command 'mount' exited with code '1', output: 'no dataset'"
+      expect do
+        command.send(
+          :launch_run,
+          container,
+          run_conf,
+          'run-1',
+          'effect-1',
+          'intent-1',
+          report_progress: true
+        )
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        "failed to mount dataset: command 'mount' exited with code '1', output: 'no dataset'"
       )
     end
 
-    it 'waits through the expected state sequence and ignores unrelated events' do
-      queue = Struct.new(:events) do
-        def pop(timeout:)
-          events.shift
-        end
-      end.new(
-        [
-          Event.new(type: :state, opts: { pool: 'other', id: 'ct1', state: :running }),
-          Event.new(type: :state, opts: { pool: 'tank', id: 'ct1', state: :stopping }),
-          Event.new(type: :state, opts: { pool: 'tank', id: 'ct1', state: :stopped }),
-          Event.new(type: :state, opts: { pool: 'tank', id: 'ct1', state: :starting }),
-          Event.new(type: :state, opts: { pool: 'tank', id: 'ct1', state: :running })
-        ]
+    it 'accepts pre-start completion which races ahead of console return' do
+      lifecycle = double(wait_for_launch_handoff: :complete)
+      allow(lifecycle).to receive(:effect_current?)
+      container = double(lifecycle:)
+      run_conf = double
+      callback_completed = false
+      allow(OsCtld::Console).to receive(:connect_tty0) do
+        callback_completed = true
+      end
+      allow(lifecycle).to receive(:wait_for_launch_handoff) do
+        expect(callback_completed).to be(true)
+        :complete
+      end
+      command = described_class.new({}, {})
+
+      expect(
+        command.send(
+          :complete_launch_handoff,
+          container,
+          123,
+          run_conf,
+          'run-1',
+          'effect-1'
+        )
+      ).to be(true)
+      expect(OsCtld::Console).to have_received(:connect_tty0).with(
+        container,
+        123,
+        run_conf,
+        effect_id: 'effect-1',
+        intent_id: nil
       )
-      daemon = stub_const('OsCtld::Daemon', Class.new do
-        def self.get; end
-      end)
-      allow(daemon).to receive(:get).and_return(double(stopping?: false))
+      expect(lifecycle).not_to have_received(:effect_current?)
+    end
+
+    it 'waits for the exact lifecycle run to become running' do
+      lifecycle = double(wait_for_start: :running, revision: 9)
+      container = Struct.new(:lifecycle).new(lifecycle)
+      run_id = double(to_s: 'tank:ct1:run-1')
       command = described_class.new({ wait: 5 }, {})
-      allow(command).to receive(:log)
 
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(%i[running])
+      expect(command.send(:wait_for_run, container, run_id, nil)).to eq(
+        status: true,
+        output: {
+          run_id: 'tank:ct1:run-1',
+          lifecycle_revision: 9,
+          lifecycle_state: 'running'
+        }
+      )
     end
 
-    it 'returns timeout when no relevant events arrive in time' do
-      queue = Struct.new do
-        def pop(timeout:)
-          nil
-        end
-      end.new
-      daemon = stub_const('OsCtld::Daemon', Class.new do
-        def self.get; end
-      end)
-      allow(daemon).to receive(:get).and_return(double(stopping?: false))
+    it 'reports a lifecycle start timeout' do
+      lifecycle = double(wait_for_start: :timeout)
+      container = Struct.new(:lifecycle).new(lifecycle)
       command = described_class.new({ wait: 1 }, {})
-      allow(command).to receive(:log)
-      now = Time.now
-      allow(Time).to receive(:now).and_return(now, now, now + 2)
 
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(%i[timeout])
+      expect(command.send(:wait_for_run, container, 'run-1', nil)).to eq(
+        status: false,
+        message: 'timed out while waiting for container to start'
+      )
     end
 
-    it 'fails when state recovery reports the container stopped' do
-      queue = Struct.new(:events) do
-        def pop(timeout:)
-          events.shift
-        end
-      end.new(
-        [Event.new(type: :state_recovery, opts: { pool: 'tank', id: 'ct1', state: :stopped })]
+    it 'reports the exact lifecycle launch failure' do
+      lifecycle = double(
+        wait_for_start: :failed,
+        run: { 'error' => 'mount failed' }
       )
-      daemon = stub_const('OsCtld::Daemon', Class.new do
-        def self.get; end
-      end)
-      allow(daemon).to receive(:get).and_return(double(stopping?: false))
+      container = Struct.new(:lifecycle).new(lifecycle)
       command = described_class.new({ wait: 5 }, {})
-      allow(command).to receive(:log)
 
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(
-        [:error, 'start failed, container is found to be stopped']
+      expect(command.send(:wait_for_run, container, 'run-1', nil)).to eq(
+        status: false,
+        message: 'mount failed'
       )
+    end
+
+    it 'retries a failed old run when a newer running intent is pending' do
+      lifecycle = double(
+        wait_for_start: :failed,
+        run: {
+          'error' => 'superseded',
+          'launch_intent_id' => 'intent-1'
+        },
+        desired_state: :running,
+        current_intent_id: 'intent-2'
+      )
+      container = Struct.new(:lifecycle).new(lifecycle)
+      command = described_class.new({ wait: 5 }, {})
+
+      expect(command.send(:wait_for_run, container, 'run-1', nil)).to eq(:retry)
     end
 
     it 'fails when osctld is shutting down while waiting' do
-      queue = Struct.new(:events) do
-        def pop(timeout:)
-          events.shift
-        end
-      end.new([Event.new(type: :osctld_shutdown, opts: {})])
-      daemon = stub_const('OsCtld::Daemon', Class.new do
-        def self.get; end
-      end)
-      allow(daemon).to receive(:get).and_return(double(stopping?: false))
-      command = described_class.new({ wait: 5 }, {})
-      allow(command).to receive(:log)
-
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(
-        [:error, 'osctld is shutting down']
-      )
-    end
-
-    it 'bounds shutdown waiting even when unrelated events keep arriving' do
-      queue = Struct.new(:calls) do
-        def pop(timeout:)
-          self.calls += 1
-          Event.new(type: :state, opts: { pool: 'other', id: 'ct1', state: :running })
-        end
-      end.new(0)
-      daemon = stub_const('OsCtld::Daemon', Class.new do
-        def self.get; end
-      end)
-      now = Time.now
-
-      allow(daemon).to receive(:get).and_return(double(stopping?: true))
-      allow(Time).to receive(:now).and_return(now, now, now, now + 16)
+      lifecycle = double(wait_for_start: :shutdown)
+      container = Struct.new(:lifecycle).new(lifecycle)
       command = described_class.new({ wait: 'infinity' }, {})
-      allow(command).to receive(:log)
 
-      expect(command.send(:wait_for_ct, queue, ct)).to eq(
-        [:error, 'osctld is shutting down']
+      expect(command.send(:wait_for_run, container, 'run-1', nil)).to eq(
+        status: false,
+        message: 'osctld is shutting down'
       )
-      expect(queue.calls).to eq(1)
     end
 
-    it 'tolerates tty socket races and console reconnect failures' do
-      with_tmpdir do |tmpdir|
-        console_dir = File.join(tmpdir, 'console')
-        log_path = File.join(tmpdir, 'ct.log')
-        sock_path = File.join(console_dir, 'ct1.sock')
-        FileUtils.mkdir_p(console_dir)
-        File.write(sock_path, '')
+    it 'keeps an infinite start wait unbounded' do
+      command = described_class.new({ wait: 'infinity' }, {})
 
-        run_conf = Struct.new(:mount).new(nil)
-        allow(run_conf).to receive(:mount)
-        mounts = Struct.new(:added) do
-          def prune; end
+      expect(command.send(:wait_deadline)).to be_nil
+      expect(command.send(:remaining_wait, nil)).to be_nil
+    end
 
-          def add(mnt)
-            added << mnt
-          end
-        end.new([])
-        user = Struct.new(:ugid, :sysusername, :homedir).new(1234, 'alice', tmpdir)
-        prlimits = Struct.new(:export).new({})
-        lxc_config = Struct.new do
-          def configure; end
-        end.new
-        container = Struct.new(
-          :pool,
-          :id,
-          :state,
-          :run_conf,
-          :impermanence,
-          :distribution,
-          :mounts,
-          :log_path,
-          :user,
-          :lxc_config,
-          :lxc_home,
-          :wrapper_cgroup_path,
-          :prlimits,
-          :syslogns_tag,
-          keyword_init: true
-        ) do
-          def can_start?
-            true
-          end
+    it 'does not report progress through a detached wait=false client' do
+      command = described_class.new({ wait: false }, {})
+      request = double
+      container = double
+      thread = instance_double(Thread)
 
-          def init_run_conf; end
-        end.new(
-          pool: Struct.new(:name, :console_dir).new('tank', console_dir),
-          id: 'ct1',
-          state: :stopped,
-          run_conf:,
-          impermanence: false,
-          distribution: 'almalinux',
-          mounts:,
-          log_path:,
-          user:,
-          lxc_config:,
-          lxc_home: '/var/lib/lxc',
-          wrapper_cgroup_path: '/sys/fs/cgroup/wrapper',
-          prlimits:,
-          syslogns_tag: 'ct1'
-        )
-        console = stub_const('OsCtld::Console', Class.new do
-          def self.socket_path(_ct); end
-
-          def self.connect_tty0(*); end
-        end)
-        dist_config = stub_const('OsCtld::DistConfig', Class.new do
-          def self.run(*); end
-        end)
-        cpu_scheduler = stub_const('OsCtld::CpuScheduler', Class.new do
-          def self.schedule_ct(*); end
-        end)
-        daemon = stub_const('OsCtld::Daemon', Class.new do
-          def self.get; end
-        end)
-        daemon_config = Struct.new(:ct_wrapper).new('/run/wrappers/osctld-ct-wrapper')
-        daemon_instance = Struct.new(:config).new(daemon_config)
-        allow(OsCtld::SwitchUser).to receive(:clear_ruby_env)
-        allow(OsCtld::SwitchUser).to receive(:fork_and_switch_to) do |*_, **_, &block|
-          block.call
-          101
-        end
-        allow(console).to receive(:socket_path).with(container).and_return(sock_path)
-        allow(console).to receive(:connect_tty0).and_raise(Errno::ECONNREFUSED)
-        allow(dist_config).to receive(:run)
-        allow(cpu_scheduler).to receive(:schedule_ct)
-        allow(daemon).to receive(:get).and_return(daemon_instance)
-        OsCtld.define_singleton_method(:bin) { |_name| '/bin/true' } unless OsCtld.respond_to?(:bin)
-        allow(OsCtld).to receive(:bin).and_return('/bin/true')
-        spawn_args = nil
-        allow(Process).to receive(:spawn) do |*args|
-          spawn_args = args
-          202
-        end
-        allow(Process).to receive(:wait).with(101)
-        allow(File).to receive(:chmod)
-        allow(File).to receive(:chown)
-        unlinked = false
-        allow(File).to receive(:unlink).and_wrap_original do |orig, path|
-          if path == sock_path && !unlinked
-            unlinked = true
-            raise Errno::ENOENT
-          else
-            orig.call(path)
-          end
-        end
-        command = described_class.new({ debug: false }, {})
-        allow(command).to receive(:remove_accounting_cgroups)
-        allow(command).to receive(:log)
-
-        expect(command.send(:start_now, container)).to eq(:wait)
-        expect(spawn_args[0]).to eq('/run/wrappers/osctld-ct-wrapper')
-        expect(command).to have_received(:log).with(:warn, container, 'Unable to connect to tty0')
+      allow(command).to receive(:launch)
+      allow(Thread).to receive(:new) do |&block|
+        block.call
+        thread
       end
+      allow(OsCtld::ThreadReaper).to receive(:add)
+
+      command.send(:launch_in_background, container, request)
+
+      expect(command).to have_received(:launch).with(
+        container,
+        request,
+        report_progress: false
+      )
+      expect(OsCtld::ThreadReaper).to have_received(:add).with(
+        thread,
+        nil,
+        group: :durable_lifecycle
+      )
+    end
+
+    it 'hands a ready cleanup effect from the start worker to the finalizer' do
+      run_conf = double(run_id: 'run-1')
+      lifecycle = double(claim_finalization: 'cleanup-1')
+      container = double(lifecycle:)
+      finalizer = stub_const(
+        'OsCtld::Container::LifecycleFinalizer',
+        Class.new do
+          def self.spawn(*); end
+        end
+      )
+      allow(finalizer).to receive(:spawn)
+      command = described_class.new({}, {})
+
+      command.send(
+        :spawn_finalizer_if_ready,
+        container,
+        run_conf,
+        'run-1'
+      )
+
+      expect(finalizer).to have_received(:spawn).with(
+        container,
+        run_conf,
+        'cleanup-1'
+      )
     end
   end
 
@@ -367,11 +340,60 @@ RSpec.describe 'container lifecycle commands' do
     let(:pool) { Struct.new(:name, :autostart_plan).new('tank', autostart_plan) }
 
     def build_stop_container(state: :running, running: true, ephemeral: false, promise: nil)
-      run_conf = Struct.new(:init_pid, :promise) do
+      run_conf = Struct.new(:init_pid, :promise, :run_id) do
         def get_exit_promise
           promise
         end
-      end.new(promise ? 4321 : nil, promise)
+      end.new(promise ? 4321 : nil, promise, 'run-1')
+      request = Struct.new(
+        :action,
+        :run_id,
+        :revision,
+        :intent_id,
+        keyword_init: true
+      ).new(
+        action: :stop,
+        run_id: 'run-1',
+        revision: 1,
+        intent_id: 'intent-1'
+      )
+      lifecycle = Struct.new(:request, :wait_result) do
+        attr_reader :waited_run_id, :stop_error
+
+        def request_stop(**)
+          request
+        end
+
+        def claim_effect(*)
+          'effect-1'
+        end
+
+        def effect_current?(*)
+          true
+        end
+
+        def set_effect_worker(*); end
+
+        def effect_worker_exited(*); end
+
+        def finish_effect(*); end
+
+        def claim_finalization(*); end
+
+        def fail_stop(_run_id, _effect_id, message)
+          @stop_error = message
+          self.wait_result = :stop_failed
+        end
+
+        def run(_run_id)
+          { 'stop_error' => stop_error }
+        end
+
+        def wait_for_stop(run_id)
+          @waited_run_id = run_id
+          wait_result
+        end
+      end.new(request, :clean)
       cgparams = Struct.new do
         attr_reader :expanded
 
@@ -386,6 +408,7 @@ RSpec.describe 'container lifecycle commands' do
         :cgparams,
         :run_conf,
         :cgroup_path,
+        :lifecycle,
         keyword_init: true
       ) do
         attr_accessor :running_state, :ephemeral_state, :log_lines
@@ -396,6 +419,10 @@ RSpec.describe 'container lifecycle commands' do
 
         def get_run_conf
           run_conf
+        end
+
+        def get_past_run_conf
+          nil
         end
 
         def log(level, message)
@@ -415,7 +442,8 @@ RSpec.describe 'container lifecycle commands' do
         state:,
         cgparams:,
         run_conf:,
-        cgroup_path: '/sys/fs/cgroup/osctl/ct.ct1'
+        cgroup_path: '/sys/fs/cgroup/osctl/ct.ct1',
+        lifecycle:
       ).tap do |ct|
         ct.running_state = running
         ct.ephemeral_state = ephemeral
@@ -432,14 +460,23 @@ RSpec.describe 'container lifecycle commands' do
       end)
       allow(hook).to receive(:run)
       allow(dist_config).to receive(:run)
+      allow(OsCtld::Container::LifecycleExecutor).to receive(:acquire).and_return(true)
+      allow(OsCtld::Container::LifecycleExecutor).to receive(:release)
+      allow(OsCtld::ThreadReaper).to receive(:add)
+      allow(Thread).to receive(:new) do |&block|
+        block.call
+        instance_double(Thread)
+      end
     end
 
     it 'maps stop methods to the expected dist-config mode' do
       ct = build_stop_container
       command = described_class.new({ timeout: 10, method: 'kill' }, {})
-      allow(command).to receive(:remove_accounting_cgroups)
 
-      expect(command.execute(ct)).to eq(status: true, output: nil)
+      expect(command.execute(ct)).to eq(
+        status: true,
+        output: { lifecycle_state: 'stopped', run_id: 'run-1' }
+      )
       expect(OsCtld::DistConfig).to have_received(:run).with(
         ct.get_run_conf,
         :stop,
@@ -452,7 +489,6 @@ RSpec.describe 'container lifecycle commands' do
     it 'switches shutdown_or_kill to kill for frozen containers' do
       ct = build_stop_container(state: :frozen)
       command = described_class.new({ timeout: 10, method: 'shutdown_or_kill' }, {})
-      allow(command).to receive(:remove_accounting_cgroups)
 
       command.execute(ct)
 
@@ -469,8 +505,10 @@ RSpec.describe 'container lifecycle commands' do
       ct = build_stop_container(state: :frozen)
       command = described_class.new({ timeout: 10, method: 'shutdown_or_fail' }, {})
 
-      expect { command.execute(ct) }
-        .to raise_error(OsCtld::CommandFailed, 'The container is frozen, unable to shutdown')
+      expect(command.execute(ct)).to eq(
+        status: false,
+        message: 'The container is frozen, unable to shutdown'
+      )
     end
 
     it 'aborts when the pre-stop hook fails' do
@@ -485,11 +523,10 @@ RSpec.describe 'container lifecycle commands' do
         OsCtld::HookFailed.new(hook, '/hooks/pre-stop', 1)
       )
 
-      expect { command.execute(ct) }
-        .to raise_error(
-          OsCtld::CommandFailed,
-          'hook pre_stop at /hooks/pre-stop exited with 1'
-        )
+      expect(command.execute(ct)).to eq(
+        status: false,
+        message: 'hook pre_stop at /hooks/pre-stop exited with 1'
+      )
     end
 
     it 'forces cleanup when user-runner shutdown fails' do
@@ -497,11 +534,25 @@ RSpec.describe 'container lifecycle commands' do
       command = described_class.new({ timeout: 10 }, {})
       allow(OsCtld::DistConfig).to receive(:run)
         .and_raise(OsCtld::ContainerControl::UserRunnerError, 'runner failed')
-      allow(command).to receive(:force_kill).with(ct).and_return(true)
-      allow(command).to receive(:remove_accounting_cgroups)
+      allow(command).to receive(:force_kill)
+        .with(
+          ct,
+          'run-1',
+          'effect-1',
+          report_progress: false
+        )
+        .and_return(true)
 
-      expect(command.execute(ct)).to eq(status: true, output: nil)
-      expect(command).to have_received(:force_kill).with(ct)
+      expect(command.execute(ct)).to eq(
+        status: true,
+        output: { lifecycle_state: 'stopped', run_id: 'run-1' }
+      )
+      expect(command).to have_received(:force_kill).with(
+        ct,
+        'run-1',
+        'effect-1',
+        report_progress: false
+      )
     end
 
     it 'maps container-control errors to command failures' do
@@ -510,39 +561,36 @@ RSpec.describe 'container lifecycle commands' do
       allow(OsCtld::DistConfig).to receive(:run)
         .and_raise(OsCtld::ContainerControl::Error, 'stop failed')
 
-      expect { command.execute(ct) }
-        .to raise_error(OsCtld::CommandFailed, 'stop failed')
+      expect(command.execute(ct)).to eq(
+        status: false,
+        message: 'stop failed'
+      )
     end
 
-    it 'waits on the exit promise when the init pid is known' do
+    it 'waits for exact-generation finalization after issuing stop' do
       promise = double('exit_promise', wait: true)
       ct = build_stop_container(promise:)
       command = described_class.new({ timeout: 10 }, {})
-      allow(command).to receive(:remove_accounting_cgroups)
 
       command.execute(ct)
 
-      expect(promise).to have_received(:wait)
+      expect(ct.lifecycle.waited_run_id).to eq('run-1')
+      expect(promise).not_to have_received(:wait)
     end
 
-    it 'auto-deletes ephemeral containers only for direct stops' do
+    it 'leaves ephemeral deletion to exact-generation finalization' do
       ct = build_stop_container(ephemeral: true)
       delete_class = stub_const('OsCtld::Commands::Container::Delete', Class.new)
       command = described_class.new({ timeout: 10 }, {})
-      allow(command).to receive(:remove_accounting_cgroups)
-      allow(command).to receive(:call_cmd!).with(
-        delete_class,
-        pool: 'tank',
-        id: 'ct1',
-        force: true
-      ).and_return(status: true, output: nil)
+      allow(command).to receive(:call_cmd!)
 
-      expect(command.execute(ct)).to eq(status: true, output: nil)
-      expect(command).to have_received(:call_cmd!).with(
+      expect(command.execute(ct)).to eq(
+        status: true,
+        output: { lifecycle_state: 'stopped', run_id: 'run-1' }
+      )
+      expect(command).not_to have_received(:call_cmd!).with(
         delete_class,
-        pool: 'tank',
-        id: 'ct1',
-        force: true
+        anything
       )
     end
 
@@ -550,7 +598,6 @@ RSpec.describe 'container lifecycle commands' do
       ct = build_stop_container(ephemeral: true)
       delete_class = stub_const('OsCtld::Commands::Container::Delete', Class.new)
       command = described_class.new({ timeout: 10 }, { indirect: true })
-      allow(command).to receive(:remove_accounting_cgroups)
       allow(command).to receive(:call_cmd!)
 
       command.execute(ct)
@@ -569,43 +616,119 @@ RSpec.describe 'container lifecycle commands' do
           @events = []
         end
 
-        def kill_all
-          events << :kill_all
+        def freeze_generation(run_id)
+          events << [:freeze_generation, run_id]
         end
 
-        def recover_state
-          events << :recover_state
+        def kill_generation(run_id)
+          events << [:kill_generation, run_id]
         end
 
-        def cleanup_or_taint
-          events << :cleanup_or_taint
-          true
+        def thaw_generation(run_id)
+          events << [:thaw_generation, run_id]
+        end
+
+        def recover_state(run_id:)
+          events << [:recover_state, run_id]
         end
       end.new(nil)
       recovery_class = stub_const('OsCtld::Container::Recovery', Class.new do
         def self.new(_ct); end
       end)
-      cgroup = stub_const('OsCtld::CGroup', Class.new do
-        def self.freeze_tree(_path); end
-
-        def self.thaw_tree(_path); end
-      end)
       allow(recovery_class).to receive(:new).and_return(recovery)
-      allow(cgroup).to receive(:freeze_tree) { recovery.events << :freeze_tree }
-      allow(cgroup).to receive(:thaw_tree) { recovery.events << :thaw_tree }
       ct = build_stop_container
       command = described_class.new({}, {})
-      allow(command).to receive(:sleep) { |seconds| recovery.events << [:sleep, seconds] }
 
-      expect(command.send(:force_kill, ct)).to be(true)
+      expect(command.send(:force_kill, ct, 'run-1', 'effect-1')).to be(true)
       expect(recovery.events).to eq(
         [
-          :freeze_tree,
-          :kill_all,
-          :thaw_tree,
-          [:sleep, 10],
-          :recover_state,
-          :cleanup_or_taint
+          [:freeze_generation, 'run-1'],
+          [:kill_generation, 'run-1'],
+          [:thaw_generation, 'run-1'],
+          [:recover_state, 'run-1']
+        ]
+      )
+    end
+
+    it 'thaws its generation when force-kill enumeration fails' do
+      recovery = Class.new do
+        attr_reader :events
+
+        def initialize
+          @events = []
+        end
+
+        def freeze_generation(run_id)
+          events << [:freeze_generation, run_id]
+        end
+
+        def kill_generation(run_id)
+          events << [:kill_generation, run_id]
+          raise 'unable to enumerate generation processes'
+        end
+
+        def thaw_generation(run_id)
+          events << [:thaw_generation, run_id]
+        end
+      end.new
+      recovery_class = stub_const('OsCtld::Container::Recovery', Class.new do
+        def self.new(_ct); end
+      end)
+      allow(recovery_class).to receive(:new).and_return(recovery)
+      ct = build_stop_container
+      command = described_class.new({}, {})
+
+      expect do
+        command.send(:force_kill, ct, 'run-1', 'effect-1')
+      end.to raise_error(
+        RuntimeError,
+        'unable to enumerate generation processes'
+      )
+      expect(recovery.events).to eq(
+        [
+          [:freeze_generation, 'run-1'],
+          [:kill_generation, 'run-1'],
+          [:thaw_generation, 'run-1']
+        ]
+      )
+    end
+
+    it 'hands a frozen generation to superseding recovery ownership' do
+      recovery = Class.new do
+        attr_reader :events
+
+        def initialize
+          @events = []
+        end
+
+        def freeze_generation(run_id)
+          events << [:freeze_generation, run_id]
+        end
+
+        def kill_generation(run_id)
+          events << [:kill_generation, run_id]
+          raise 'stop effect superseded'
+        end
+
+        def thaw_generation(run_id)
+          events << [:thaw_generation, run_id]
+        end
+      end.new
+      recovery_class = stub_const('OsCtld::Container::Recovery', Class.new do
+        def self.new(_ct); end
+      end)
+      allow(recovery_class).to receive(:new).and_return(recovery)
+      ct = build_stop_container
+      allow(ct.lifecycle).to receive(:effect_current?).and_return(true, false)
+      command = described_class.new({}, {})
+
+      expect do
+        command.send(:force_kill, ct, 'run-1', 'effect-1')
+      end.to raise_error(RuntimeError, 'stop effect superseded')
+      expect(recovery.events).to eq(
+        [
+          [:freeze_generation, 'run-1'],
+          [:kill_generation, 'run-1']
         ]
       )
     end
@@ -617,25 +740,117 @@ RSpec.describe 'container lifecycle commands' do
         def self.run!(_ct); end
       end)
       allow(reboot).to receive(:run!)
-      ct = Struct.new(:pool) do
+      request = OsCtld::Container::Lifecycle::Request.new(action: :ready)
+      lifecycle = double(request_control_reboot: request)
+      ct = Struct.new(:pool, :lifecycle) do
         def manipulate(_holder, block:, &)
           yield
         end
-      end.new(Struct.new(:name).new('tank'))
+      end.new(Struct.new(:name).new('tank'), lifecycle)
       command = described_class.new({ reboot: true }, {})
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
       expect(reboot).to have_received(:run!).with(ct)
     end
 
-    it 'stops and restarts the container with forwarded options' do
-      stop_class = stub_const('OsCtld::Commands::Container::Stop', Class.new)
-      start_class = stub_const('OsCtld::Commands::Container::Start', Class.new)
-      ct = Struct.new(:id, :pool) do
+    it 'waits for lifecycle admission before a direct reboot' do
+      reboot = stub_const('OsCtld::ContainerControl::Commands::Reboot', Class.new do
+        def self.run!(_ct); end
+      end)
+      allow(reboot).to receive(:run!)
+      waiting = OsCtld::Container::Lifecycle::Request.new(
+        action: :wait,
+        revision: 10
+      )
+      ready = OsCtld::Container::Lifecycle::Request.new(action: :ready)
+      lifecycle = double
+      allow(lifecycle).to receive(:request_control_reboot)
+        .and_return(waiting, ready)
+      allow(lifecycle).to receive(:wait_for_change).with(10).and_return(true)
+      ct = Struct.new(:pool, :lifecycle) do
         def manipulate(_holder, block:, &)
           yield
         end
-      end.new('ct1', Struct.new(:name).new('tank'))
+      end.new(Struct.new(:name).new('tank'), lifecycle)
+      command = described_class.new({ reboot: true }, {})
+
+      expect(command.execute(ct)).to eq(status: true, output: nil)
+      expect(lifecycle).to have_received(:wait_for_change).with(10)
+      expect(reboot).to have_received(:run!).with(ct)
+    end
+
+    it 'rejects a direct reboot when lifecycle admission is blocked' do
+      request = OsCtld::Container::Lifecycle::Request.new(
+        action: :blocked,
+        warning: 'container cgroup policy is tainted'
+      )
+      lifecycle = double(request_control_reboot: request)
+      ct = Struct.new(:pool, :lifecycle) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(Struct.new(:name).new('tank'), lifecycle)
+      command = described_class.new({ reboot: true }, {})
+
+      expect { command.execute(ct) }.to raise_error(
+        OsCtld::CommandFailed,
+        'container cgroup policy is tainted'
+      )
+    end
+
+    it 'retains direct reboot ownership when the reply is lost after delivery' do
+      reboot = stub_const(
+        'OsCtld::ContainerControl::Commands::Reboot',
+        Class.new do
+          def self.run!(_ct); end
+        end
+      )
+      signal_delivered = false
+      allow(reboot).to receive(:run!) do
+        signal_delivered = true
+        raise OsCtld::ContainerControl::Error, 'runner reply was lost'
+      end
+      request = OsCtld::Container::Lifecycle::Request.new(
+        action: :ready,
+        run_id: 'run-1',
+        effect_id: 'effect-1'
+      )
+      lifecycle = double(
+        request_control_reboot: request,
+        record_control_reboot_error: true
+      )
+      ct = Struct.new(:pool, :lifecycle) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(Struct.new(:name).new('tank'), lifecycle)
+      command = described_class.new({ reboot: true }, {})
+
+      expect { command.execute(ct) }.to raise_error(
+        OsCtld::CommandFailed,
+        'runner reply was lost'
+      )
+      expect(signal_delivered).to be(true)
+      expect(lifecycle).to have_received(:record_control_reboot_error).with(
+        'run-1',
+        'effect-1',
+        'runner reply was lost'
+      )
+    end
+
+    it 'stops and restarts the container with forwarded options' do
+      stop_class = stub_const('OsCtld::Commands::Container::Stop', Class.new)
+      start_class = stub_const('OsCtld::Commands::Container::Start', Class.new)
+      request = OsCtld::Container::Lifecycle::Request.new(
+        action: :stop,
+        effect_id: 'intent-1'
+      )
+      lifecycle = double(request_restart: request)
+      ct = Struct.new(:id, :pool, :lifecycle) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new('ct1', Struct.new(:name).new('tank'), lifecycle)
       command = described_class.new(
         { reboot: false, stop_timeout: 15, stop_method: 'kill', message: 'bye', wait: false },
         {}
@@ -646,14 +861,18 @@ RSpec.describe 'container lifecycle commands' do
         id: 'ct1',
         timeout: 15,
         method: 'kill',
-        message: 'bye'
+        message: 'bye',
+        lifecycle_source: 'restart',
+        lifecycle_intent_id: 'intent-1'
       ).and_return(status: true, output: nil)
       allow(command).to receive(:call_cmd!).with(
         start_class,
         pool: 'tank',
         id: 'ct1',
         force: true,
-        wait: false
+        wait: false,
+        lifecycle_source: 'restart',
+        lifecycle_intent_id: 'intent-1'
       ).and_return(status: true, output: nil)
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
@@ -875,6 +1094,7 @@ RSpec.describe 'container lifecycle commands' do
         :group,
         :user,
         :base_cgroup_path,
+        :lifecycle,
         keyword_init: true
       ) do
         attr_accessor :clear_start_menu_calls, :running_state
@@ -920,7 +1140,8 @@ RSpec.describe 'container lifecycle commands' do
           end
         end.new(group_dir),
         user:,
-        base_cgroup_path: '/sys/fs/cgroup/osctl/ct.ct1'
+        base_cgroup_path: '/sys/fs/cgroup/osctl/ct.ct1',
+        lifecycle: double(residuals: [], runtime_generations: [])
       ).tap do |ct|
         ct.clear_start_menu_calls = 0
         ct.running_state = false
@@ -1004,6 +1225,43 @@ RSpec.describe 'container lifecycle commands' do
         expect(ct.mounts.shared_dir.removed).to be(true)
         expect(ct.pool.autostart_plan.cleared).to equal(ct)
         expect(ct.pool.trash_bin).to have_received(:prune)
+      end
+    end
+
+    it 'does not delete storage when stop quarantines a residual generation' do
+      with_tmpdir do |tmpdir|
+        ct = build_delete_container(root: tmpdir)
+        run_id = OsCtld::Container::RunId.new(
+          pool_name: 'tank',
+          container_id: 'ct1'
+        )
+        allow(ct.lifecycle).to receive(:runtime_generations).and_return(
+          [{ 'id' => run_id.dump, 'role' => 'residual' }]
+        )
+        command = described_class.new({ force: true }, {})
+        allow(command).to receive(:call_cmd!).with(
+          stop_class,
+          pool: 'tank',
+          id: 'ct1',
+          manipulation_lock: nil,
+          progress: nil,
+          message: nil
+        ).and_return(
+          status: true,
+          output: {
+            lifecycle_state: 'quarantined',
+            run_id: run_id.to_s
+          }
+        )
+
+        expect do
+          command.execute(ct)
+        end.to raise_error(
+          OsCtld::CommandFailed,
+          /container deletion is blocked.*residual/
+        )
+        expect(OsCtld::TrashBin).not_to have_received(:add_dataset)
+        expect(OsCtld::DB::Containers).not_to have_received(:remove)
       end
     end
 

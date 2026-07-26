@@ -3,6 +3,7 @@ require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
 require 'osctld/local_transfer/log'
+require 'securerandom'
 
 module OsCtld
   class Container
@@ -30,7 +31,7 @@ module OsCtld
                           :cgparams, :cpu_package, :devices, :seccomp_profile, :apparmor, :attrs,
                           :state, :lxc_config,
                           :init_cmd, :start_menu, :impermanence, :raw_configs, :run_conf, :next_run_conf,
-                          :hints, :map_mode
+                          :hints, :map_mode, :incarnation_id
 
     alias ephemeral? ephemeral
 
@@ -81,6 +82,11 @@ module OsCtld
       @raw_configs = Container::RawConfigs.new
       @attrs = Attributes.new
       @run_conf = nil
+      @past_run_conf = nil
+      @next_run_conf = nil
+      @incarnation_id = SecureRandom.uuid
+      @incarnation_id_persisted = false
+      @lifecycle = nil
       @hints = Container::Hints.new(self)
 
       return unless opts[:load]
@@ -214,8 +220,12 @@ module OsCtld
     end
 
     # @return [Container::RunConfiguration]
-    def new_run_conf
-      Container::RunConfiguration.new(self, load_conf: false)
+    def new_run_conf(run_id: nil)
+      if run_id
+        Container::RunConfiguration.new(self, load_conf: false, run_id:)
+      else
+        Container::RunConfiguration.new(self, load_conf: false)
+      end
     end
 
     # @return [Container::RunConfiguration]
@@ -228,8 +238,13 @@ module OsCtld
       inclusively { @past_run_conf }
     end
 
-    def forget_past_run_conf
-      exclusively { @past_run_conf = nil }
+    def forget_past_run_conf(run_conf = nil)
+      exclusively do
+        next false if run_conf && !@past_run_conf.equal?(run_conf)
+
+        @past_run_conf = nil
+        true
+      end
     end
 
     # @param next_run_conf [Container::RunConfiguration]
@@ -238,20 +253,63 @@ module OsCtld
     end
 
     # This must be called on container start
-    def init_run_conf
-      exclusively do
-        if @next_run_conf
+    def init_run_conf(run_id: nil)
+      ret = exclusively do
+        if @run_conf
+          if !run_id || @run_conf.run_id != run_id
+            raise ConfigError,
+                  "active run configuration #{@run_conf.run_id} does not match #{run_id}"
+          end
+        elsif @next_run_conf
+          if run_id && @next_run_conf.run_id != run_id
+            raise ConfigError,
+                  "planned run configuration #{@next_run_conf.run_id} does not match #{run_id}"
+          end
+
           @run_conf = @next_run_conf
           @next_run_conf = nil
         else
-          @run_conf = new_run_conf
+          @run_conf = new_run_conf(run_id:)
         end
 
         @run_conf.save
+        @run_conf
       end
 
       # Generate LXC configs for current time namespace offsets
       reconfigure
+      ret
+    end
+
+    def lifecycle
+      lifecycle = @lifecycle
+      return lifecycle if lifecycle
+
+      exclusively do
+        unless @lifecycle
+          require 'osctld/container/lifecycle'
+          @lifecycle = Container::Lifecycle.new(self)
+        end
+
+        @lifecycle
+      end
+    end
+
+    def load_lifecycle_run_conf(run_id)
+      run_conf = Container::RunConfiguration.load_generation(self, run_id)
+      return unless run_conf
+
+      exclusively do
+        @run_conf = run_conf if @run_conf.nil? || @run_conf.run_id != run_id
+      end
+      run_conf
+    end
+
+    def ensure_incarnation_id_persisted
+      return if inclusively { @incarnation_id_persisted }
+
+      save_config
+      exclusively { @incarnation_id_persisted = true }
     end
 
     # Call {#init_run_conf} unless {#run_conf} is already set
@@ -347,6 +405,22 @@ module OsCtld
       exclusively { @state = v }
     end
 
+    # Apply an LXC state observation only to the exact active run. The state,
+    # init PID and aborted marker change under the same container lock, so a
+    # late monitor event cannot mutate a replacement generation.
+    def observe_run_state(run_id, value, init_pid: nil)
+      exclusively do
+        return false if @state == :error
+        return false unless @run_conf
+        return false unless @run_conf.run_id == run_id
+
+        @state = value
+        @run_conf.init_pid = init_pid if value.to_sym == :running && init_pid
+        @run_conf.mark_aborted if %i[aborting aborted].include?(value.to_sym)
+        true
+      end
+    end
+
     # Fetch current container state by forking into it
     # @return [Symbol]
     def current_state
@@ -379,23 +453,59 @@ module OsCtld
       end
     end
 
-    def starting
+    def starting(run_id)
       exclusively do
-        # Normally {#init_run_conf} is called from {Commands::Container::Start},
-        # but in case the lxc-start was invoked manually outside of osctld,
-        # initiate the run conf if needed.
-        ensure_run_conf
+        return false unless run_conf
+        return false unless run_conf.run_id == run_id
+
+        true
       end
     end
 
-    def stopped
+    def stopped(run_id = nil)
       exclusively do
+        if run_id
+          return false unless run_conf
+          return false if run_conf.run_id != run_id
+        end
+
         if run_conf
-          run_conf.destroy
           @past_run_conf = @run_conf
           @run_conf = nil
         end
+
+        @state = :stopped
+        true
       end
+    end
+
+    def abort_run_conf(run_conf)
+      removed = exclusively do
+        next false unless @run_conf.equal?(run_conf)
+
+        @run_conf = nil
+        true
+      end
+
+      run_conf.destroy if removed
+      removed
+    end
+
+    def detach_run_conf(run_conf)
+      removed = exclusively do
+        if @run_conf.equal?(run_conf)
+          @run_conf = nil
+          true
+        elsif @past_run_conf.equal?(run_conf)
+          @past_run_conf = nil
+          true
+        else
+          false
+        end
+      end
+
+      run_conf.detach if removed
+      removed
     end
 
     def can_dist_configure_network?
@@ -467,16 +577,43 @@ module OsCtld
       inclusively { File.join(group.full_cgroup_path(user), "ct.#{id}") }
     end
 
-    def cgroup_path
+    def legacy_cgroup_path
       File.join(base_cgroup_path, 'user-owned')
     end
 
-    def wrapper_cgroup_path
+    def legacy_wrapper_cgroup_path
       File.join(base_cgroup_path, 'wrapper')
     end
 
+    def run_cgroup_path(run_id)
+      File.join(base_cgroup_path, 'runs', run_id.key)
+    end
+
+    def cgroup_path
+      lifecycle_resource('user_cgroup', legacy_cgroup_path)
+    end
+
+    def wrapper_cgroup_path
+      lifecycle_resource('wrapper_cgroup', legacy_wrapper_cgroup_path)
+    end
+
     def entry_cgroup_path
-      File.join(cgroup_path, "lxc.monitor.#{id}")
+      lifecycle_resource('lxc_monitor', File.join(legacy_cgroup_path, "lxc.monitor.#{id}"))
+    end
+
+    def lxc_payload_cgroup_path
+      lifecycle_resource('lxc_payload', File.join(legacy_cgroup_path, "lxc.payload.#{id}"))
+    end
+
+    def lxc_inner_cgroup_path
+      lifecycle_resource(
+        'lxc_inner',
+        File.join(legacy_cgroup_path, "lxc.payload.#{id}", 'inner')
+      )
+    end
+
+    def lxc_pivot_cgroup_path
+      lifecycle_resource('lxc_pivot', File.join(legacy_cgroup_path, "lxc.pivot.#{id}"))
     end
 
     def abs_cgroup_path(subsystem)
@@ -485,6 +622,10 @@ module OsCtld
 
     def abs_apply_cgroup_path(subsystem)
       CGroup.abs_cgroup_path(subsystem, base_cgroup_path)
+    end
+
+    def active_cgroup_root
+      lifecycle_resource('cgroup_root', base_cgroup_path)
     end
 
     # @return [Integer, nil] memory limit in bytes
@@ -740,6 +881,23 @@ module OsCtld
 
     # Export to clients
     def export
+      lifecycle_record = lifecycle.snapshot
+      lifecycle_run = lifecycle_record['active_run_id'] &&
+                      lifecycle_record.fetch('runs')[lifecycle_record['active_run_id']]
+      residual_runs = lifecycle_record.fetch('runs').values.select do |run|
+        run['role'] == 'residual'
+      end
+      lifecycle_policy = lifecycle_record['policy']
+      policy_hazards =
+        if lifecycle_policy&.fetch('tainted', false)
+          [
+            'container cgroup policy is tainted: ' \
+            "#{lifecycle_policy['rollback_error'] || lifecycle_policy['error']}"
+          ]
+        else
+          []
+        end
+
       inclusively do
         {
           pool: pool.name,
@@ -763,6 +921,24 @@ module OsCtld
           variant: run_conf ? run_conf.variant : variant,
           state:,
           init_pid:,
+          lifecycle_desired_state: lifecycle_record.fetch('desired_state'),
+          lifecycle_state: lifecycle_run&.fetch('phase'),
+          lifecycle_run_id: lifecycle_record['active_run_id'],
+          lifecycle_revision: lifecycle_record.fetch('revision'),
+          lifecycle_residuals: residual_runs.length,
+          lifecycle_residual_run_ids: residual_runs.map do |run|
+            Container::RunId.load(run.fetch('id')).to_s
+          end,
+          lifecycle_hazards: (
+            residual_runs.flat_map { |run| run.fetch('hazards', []) } +
+            policy_hazards
+          ).uniq,
+          lifecycle_policy_tainted: lifecycle_policy&.fetch('tainted', false) || false,
+          lifecycle_policy_error: lifecycle_policy&.fetch('error', nil),
+          lifecycle_policy_rollback_error: lifecycle_policy&.fetch(
+            'rollback_error',
+            nil
+          ),
           autostart: autostart ? true : false,
           autostart_priority: autostart && autostart.priority,
           autostart_delay: autostart && autostart.delay,
@@ -793,6 +969,7 @@ module OsCtld
         data = {
           'user' => user.name,
           'group' => group.name,
+          'incarnation_id' => incarnation_id,
           'dataset' => dataset.name,
           'map_mode' => map_mode,
           'distribution' => distribution,
@@ -840,15 +1017,18 @@ module OsCtld
       end
 
       File.chown(0, 0, config_path)
+      exclusively { @incarnation_id_persisted = true }
     end
 
     def reload_config
-      load_config_file
+      incarnation_id_present =
+        load_config_file(preserve_incarnation_id: true)
+      save_config unless incarnation_id_present
     end
 
     # @param config [String]
     def replace_config(config)
-      load_config_string(config)
+      load_config_string(config, preserve_incarnation_id: true)
       save_config
     end
 
@@ -858,7 +1038,7 @@ module OsCtld
       exclusively do
         tmp = dump_config
         tmp.update(new_config)
-        load_config_hash(tmp)
+        load_config_hash(tmp, preserve_incarnation_id: true)
         save_config
       end
     end
@@ -933,11 +1113,31 @@ module OsCtld
       raise ConfigError.new("Unable to load config of container #{id}", e)
     end
 
-    def load_config_hash(cfg, init_devices: true, dataset_cache: nil)
+    def load_config_hash(
+      cfg,
+      init_devices: true,
+      dataset_cache: nil,
+      preserve_incarnation_id: false
+    )
       cfg = Container::Adaptor.adapt(self, cfg)
+      incarnation_id_present = !cfg['incarnation_id'].nil?
 
       exclusively do
+        if preserve_incarnation_id \
+           && cfg['incarnation_id'] \
+           && cfg['incarnation_id'] != @incarnation_id
+          raise ConfigError,
+                "container #{id}: incarnation_id cannot be changed"
+        end
+
         @state = cfg['state'].to_sym if cfg['state']
+        if cfg['incarnation_id']
+          @incarnation_id = cfg['incarnation_id'] \
+            unless preserve_incarnation_id
+          @incarnation_id_persisted = true
+        elsif preserve_incarnation_id
+          @incarnation_id_persisted = false
+        end
         @user ||= DB::Users.find(cfg['user'], pool) || (raise ConfigError, "container #{id}: user '#{cfg['user']}' not found")
         @group ||= DB::Groups.find(cfg['group'], pool) || (raise ConfigError, "container #{id}: group '#{cfg['group']}' not found")
 
@@ -981,6 +1181,7 @@ module OsCtld
           end
 
         @run_conf = Container::RunConfiguration.load(self)
+        @lifecycle = nil unless preserve_incarnation_id
 
         if cfg['send_log']
           @send_log = SendReceive::Log.load(cfg['send_log'])
@@ -1009,6 +1210,8 @@ module OsCtld
 
         @hints = Container::Hints.load(self, cfg['hints'] || {})
       end
+
+      incarnation_id_present
     end
 
     # Change the container so that it becomes a clone of `ct` with a different id
@@ -1029,6 +1232,8 @@ module OsCtld
       @user = opts[:user] if opts[:user]
       @group = opts[:group] if opts[:group]
       @state = :staged
+      @incarnation_id = SecureRandom.uuid
+      @incarnation_id_persisted = false
       @send_log = nil
       @local_transfer_log = nil
 
@@ -1054,6 +1259,7 @@ module OsCtld
       @run_conf = nil
       @next_run_conf = nil
       @past_run_conf = nil
+      @lifecycle = nil
 
       @devices = devices.dup(self)
       devices.init
@@ -1074,6 +1280,14 @@ module OsCtld
 
     def default_init_cmd
       ['/sbin/init']
+    end
+
+    def lifecycle_resource(name, fallback)
+      lc = inclusively { @lifecycle }
+      return fallback unless lc
+
+      active = lc.active_run
+      active ? active.fetch('resources').fetch(name, fallback) : fallback
     end
   end
 end

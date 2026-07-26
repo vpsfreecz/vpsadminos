@@ -41,6 +41,14 @@ module OsCtld
     # @option opts [IO, nil] :stdin
     # @option opts [IO, nil] :stdout
     # @option opts [IO, nil] :stderr
+    # @option opts [String, nil] :run_id
+    # @option opts [String, nil] :lxc_config
+    # @option opts [String, nil] :cgroup_path
+    # @option opts [String, nil] :reset_subtree_control_path
+    # @option opts [Proc, nil] :on_spawn called before the runner is released
+    # @option opts [Proc, nil] :on_reap called after the runner is reaped
+    # @option opts [Boolean] :lifecycle_owned caller already has an exact
+    #                                            lifecycle effect
     #
     # @return [ContainerControl::Result]
     def exec_runner(opts = {})
@@ -49,6 +57,9 @@ module OsCtld
 
       # Used to read return value
       ret_r, ret_w = IO.pipe
+
+      # Keep the runner blocked until its exact lifecycle lease is durable
+      continue_r, continue_w = IO.pipe
 
       # File descriptors to capture output/feed input
       stdin = opts[:stdin]
@@ -59,10 +70,31 @@ module OsCtld
       sysuser = ct.user.sysusername
       ugid = ct.user.ugid
       homedir = ct.user.homedir
-      cgroup_path = ct.entry_cgroup_path
+      cgroup_path = opts.fetch(:cgroup_path, ct.entry_cgroup_path)
       prlimits = ct.prlimits.export
       syslogns_pid = ct.init_pid
       syslogns_tag = syslogns_pid.nil? && ct.syslogns_tag
+      on_spawn = opts[:on_spawn]
+      on_reap = opts[:on_reap]
+      unless opts[:lifecycle_owned] || on_spawn
+        run_id = ct.lifecycle.active_run_id
+        unless run_id
+          raise ContainerControl::Error, 'managed lifecycle run not found'
+        end
+
+        on_spawn = proc do |pid|
+          process_id = ct.lifecycle.register_attachment(run_id, pid:)
+          unless process_id
+            raise ContainerControl::Error,
+                  'container stopped before command attachment'
+          end
+
+          process_id
+        end
+        on_reap = proc do |_pid, process_id|
+          finish_lifecycle_attachment(run_id, process_id) if process_id
+        end
+      end
 
       # Runner configuration
       runner_opts = {
@@ -73,6 +105,8 @@ module OsCtld
         lxc_home: ct.lxc_home,
         user_home: ct.user.homedir,
         log_file: ct.log_path,
+        run_id: opts[:run_id],
+        lxc_config: opts[:lxc_config],
 
         args: opts.fetch(:args, []),
         kwargs: opts.fetch(:kwargs, {}),
@@ -83,19 +117,13 @@ module OsCtld
         stderr: stderr.fileno
       }
 
-      CGroup.mkpath_all(cgroup_path.split('/'), chown: ugid)
-
-      # On cgroup v2, we must reset subtree control for lxc-execute to work.
-      # The subtree control is configured by osctld when creating the entry_cgroup_path,
-      # which is a bit unfortunate in this case.
-      if opts.fetch(:reset_subtree_control, false) && CGroup.v2?
-        CGroup.reset_subtree_control(ct.abs_cgroup_path(nil))
-      end
-
+      waited = false
+      spawn_value = nil
       pid = SwitchUser.fork(
         keep_fds: [
           cmd_r,
           ret_w,
+          continue_r,
           stdin,
           stdout,
           stderr
@@ -104,6 +132,10 @@ module OsCtld
         # Closed by SwitchUser.fork
         # cmd_w.close
         # ret_r.close
+
+        continue = continue_r.readline.strip
+        continue_r.close
+        exit(false) unless continue == 'ready'
 
         $stdin.reopen(cmd_r)
 
@@ -120,30 +152,94 @@ module OsCtld
           syslogns_pid:,
           syslogns_tag:
         )
-        Process.exec(::OsCtld.bin('osctld-ct-runner'))
+        runner = ::OsCtld.bin('osctld-ct-runner')
+        Process.exec(runner)
         exit
       end
 
-      stdin.close if stdin
-      stdout.close if stdout != $stdout
-      stderr.close if stderr != $stderr
-
-      cmd_w.write(runner_opts.to_json)
-      cmd_w.close
-
-      ret_w.close
-
       begin
+        cmd_r.close
+        continue_r.close
+        stdin.close if stdin
+        stdout.close if stdout != $stdout
+        stderr.close if stderr != $stderr
+
+        # Lifecycle admission must be durable before this command can recreate
+        # or enter any container cgroup. Policy changes and recovery use the
+        # same process lease as their topology fence.
+        spawn_value = on_spawn&.call(pid)
+        CGroup.mkpath_all(cgroup_path.split('/'), chown: ugid)
+
+        # On cgroup v2, reset subtree control only in the exact generation's
+        # user-owned subtree which lxc-execute will manage.
+        if opts.fetch(:reset_subtree_control, false) && CGroup.v2?
+          reset_path =
+            opts.fetch(
+              :reset_subtree_control_path,
+              ct.cgroup_path
+            )
+          CGroup.mkpath_all(reset_path.split('/'), chown: ugid)
+          CGroup.reset_subtree_control(
+            CGroup.abs_cgroup_path(nil, reset_path)
+          )
+        end
+        continue_w.puts('ready')
+        continue_w.close
+        cmd_w.write(runner_opts.to_json)
+        cmd_w.close
+
+        ret_w.close
+
         ret = JSON.parse(ret_r.readline, symbolize_names: true)
         Process.wait(pid)
+        waited = true
         ContainerControl::Result.from_runner(ret)
       rescue EOFError
-        Process.wait(pid)
+        _, status = Process.wait2(pid)
+        waited = true
         ContainerControl::Result.new(
           false,
-          message: 'user runner failed',
+          message: "user runner failed (#{format_process_status(status)})",
           user_runner: true
         )
+      ensure
+        cmd_w.close unless cmd_w.closed?
+        cmd_r.close unless cmd_r.closed?
+        ret_r.close unless ret_r.closed?
+        ret_w.close unless ret_w.closed?
+        continue_r.close unless continue_r.closed?
+        continue_w.close unless continue_w.closed?
+        unless waited
+          begin
+            Process.wait(pid)
+          rescue Errno::ECHILD
+            nil
+          end
+        end
+        on_reap&.call(pid, spawn_value)
+      end
+    end
+
+    def finish_lifecycle_attachment(run_id, process_id)
+      effect_id = ct.lifecycle.finish_process(run_id, process_id)
+      return unless effect_id
+
+      run_conf = [ct.run_conf, ct.get_past_run_conf].compact.detect do |conf|
+        conf.run_id == run_id
+      end
+      return unless run_conf
+
+      require 'osctld/container/lifecycle_finalizer'
+      Container::LifecycleFinalizer.spawn(ct, run_conf, effect_id)
+    end
+
+    def format_process_status(status)
+      if status.exited?
+        "exit status #{status.exitstatus}"
+      elsif status.signaled?
+        "signal #{Signal.signame(status.termsig)}"
+      else
+        status.to_s
       end
     end
 

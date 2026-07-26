@@ -47,6 +47,49 @@ RSpec.describe OsCtld::SwitchUser do
     )
   end
 
+  it 'runs the parent publication callback before releasing the child' do
+    events = []
+    reader = instance_double(IO, close: nil)
+    writer = instance_double(IO, close: nil, closed?: false)
+    allow(IO).to receive(:pipe).and_return([reader, writer])
+    allow(OsCtld::CGroup).to receive(:mkpath_all)
+    allow(described_class).to receive(:fork).and_return(123)
+    allow(writer).to receive(:puts) { |value| events << value }
+
+    pid = described_class.fork_and_switch_to(
+      'alice',
+      12_345,
+      '/home/alice',
+      '/osctl/test',
+      before_continue: proc { |child_pid| events << "publish-#{child_pid}" }
+    ) { raise 'child block is not run by this parent-side test' }
+
+    expect(pid).to eq(123)
+    expect(events).to eq(%w[publish-123 ready])
+  end
+
+  it 'cancels and reaps a child when parent-side publication fails' do
+    reader = instance_double(IO, close: nil)
+    writer = instance_double(IO, close: nil, closed?: false, puts: nil)
+    allow(IO).to receive(:pipe).and_return([reader, writer])
+    allow(OsCtld::CGroup).to receive(:mkpath_all)
+    allow(described_class).to receive(:fork).and_return(123)
+    allow(Process).to receive(:wait).with(123)
+
+    expect do
+      described_class.fork_and_switch_to(
+        'alice',
+        12_345,
+        '/home/alice',
+        '/osctl/test',
+        before_continue: proc { raise 'publication failed' }
+      ) { nil }
+    end.to raise_error(RuntimeError, 'publication failed')
+
+    expect(writer).to have_received(:puts).with('cancel')
+    expect(Process).to have_received(:wait).with(123)
+  end
+
   it 'closes only file descriptors that are not explicitly kept' do
     fd5 = instance_double(IO, close: nil)
 

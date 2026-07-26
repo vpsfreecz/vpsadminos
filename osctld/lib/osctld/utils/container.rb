@@ -2,6 +2,35 @@ require 'zlib'
 
 module OsCtld
   module Utils::Container
+    def guard_residual_generations!(ct, operation)
+      residuals = ct.lifecycle.residuals
+      return if residuals.empty?
+
+      run_ids = residuals.map do |run|
+        Container::RunId.load(run.fetch('id')).to_s
+      end
+
+      error!(
+        "#{operation} is blocked while residual container generations exist: " \
+        "#{run_ids.join(', ')}; use ct recover cleanup --run-id"
+      )
+    end
+
+    def guard_no_runtime_generations!(ct, operation)
+      generations = ct.lifecycle.runtime_generations
+      return if generations.empty?
+
+      descriptions = generations.map do |run|
+        run_id = Container::RunId.load(run.fetch('id'))
+        "#{run.fetch('role')} #{run_id}"
+      end
+
+      error!(
+        "#{operation} is blocked while container runtime generations exist: " \
+        "#{descriptions.join(', ')}; wait for exact cleanup or use ct recover"
+      )
+    end
+
     # @param pool [Pool]
     # @return [Array<Repository>]
     def get_repositories(pool)

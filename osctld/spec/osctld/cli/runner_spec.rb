@@ -29,14 +29,18 @@ RSpec.describe OsCtld::Cli::Runner do
         attr_accessor :instances
       end
 
-      attr_reader :kwargs, :args, :stdin, :stdout, :stderr, :pool, :id, :lxc_home, :user_home, :log_file
+      attr_reader :kwargs, :args, :stdin, :stdout, :stderr, :pool, :id,
+                  :lxc_home, :user_home, :log_file, :run_id, :lxc_config
 
-      def initialize(pool:, id:, lxc_home:, user_home:, log_file:, stdin:, stdout:, stderr:)
+      def initialize(pool:, id:, lxc_home:, user_home:, log_file:, run_id:,
+                     lxc_config:, stdin:, stdout:, stderr:)
         @pool = pool
         @id = id
         @lxc_home = lxc_home
         @user_home = user_home
         @log_file = log_file
+        @run_id = run_id
+        @lxc_config = lxc_config
         @stdin = stdin
         @stdout = stdout
         @stderr = stderr
@@ -72,6 +76,8 @@ RSpec.describe OsCtld::Cli::Runner do
       lxc_home: '/var/lib/lxc/ct1',
       user_home: '/home/alice',
       log_file: '/var/log/ct1.log',
+      run_id: 'tank:ct1:run-1',
+      lxc_config: '/var/lib/lxc/ct1/config.run-1',
       return: 10,
       stdin: 11,
       stdout: 12,
@@ -91,6 +97,8 @@ RSpec.describe OsCtld::Cli::Runner do
     expect(Process).to have_received(:setproctitle).with('osctld: tank:ct1 runner:sample')
     expect(runner.pool).to eq('tank')
     expect(runner.id).to eq('ct1')
+    expect(runner.run_id).to eq('tank:ct1:run-1')
+    expect(runner.lxc_config).to eq('/var/lib/lxc/ct1/config.run-1')
     expect(runner.args).to eq(['alpha'])
     expect(runner.kwargs).to eq(debug: true)
     expect(runner.stdin).to equal(stdin)

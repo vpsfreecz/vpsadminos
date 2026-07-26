@@ -13,6 +13,9 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
+      run_conf = lifecycle_run_conf(ct)
+      return error('managed lifecycle run not found') unless run_conf
+
       Hook.run(
         ct,
         :pre_mount,
@@ -21,9 +24,7 @@ module OsCtld
       )
 
       if ct.map_mode == 'native'
-        rc = ct.get_run_conf
-
-        ct.mounts.shared_dir.map_and_push(rc.rootfs, opts[:client_pid])
+        ct.mounts.shared_dir.map_and_push(run_conf.rootfs, opts[:client_pid])
 
         begin
           ct.mounts.each do |mnt|
@@ -34,7 +35,7 @@ module OsCtld
         rescue SystemCommandFailed
           log(:warn, 'Failed to map and push a mount, cleaning up')
 
-          ct.mounts.shared_dir.cleanup_pushed(rc.rootfs)
+          ct.mounts.shared_dir.cleanup_pushed(run_conf.rootfs)
 
           ct.mounts.each do |mnt|
             next unless mnt.map_ids

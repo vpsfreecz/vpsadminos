@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/cgroup'
 
 module OsCtld
   class Monitor::Process
@@ -110,43 +111,126 @@ module OsCtld
 
       return if ct.state == :error
 
-      # When transitioning to `running`, send the event only after init_pid was set
-      # below, so that when {Commands::Container::Start} finishes waiting and returns,
-      # the init_pid is not nil.
-      if change[:state] != :running
-        Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
+      run_id = ct.lifecycle.active_run_id
+
+      unless run_id
+        log(
+          :warn,
+          :monitor,
+          "Ignoring unowned LXC state #{change[:state]} for #{ct.ident}; " \
+          'manual lxc-start is unsupported'
+        )
+        return
       end
 
-      ct.state = change[:state]
-      init_pid = nil
+      if %i[stopped aborted].include?(change[:state])
+        log(
+          :info,
+          :monitor,
+          "Ignoring generation-ambiguous LXC state #{change[:state]} for " \
+          "#{ct.ident}; waiting for the exact post-stop callback"
+        )
+        return
+      end
 
-      case ct.state
-      when :running
-        begin
-          init_pid = ContainerControl::Commands::State.run!(ct).init_pid
-          ct.ensure_run_conf.init_pid = init_pid
-        rescue ContainerControl::Error => e
-          log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
-        end
+      begin
+        observed = ContainerControl::Commands::State.run!(ct)
+      rescue ContainerControl::Error => e
+        log(:warn, :monitor, "Unable to qualify state of container #{ct.ident}: #{e.message}")
+        return
+      end
 
-        Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
+      if observed.state != change[:state]
+        log(
+          :info,
+          :monitor,
+          "Ignoring stale LXC state #{change[:state]} for #{ct.ident}; " \
+          "current state is #{observed.state}"
+        )
+        return
+      end
 
+      init_pid = observed.init_pid
+      unless generation_pid?(ct, run_id, init_pid)
+        log(
+          :warn,
+          :monitor,
+          "Ignoring unqualified init PID #{init_pid} for #{ct.ident} " \
+          "run #{run_id}"
+        )
+        return
+      end
+
+      observer_id = ct.lifecycle.begin_state_observation(
+        run_id,
+        change[:state],
+        init_pid:,
+        source: 'monitor'
+      )
+      return unless observer_id
+      return if ct.lifecycle.execution_run?(run_id)
+
+      unless ct.observe_run_state(run_id, change[:state], init_pid:)
+        log(
+          :info,
+          :monitor,
+          "Ignoring stale LXC state #{change[:state]} for #{ct.ident} run #{run_id}"
+        )
+        return
+      end
+
+      return unless ct.lifecycle.state_observation_current?(run_id, observer_id)
+      return unless ct.lifecycle.claim_state_effects(
+        run_id,
+        observer_id,
+        change[:state]
+      )
+
+      Eventd.report(
+        :state,
+        pool: ct.pool.name,
+        id: ct.id,
+        state: change[:state]
+      )
+
+      if change[:state] == :running
         if init_pid
           Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid:)
         end
 
-        Hook.run(ct, :post_start, init_pid: ct.init_pid)
-
-      when :aborting
-        # It has happened that ct.run_conf was nil, circumstances unknown
-        ct.ensure_run_conf.aborted = true
-
-      when :stopping
-        Hook.run(ct, :on_stop)
-
-      when :stopped, :aborted
-        ct.mounts.prune
+        error = nil
+        begin
+          Hook.run(ct, :post_start, init_pid:)
+        rescue StandardError => e
+          error = "#{e.class}: #{e.message}"
+          log(:warn, :monitor, "Post-start hook failed for #{ct.ident}: #{error}")
+        ensure
+          ct.lifecycle.complete_running_effects(
+            run_id,
+            observer_id,
+            error:
+          )
+        end
       end
+    ensure
+      if ct && run_id && observer_id
+        effect_id = ct.lifecycle.finish_state_observation(run_id, observer_id)
+        if effect_id
+          run_conf = [ct.run_conf, ct.get_past_run_conf].compact.detect do |conf|
+            conf.run_id == run_id
+          end
+          Container::LifecycleFinalizer.spawn(ct, run_conf, effect_id) if run_conf
+        end
+      end
+    end
+
+    def generation_pid?(ct, run_id, pid)
+      return false unless pid
+
+      run = ct.lifecycle.run(run_id)
+      return false unless run
+
+      CGroup.get_tree_pids(run.fetch('resources').fetch('cgroup_root')).include?(pid)
     end
   end
 end

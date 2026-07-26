@@ -71,16 +71,17 @@ module OsCtld
     end
 
     def account_cpu_use
+      cgroup_path = ct.active_cgroup_root
       cg_reader = OsCtl::Lib::CGroup::PathReader.new(
         CGroup.subsystem_paths,
-        ct.base_cgroup_path
+        cgroup_path
       )
 
       vals = cg_reader.read_stats(%i[cpu_us cpu_user_us cpu_system_us], true)
       return if !vals[:cpu_us] || !vals[:cpu_user_us] || !vals[:cpu_system_us]
 
       begin
-        st = File.stat(CGroup.abs_cgroup_path('cpuacct', ct.base_cgroup_path))
+        st = File.stat(CGroup.abs_cgroup_path('cpuacct', cgroup_path))
       rescue SystemCallError
         return
       end

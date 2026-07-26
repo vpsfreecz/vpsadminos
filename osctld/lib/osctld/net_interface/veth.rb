@@ -154,7 +154,7 @@ module OsCtld
       super
     end
 
-    def render_opts
+    def render_opts(run_conf: nil)
       inclusively do
         {
           name:,
@@ -162,9 +162,33 @@ module OsCtld
           hwaddr:,
           tx_queues:,
           rx_queues:,
-          hook_veth_up: hook_path('up'),
-          hook_veth_down: hook_path('down')
+          hook_veth_up: hook_path('up', run_conf:),
+          hook_veth_down: hook_path('down', run_conf:)
         }
+      end
+    end
+
+    def prepare_run_hooks(run_conf)
+      %w[up down].each do |mode|
+        path = hook_path(mode, run_conf:)
+        source = OsCtld.hook_src("veth-#{mode}")
+
+        next if File.symlink?(path) && File.readlink(path) == source
+
+        File.unlink(path) if File.symlink?(path)
+        File.symlink(source, path)
+      end
+    end
+
+    def run_hook_paths(run_conf)
+      %w[up down].map { |mode| hook_path(mode, run_conf:) }
+    end
+
+    def remove_run_hooks(run_conf)
+      run_hook_paths(run_conf).each do |path|
+        File.unlink(path)
+      rescue Errno::ENOENT
+        nil
       end
     end
 
@@ -189,9 +213,11 @@ module OsCtld
 
     def down(host_veth = nil)
       veth_name = host_veth || veth
-      ifb_name = ifb_veth
+      return unless veth_name
 
-      exclusively { @veth = nil }
+      ifb_name = "ifb#{veth_name}"
+
+      exclusively { @veth = nil if host_veth.nil? || @veth == host_veth }
 
       # lxc-user-nic does not support deletion of veth interfaces, delete it ourselves
       log(:info, ct, "Removing host veth #{veth_name}")
@@ -324,8 +350,9 @@ module OsCtld
       File.join(veth_hook_dir, mode)
     end
 
-    def hook_path(mode, name = nil)
-      File.join(mode_path(mode), "#{@ct.id}.#{name || self.name}")
+    def hook_path(mode, name = nil, run_conf: nil)
+      suffix = run_conf ? ".#{run_conf.run_id.key}" : ''
+      File.join(mode_path(mode), "#{@ct.id}.#{name || self.name}#{suffix}")
     end
 
     # Take an internal representation of an IP list and return a version to

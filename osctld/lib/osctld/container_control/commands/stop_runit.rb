@@ -20,7 +20,10 @@ module OsCtld
                 make_message(opts[:message])
               end
 
-        ret = exec_runner(args: [{ message: msg }])
+        ret = exec_runner(
+          args: [{ message: msg }],
+          lifecycle_owned: true
+        )
         ret.ok? || ret
       end
     end

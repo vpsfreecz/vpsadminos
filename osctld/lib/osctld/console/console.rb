@@ -1,6 +1,7 @@
 require 'base64'
 require 'libosctl'
 require 'osctld/console/tty'
+require 'osctld/process_identity'
 
 module OsCtld
   # Special case for tty0 (/dev/console)
@@ -12,166 +13,83 @@ module OsCtld
     include OsCtl::Lib::Utils::Exception
 
     CONNECT_RETRY_ERRORS = [Errno::ENOENT, Errno::ECONNREFUSED].freeze
-    CONNECT_RETRY_LIMIT = 100
     CONNECT_RETRY_INTERVAL = 0.2
 
     def open
       # Does nothing for tty0, it is opened automatically on ct start
     end
 
-    def connect(pid, socket)
-      tries = 0
+    def connect(pid, socket, run_conf, effect_id: nil, intent_id: nil)
+      ensure_connection_current!(run_conf, effect_id:, intent_id:)
+      wrapper = ProcessIdentity.capture(pid) if pid
 
       begin
         c = UNIXSocket.new(socket)
       rescue *CONNECT_RETRY_ERRORS
-        raise if tries >= CONNECT_RETRY_LIMIT
+        raise if Daemon.get.stopping?
 
-        tries += 1
+        ensure_connection_current!(run_conf, effect_id:, intent_id:)
+        if wrapper && !wrapper.alive?
+          ct.lifecycle.observe_wrapper_gone(run_conf.run_id)
+          raise 'container wrapper exited before the console became available'
+        end
+
         sleep(CONNECT_RETRY_INTERVAL)
         retry
       end
 
-      sync do
+      replaced_ios = sync do
+        unless connection_current?(run_conf, effect_id:, intent_id:)
+          c.close
+          raise 'console connection belongs to a superseded lifecycle run'
+        end
+
+        old_ios = [tty_in_io, tty_out_io].compact.uniq
         @opened = true
         self.tty_pid = pid
         self.tty_in_io = c
         self.tty_out_io = c
+        self.tty_run_conf = run_conf
         wake
+        old_ios
+      end
+
+      replaced_ios.each do |io|
+        io.close
+      rescue IOError
+        nil
       end
     end
 
     protected
 
-    def on_close
-      # The current thread is used to handle the console and has to exit.
-      # Manipulation must happen from another thread.
-      t = Thread.new { on_ct_stop }
-      ThreadReaper.add(t, nil)
+    def ensure_connection_current!(run_conf, effect_id:, intent_id:)
+      return if connection_current?(run_conf, effect_id:, intent_id:)
+
+      raise 'console connection belongs to a superseded lifecycle run'
     end
 
-    def on_ct_stop
-      # The TTY may have closed due to an unforeseen error, check if the
-      # container is actually stopped.
-      60.times do
-        break if ct.state == :stopped
+    def connection_current?(run_conf, effect_id:, intent_id:)
+      lifecycle = ct.lifecycle
+      return false unless lifecycle.active_run_id == run_conf.run_id
+      return true unless effect_id
 
-        log(:info, ct, 'Console closed, waiting for stopped state')
-        sleep(1)
+      unless lifecycle.effect_current?(run_conf.run_id, effect_id)
+        run = lifecycle.run(run_conf.run_id)
+        return false unless run
+        return false if run['recovery']
+        return false unless run.fetch('pre_start_completed', false)
       end
 
-      unless ct.state == :stopped
-        log(:fatal, ct, 'Console closed, but container is not stopped')
-        return
-      end
-
-      ctrc = ct.get_past_run_conf
-
-      CpuScheduler.unschedule_ct(ct)
-
-      begin
-        ct.update_hints
-      rescue Exception => e # rubocop:disable Lint/RescueException
-        log(:warn, ct, "Unable to update hints: #{e.message} (#{e.class})")
-        log(:warn, ct, denixstorify(e.backtrace))
-      end
-
-      if ctrc.nil?
-        # This means that {UserControl::Commands::CtPostStop} hasn't run for some
-        # reason.
-        log(:fatal, ct, 'Unable to properly handle container stop')
-        handle_improper_ct_stop
-        return
-      end
-
-      # Send events about halt/reboot from the inside
-      if !ctrc.aborted? && !ct.is_being_manipulated?
-        Eventd.report(
-          :ct_exit,
-          pool: ct.pool.name,
-          id: ct.id,
-          exit_type: ctrc.reboot? ? 'reboot' : 'halt'
-        )
-      end
-
-      handle_ct_stop(ctrc)
-
-      ct.forget_past_run_conf
+      intent_id.nil? || lifecycle.current_intent_id == intent_id
     end
 
-    def handle_improper_ct_stop
-      # In this scenario, it is possible that the veth-down hooks weren't
-      # run either. Cleanup interfaces that may have been left behind.
-      ct.netifs.take_down
-    end
-
-    def handle_ct_stop(ctrc)
-      if ctrc.aborted?
-        log(:info, ctrc, 'Container was aborted, performing cleanup')
-        recovery = Container::Recovery.new(ctrc.ct)
-        recovery.cleanup_or_taint
-      end
-
-      if !ct.ephemeral? && !ctrc.destroy_dataset_on_stop? && Daemon.get.config.writeout_dirtied_pages?
-        # Force write-out of dirtied pages
-        force_mount = false
-
-        begin
-          ct.unmount(force: true)
-        rescue SystemCommandFailed => e
-          log(:warn, ctrc, "Unable to unmount dataset for writeback: #{e.message}")
-          force_mount = true
-        end
-
-        ct.mount(force: force_mount)
-      end
-
-      if ctrc.destroy_dataset_on_stop?
-        GarbageCollector.free_container_run_dataset(ctrc, ctrc.dataset)
-      end
-
-      ctrc.fulfil_exit
-
-      if ctrc.reboot?
-        sleep(1)
-        reboot_ct
-
-      elsif ctrc.aborted?
-        nil
-
-      elsif ct.ephemeral? && !ct.is_being_manipulated?
-        Commands::Container::Delete.run(
-          pool: ct.pool.name,
-          id: ct.id,
-          force: true,
-          manipulation_lock: 'wait'
-        )
-      end
-    end
-
-    def reboot_ct
-      ct.pool.request_reboot(ct)
-
-      until ct.pool.imported?
-        log(:info, ct, 'Waiting for pool import to reboot')
-        sleep(1)
-      end
-
-      begin
-        ret = Commands::Container::Start.run(
-          pool: ct.pool.name,
-          id: ct.id,
-          manipulation_lock: 'wait'
-        )
-      rescue CommandFailed => e
-        log(:warn, ct, "Reboot failed: #{e.message}")
-      else
-        if !ret.is_a?(Hash)
-          log(:warn, ct, 'Reboot failed: reason unknown')
-        elsif !ret[:status]
-          log(:warn, ct, "Reboot failed: #{ret[:message]}")
-        end
-      end
+    def on_close(run_conf)
+      # Console EOF precedes wrapper exit during an ordinary shutdown. The
+      # exact wrapper watcher owns the process-liveness transition; treating
+      # EOF as wrapper death can start cgroup cleanup while lxc-start still
+      # holds the generation.
+      nil
     end
   end
 end

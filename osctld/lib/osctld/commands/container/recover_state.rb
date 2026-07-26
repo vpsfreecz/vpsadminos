@@ -8,11 +8,18 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
-      manipulate(ct) do
+      recover = proc do
         recovery = Container::Recovery.new(ct)
-        recovery.recover_state
-        ok
+        ok(recovery.recover_state(run_id: opts[:run_id]))
       end
+
+      if opts[:manipulation_lock] == 'ignore'
+        recover.call
+      else
+        manipulate(ct, lifecycle: true, &recover)
+      end
+    rescue ArgumentError => e
+      error(e.message)
     end
   end
 end

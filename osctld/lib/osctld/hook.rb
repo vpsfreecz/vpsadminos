@@ -42,16 +42,19 @@ module OsCtld
     # @param hook [Hook::Base]
     # @param hook_path [String]
     # @param pid [Integer]
-    def self.watch(hook, hook_path, pid)
+    # @param lifecycle_owner [Hash, nil]
+    def self.watch(hook, hook_path, pid, lifecycle_owner: nil)
       Thread.new do
-        Process.wait(pid)
-        next if $?.exitstatus == 0
+        _, status = Process.wait2(pid)
+        next if status.exitstatus == 0
 
         log(
           :warn,
           hook.event_instance,
-          "Hook #{hook.class.hook_name} at #{hook_path} exited with #{$?.exitstatus}"
+          "Hook #{hook.class.hook_name} at #{hook_path} exited with #{status.exitstatus}"
         )
+      ensure
+        hook.send(:finish_lifecycle_process, lifecycle_owner)
       end
     end
   end

@@ -5,6 +5,7 @@
 require 'stringio'
 require 'osctld/exceptions'
 require 'osctld/command'
+require 'osctld/manipulable'
 require 'osctld/utils/container'
 
 module OsCtld
@@ -62,6 +63,25 @@ RSpec.describe 'container provisioning commands' do
     obj.define_singleton_method(:release_manipulation_lock) do
       nil
     end
+    obj
+  end
+
+  def without_residual_generations(obj)
+    lifecycle =
+      Struct.new(:residuals, :runtime_generations).new([], [])
+    obj.define_singleton_method(:lifecycle) { lifecycle }
+    obj
+  end
+
+  def with_runtime_generation(obj, role:)
+    run_id = OsCtld::Container::RunId.new(
+      pool_name: 'tank',
+      container_id: 'ct1'
+    )
+    lifecycle = Struct.new(:runtime_generations).new(
+      [{ 'id' => run_id.dump, 'role' => role }]
+    )
+    obj.define_singleton_method(:lifecycle) { lifecycle }
     obj
   end
 
@@ -386,7 +406,7 @@ RSpec.describe 'container provisioning commands' do
       rootfs_class = stub_const('OsCtld::Commands::Container::CopyRootfs', Class.new)
       state_class = stub_const('OsCtld::Commands::Container::CopyState', Class.new)
       cleanup_class = stub_const('OsCtld::Commands::Container::CopyCleanup', Class.new)
-      ct = Struct.new(:id, :pool) do
+      ct = without_residual_generations(Struct.new(:id, :pool) do
         def exclusively(&block)
           block.call
         end
@@ -394,7 +414,7 @@ RSpec.describe 'container provisioning commands' do
         def manipulate(_holder, block:, &)
           yield
         end
-      end.new('ct1', build_pool)
+      end.new('ct1', build_pool))
       command = described_class.new(
         {
           id: 'ct1',
@@ -450,7 +470,7 @@ RSpec.describe 'container provisioning commands' do
       rootfs_class = stub_const('OsCtld::Commands::Container::MoveRootfs', Class.new)
       state_class = stub_const('OsCtld::Commands::Container::MoveState', Class.new)
       cleanup_class = stub_const('OsCtld::Commands::Container::MoveCleanup', Class.new)
-      ct = Struct.new(:id, :pool) do
+      ct = without_residual_generations(Struct.new(:id, :pool) do
         def exclusively(&block)
           block.call
         end
@@ -458,7 +478,7 @@ RSpec.describe 'container provisioning commands' do
         def manipulate(_holder, block:, &)
           yield
         end
-      end.new('ct1', build_pool)
+      end.new('ct1', build_pool))
       command = described_class.new(
         {
           id: 'ct1',
@@ -505,19 +525,29 @@ RSpec.describe 'container provisioning commands' do
       builder_class = stub_const('OsCtld::Container::Builder', Class.new do
         def self.new(*); end
       end)
-      ct = Struct.new(:id, :pool, :distribution, :version, :arch, :vendor, :variant) do
-        def running?
-          false
-        end
+      ct = without_residual_generations(
+        Struct.new(:id, :pool, :distribution, :version, :arch, :vendor, :variant) do
+          def running?
+            false
+          end
 
-        def new_run_conf
-          :run_conf
-        end
+          def new_run_conf
+            :run_conf
+          end
 
-        def manipulate(_holder, block:, &)
-          yield
-        end
-      end.new('ct1', build_pool, 'almalinux', '9', 'x86_64', 'custom-vendor', 'special')
+          def manipulate(_holder, block:, &)
+            yield
+          end
+        end.new(
+          'ct1',
+          build_pool,
+          'almalinux',
+          '9',
+          'x86_64',
+          'custom-vendor',
+          'special'
+        )
+      )
       allow(builder_class).to receive(:new).and_return(Object.new)
       command = described_class.new({ type: 'remote', image: {} }, {})
       allow(command).to receive(:with_image_path) do |pool, type:, path:, image:, &block|
@@ -538,6 +568,44 @@ RSpec.describe 'container provisioning commands' do
       expect { command.execute(ct) }
         .to raise_error(OsCtld::CommandFailed, /the dataset has snapshots/)
     end
+
+    it 'blocks reinstall while an active run is finalizing' do
+      ct = with_runtime_generation(
+        Struct.new(
+          :id,
+          :pool,
+          :distribution,
+          :version,
+          :arch,
+          :vendor,
+          :variant
+        ) do
+          def running?
+            false
+          end
+
+          def manipulate(_holder, block:, &)
+            yield
+          end
+        end.new(
+          'ct1',
+          build_pool,
+          'almalinux',
+          '9',
+          'x86_64',
+          'default',
+          'default'
+        ),
+        role: 'active'
+      )
+
+      expect do
+        described_class.new({ type: 'remote', image: {} }, {}).execute(ct)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        /container reinstall is blocked.*active/
+      )
+    end
   end
 
   describe OsCtld::Commands::Container::MapMode do
@@ -546,11 +614,11 @@ RSpec.describe 'container provisioning commands' do
     end
 
     it 'rejects unsupported mapping modes' do
-      ct = Struct.new(:map_mode) do
+      ct = without_residual_generations(Struct.new(:map_mode) do
         def running?
           false
         end
-      end.new('native')
+      end.new('native'))
 
       expect { described_class.new({ map_mode: 'invalid' }, {}).execute(ct) }
         .to raise_error(OsCtld::CommandFailed, 'invalid map mode')
@@ -561,7 +629,7 @@ RSpec.describe 'container provisioning commands' do
       ds2 = Struct.new(:relative_name).new('data')
       uid_map = [double(to_s: '0:100000:65536')]
       gid_map = [double(to_s: '0:100000:65536')]
-      ct = Struct.new(:map_mode, :datasets, :uid_map, :gid_map) do
+      ct = without_residual_generations(Struct.new(:map_mode, :datasets, :uid_map, :gid_map) do
         def running?
           false
         end
@@ -569,7 +637,7 @@ RSpec.describe 'container provisioning commands' do
         def manipulate(_holder, block:, &)
           yield
         end
-      end.new('native', [ds1, ds2], uid_map, gid_map)
+      end.new('native', [ds1, ds2], uid_map, gid_map))
       command = described_class.new({ map_mode: 'zfs' }, {})
       allow(command).to receive(:progress)
       expect(command).to receive(:zfs).ordered.with(:unmount, nil, ds2, valid_rcs: [1])
@@ -589,6 +657,28 @@ RSpec.describe 'container provisioning commands' do
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
       expect(ct.map_mode).to eq('zfs')
+    end
+
+    it 'blocks map-mode changes while an active run is finalizing' do
+      ct = with_runtime_generation(
+        Struct.new(:map_mode) do
+          def running?
+            false
+          end
+
+          def manipulate(_holder, block:, &)
+            yield
+          end
+        end.new('native'),
+        role: 'active'
+      )
+
+      expect do
+        described_class.new({ map_mode: 'zfs' }, {}).execute(ct)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        /container map-mode change is blocked.*active/
+      )
     end
   end
 
@@ -651,13 +741,13 @@ RSpec.describe 'container provisioning commands' do
     it 'enforces the stopped-state precondition' do
       pool = build_pool
       user = FakeUser.new(name: 'alice', ugid: 1000, uid_map: [], gid_map: [])
-      ct = FakeCtForChown.new(
-        pool:,
-        group: double,
-        user:,
-        log_path: '/tmp/ct.log',
-        datasets: []
-      )
+      ct = without_residual_generations(FakeCtForChown.new(
+                                          pool:,
+                                          group: double,
+                                          user:,
+                                          log_path: '/tmp/ct.log',
+                                          datasets: []
+                                        ))
       ct.state = :running
       allow(OsCtld::DB::Users).to receive(:find).with('bob', pool).and_return(
         FakeUser.new(name: 'bob', ugid: 1001, uid_map: [], gid_map: [])
@@ -703,13 +793,13 @@ RSpec.describe 'container provisioning commands' do
         File.write(log_path, 'log')
         ds1 = Struct.new(:relative_name).new('rootfs')
         ds2 = Struct.new(:relative_name).new('data')
-        ct = lockable(FakeCtForChown.new(
-                        pool: build_pool,
-                        group:,
-                        user: old_user,
-                        log_path:,
-                        datasets: [ds1, ds2]
-                      ))
+        ct = without_residual_generations(lockable(FakeCtForChown.new(
+                                                     pool: build_pool,
+                                                     group:,
+                                                     user: old_user,
+                                                     log_path:,
+                                                     datasets: [ds1, ds2]
+                                                   )))
         allow(OsCtld::DB::Users).to receive(:find).with('bob', ct.pool).and_return(new_user)
         allow(monitor).to receive(:demonitor)
         allow(monitor).to receive(:monitor)
@@ -741,7 +831,7 @@ RSpec.describe 'container provisioning commands' do
       end)
       pool = build_pool
       user = Struct.new(:ugid).new(1000)
-      old_group = lockable(Struct.new(:old_path, :name) do
+      old_group = lockable(Struct.new(:old_path, :name, :pool) do
         def setup_for?(_user)
           true
         end
@@ -753,8 +843,12 @@ RSpec.describe 'container provisioning commands' do
         def has_containers?(_user)
           false
         end
-      end.new('/lxc/old', '/old'))
-      new_group = lockable(Struct.new(:new_path, :name) do
+
+        def groups_in_path
+          [self]
+        end
+      end.new('/lxc/old', '/old', pool))
+      new_group = lockable(Struct.new(:new_path, :name, :pool) do
         def setup_for?(_user)
           false
         end
@@ -762,11 +856,19 @@ RSpec.describe 'container provisioning commands' do
         def userdir(_user)
           new_path
         end
-      end.new('/lxc/new', '/new'))
+
+        def inherited_cgroup_policy_state
+          nil
+        end
+
+        def groups_in_path
+          [self]
+        end
+      end.new('/lxc/new', '/new', pool))
       devices = Struct.new do
         def check_all_available!(*, **); end
       end.new
-      ct = lockable(Struct.new(:pool, :user, :group, :devices) do
+      ct = without_residual_generations(lockable(Struct.new(:pool, :user, :group, :devices) do
         attr_accessor :state
 
         def lxc_dir(group: self.group)
@@ -783,7 +885,7 @@ RSpec.describe 'container provisioning commands' do
         def manipulate(_holder, block:, &)
           yield
         end
-      end.new(pool, user, old_group, devices))
+      end.new(pool, user, old_group, devices)))
       ct.state = :stopped
       allow(OsCtld::DB::Groups).to receive(:find).with('/new', pool).and_return(new_group)
       allow(monitor).to receive(:demonitor)
