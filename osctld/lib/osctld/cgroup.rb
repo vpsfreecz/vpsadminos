@@ -431,6 +431,41 @@ module OsCtld
       pids
     end
 
+    # Get processes in a cgroup and all descendants.
+    # @param path [String] path relative to the subsystem
+    # @return [Array<Integer>]
+    def self.get_tree_pids(path)
+      subsystem = v1? && subsystems.include?('pids') ? 'pids' : subsystems.first
+      root = abs_cgroup_path(subsystem, path)
+      return [] unless Dir.exist?(root)
+
+      files = [File.join(root, 'cgroup.procs')]
+      files.concat(Dir.glob(File.join(root, '**', 'cgroup.procs')))
+
+      files.each_with_object([]) do |file, ret|
+        File.foreach(file) do |line|
+          pid = line.strip.to_i
+          ret << pid if pid > 0
+        end
+      rescue Errno::ENOENT
+        # The cgroup disappeared during enumeration.
+      end.uniq
+    end
+
+    # Prevent new tasks from being created in a generation where supported.
+    def self.prevent_forks(path)
+      subsystem = v1? && subsystems.include?('pids') ? 'pids' : subsystems.first
+      root = abs_cgroup_path(subsystem, path)
+
+      files = [File.join(root, 'pids.max')]
+      files.concat(Dir.glob(File.join(root, '**', 'pids.max')))
+      files.each do |file|
+        File.write(file, '0')
+      rescue Errno::ENOENT, Errno::EOPNOTSUPP
+        # The cgroup disappeared or the controller is unavailable.
+      end
+    end
+
     # Freeze cgroup at path
     # @param path [String]
     def self.freeze_tree(path)

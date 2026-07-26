@@ -11,14 +11,24 @@ module OsCtld
     end
 
     # Connect to tty0 of container `ct`
-    def self.connect_tty0(ct, pid)
+    def self.connect_tty0(ct, pid, run_conf, effect_id: nil, intent_id: nil)
       @mutex.synchronize do
-        container(ct).connect_tty0(pid, socket_path(ct))
+        if effect_id || intent_id
+          container(ct).connect_tty0(
+            pid,
+            socket_path(ct),
+            run_conf,
+            effect_id:,
+            intent_id:
+          )
+        else
+          container(ct).connect_tty0(pid, socket_path(ct), run_conf)
+        end
       end
     end
 
     # Reconnect tty0 pipes on osctld restart
-    def self.reconnect_tty0(ct)
+    def self.reconnect_tty0(ct, run_conf)
       @mutex.synchronize do
         log(:info, ct, 'Reopening TTY0')
 
@@ -33,7 +43,7 @@ module OsCtld
           return
         end
 
-        container(ct).connect_tty0(nil, socket)
+        container(ct).connect_tty0(nil, socket, run_conf)
       end
     end
 

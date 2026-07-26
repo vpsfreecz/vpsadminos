@@ -7,7 +7,13 @@ module OsCtld
       def handle_cmd(req)
         cmd = UserControl::Command.find(req[:cmd].to_sym)
         error!("Unsupported command '#{req[:cmd]}'") unless cmd
+        return error('invalid input') unless req[:opts].is_a?(Hash)
 
+        pid, = @sock.getsockopt(
+          Socket::SOL_SOCKET,
+          Socket::SO_PEERCRED
+        ).unpack('LLL')
+        req[:opts].update(client_pid: pid)
         cmd.run(opts[:user], req[:opts])
       end
 

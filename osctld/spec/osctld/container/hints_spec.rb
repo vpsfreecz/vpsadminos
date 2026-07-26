@@ -3,7 +3,7 @@
 require 'osctld/lockable'
 require 'osctld/container/hints'
 
-HintsSpecContainer = Struct.new(:base_cgroup_path, keyword_init: true)
+HintsSpecContainer = Struct.new(:active_cgroup_root, keyword_init: true)
 
 class HintsSpecPathReader
   def read_stats(*); end
@@ -84,7 +84,10 @@ RSpec.describe OsCtld::Container::Hints do
   describe '#account_cpu_use' do
     let(:now) { Time.at(2_000_000) }
     let(:ct) do
-      instance_double(HintsSpecContainer, base_cgroup_path: '/osctl/pool.tank/user.alice/ct.ct1')
+      instance_double(
+        HintsSpecContainer,
+        active_cgroup_root: '/osctl/pool.tank/user.alice/ct.ct1/runs/abc'
+      )
     end
     let(:reader) { instance_double(HintsSpecPathReader) }
     let(:value) { Struct.new(:raw) }

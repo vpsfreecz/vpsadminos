@@ -7,6 +7,7 @@ module OsCtld
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include Utils::Container
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -25,10 +26,10 @@ module OsCtld
       end
 
       old_group = ct.group
-
       manipulate([ct, new_group, old_group]) do
         # Double check state
         error!('container has to be stopped first') if ct.state != :stopped
+        guard_no_runtime_generations!(ct, 'container group change')
 
         # Check that devices are available in the new group
         unless %w[provide remove].include?(opts[:missing_devices])

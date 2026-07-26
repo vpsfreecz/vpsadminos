@@ -36,7 +36,10 @@ module OsCtld
 
         ret =
           if %i[stop shutdown].include?(mode) && ct.running?
-            exec_runner(args: [mode, opts.merge(halt_from_inside: true)])
+            exec_runner(
+              args: [mode, opts.merge(halt_from_inside: true)],
+              lifecycle_owned: true
+            )
           else
             fork_runner(args: [mode, opts])
           end

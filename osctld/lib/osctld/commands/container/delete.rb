@@ -6,6 +6,7 @@ module OsCtld
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include Utils::Container
     include Utils::SwitchUser
 
     def find
@@ -21,6 +22,8 @@ module OsCtld
       end
 
       manipulate(ct) do
+        guard_residual_generations!(ct, 'container deletion')
+
         progress('Stopping container')
         call_cmd!(
           Commands::Container::Stop,
@@ -30,6 +33,7 @@ module OsCtld
           progress: opts[:progress],
           message: opts[:message]
         )
+        guard_no_runtime_generations!(ct, 'container deletion')
 
         if ct.send_log
           SendReceive.stopped_using_key(ct.pool, ct.send_log.opts.key_name)

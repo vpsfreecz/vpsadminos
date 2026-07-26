@@ -15,8 +15,15 @@ require 'osctld/commands/container/set_image_config'
 require 'osctld/commands/container/find_by_ugid'
 require 'osctld/commands/container/list'
 require 'osctld/commands/container/show'
+require 'osctld/container/run_id'
 
 RSpec.describe 'container configuration commands' do
+  def build_lifecycle(generations = [])
+    residuals = generations.select { |run| run['role'] == 'residual' }
+    Struct.new(:runtime_generations, :residuals)
+          .new(generations, residuals)
+  end
+
   def build_history
     stub_const('OsCtld::History', Class.new do
       def self.log(*); end
@@ -109,7 +116,8 @@ RSpec.describe 'container configuration commands' do
           @configured = true
         end
       end.new
-      ct = Struct.new(:current_state, :lxc_config) do
+      lifecycle = build_lifecycle
+      ct = Struct.new(:current_state, :lxc_config, :lifecycle) do
         attr_reader :reloaded
 
         def reload_config
@@ -119,7 +127,7 @@ RSpec.describe 'container configuration commands' do
         def manipulate(_holder, block:, &)
           yield
         end
-      end.new(:stopped, lxc_config)
+      end.new(:stopped, lxc_config, lifecycle)
       usernet_class = stub_const('OsCtld::Commands::User::LxcUsernet', Class.new)
       command = described_class.new({}, {})
       allow(command).to receive(:call_cmd).with(usernet_class).and_return(status: true, output: nil)
@@ -127,6 +135,64 @@ RSpec.describe 'container configuration commands' do
       expect(command.execute(ct)).to eq(status: true, output: nil)
       expect(ct.reloaded).to be(true)
       expect(lxc_config.configured).to be(true)
+    end
+
+    it 'blocks reload while a residual generation remains' do
+      run_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      lifecycle = build_lifecycle(
+        [{ 'id' => run_id.dump, 'role' => 'residual' }]
+      )
+      ct = Struct.new(:current_state, :lifecycle) do
+        attr_reader :reloaded
+
+        def reload_config
+          @reloaded = true
+        end
+
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(:stopped, lifecycle)
+
+      expect do
+        described_class.new({}, {}).execute(ct)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        /container configuration reload is blocked/
+      )
+      expect(ct.reloaded).to be_nil
+    end
+
+    it 'blocks reload after LXC stops but before the active run is finalized' do
+      run_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      lifecycle = build_lifecycle(
+        [{ 'id' => run_id.dump, 'role' => 'active' }]
+      )
+      ct = Struct.new(:current_state, :lifecycle) do
+        attr_reader :reloaded
+
+        def reload_config
+          @reloaded = true
+        end
+
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(:stopped, lifecycle)
+
+      expect do
+        described_class.new({}, {}).execute(ct)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        /container configuration reload is blocked.*active/
+      )
+      expect(ct.reloaded).to be_nil
     end
   end
 
@@ -139,7 +205,8 @@ RSpec.describe 'container configuration commands' do
           @configured = true
         end
       end.new
-      ct = Struct.new(:current_state, :lxc_config) do
+      lifecycle = build_lifecycle
+      ct = Struct.new(:current_state, :lxc_config, :lifecycle) do
         attr_reader :replaced
 
         def replace_config(config)
@@ -149,7 +216,7 @@ RSpec.describe 'container configuration commands' do
         def manipulate(_holder, block:, &)
           yield
         end
-      end.new(:stopped, lxc_config)
+      end.new(:stopped, lxc_config, lifecycle)
       usernet_class = stub_const('OsCtld::Commands::User::LxcUsernet', Class.new)
       command = described_class.new({ config: { 'hostname' => 'ct1' } }, {})
       allow(command).to receive(:call_cmd).with(usernet_class).and_return(status: true, output: nil)
@@ -157,6 +224,35 @@ RSpec.describe 'container configuration commands' do
       expect(command.execute(ct)).to eq(status: true, output: nil)
       expect(ct.replaced).to eq('hostname' => 'ct1')
       expect(lxc_config.configured).to be(true)
+    end
+
+    it 'blocks replacement while a residual generation remains' do
+      run_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      lifecycle = build_lifecycle(
+        [{ 'id' => run_id.dump, 'role' => 'residual' }]
+      )
+      ct = Struct.new(:current_state, :lifecycle) do
+        attr_reader :replaced
+
+        def replace_config(config)
+          @replaced = config
+        end
+
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(:stopped, lifecycle)
+
+      expect do
+        described_class.new({ config: 'hostname: ct1' }, {}).execute(ct)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        /container configuration replacement is blocked/
+      )
+      expect(ct.replaced).to be_nil
     end
   end
 
@@ -170,6 +266,7 @@ RSpec.describe 'container configuration commands' do
         :arch,
         :vendor,
         :variant,
+        :lifecycle,
         :patched_config,
         :set_calls,
         keyword_init: true
@@ -197,6 +294,7 @@ RSpec.describe 'container configuration commands' do
         arch: 'x86_64',
         vendor: 'default',
         variant: 'default',
+        lifecycle: build_lifecycle,
         patched_config: nil,
         set_calls: []
       )
@@ -280,6 +378,60 @@ RSpec.describe 'container configuration commands' do
 
         expect(command.execute(ct)).to eq(status: true, output: nil)
       end
+    end
+
+    it 'blocks image configuration changes while a residual remains' do
+      run_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      ct = build_ct
+      ct.lifecycle = build_lifecycle(
+        [{ 'id' => run_id.dump, 'role' => 'residual' }]
+      )
+      command = described_class.new(
+        {
+          type: 'image',
+          path: '/unused',
+          image: {}
+        },
+        {}
+      )
+
+      expect do
+        command.execute(ct)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        /container image configuration change is blocked/
+      )
+      expect(ct.patched_config).to be_nil
+    end
+
+    it 'blocks image configuration while an active run is finalizing' do
+      run_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      ct = build_ct
+      ct.lifecycle = build_lifecycle(
+        [{ 'id' => run_id.dump, 'role' => 'active' }]
+      )
+      command = described_class.new(
+        {
+          type: 'image',
+          path: '/unused',
+          image: {}
+        },
+        {}
+      )
+
+      expect do
+        command.execute(ct)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        /container image configuration change is blocked.*active/
+      )
+      expect(ct.patched_config).to be_nil
     end
   end
 

@@ -101,7 +101,7 @@ module OsCtld
     # Return variables for template generating LXC configuration for this
     # interface
     # @return [Hash]
-    def render_opts
+    def render_opts(run_conf: nil)
       raise NotImplementedError
     end
 

@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/cgroup'
 
 module OsCtld
   class Hook::Base
@@ -53,28 +54,81 @@ module OsCtld
       )
 
       env = environment
+      lifecycle_owner = lifecycle_process_owner
+      gate_r, gate_w = IO.pipe if lifecycle_owner
+
+      if lifecycle_owner
+        run = lifecycle_owner.fetch(:lifecycle).run(
+          lifecycle_owner.fetch(:run_id)
+        )
+        cgroup_path = run&.dig('resources', 'host_effects')
+        raise HookFailed.new(self, hook_path, 1) unless cgroup_path
+
+        lifecycle_owner[:cgroup_path] = cgroup_path
+      end
 
       pid = Process.fork do
+        gate_w&.close
+        if gate_r
+          authorized = gate_r.gets&.strip == 'ready'
+          gate_r.close
+          exit(false) unless authorized
+        end
+
         ENV.delete_if { |k, _| k != 'PATH' }
         env.each { |k, v| ENV[k] = v }
 
         Process.exec(*executable(hook_path))
       end
 
+      if lifecycle_owner
+        gate_r.close
+        begin
+          process_id = lifecycle_owner.fetch(:lifecycle).register_process(
+            lifecycle_owner.fetch(:run_id),
+            kind: "hook:#{self.class.hook_name}",
+            pid:
+          )
+          raise 'container lifecycle changed before hook exec' unless process_id
+
+          lifecycle_owner[:process_id] = process_id
+          CGroup.mkpath_all(
+            lifecycle_owner.fetch(:cgroup_path).split('/')
+          )
+          CGroup.attach_to_all(
+            lifecycle_owner.fetch(:cgroup_path).split('/'),
+            pid:
+          )
+          gate_w.puts('ready')
+        rescue StandardError
+          gate_w.close
+          Process.wait(pid)
+          finish_lifecycle_process(lifecycle_owner)
+          raise
+        ensure
+          gate_w.close unless gate_w.closed?
+        end
+      end
+
       if blocking?
-        Process.wait(pid)
-        return true if $?.exitstatus == 0
+        _, status = Process.wait2(pid)
+        finish_lifecycle_process(lifecycle_owner)
+        return true if status.exitstatus == 0
 
         log(
           :warn,
           event_instance,
-          "Hook #{self.class.hook_name} at #{hook_path} exited with #{$?.exitstatus}"
+          "Hook #{self.class.hook_name} at #{hook_path} exited with #{status.exitstatus}"
         )
 
-        raise HookFailed.new(self, hook_path, $?.exitstatus)
+        raise HookFailed.new(self, hook_path, status.exitstatus)
 
       else
-        Hook.watch(self, hook_path, pid)
+        Hook.watch(self, hook_path, pid, lifecycle_owner:)
+      end
+    ensure
+      if blocking? && lifecycle_owner && lifecycle_owner[:process_id]
+        finish_lifecycle_process(lifecycle_owner)
       end
     end
 
@@ -86,6 +140,44 @@ module OsCtld
 
     # @return [Hash]
     attr_reader :opts
+
+    def lifecycle_process_owner
+      return unless event_instance.respond_to?(:lifecycle)
+      return unless event_instance.respond_to?(:run_conf)
+      return unless event_instance.respond_to?(:get_past_run_conf)
+
+      run_conf = event_instance.run_conf || event_instance.get_past_run_conf
+      return unless run_conf
+
+      {
+        lifecycle: event_instance.lifecycle,
+        run_id: run_conf.run_id
+      }
+    end
+
+    def finish_lifecycle_process(owner)
+      return unless owner && owner[:process_id]
+
+      process_id = owner.delete(:process_id)
+      effect_id = owner.fetch(:lifecycle).finish_process(
+        owner.fetch(:run_id),
+        process_id
+      )
+      return unless effect_id
+
+      run_conf = [
+        event_instance.run_conf,
+        event_instance.get_past_run_conf
+      ].compact.detect { |conf| conf.run_id == owner.fetch(:run_id) }
+      return unless run_conf
+
+      require 'osctld/container/lifecycle_finalizer'
+      Container::LifecycleFinalizer.spawn(
+        event_instance,
+        run_conf,
+        effect_id
+      )
+    end
 
     # Override this method to define environment variables that the script hook
     # will have set.

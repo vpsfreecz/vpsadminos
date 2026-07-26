@@ -52,13 +52,13 @@ module OsCtld
       cts = DB::Containers.get.select do |ct|
         next(false) if ct.pool != pool || !ct.running?
 
-        ct.apparmor.generate_profile
+        ct.apparmor.generate_profile(ct.run_conf)
         true
       end
 
       return unless cts.any?
 
-      apparmor_parser(pool, 'r', cts.map { |ct| ct.apparmor.profile_path })
+      apparmor_parser(pool, 'r', cts.map { |ct| ct.apparmor.profile_path(ct.run_conf) })
     end
 
     # Per-pool runstate directory with profiles
@@ -107,79 +107,92 @@ module OsCtld
     end
 
     # Generate container profile, load it and create a namespace
-    def setup
-      generate_profile
-      load_profile
-      create_namespace
+    def setup(run_conf = current_run_conf)
+      generate_profile(run_conf)
+      load_profile(run_conf)
+      create_namespace(run_conf)
     end
 
     # Generate AppArmor profile for the container
     #
     # The profile is generated only if it has been changed to let
     # `apparmor_parser` use cached profiles for faster container startup times.
-    def generate_profile
+    def generate_profile(run_conf = current_run_conf)
       ErbTemplate.render_to_if_changed('apparmor/profile', {
-        name: profile_name,
-        namespace:,
+        name: profile_name(run_conf),
+        namespace: namespace(run_conf),
         ct:,
         all_combinations_of: lambda do |arr|
           ret = []
           arr.count.times { |i| ret.concat(arr.combination(i + 1).to_a) }
           ret
         end
-      }, profile_path)
+      }, profile_path(run_conf))
     end
 
     # Load the container's profile into the kernel
-    def load_profile
-      apparmor_parser('r')
+    def load_profile(run_conf = current_run_conf)
+      apparmor_parser('r', run_conf:)
     end
 
     # Remove the container's profile from the kernel
-    def unload_profile
-      apparmor_parser('R', valid_rcs: [254])
+    def unload_profile(run_conf = current_run_conf)
+      apparmor_parser('R', { valid_rcs: [254] }, run_conf:)
     end
 
     # Remove the container's profile from the kernel and remove it from cache
-    def destroy_profile
-      unload_profile if File.exist?(profile_path)
+    def destroy_profile(run_conf = current_run_conf)
+      unload_profile(run_conf) if File.exist?(profile_path(run_conf))
 
       begin
-        cached = File.join(cache_dir, profile_name)
+        cached = File.join(cache_dir, profile_name(run_conf))
         File.unlink(cached)
+      rescue Errno::ENOENT
+        # ignore
+      end
+
+      begin
+        File.unlink(profile_path(run_conf))
       rescue Errno::ENOENT
         # ignore
       end
     end
 
     # Create an AppArmor namespace for the container
-    def create_namespace
-      path = namespace_path
+    def create_namespace(run_conf = current_run_conf)
+      path = namespace_path(run_conf)
       FileUtils.mkdir_p(path)
     end
 
     # Destroy the container's AppArmor namespace
-    def destroy_namespace
-      path = namespace_path
+    def destroy_namespace(run_conf = current_run_conf)
+      path = namespace_path(run_conf)
       FileUtils.rm_f(path)
     end
 
-    def profile_name
-      "ct-#{ct.pool.name}-#{ct.id}"
+    def profile_name(run_conf = current_run_conf)
+      suffix =
+        if run_conf&.generation_cgroups?
+          "-#{run_conf.run_id.key}"
+        else
+          ''
+        end
+
+      "ct-#{ct.pool.name}-#{ct.id}#{suffix}"
     end
 
-    def profile_path
-      File.join(self.class.profile_dir(ct.pool), profile_name)
+    def profile_path(run_conf = current_run_conf)
+      File.join(self.class.profile_dir(ct.pool), profile_name(run_conf))
     end
 
-    def namespace
+    def namespace(run_conf = current_run_conf)
       # Ubuntu's AppArmor service initializes profiles only when in a namespace
       # beginning with `lxd-` or `lxc-`, so we have to use the prefix as well.
-      "lxc-#{profile_name}"
+      "lxc-#{profile_name(run_conf)}"
     end
 
-    def namespace_profile_name
-      "#{profile_name}//&:#{namespace}:"
+    def namespace_profile_name(run_conf = current_run_conf)
+      "#{profile_name(run_conf)}//&:#{namespace(run_conf)}:"
     end
 
     def dup(new_ct)
@@ -192,16 +205,20 @@ module OsCtld
 
     attr_reader :ct
 
-    def namespace_path
-      File.join('/sys/kernel/security/apparmor/policy/namespaces', namespace)
+    def namespace_path(run_conf)
+      File.join('/sys/kernel/security/apparmor/policy/namespaces', namespace(run_conf))
     end
 
     def cache_dir
       self.class.cache_dir(ct.pool)
     end
 
-    def apparmor_parser(cmd, opts = {})
-      self.class.apparmor_parser(ct.pool, cmd, [profile_path], opts)
+    def apparmor_parser(cmd, opts = {}, run_conf:)
+      self.class.apparmor_parser(ct.pool, cmd, [profile_path(run_conf)], opts)
+    end
+
+    def current_run_conf
+      ct.run_conf || ct.get_past_run_conf
     end
   end
 end

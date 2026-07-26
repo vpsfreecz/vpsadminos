@@ -1,8 +1,11 @@
 require 'osctld/commands/logged'
+require 'osctld/utils/container'
 
 module OsCtld
   class Commands::Container::Export < Commands::Logged
     handle :ct_export
+
+    include Utils::Container
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -31,10 +34,20 @@ module OsCtld
       exporter.dump_configs
       exporter.dump_user_hook_scripts(Hook::Manager.list_all_scripts(ct))
       exporter.dump_rootfs do
+        running_at_start = opts[:consistent] && ct.state == :running
+
+        if opts[:consistent]
+          guard_residual_generations!(ct, 'consistent container export')
+          unless running_at_start
+            guard_no_runtime_generations!(ct, 'consistent container export')
+          end
+        end
+
         exporter.dump_base
 
-        if ct.state == :running && opts[:consistent]
+        if running_at_start
           call_cmd!(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
+          guard_no_runtime_generations!(ct, 'consistent container export')
 
           exporter.dump_incremental
 

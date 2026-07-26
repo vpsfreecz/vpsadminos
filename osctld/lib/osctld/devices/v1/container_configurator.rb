@@ -100,16 +100,27 @@ module OsCtld
     #
     # @return [Array]
     def rel_ct_cgroup_paths
-      [
+      paths = [
         # <group>/<user>/<ct>
-        [ct.base_cgroup_path, true],
-
-        # <group>/<user>/<ct>/user-owned
-        [ct.cgroup_path, true],
-
-        # <group>/<user>/<ct>/user-owned/lxc.payload.<ct>
-        [File.join(ct.cgroup_path, "lxc.payload.#{ct.id}"), false]
+        [ct.base_cgroup_path, true]
       ]
+
+      if ct.active_cgroup_root != ct.base_cgroup_path
+        # Existing cgroupv1 descendants cannot be widened beyond their
+        # parents. Configure each generation parent so a device added while
+        # the container is running can be propagated to the payload.
+        paths << [File.join(ct.base_cgroup_path, 'runs'), true]
+        paths << [ct.active_cgroup_root, true]
+      end
+
+      paths.push(
+        # <group>/<user>/<ct>/<generation>/user-owned
+        [ct.cgroup_path, true],
+        # <group>/<user>/<ct>/<generation>/user-owned/payload
+        [ct.lxc_payload_cgroup_path, false],
+        # <group>/<user>/<ct>/<generation>/user-owned/payload/inner
+        [ct.lxc_inner_cgroup_path, false]
+      )
     end
 
     # Returns a list of absolute paths of the container's group cgroups
@@ -134,7 +145,7 @@ module OsCtld
                      [ct.cgroup_path, true],
 
                      # <group>/<user>/<ct>/user-owned/lxc.payload.<ct>
-                     [File.join(ct.cgroup_path, "lxc.payload.#{ct.id}"), false,
+                     [ct.lxc_payload_cgroup_path, false,
                       ct.user.ugid, ct.gid_map.ns_to_host(0)]
                    ])
     end

@@ -17,11 +17,13 @@ if %r{^/run/osctl/pools/([^/]+)/hooks} !~ $0
 end
 
 pool = Regexp.last_match(1)
+run_id = ARGV.fetch(0)
 
 s = UNIXSocket.new('/run/osctl/user-control/namespaced.sock')
 s.puts({ cmd: :ct_autodev, opts: {
   id: ctid,
-  pool:
+  pool:,
+  run_id:
 } }.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close

@@ -4,6 +4,8 @@ module OsCtld
   class Commands::Container::ConfigReplace < Commands::Logged
     handle :ct_cfg_replace
 
+    include Utils::Container
+
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
       ct || error!('container not found')
@@ -12,6 +14,10 @@ module OsCtld
     def execute(ct)
       manipulate(ct) do
         error!('the container has to be stopped') if ct.current_state != :stopped
+        guard_no_runtime_generations!(
+          ct,
+          'container configuration replacement'
+        )
 
         ct.replace_config(opts[:config])
         ct.lxc_config.configure

@@ -21,6 +21,7 @@ module OsCtld
       # @return [Process::Status]
       def ct_wall(message)
         pid = lxc_ct.attach do
+          protect_runner_child
           UtmpReader.read_utmp_fhs(max_entries: 32) do |entry|
             next if entry.record_type != :user_process
 

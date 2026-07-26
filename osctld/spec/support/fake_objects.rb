@@ -200,7 +200,7 @@ module FakeObjects
   class FakeRuntimeContainer
     attr_accessor :autostart, :hints, :run_conf, :fresh_state, :state, :init_pid,
                   :map_mode, :lxc_config, :cgparams, :base_cgroup_path, :netifs,
-                  :cpu_package
+                  :cpu_package, :lifecycle
     attr_reader :id, :pool, :ident, :save_config_calls, :dataset
 
     def initialize(pool:, id: 'ct1', dataset: nil, autostart: nil, can_start: true,
@@ -263,6 +263,14 @@ module FakeObjects
 
     def abs_apply_cgroup_path(subsystem)
       File.join('/sys/fs/cgroup', subsystem, "ct.#{id}")
+    end
+
+    def lxc_payload_cgroup_path
+      File.join(base_cgroup_path, 'user-owned', "lxc.payload.#{id}")
+    end
+
+    def lxc_inner_cgroup_path
+      File.join(lxc_payload_cgroup_path, 'inner')
     end
   end
 

@@ -885,11 +885,15 @@ The following shortcuts are supported:
   Mount all container's datasets if they are not already mounted.
 
 `ct start` [*options*] *ctid*
-  Start container *ctid*.
+  Start container *ctid*. Container launches are owned by osctld lifecycle
+  generations. Invoking `lxc-start` manually with osctld's configuration is
+  unsupported and rejected by the managed pre-start hook.
 
     `-w`, `--wait` *seconds*|`infinity`
       How many seconds to wait for the container to enter state `running`.
-      Defaults to `120` seconds. Set to `0` to return immediately.
+      Defaults to `120` seconds. Set to `0` to acknowledge the durable start
+      intent immediately. The wait value is a client deadline; it does not
+      impose a deadline on the underlying lifecycle effect.
 
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
@@ -1239,7 +1243,9 @@ The following shortcuts are supported:
 
 `ct set raw lxc` *ctid*
   Append raw LXC configuration read from the standard input to the *osctld*
-  generated LXC configuration file.
+  generated LXC configuration file. Lifecycle-owned keys, including
+  `lxc.include`, hooks and cgroup paths, are rejected. Inline safe custom
+  configuration instead of including another file.
 
 `ct unset raw lxc` *ctid*
   Remove raw LXC configuration from the *osctld* generated LXC configuration
@@ -1534,7 +1540,15 @@ transfer and start again.
 
 `ct config reload` *ctid*
   Reload the container's configuration file from disk. The container has to be
-  stopped for the reload to be allowed.
+  stopped and its exact runtime generation has to be fully cleaned up. Reload
+  is blocked while an active or residual generation exists.
+
+  `incarnation_id` identifies lifecycle and recovery state owned by this
+  container. It can be omitted, in which case *osctld* writes the current value
+  back to the configuration file, but it cannot be changed. If an edited
+  configuration with a different value is left on disk, *osctld* refuses to
+  load the container after a daemon restart while runtime or quarantined policy
+  evidence exists.
 
 `ct config replace` *ctid*
   Replace the container's configuration file by data read from the standard input.
@@ -1542,8 +1556,11 @@ transfer and start again.
   file has to be in the correct format for the current `osctld` version and has
   to contain required options, otherwise errors may occur. This is considered
   a low level interface, since a lot of runtime checks is bypassed.
+  `incarnation_id` can be omitted or left unchanged, but it cannot be replaced,
+  because it identifies lifecycle and recovery state owned by this container.
 
-  The container has to be stopped when `ct config replace` is called.
+  The container has to be stopped and without an active or residual generation
+  when `ct config replace` is called.
 
 `ct passwd` *ctid* *user* [*password*]
   Change password of *user* in container *ctid*. The user has to already exist.
@@ -1557,8 +1574,9 @@ transfer and start again.
   containers, even in the same LXC home. Every container can have a different
   cgroup configuration, which would be broken.
 
-  Also not that when a container is started from this shell using `lxc-start`,
-  `ct console` for tty0 will not be functional.
+  Starting a container from this shell using `lxc-start` is unsupported.
+  Managed LXC hooks reject starts which do not have an exact osctld lifecycle
+  authorization.
 
 `ct log cat` *ctid*
   Write the contents of container *ctid* log to the stdout.
@@ -2599,13 +2617,16 @@ transfer and start again.
 `ct mounts clear` *ctid*
   Remove all mounts from container *ctid*.
 
-`ct recover kill` *ctid* [*signal*]
-  Search and kill all processes of container *ctid*. Useful when even LXC is
-  stuck. *signal* defaults to `SIGKILL`. After a container is killed in this
-  way, it can be necessary to recover its state using `ct recover state`
-  and cleanup its state using `ct recover cleanup`.
+`ct recover kill` [`--run-id` *run-id*] *ctid* [*signal*]
+  Search and kill all processes in one exact lifecycle generation of container
+  *ctid*. The active generation is selected by default. When there is no active
+  generation, the sole residual generation is selected. Use `--run-id` when
+  more than one residual exists. Process identity and cgroup membership are
+  checked again immediately before signaling to reduce PID-reuse races.
+  *signal* defaults to `SIGKILL`. On nodes without lifecycle records, the
+  command falls back to legacy container-wide process matching.
 
-`ct recover state` *ctid*
+`ct recover state` [`--run-id` *run-id*] *ctid*
   Force `osctld` to check status of container *ctid*.
 
   `osctld` checks container status only on startup and then watches for events
@@ -2613,26 +2634,54 @@ transfer and start again.
   report anything, `osctld` will not notice the change on its own and this
   command can be used to recover from such a state.
 
+  `--run-id` *run-id*
+    Target an exact lifecycle run ID or its generation key.
+
   `--no-lock`
     Ignore the manipulation lock mechanism. This can be used to forcefully
     recheck the container's state even if another command is operating on it.
     Use with caution. Can be used e.g. to wake up `osctl ct start` from waiting
     on a dead container.
 
-`ct recover cleanup` [`-f`] *ctid*
-  Remove any leftover cgroups and network interfaces that might have belonged
-  to container *ctid*. This is useful when the container's management process
-  crashes for some reason and does not cleanup after itself. This operation
-  can be used only on stopped containers, unless `--force` is used.
+`ct recover cleanup` [`-f`] [`--run-id` *run-id*] *ctid*
+  Inventory and remove resources belonging to an exact lifecycle generation.
+  The result reports `cleaned`, `quarantined`, `partial`, `blocked`, or
+  `ambiguous` together with evidence and remaining hazards.
 
-    `-f`, `--force`
-      Force cleanup of an unstopped container.
+  If killed processes remain uninterruptible and their manager is gone, cleanup
+  quarantines the generation and releases the active slot. A later start uses
+  disjoint generation cgroups. This is bounded-risk recovery: already-entered
+  kernel or ZFS operations can still complete against the container dataset.
+  Hard deletion, reinstall, move/rename, ownership changes, and map-mode changes
+  remain blocked until all residual generations are cleaned.
+
+  Cleanup is idempotent when no active, residual, or non-clean historical
+  lifecycle run remains. In that case, osctld rechecks legacy cgroup paths and
+  network interfaces and returns structured evidence with no run ID. Busy
+  untracked legacy cgroups produce a `blocked` result instead of being treated
+  as quarantined.
+
+  `--run-id` *run-id*
+    Target an exact lifecycle run ID or its generation key.
+
+  `-f`, `--force`
+    Force cleanup of an unstopped container.
 
     `--cgroups`
       Cleanup only leftover cgroups.
 
     `--network-interfaces`
       Cleanup only network interfaces.
+
+  Before rolling a node back to an osctld version without lifecycle
+  generations, drain all container lifecycle activity and stop all containers.
+  Verify that no lifecycle effect, recovery, or residual generation remains.
+  The old daemon cannot interpret generation-qualified cgroups, hooks, process
+  identities, or quarantine evidence and must not manage a live generation.
+  If the drain cannot be proven, do not roll back: roll forward to the
+  generation-aware version and finish exact-run recovery there. After a
+  rollback, start containers only after the old daemon has inventoried the
+  fully stopped node.
 
 `group new` *options* *group*
   Create a new group for resource management.
@@ -3323,6 +3372,11 @@ All pool script hooks have the following environment variables set:
 - `OSCTL_POOL_STATE`
 
 ## CONTAINER SCRIPT HOOKS
+Container hook processes are owned by the exact lifecycle generation and run
+inside its host-effects cgroup. `osctld` does not release that generation for a
+replacement start while a hook process is still running. Hook descendants that
+outlive their parent also keep generation cleanup from completing.
+
 `pre-start`
   `pre-start` hook is run in the host's namespace before the container is mounted.
   The container's cgroups have already been configured and distribution-support
@@ -3368,8 +3422,10 @@ All pool script hooks have the following environment variables set:
   is shutdown from the inside.
 
 `on-stop`
-  `on-stop` is run in the host's namespace when the container enters state
-  `stopping`. The hook's exit status is not evaluated.
+  `on-stop` is run in the host's namespace as the first step of exact post-stop
+  finalization. It is ordered before `post-stop`; both hooks finish before the
+  generation can be released for a replacement start. The hook's exit status is
+  not evaluated.
 
 `veth-down`
   `veth-down` hook is run in the host's namespace when the veth pair is removed.
@@ -3379,7 +3435,8 @@ All pool script hooks have the following environment variables set:
 
 `post-stop`
   `post-stop` is run in the host's namespace when the container enters state
-  `stopped`. The hook's exit status is not evaluated.
+  `stopped`. It finishes before the generation can be released for a replacement
+  start. The hook's exit status is not evaluated.
 
 ### Container script environment variables
 All container script hooks have the following environment variables set:

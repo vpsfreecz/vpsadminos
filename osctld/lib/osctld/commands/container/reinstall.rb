@@ -18,6 +18,7 @@ module OsCtld
 
       manipulate(ct) do
         error!('container is running') if ct.running?
+        guard_no_runtime_generations!(ct, 'container reinstall')
 
         tpl = opts[:image]
         if opts[:type] == 'remote'

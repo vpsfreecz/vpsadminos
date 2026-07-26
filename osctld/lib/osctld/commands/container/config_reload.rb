@@ -4,6 +4,8 @@ module OsCtld
   class Commands::Container::ConfigReload < Commands::Logged
     handle :ct_cfg_reload
 
+    include Utils::Container
+
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
       ct || error!('container not found')
@@ -12,6 +14,7 @@ module OsCtld
     def execute(ct)
       manipulate(ct) do
         error!('the container has to be stopped') if ct.current_state != :stopped
+        guard_no_runtime_generations!(ct, 'container configuration reload')
 
         ct.reload_config
         ct.lxc_config.configure

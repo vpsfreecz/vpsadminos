@@ -1,4 +1,5 @@
 require 'osctld/commands/base'
+require 'osctld/utils/container'
 require 'open3'
 
 module OsCtld
@@ -8,6 +9,7 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
     include OsCtl::Lib::Utils::Send
+    include Utils::Container
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -29,7 +31,12 @@ module OsCtld
         end
 
         if !opts[:clone] || opts[:consistent]
+          guard_residual_generations!(ct, 'consistent container send')
           call_cmd!(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
+          guard_no_runtime_generations!(
+            ct,
+            'consistent container send'
+          )
 
           # Force write-out of dirtied pages
           if Daemon.get.config.writeout_dirtied_pages?

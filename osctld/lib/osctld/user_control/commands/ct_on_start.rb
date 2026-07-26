@@ -12,8 +12,11 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
+      run_conf = lifecycle_run_conf(ct)
+      return error('managed lifecycle run not found') unless run_conf
+
       # Configure the system
-      DistConfig.run(ct.run_conf, :start)
+      DistConfig.run(run_conf, :start)
 
       Hook.run(ct, :on_start)
       ok

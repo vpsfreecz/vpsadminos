@@ -23,6 +23,7 @@ module OsCtld
         ct = lxc_ct
 
         pid = ct.attach do
+          protect_runner_child
           next unless Dir.exist?(mountpoint)
 
           begin

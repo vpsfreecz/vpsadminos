@@ -26,9 +26,10 @@ module Sys
 end
 
 class CtPostMount
-  def initialize(pool, ctid, rootfs)
+  def initialize(pool, ctid, run_id, rootfs)
     @pool = pool
     @ctid = ctid
+    @run_id = run_id
     @rootfs = File.absolute_path(rootfs)
   end
 
@@ -43,6 +44,7 @@ class CtPostMount
     s.puts({ cmd: :ct_post_mount, opts: {
       id: @ctid,
       pool: @pool,
+      run_id: @run_id,
       rootfs_mount: @rootfs
     } }.to_json)
     ret = JSON.parse(s.readline, symbolize_names: true)
@@ -71,8 +73,9 @@ if %r{^/run/osctl/pools/([^/]+)/hooks} !~ $0
 end
 
 pool = Regexp.last_match(1)
+run_id = ARGV.fetch(0)
 
-hook = CtPostMount.new(pool, ctid, ENV.fetch('LXC_ROOTFS_MOUNT', nil))
+hook = CtPostMount.new(pool, ctid, run_id, ENV.fetch('LXC_ROOTFS_MOUNT', nil))
 hook.run
 
 exit

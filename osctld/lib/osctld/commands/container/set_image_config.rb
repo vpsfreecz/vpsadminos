@@ -16,6 +16,10 @@ module OsCtld
     def execute(ct)
       manipulate(ct) do
         error!('container is running') if ct.running?
+        guard_no_runtime_generations!(
+          ct,
+          'container image configuration change'
+        )
 
         tpl = opts[:image]
         image = {

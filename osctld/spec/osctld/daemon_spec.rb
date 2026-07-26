@@ -47,6 +47,8 @@ RSpec.describe OsCtld::Daemon do
       server_thread = instance_double(Thread, join: nil)
       repo = instance_spy(repo_class)
       pool = instance_spy(pool_class)
+      lifecycle = instance_double(OsCtld::Container::Lifecycle, wake_all: nil)
+      ct = instance_double(OsCtld::Container, lifecycle:)
 
       stub_const('OsCtld::UserControl', Class.new do
         def self.stop; end
@@ -59,6 +61,12 @@ RSpec.describe OsCtld::Daemon do
       end)
       stub_const('OsCtld::DB::Pools', Class.new do
         def self.get; end
+      end)
+      stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      stub_const('OsCtld::Container::LifecycleExecutor', Class.new do
+        def self.wake_all; end
       end)
       stub_const('OsCtld::CpuScheduler', Class.new do
         def self.shutdown; end
@@ -77,6 +85,8 @@ RSpec.describe OsCtld::Daemon do
       allow(OsCtld::SendReceive).to receive(:stop)
       allow(OsCtld::DB::Repositories).to receive(:each).and_yield(repo)
       allow(OsCtld::DB::Pools).to receive(:get).and_return([pool])
+      allow(OsCtld::DB::Containers).to receive(:get).and_return([ct])
+      allow(OsCtld::Container::LifecycleExecutor).to receive(:wake_all)
       allow(OsCtld::Hook).to receive(:run)
       allow(OsCtld::ThreadReaper).to receive(:drain)
       allow(OsCtld::ThreadReaper).to receive(:stop)
@@ -87,6 +97,8 @@ RSpec.describe OsCtld::Daemon do
 
       expect { daemon.stop }.to raise_error(SystemExit)
 
+      expect(lifecycle).to have_received(:wake_all).ordered
+      expect(OsCtld::Container::LifecycleExecutor).to have_received(:wake_all).ordered
       expect(OsCtld::Hook).to have_received(:run).with(daemon, :pre_stop).ordered
       expect(server).to have_received(:stop).ordered
       expect(server_thread).to have_received(:join).ordered

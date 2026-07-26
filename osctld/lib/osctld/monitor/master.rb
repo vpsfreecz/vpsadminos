@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/cgroup'
 
 module OsCtld
   class Monitor::Master
@@ -121,14 +122,54 @@ module OsCtld
       st = ContainerControl::Commands::State.run!(ct)
       return if ct.state == :error
 
-      ct.state = st.state
+      run_id = ct.lifecycle.active_run_id
+      return unless run_id
 
       if st.init_pid
-        ct.ensure_run_conf.init_pid = st.init_pid
-        Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid: st.init_pid)
+        run = ct.lifecycle.run(run_id)
+        root = run&.dig('resources', 'cgroup_root')
+        unless root && CGroup.get_tree_pids(root).include?(st.init_pid)
+          log(
+            :warn,
+            :monitor,
+            "Ignoring unqualified init PID #{st.init_pid} for #{ct.ident} " \
+            "run #{run_id}"
+          )
+          return
+        end
+      end
+
+      observer_id = ct.lifecycle.begin_state_observation(
+        run_id,
+        st.state,
+        init_pid: st.init_pid,
+        source: 'state_query'
+      )
+      return unless observer_id
+      return if ct.lifecycle.execution_run?(run_id)
+      return unless ct.observe_run_state(run_id, st.state, init_pid: st.init_pid)
+      return unless ct.lifecycle.state_observation_current?(run_id, observer_id)
+
+      if st.init_pid
+        Eventd.report(
+          :ct_init_pid,
+          pool: ct.pool.name,
+          id: ct.id,
+          init_pid: st.init_pid
+        )
       end
     rescue ContainerControl::Error => e
       log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
+    ensure
+      if run_id && observer_id
+        effect_id = ct.lifecycle.finish_state_observation(run_id, observer_id)
+        if effect_id
+          run_conf = [ct.run_conf, ct.get_past_run_conf].compact.detect do |conf|
+            conf.run_id == run_id
+          end
+          Container::LifecycleFinalizer.spawn(ct, run_conf, effect_id) if run_conf
+        end
+      end
     end
 
     def key(ct)

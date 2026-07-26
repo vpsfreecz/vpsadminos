@@ -19,7 +19,18 @@ require 'osctld/commands/container/runscript'
 RSpec.describe 'container io commands' do
   def build_ct(id: 'ct1', state: :running, running: state == :running, init_pid: 4321)
     pool = Struct.new(:name).new('tank')
-    Struct.new(:id, :pool, :state, :running_state, :init_pid, :mount_calls, :lxc_home, :lxc_dir, keyword_init: true) do
+    Struct.new(
+      :id,
+      :pool,
+      :user,
+      :state,
+      :running_state,
+      :init_pid,
+      :mount_calls,
+      :lxc_home,
+      :lxc_dir,
+      keyword_init: true
+    ) do
       def running?
         running_state
       end
@@ -42,6 +53,7 @@ RSpec.describe 'container io commands' do
     end.new(
       id:,
       pool:,
+      user: Struct.new(:name).new('alice'),
       state:,
       running_state: running,
       init_pid:,
@@ -228,7 +240,8 @@ RSpec.describe 'container io commands' do
         '--keep-var', 'LANG',
         '-v', "PS1=#{command.send(:prompt, ct, shell)}",
         '--',
-        '/bin/bash', '--norc'
+        '/bin/bash', '--norc',
+        lifecycle: true
       )
     end
 
@@ -264,7 +277,8 @@ RSpec.describe 'container io commands' do
         ct,
         'bash',
         '--rcfile',
-        '/var/lib/lxc/ct1/.bashrc'
+        '/var/lib/lxc/ct1/.bashrc',
+        cgroup_path: 'osctl/admin/pool.tank/user.alice'
       )
     end
   end

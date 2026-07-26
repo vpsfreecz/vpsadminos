@@ -11,6 +11,7 @@ require 'osctld/lock_registry'
 require 'osctld/lockable'
 require 'osctld/utils/ip'
 require 'osctld/utils/switch_user'
+require 'osctld/container'
 require 'osctld/net_interface'
 require 'osctld/net_interface/base'
 require 'osctld/net_interface/veth'
@@ -19,6 +20,16 @@ require 'osctld/routing/route'
 require 'osctld/routing/table'
 
 RSpec.describe OsCtld::NetInterface::Routed do
+  def running_container_with_lifecycle(pool, lifecycle)
+    OsCtld::Container.allocate.tap do |ct|
+      ct.send(:init_lock)
+      ct.instance_variable_set(:@pool, pool)
+      ct.instance_variable_set(:@id, 'ct1')
+      ct.instance_variable_set(:@state, :running)
+      ct.instance_variable_set(:@lifecycle, lifecycle)
+    end
+  end
+
   def routed_ifaddr(name, address)
     addr = Struct.new(:ip_address) do
       def ip?
@@ -132,6 +143,21 @@ RSpec.describe OsCtld::NetInterface::Routed do
     expect(routed.default_via(4).to_string).to eq('255.255.255.254/32')
     expect(routed.default_via(6).to_s).to eq('fe80::1')
     expect(routed.has_route?(IPAddress.parse('192.0.2.0/24'))).to be(false)
+  end
+
+  it 'runs container commands while the initialized lifecycle is read-locked' do
+    lifecycle = Object.new
+    running_ct = running_container_with_lifecycle(pool, lifecycle)
+    interface = described_class.new(running_ct, 0)
+    interface.create(name: 'eth0', hwaddr: nil)
+    allow(interface).to receive(:ip)
+    allow(interface).to receive(:ct_syscmd) do |target, *|
+      expect(target.lifecycle).to equal(lifecycle)
+    end
+
+    interface.add_ip(IPAddress.parse('192.0.2.10/24'), nil)
+
+    expect(interface).to have_received(:ct_syscmd).exactly(3).times
   end
 
   it 'removes addresses, clears routes, and isolates duplicated route tables' do
