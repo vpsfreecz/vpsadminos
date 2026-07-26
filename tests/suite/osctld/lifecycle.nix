@@ -408,7 +408,8 @@ import ../../make-test.nix (
             "osctl ct new --distribution alpine #{ctid}",
             "osctl ct unset start-menu #{ctid}",
             "osctl ct start #{ctid}",
-            "osctl ct stop #{ctid}"
+            "osctl ct stop #{ctid}",
+            "osctl ct set cpu-limit #{ctid} 250"
           )
         end
 
@@ -510,6 +511,29 @@ import ../../make-test.nix (
           expect(adopted_run.fetch('hazards')).to include(
             'adopted legacy runtime'
           )
+          adopted_root = adopted_run.fetch('resources').fetch('cgroup_root')
+          _, adopted_cpu_max = machine.succeeds(
+            <<~SH
+              root=#{Shellwords.escape("/sys/fs/cgroup/#{adopted_root}")}
+              stable=$(cat "$root/cpu.max")
+              finite=$(
+                find "$root" -mindepth 2 -type f -name cpu.max \
+                  -exec sh -c '
+                    for file; do
+                      value=$(cat "$file" 2>/dev/null) || continue
+                      set -- $value
+                      test "$1" = max || printf "%s=%s\n" "$file" "$value"
+                    done
+                  ' sh {} +
+              )
+              if test -n "$finite"; then
+                printf 'finite descendant CPU policy:\n%s\n' "$finite" >&2
+                exit 1
+              fi
+              printf '%s\n' "$stable"
+            SH
+          )
+          expect(adopted_cpu_max.strip.split.first).to eq('250000')
 
           stop_thread = Thread.new do
             machine.execute(

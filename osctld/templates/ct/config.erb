@@ -67,6 +67,8 @@ lxc.hook.post-stop = <%= OsCtld::hook_run('ct-post-stop', ct.pool) %> <%= run_co
 # Cgroup parameters
 <% cgparams.each_usable do |p| -%>
 <% next unless %w(cpu cpuset).include?(p.subsystem) -%>
+<% # CPU bandwidth is held on osctld-owned policy roots. -%>
+<% next if %w(cpu.cfs_period_us cpu.cfs_quota_us cpu.max).include?(p.name) -%>
 <% p.value.each do |v| -%>
 lxc.cgroup<%= CGroup.v2? ? '2' : '' %>.<%= p.name %> = <%= v %>
 <% end -%>

@@ -6,6 +6,8 @@ require 'osctld/cpu_scheduler'
 module OsCtld
   class CGroup::ContainerParams < CGroup::Params
     CPUSET_PARAMETER = 'cpuset.cpus'.freeze
+    ADOPTED_CPU_RECONCILIATION_HAZARD =
+      'adopted legacy payload CPU bandwidth is not proven safe'.freeze
 
     def set(*args, configure: true, **kwargs)
       owner.exclusively do
@@ -149,6 +151,59 @@ module OsCtld
         launch_run_id: run_id,
         &path
       )
+    end
+
+    # Transfer CPU bandwidth from an already-running legacy LXC payload to the
+    # stable osctld policy root during daemon upgrade. The exact adopted run is
+    # checked again after acquiring the topology lease. Any failed
+    # reconciliation is deliberately recorded as a rollback hazard, because a
+    # finite payload must not be allowed to disappear without quarantine.
+    def reconcile_adopted_cpu_bandwidth(run_id:)
+      lifecycle = owner.lifecycle
+      return false \
+        unless lifecycle.adopted_legacy_callback_run_id == run_id
+
+      selected = usable_params.select { |param| cpu_bandwidth_param?(param) }
+      return false if selected.empty?
+
+      lease = begin_policy_lease(:cpu_bandwidth)
+      unless lifecycle.adopted_legacy_callback_run_id == run_id
+        raise CGroup::CpuBandwidthPolicy::Error,
+              'adopted lifecycle generation changed during CPU policy fencing'
+      end
+
+      result = CGroup::CpuBandwidthPolicy.new(
+        owner,
+        selected,
+        root: owner.abs_apply_cgroup_path('cpu')
+      ).apply
+    rescue StandardError => e
+      rollback_error =
+        if e.respond_to?(:rollback_error) && e.rollback_error
+          e.rollback_error.message
+        else
+          ADOPTED_CPU_RECONCILIATION_HAZARD
+        end
+      target = selected&.map(&:dump) || []
+      if lease
+        finish_policy_lease(
+          lease,
+          target:,
+          error: e.message,
+          rollback_error:
+        )
+      else
+        lifecycle&.record_policy_hazard(
+          kind: :cpu_bandwidth,
+          target:,
+          error: e.message,
+          rollback_error:
+        )
+      end
+      raise
+    else
+      finish_policy_lease(lease, result:)
+      result
     end
 
     def reset(param, keep_going, &)

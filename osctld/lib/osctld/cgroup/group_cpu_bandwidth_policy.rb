@@ -196,7 +196,12 @@ module OsCtld
             cap_request(entry.current, ancestor)
           end
         if entry.generation_role == :residual
-          desired = narrower(entry.effective, desired)
+          desired =
+            if entry.path == entry.generation_root
+              narrower(entry.effective, desired)
+            else
+              unlimited_state(entry.current)
+            end
         end
         effective[entry.path] =
           if ancestor
@@ -231,7 +236,6 @@ module OsCtld
           if cpu_bandwidth_configured?(group.cgparams)
       end
 
-      container_requests = {}
       @stable_owners.each do |path, container|
         state = current[path]
         next unless state
@@ -240,16 +244,13 @@ module OsCtld
         requests[path] = request
         @configured_requests << path \
           if cpu_bandwidth_configured?(container.cgparams)
-        container_requests[container] = request
       end
 
-      @active_payload_owners.each do |path, container|
+      @active_payload_owners.each_key do |path|
         state = current[path]
         next unless state
 
-        requests[path] =
-          container_requests[container] \
-          || requested_state(container.cgparams, state)
+        requests[path] = unlimited_state(state)
       end
 
       requests

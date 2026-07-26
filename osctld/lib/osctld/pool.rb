@@ -720,6 +720,22 @@ module OsCtld
         end
         ct.reconfigure
 
+        legacy_run_id = lifecycle.adopted_legacy_callback_run_id
+        if running && legacy_run_id
+          begin
+            ct.cgparams.reconcile_adopted_cpu_bandwidth(
+              run_id: legacy_run_id
+            )
+          rescue StandardError => e
+            log(
+              :warn,
+              "Unable to reconcile adopted CPU bandwidth of #{ct.ident}: " \
+              "#{e.message} (#{e.class}); lifecycle remains fenced or its " \
+              'policy is quarantined'
+            )
+          end
+        end
+
         if lifecycle.residuals.any?
           log(
             :warn,
