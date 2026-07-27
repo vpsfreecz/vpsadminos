@@ -365,6 +365,27 @@ RSpec.describe OsCtld::CGroup::ContainerParams do
     )
   end
 
+  it 'does not mirror ordinary parameters before LXC creates the payload' do
+    owner.running = false
+    owner.run_conf = Struct.new(:run_id).new('run-1')
+    owner.lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      active_run_id: 'run-1'
+    )
+    params = described_class.new(
+      owner,
+      params: [param(2, 'memory', 'memory.max', [100_000])]
+    )
+
+    params.apply_for_start(
+      run_id: 'run-1'
+    ) { |subsystem| owner.abs_apply_cgroup_path(subsystem) }
+
+    expect(OsCtld::CGroup.set_param_calls).to contain_exactly(
+      ['/sys/fs/cgroup/memory/ct.ct1/memory.max', [100_000]]
+    )
+  end
+
   it 'quarantines a failed launch CPU rollback against the exact run' do
     cpu_max = param(
       2,

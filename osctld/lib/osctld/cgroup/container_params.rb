@@ -215,7 +215,7 @@ module OsCtld
       end
 
       super
-      return unless runtime_active?
+      return unless payload_runtime_active?
 
       reset_container_param(param, keep_going)
     end
@@ -270,10 +270,18 @@ module OsCtld
       )
     end
 
+    # LXC creates its payload cgroup after the pre-start hook. A preparing
+    # lifecycle generation is sufficient for stable-root and CPU policy
+    # writes, but ordinary parameters can be mirrored to the payload only
+    # after LXC has published the running state.
+    def payload_runtime_active?
+      owner.running?
+    end
+
     def apply_non_cpuset(keep_going:, &path)
       selected = usable_params.reject { |param| cpuset_param?(param) }
       apply_params_and_retry(selected, keep_going:, &path)
-      return unless runtime_active?
+      return unless payload_runtime_active?
 
       apply_container_params_and_retry(selected, keep_going:)
     end
@@ -316,7 +324,7 @@ module OsCtld
         end
       end
 
-      return unless runtime_active?
+      return unless payload_runtime_active?
 
       apply_container_params_strict(ordinary, keep_going:)
     end
@@ -451,7 +459,7 @@ module OsCtld
         value,
         keep_going:
       )
-      return unless runtime_active?
+      return unless payload_runtime_active?
 
       set_param_strict(
         File.join(
