@@ -779,6 +779,32 @@ RSpec.describe OsCtld::CGroup::ContainerParams do
     expect(stopped_owner.save_config_calls).to eq(1)
   end
 
+  it 'resets a stopped container swap limit on the stable cgroup root' do
+    owner.running = false
+    owner.lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      active_run_id: nil,
+      residuals: [],
+      policy_tainted?: false
+    )
+    swap = param(2, 'memory', 'memory.swap.max', [0])
+    params = described_class.new(owner, params: [swap])
+    allow(File).to receive(:exist?).and_call_original
+    allow(File).to receive(:exist?)
+      .with('/sys/fs/cgroup/memory/ct.ct1/memory.swap.max')
+      .and_return(true)
+
+    params.transactional_unset(
+      [swap.export]
+    ) { |subsystem| owner.abs_apply_cgroup_path(subsystem) }
+
+    expect(params.each.to_a).to be_empty
+    expect(OsCtld::CGroup.set_param_calls).to contain_exactly(
+      ['/sys/fs/cgroup/memory/ct.ct1/memory.swap.max', ['max']]
+    )
+    expect(owner.save_config_calls).to eq(1)
+  end
+
   it 'removes inactive-version parameters without writing them at runtime' do
     params = described_class.new(
       owner,
