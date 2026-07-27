@@ -653,7 +653,7 @@ module OsCtld
       when 'cpu.cfs_period_us'
         [100_000]
 
-      when 'cpu.max', 'memory.high', 'memory.max', 'pids.max'
+      when 'cpu.max', 'memory.high', 'memory.max', 'memory.swap.max', 'pids.max'
         ['max']
 
       when 'memory.min', 'memory.low'
