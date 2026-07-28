@@ -628,6 +628,9 @@ module OsCtld
     end
 
     def set(opts)
+      dns_apply_command = nil
+      dns_apply_error = nil
+
       opts.each do |k, v|
         case k
         when :autostart
@@ -647,8 +650,10 @@ module OsCtld
           DistConfig.run(get_run_conf, :set_hostname, original:)
 
         when :dns_resolvers
+          DistConfig::Resolver.render(v)
           self.dns_resolvers = v
-          DistConfig.run(get_run_conf, :dns_resolvers)
+          dns_apply_command = :dns_resolvers
+          dns_apply_error = 'DNS resolver configuration was saved, but could not be applied'
 
         when :nesting
           self.nesting = true
@@ -697,9 +702,17 @@ module OsCtld
 
       save_config
       lxc_config.configure_base
+
+      return unless dns_apply_command
+
+      dns_apply_success, = DistConfig.run_with_status(get_run_conf, dns_apply_command)
+      raise DistConfig::ApplyError, dns_apply_error unless dns_apply_success
     end
 
     def unset(opts)
+      dns_apply_command = nil
+      dns_apply_error = nil
+
       opts.each do |k, v|
         case k
         when :autostart
@@ -715,7 +728,8 @@ module OsCtld
 
         when :dns_resolvers
           self.dns_resolvers = nil
-          DistConfig.run(get_run_conf, :unset_dns_resolvers)
+          dns_apply_command = :unset_dns_resolvers
+          dns_apply_error = 'DNS resolver configuration was cleared, but could not be applied'
 
         when :nesting
           self.nesting = false
@@ -746,6 +760,11 @@ module OsCtld
 
       save_config
       lxc_config.configure_base
+
+      return unless dns_apply_command
+
+      dns_apply_success, = DistConfig.run_with_status(get_run_conf, dns_apply_command)
+      raise DistConfig::ApplyError, dns_apply_error unless dns_apply_success
     end
 
     def setup_start_menu
