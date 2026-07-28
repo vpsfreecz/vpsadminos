@@ -1,0 +1,53 @@
+From: Pavel Snajdr <snajpa@snajpa.net>
+Date: Mon, 28 Jul 2026 00:00:00 +0200
+Subject: [PATCH] kpatch-build: register livepatch system states
+
+Kpatch preserves patch-authored .kpatch.system_states data in the generated
+module, but its module wrapper does not expose that data through struct
+klp_patch.  Consequently, the livepatch core cannot enforce cumulative
+replacement compatibility for patches which own persistent state.
+
+Collect the state records into one aligned array, append a struct-sized
+zero-ID sentinel, and assign the array to klp_patch.states on kernels which
+provide the system-state API.
+
+Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
+---
+ kmod/patch/kpatch.lds.S             |  7 +++++++
+ kmod/patch/livepatch-patch-hook.c   | 15 +++++++++++++++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/kmod/patch/kpatch.lds.S b/kmod/patch/kpatch.lds.S
+index bc5de82..10780b1 100644
+--- a/kmod/patch/kpatch.lds.S
++++ b/kmod/patch/kpatch.lds.S
+@@ -11,0 +12,7 @@ SECTIONS
++  .kpatch.system_states : SUBALIGN(__SIZEOF_POINTER__) {
++    __kpatch_system_states = . ;
++    KEEP(*(.kpatch.system_states))
++    KEEP(*(.kpatch.system_states.sentinel))
++    __kpatch_system_states_end = . ;
++  }
++
+diff --git a/kmod/patch/livepatch-patch-hook.c b/kmod/patch/livepatch-patch-hook.c
+index 3d13ab9..34747d0 100644
+--- a/kmod/patch/livepatch-patch-hook.c
++++ b/kmod/patch/livepatch-patch-hook.c
+@@ -84,0 +85,4 @@
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
++#define HAVE_SYSTEM_STATE
++#endif
++
+@@ -115,0 +120,8 @@ static struct klp_patch *lpatch;
++#ifdef HAVE_SYSTEM_STATE
++static struct klp_state kpatch_system_state_sentinel
++	__section(".kpatch.system_states.sentinel") __used = {
++		.id = 0,
++	};
++extern struct klp_state __kpatch_system_states[];
++#endif
++
+@@ -504,0 +517,3 @@ static int __init patch_init(void)
++#ifdef HAVE_SYSTEM_STATE
++	lpatch->states = __kpatch_system_states;
++#endif
