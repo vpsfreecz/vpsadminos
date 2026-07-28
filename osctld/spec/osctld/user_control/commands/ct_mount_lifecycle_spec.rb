@@ -157,8 +157,9 @@ RSpec.describe 'authenticated container mount callbacks' do
     allow(shared_dir).to receive(:cleanup_pushed) do |rootfs|
       events << [:cleanup, rootfs]
     end
-    allow(OsCtld::DistConfig).to receive(:run) do
+    allow(OsCtld::DistConfig).to receive(:run_with_status) do
       events << :dist_config
+      [true, nil]
     end
     allow(OsCtld::Hook).to receive(:run) { events << :hook }
 

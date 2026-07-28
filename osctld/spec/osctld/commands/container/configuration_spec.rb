@@ -5,6 +5,7 @@
 require 'ostruct'
 require 'osctld/exceptions'
 require 'osctld/command'
+require 'osctld/dist_config'
 require 'osctld/utils/container'
 require 'osctld/utils/switch_user'
 require 'osctld/commands/container/set'
@@ -62,6 +63,32 @@ RSpec.describe 'container configuration commands' do
       expect(command.execute(ct)).to eq(status: true, output: nil)
       expect(ct.changes).to eq(hostname: 'new', seccomp_profile: 'default')
     end
+
+    it 'logs persisted resolver intent when live application fails' do
+      pool = Object.new
+      ct = Struct.new(:dns_resolvers, :pool, keyword_init: true) do
+        def set(_changes)
+          raise OsCtld::DistConfig::ApplyError,
+                'DNS resolver configuration was saved, but could not be applied'
+        end
+
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(dns_resolvers: nil, pool:)
+      opts = {
+        id: 'ct1',
+        pool: 'tank',
+        dns_resolvers: ['192.0.2.53']
+      }
+      command = described_class.new(opts, {})
+
+      expect(command.execute(ct)).to eq(
+        status: false,
+        message: 'DNS resolver configuration was saved, but could not be applied'
+      )
+      expect(OsCtld::History).to have_received(:log).with(pool, :ct_set, opts)
+    end
   end
 
   describe OsCtld::Commands::Container::Unset do
@@ -86,6 +113,32 @@ RSpec.describe 'container configuration commands' do
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
       expect(ct.changes).to eq(hostname: true, attrs: true)
+    end
+
+    it 'logs persisted resolver removal when live clear fails' do
+      pool = Object.new
+      ct = Struct.new(:pool, keyword_init: true) do
+        def unset(_changes)
+          raise OsCtld::DistConfig::ApplyError,
+                'DNS resolver configuration was cleared, but could not be applied'
+        end
+
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(pool:)
+      opts = {
+        id: 'ct1',
+        pool: 'tank',
+        dns_resolvers: true
+      }
+      command = described_class.new(opts, {})
+
+      expect(command.execute(ct)).to eq(
+        status: false,
+        message: 'DNS resolver configuration was cleared, but could not be applied'
+      )
+      expect(OsCtld::History).to have_received(:log).with(pool, :ct_unset, opts)
     end
   end
 

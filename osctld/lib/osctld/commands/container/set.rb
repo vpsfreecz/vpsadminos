@@ -26,7 +26,13 @@ module OsCtld
           end
         end
 
-        ct.set(changes)
+        begin
+          ct.set(changes)
+        rescue DistConfig::ApplyError => e
+          log_history(ct.pool)
+          next error(e.message)
+        end
+
         ok
       end
     end

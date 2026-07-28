@@ -1,0 +1,3 @@
+{
+  imports = [ ../vpsadminos-resolver.nix ];
+}

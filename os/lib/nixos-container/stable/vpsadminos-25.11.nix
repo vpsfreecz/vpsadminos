@@ -27,6 +27,8 @@ let
   ];
 in
 {
+  imports = [ ./vpsadminos-resolver.nix ];
+
   networking.nameservers = mkDefault nameservers;
   services.resolved = mkDefault { fallbackDns = nameservers; };
   networking.dhcpcd.extraConfig = "noipv4ll";

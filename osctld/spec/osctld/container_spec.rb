@@ -1450,6 +1450,7 @@ RSpec.describe OsCtld::Container do
       with_tmpdir do |dir|
         ct = build_configured_container(root: dir)
         allow(OsCtld::DistConfig).to receive(:run)
+        allow(OsCtld::DistConfig).to receive(:run_with_status).and_return([true, nil])
         allow(ct.lxc_config).to receive(:configure_base)
 
         ct.set(
@@ -1464,7 +1465,7 @@ RSpec.describe OsCtld::Container do
           :set_hostname,
           original: nil
         )
-        expect(OsCtld::DistConfig).to have_received(:run).with(
+        expect(OsCtld::DistConfig).to have_received(:run_with_status).with(
           instance_of(run_conf_class),
           :dns_resolvers
         )
@@ -1541,6 +1542,7 @@ RSpec.describe OsCtld::Container do
         ct = build_configured_container(root: dir)
         allow(ct.pool.autostart_plan).to receive(:stop_ct)
         allow(OsCtld::DistConfig).to receive(:run)
+        allow(OsCtld::DistConfig).to receive(:run_with_status).and_return([true, nil])
         allow(ct.lxc_config).to receive(:configure_base)
 
         ct.set(
@@ -1585,8 +1587,56 @@ RSpec.describe OsCtld::Container do
         expect(ct.attrs.dump).to eq({})
         expect(ct.pool.autostart_plan).to have_received(:stop_ct).with(ct)
         expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :unset_etc_hosts)
-        expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :unset_dns_resolvers)
+        expect(OsCtld::DistConfig).to have_received(:run_with_status).with(run_conf, :unset_dns_resolvers)
         expect(ct.lxc_config).to have_received(:configure_base).twice
+      end
+    end
+
+    it 'persists resolver intent and reports a failed live set' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        allow(OsCtld::DistConfig).to receive(:run_with_status) do |_run_conf, command|
+          expect(command).to eq(:dns_resolvers)
+          expect(load_yaml_file(ct.config_path)['dns_resolvers']).to eq(['1.1.1.1'])
+          [false, nil]
+        end
+        allow(ct.lxc_config).to receive(:configure_base)
+
+        expect do
+          ct.set(dns_resolvers: ['1.1.1.1'])
+        end.to raise_error(
+          OsCtld::DistConfig::ApplyError,
+          'DNS resolver configuration was saved, but could not be applied'
+        )
+
+        expect(ct.dns_resolvers).to eq(['1.1.1.1'])
+        expect(load_yaml_file(ct.config_path)['dns_resolvers']).to eq(['1.1.1.1'])
+        expect(ct.lxc_config).to have_received(:configure_base)
+      end
+    end
+
+    it 'persists resolver removal and reports a failed live clear' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        allow(OsCtld::DistConfig).to receive(:run_with_status).and_return([true, nil])
+        allow(ct.lxc_config).to receive(:configure_base)
+        ct.set(dns_resolvers: ['1.1.1.1'])
+
+        allow(OsCtld::DistConfig).to receive(:run_with_status) do |_run_conf, command|
+          expect(command).to eq(:unset_dns_resolvers)
+          expect(load_yaml_file(ct.config_path)['dns_resolvers']).to be_nil
+          [false, nil]
+        end
+
+        expect do
+          ct.unset(dns_resolvers: true)
+        end.to raise_error(
+          OsCtld::DistConfig::ApplyError,
+          'DNS resolver configuration was cleared, but could not be applied'
+        )
+
+        expect(ct.dns_resolvers).to be_nil
+        expect(load_yaml_file(ct.config_path)['dns_resolvers']).to be_nil
       end
     end
   end

@@ -66,7 +66,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtPostMount do
 
   it 'rejects a mounted rootfs descriptor for another directory' do
     context = build_context
-    allow(OsCtld::DistConfig).to receive(:run)
+    allow(OsCtld::DistConfig).to receive(:run_with_status)
     allow(context[:root_dir]).to receive(:stat).and_return(
       instance_double(File::Stat, directory?: true, dev: 2, ino: 20)
     )
@@ -75,6 +75,41 @@ RSpec.describe OsCtld::UserControl::Commands::CtPostMount do
       status: false,
       message: 'invalid container rootfs or namespace: Invalid cross-device link - /trusted/root'
     )
-    expect(OsCtld::DistConfig).not_to have_received(:run)
+    expect(OsCtld::DistConfig).not_to have_received(:run_with_status)
+  end
+
+  it 'fails the lifecycle callback when distribution post-mount setup fails' do
+    context = build_context
+    allow(OsCtld::DistConfig).to receive(:run_with_status)
+      .and_return([false, nil])
+
+    expect(context[:command].execute).to eq(
+      status: false,
+      message: 'distribution post-mount configuration failed'
+    )
+    expect(OsCtld::DistConfig).to have_received(:run_with_status).with(
+      context[:run_conf],
+      :post_mount,
+      rootfs_mount: '/trusted/root',
+      root_dir: context[:root_dir],
+      ns_pid: 123,
+      mnt_ns: context[:mount_ns]
+    )
+    expect(OsCtld::Hook).not_to have_received(:run)
+  end
+
+  it 'runs post-mount hooks after distribution setup succeeds' do
+    context = build_context
+    allow(OsCtld::DistConfig).to receive(:run_with_status)
+      .and_return([true, nil])
+
+    expect(context[:command].execute).to eq(status: true, output: nil)
+    expect(OsCtld::Hook).to have_received(:run).with(
+      context[:ct],
+      :post_mount,
+      rootfs_mount: '/trusted/root',
+      ns_pid: 123,
+      mnt_ns: context[:mount_ns]
+    )
   end
 end

@@ -28,7 +28,7 @@ module OsCtld
       end
 
       with_claimed_lifecycle_event(ct, :post_mount, after: :pre_mount) do |run_conf|
-        DistConfig.run(
+        dist_configured, = DistConfig.run_with_status(
           run_conf,
           :post_mount,
           rootfs_mount:,
@@ -36,6 +36,7 @@ module OsCtld
           ns_pid: peer.pid,
           mnt_ns: peer.namespace(:mnt)
         )
+        next error('distribution post-mount configuration failed') unless dist_configured
 
         begin
           Hook.run(
