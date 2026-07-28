@@ -1,8 +1,12 @@
 require 'osctld/dist_config/distributions/base'
+require 'osctld/dist_config/nixos_resolver_file'
+require 'osctld/dist_config/resolver'
 
 module OsCtld
   class DistConfig::Distributions::NixOS < DistConfig::Distributions::Base
     distribution :nixos
+
+    DNS_UPDATE = '/run/current-system/sw/bin/vpsadminos-dns-update'.freeze
 
     class Configurator < DistConfig::Configurator
       def network(netifs)
@@ -31,7 +35,9 @@ module OsCtld
 
     def post_mount(opts)
       super
-      return if ct.impermanence.nil?
+      resolvers = ct.dns_resolvers
+      resolvers_unset = resolvers.nil? || (resolvers.is_a?(Array) && resolvers.empty?)
+      return if ct.impermanence.nil? && resolvers_unset
 
       ContainerControl::Commands::WithMountns.run!(
         ct,
@@ -39,23 +45,40 @@ module OsCtld
         mnt_ns: opts[:mnt_ns],
         root_dir: opts[:root_dir],
         block: proc do
-          # If /sbin/init already exists, it means we're *not* in impermanence mode
-          # right now, even if it is enabled. While in impermanence mode, we start
-          # with an empty dataset. Existing /sbin/init suggest custom `osctl ct boot`
-          # is active.
-          next if File.exist?('/sbin/init')
+          configure_impermanence_init
 
-          begin
-            Dir.mkdir('/sbin')
-          rescue Errno::EEXIST
-            # pass
+          unless resolvers_unset
+            DistConfig::NixOSResolverFile.new.write(
+              DistConfig::Resolver.render(resolvers)
+            )
           end
 
-          File.symlink('/nix/var/nix/profiles/system/init', '/sbin/init')
           true
         end
       )
     end
+
+    protected
+
+    def configure_impermanence_init
+      return unless ct.impermanence
+
+      # If /sbin/init already exists, it means we're *not* in impermanence mode
+      # right now, even if it is enabled. While in impermanence mode, we start
+      # with an empty dataset. Existing /sbin/init suggests custom
+      # `osctl ct boot` is active.
+      return if File.exist?('/sbin/init')
+
+      begin
+        Dir.mkdir('/sbin')
+      rescue Errno::EEXIST
+        # pass
+      end
+
+      File.symlink('/nix/var/nix/profiles/system/init', '/sbin/init')
+    end
+
+    public
 
     def set_hostname(_opts = {})
       log(:warn, 'Unable to apply hostname to NixOS container')
@@ -70,11 +93,19 @@ module OsCtld
     end
 
     def dns_resolvers(_opts = {})
-      super if ct.impermanence.nil? || ct.running?
+      return unless ct.running?
+
+      ct_syscmd(
+        ct,
+        [DNS_UPDATE],
+        stdin: DistConfig::Resolver.render(ct.dns_resolvers)
+      )
     end
 
     def unset_dns_resolvers(_opts = {})
-      super if ct.impermanence.nil? || ct.running?
+      return unless ct.running?
+
+      ct_syscmd(ct, [DNS_UPDATE, '--clear'])
     end
 
     def bin_path(_opts)

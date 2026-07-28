@@ -19,6 +19,7 @@ let
   addrToStr = a: "${a.address}/${toString a.prefixLength}";
   boolToStr = x: if x then "true" else "false";
   nullIfEmpty = s: if s == "" then null else s;
+  nullIfEmptyList = l: if l == [ ] then null else l;
 
   buildDevices =
     devices:
@@ -121,7 +122,7 @@ let
           autostart = null; # autostart is handled by the runit service
           start_menu = cfg.startMenu;
           hostname = name;
-          dns_resolvers = cfg.resolvers;
+          dns_resolvers = nullIfEmptyList cfg.resolvers;
           nesting = cfg.nesting;
           seccomp_profile = nullIfEmpty cfg.seccomp;
         };
