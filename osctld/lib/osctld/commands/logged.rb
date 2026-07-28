@@ -19,15 +19,19 @@ module OsCtld
 
       ret = execute(obj)
 
-      if ret.is_a?(Hash) && ret[:status] && !indirect?
-        History.log(pool, self.class.cmd, opts)
-      end
+      log_history(pool) if ret.is_a?(Hash) && ret[:status]
 
       ret
     end
 
     def find
       raise NotImplementedError
+    end
+
+    protected
+
+    def log_history(pool)
+      History.log(pool, self.class.cmd, opts) unless indirect?
     end
   end
 end

@@ -109,6 +109,16 @@ in
       chmod +w /etc/nixos/vpsadminos.nix
     fi
 
+    if ! [ -e /persistent/etc/nixos/vpsadminos-resolver.nix ]; then
+      cp ${../vpsadminos-resolver.nix} /persistent/etc/nixos/vpsadminos-resolver.nix
+      chmod +w /etc/nixos/vpsadminos-resolver.nix
+    fi
+
+    if ! [ -e /persistent/etc/nixos/vpsadminos-dns-update.py ]; then
+      cp ${../vpsadminos-dns-update.py} /persistent/etc/nixos/vpsadminos-dns-update.py
+      chmod +w /etc/nixos/vpsadminos-dns-update.py
+    fi
+
     if ! [ -d /persistent/etc/nixos/impermanence ]; then
       cp -r ${impermanenceModule} /persistent/etc/nixos/impermanence
       find /persistent/etc/nixos/impermanence -type f -exec chmod u+w {} \;
