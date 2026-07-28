@@ -67,6 +67,23 @@ let
     cat ${pkgs.sysinfo-to-json}/bin/sysinfo-to-json >> $out
   '';
 
+  compatSysinfo = pkgs.pkgsi686Linux.pkgsStatic.stdenv.mkDerivation {
+    pname = "sysinfo-compat-to-json";
+    version = "1";
+    dontUnpack = true;
+    strictDeps = true;
+
+    buildPhase = ''
+      $CC -std=c11 -O2 -Wall -Wextra -Werror -static \
+        ${./sysinfo-compat-to-json.c} -o sysinfo-compat-to-json
+    '';
+
+    installPhase = ''
+      install -Dm755 sysinfo-compat-to-json \
+        $out/bin/sysinfo-compat-to-json
+    '';
+  };
+
   mkMachine =
     {
       cgroupsVersion,
@@ -126,6 +143,11 @@ let
     def self.push_sysinfo_script
       machine.mkdir_p('/scripts')
       machine.push_file('${containerSysinfo}', '/scripts/sysinfo.py')
+      machine.push_file(
+        '${compatSysinfo}/bin/sysinfo-compat-to-json',
+        '/scripts/sysinfo-compat-to-json'
+      )
+      machine.succeeds('chmod 0755 /scripts/sysinfo-compat-to-json')
     end
 
     def self.push_cpu_view_scripts
@@ -168,6 +190,7 @@ in
     setAffinity
     setAffinityAndGet
     containerSysinfo
+    compatSysinfo
     rubyHelpers
     useMachine
     ;
