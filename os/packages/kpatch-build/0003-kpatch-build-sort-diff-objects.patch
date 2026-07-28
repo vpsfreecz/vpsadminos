@@ -1,0 +1,30 @@
+From: Pavel Snajdr <snajpa@snajpa.net>
+Date: Tue, 28 Jul 2026 00:00:00 +0200
+Subject: [PATCH] kpatch-build: sort final diff-object link inputs
+
+The final module link consumes the output of find in filesystem traversal
+order.  Two builds from identical inputs can therefore link the same diff
+objects in different orders, changing aggregate section order, symbol and
+relocation indices, the build ID, and the module hash.
+
+Sort the paths bytewise before both native and cross links.  Kernel object
+paths contain no whitespace, so this retains the existing word-list
+interface while making the final module reproducible.
+
+Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
+---
+ kpatch-build/kpatch-build | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/kpatch-build/kpatch-build b/kpatch-build/kpatch-build
+--- a/kpatch-build/kpatch-build
++++ b/kpatch-build/kpatch-build
+@@ -1489 +1489 @@ cd "$TEMPDIR/output" || die
+-# $KPATCH_LDFLAGS and result of find used as list, no quotes.
++# $KPATCH_LDFLAGS and sorted result of find used as list, no quotes.
+@@ -1493 +1493 @@ if [[ "$ARCH" != "$TARGET_ARCH" ]]; then
+-	"$LLD" -r $KPATCH_LDFLAGS -o ../patch/tmp_output.o $(find . -name "*.o") 2>&1 | logger || die
++	"$LLD" -r $KPATCH_LDFLAGS -o ../patch/tmp_output.o $(find . -name "*.o" -print | LC_ALL=C sort) 2>&1 | logger || die
+@@ -1495 +1495 @@ else
+-	"$LD" -r $KPATCH_LDFLAGS -o ../patch/tmp_output.o $(find . -name "*.o") 2>&1 | logger || die
++	"$LD" -r $KPATCH_LDFLAGS -o ../patch/tmp_output.o $(find . -name "*.o" -print | LC_ALL=C sort) 2>&1 | logger || die

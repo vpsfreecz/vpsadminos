@@ -16,6 +16,7 @@ let
     version = config.boot.kernelVersion;
   };
   availablePatchesList = availablePatches.patchList;
+  availablePatchTargets = availablePatches.patchTargets;
   patchVersion = availablePatches.patchVersion;
 
   buildEnable = (patchVersion > 0) && cfg.enable;
@@ -29,7 +30,11 @@ let
   installModPath = "${installModDir}/${patchModuleName}.ko";
 
   buildLivePatch =
-    { availablePatchesList, stdenv }:
+    {
+      availablePatchesList,
+      availablePatchTargets,
+      stdenv,
+    }:
     stdenv.mkDerivation rec {
       name = "${patchModuleName}-${kernel.modDirVersion}";
       version = toString patchVersion;
@@ -42,6 +47,10 @@ let
         "stackprotector"
         "pic"
       ];
+      # ELF tools do not recognize SHF_RELA_LIVEPATCH relocation sections.
+      # Stripping can therefore renumber .symtab without updating the symbol
+      # indices stored in those sections, corrupting the module at load time.
+      dontStrip = true;
       depsBuildBuild = [ pkgs.stdenv.cc ];
 
       buildPhase = ''
@@ -108,9 +117,9 @@ let
         popd
       ''
       + ''
-                cat > src/include/linux/vpsadminos-livepatch.h <<LIVEPATCH_HEADER_END
-        #ifndef VPSADMINOS_LIVEPATCH_H
-        #define VPSADMINOS_LIVEPATCH_H
+                cat > src/include/linux/vpsadminos-livepatch-build.h <<LIVEPATCH_HEADER_END
+        #ifndef VPSADMINOS_LIVEPATCH_BUILD_H
+        #define VPSADMINOS_LIVEPATCH_BUILD_H
         #define LIVEPATCH_ORIG_KERNEL_VERSION        "${kernel.modDirVersion}"
         #define LIVEPATCH_NAME                       "${patchName}"
         #endif
@@ -118,15 +127,20 @@ let
 
                 # command preview:
                 echo kpatch-build -n ${patchModuleName} ''
+      + concatMapStrings (target: "-t ${escapeShellArg target} ") availablePatchTargets
       + concatMapStringsSep " " (name: "${name}.patch") availablePatchesList
       + ''
         ; # we dont get a newline between this and the next line; wtf
                 # actual command
                 #export ARCH_KCFLAGS="-gz=none"
-                $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
+                if ! $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
+      + concatMapStrings (target: "-t ${escapeShellArg target} ") availablePatchTargets
       + concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList
       + ''
-        || cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log
+        ; then
+          cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log
+          exit 1
+        fi
       '';
 
       nativeBuildInputs = kernel.nativeBuildInputs;
@@ -137,7 +151,9 @@ let
       '';
     };
 
-  patches = pkgs.callPackage buildLivePatch { inherit availablePatchesList; };
+  patches = pkgs.callPackage buildLivePatch {
+    inherit availablePatchesList availablePatchTargets;
+  };
 
   moduleLoadGen =
     { moduleName, installModPath }:
@@ -327,6 +343,7 @@ in
     }
 
     (mkIf buildEnable {
+      system.build.livePatches = patches;
       environment.etc."vpsadminos/livepatch-monitor.json".text = builtins.toJSON {
         kernelVersion = config.boot.kernelVersion;
         module = patchModuleName;

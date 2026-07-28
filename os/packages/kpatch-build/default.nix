@@ -13,7 +13,11 @@ pkgs.stdenv.mkDerivation rec {
     rev = "bea635fbbeb11c5f0f5c0d4ffce34c2e9d2e8a6a";
     sha256 = "sha256-bVoNNtzNGCd1+8RmxDeLPr/6g4KdYmDFuCmJYET5AIU=";
   };
-  patches = [ ./0001-kpatch-build-register-system-states.patch ];
+  patches = [
+    ./0001-kpatch-build-register-system-states.patch
+    ./0002-kpatch-build-group-module-targets.patch
+    ./0003-kpatch-build-sort-diff-objects.patch
+  ];
   postPatch = ''
     substituteInPlace ./kpatch-build/kpatch-build --replace /bin/bash "${pkgs.bashInteractive}/bin/bash"
     substituteInPlace ./kpatch-build/kpatch-build --replace "getopt" "${getopt}/bin/getopt"

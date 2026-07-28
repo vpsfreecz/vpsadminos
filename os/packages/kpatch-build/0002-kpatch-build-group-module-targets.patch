@@ -1,0 +1,81 @@
+From: Pavel Snajdr <snajpa@snajpa.net>
+Date: Tue, 28 Jul 2026 00:00:00 +0200
+Subject: [PATCH] kpatch-build: group requested module targets
+
+Passing vmlinux and multiple .ko goals to one top-level make invocation
+enters kbuild's one-by-one path.  Each module is then sent through a separate
+single_modules modpost, so one requested module cannot satisfy another
+requested module's exported symbols.
+
+Store targets in an array, build non-module goals first, and pass every
+requested module to one subsequent make invocation.  Preserve the same
+grouping for both the original and patched source builds.
+
+Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
+---
+ kpatch-build/kpatch-build | 55 ++++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 47 insertions(+), 8 deletions(-)
+
+diff --git a/kpatch-build/kpatch-build b/kpatch-build/kpatch-build
+--- a/kpatch-build/kpatch-build
++++ b/kpatch-build/kpatch-build
+@@ -58,0 +59 @@ declare -a PATCH_LIST
++declare -a TARGETS
+@@ -806 +807 @@ while [[ $# -gt 0 ]]; do
+-		TARGETS="$TARGETS $2"
++		TARGETS+=("$2")
+@@ -964 +965,3 @@ fi
+-[[ -z "$TARGETS" ]] && TARGETS="vmlinux modules"
++if [[ "${#TARGETS[@]}" -eq 0 ]]; then
++	TARGETS=(vmlinux modules)
++fi
+@@ -1302,3 +1305,41 @@ fi
+-# $TARGETS used as list, no quotes.
+-# shellcheck disable=SC2086
+-make "${MAKEVARS[@]}" "-j$CPUS" $TARGETS 2>&1 | logger || die
++run_make_targets() {
++	local kbuild_modpost_warn="$1"
++	shift
++
++	if [[ "$kbuild_modpost_warn" -eq 1 ]]; then
++		KBUILD_MODPOST_WARN=1 make "${MAKEVARS[@]}" "-j$CPUS" "$@" 2>&1 |
++			logger || die
++	else
++		make "${MAKEVARS[@]}" "-j$CPUS" "$@" 2>&1 | logger || die
++	fi
++}
++
++build_targets() {
++	local kbuild_modpost_warn="$1"
++	local -a kernel_targets=()
++	local -a module_targets=()
++	local target
++
++	for target in "${TARGETS[@]}"; do
++		if [[ "$target" == *.ko ]]; then
++			module_targets+=("$target")
++		else
++			kernel_targets+=("$target")
++		fi
++	done
++
++	# Mixing vmlinux with .ko goals makes kbuild's top-level Makefile invoke
++	# every goal separately.  In that mode each module gets its own modpost,
++	# so one target cannot satisfy another target's exported symbols.  Build
++	# the kernel goals first, then keep every requested module in the same
++	# single_modules/modpost invocation.
++	if [[ "${#kernel_targets[@]}" -gt 0 ]]; then
++		run_make_targets "$kbuild_modpost_warn" "${kernel_targets[@]}"
++	fi
++
++	if [[ "${#module_targets[@]}" -gt 0 ]]; then
++		run_make_targets "$kbuild_modpost_warn" "${module_targets[@]}"
++	fi
++}
++
++build_targets 0
+@@ -1315,3 +1356 @@ save_env
+-# $TARGETS used as list, no quotes.
+-# shellcheck disable=SC2086
+-KBUILD_MODPOST_WARN=1 make "${MAKEVARS[@]}" "-j$CPUS" $TARGETS 2>&1 | logger || die
++build_targets 1

@@ -44,11 +44,16 @@ let
 
   proactiveSwapEnabled = builtins.getEnv "VPSADMINOS_ENABLE_PROACTIVE_SWAP_TEST" == "1";
   proactiveSwapOnly = builtins.getEnv "VPSADMINOS_ONLY_PROACTIVE_SWAP_TEST" == "1";
+  livepatchTestEnabled = builtins.getEnv "VPSADMINOS_ENABLE_LIVEPATCH_TEST" == "1";
+  livepatchOnly = builtins.getEnv "VPSADMINOS_ONLY_LIVEPATCH_TEST" == "1";
 
   proactiveSwapTests = if proactiveSwapEnabled then [ "kernel/proactive-swap" ] else [ ];
+  livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" ] else [ ];
 
   selectedTests =
-    if proactiveSwapOnly then
+    if livepatchOnly then
+      livepatchTests
+    else if proactiveSwapOnly then
       proactiveSwapTests
     else
       [
@@ -173,6 +178,7 @@ let
         "zfs/overlayfs-deadlock"
         "zfs/ugidmap"
       ]
-      ++ proactiveSwapTests;
+      ++ proactiveSwapTests
+      ++ livepatchTests;
 in
 testLib.makeTests selectedTests

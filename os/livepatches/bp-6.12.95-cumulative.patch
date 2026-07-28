@@ -1,0 +1,2927 @@
+diff --git a/arch/x86/include/asm/tlbflush.h b/arch/x86/include/asm/tlbflush.h
+index 3da645139748538daac70166618d8ad95116eb74..fd665bd454e3b0168d558636272bf08d7cd532af 100644
+--- a/arch/x86/include/asm/tlbflush.h
++++ b/arch/x86/include/asm/tlbflush.h
+@@ -247,0 +248,3 @@ extern void flush_tlb_all(void);
++#ifdef CONFIG_LIVEPATCH
++void vpsadminos_livepatch_flush_tlb_all(void);
++#endif
+diff --git a/arch/x86/kernel/cpu/bugs.c b/arch/x86/kernel/cpu/bugs.c
+index 939401b5d2ef04d3cda281ed432f91af9029b63b..1af64c54fe6975012282c2effc3e8617f7e8bf94 100644
+--- a/arch/x86/kernel/cpu/bugs.c
++++ b/arch/x86/kernel/cpu/bugs.c
+@@ -1870,0 +1871,22 @@ static void __init bhi_select_mitigation(void)
++#ifdef CONFIG_BPF_JIT
++void vpsadminos_bpf_jit_ibpb(void);
++
++static void vpsadminos_bpf_jit_ibpb_cpu(void *unused)
++{
++	entry_ibpb();
++}
++
++void vpsadminos_bpf_jit_ibpb(void)
++{
++	if (spectre_v2_enabled == SPECTRE_V2_NONE ||
++	    (boot_cpu_has(X86_FEATURE_RETPOLINE) &&
++	     !boot_cpu_has(X86_FEATURE_RETPOLINE_LFENCE)) ||
++	    !boot_cpu_has(X86_FEATURE_IBPB))
++		return;
++
++	cpus_read_lock();
++	on_each_cpu(vpsadminos_bpf_jit_ibpb_cpu, NULL, 1);
++	cpus_read_unlock();
++}
++#endif
++
+diff --git a/arch/x86/mm/tlb.c b/arch/x86/mm/tlb.c
+index 8629d90fdcd922c4dbe55e809d06e4a3354af700..d6bfdb2d087c8f93ceba2430efe948bf24d46bef 100644
+--- a/arch/x86/mm/tlb.c
++++ b/arch/x86/mm/tlb.c
+@@ -608,0 +609,8 @@ void switch_mm_irqs_off(struct mm_struct *unused, struct mm_struct *next,
++		/*
++		 * Indicate that CR3 is about to change. nmi_uaccess_okay()
++		 * and others are sensitive to the window where mm_cpumask(),
++		 * CR3 and cpu_tlbstate.loaded_mm are not all in sync.
++		 */
++		this_cpu_write(cpu_tlbstate.loaded_mm, LOADED_MM_SWITCHING);
++		barrier();
++
+@@ -626,8 +633,0 @@ void switch_mm_irqs_off(struct mm_struct *unused, struct mm_struct *next,
+-
+-		/*
+-		 * Indicate that CR3 is about to change. nmi_uaccess_okay()
+-		 * and others are sensitive to the window where mm_cpumask(),
+-		 * CR3 and cpu_tlbstate.loaded_mm are not all in sync.
+- 		 */
+-		this_cpu_write(cpu_tlbstate.loaded_mm, LOADED_MM_SWITCHING);
+-		barrier();
+@@ -1098,0 +1099,16 @@ void flush_tlb_all(void)
++#ifdef CONFIG_LIVEPATCH
++/*
++ * A livepatch can replace switch_mm_irqs_off() only after vulnerable calls
++ * have already missed a shootdown.  Once the replacement is active across
++ * all tasks, discard every such stale translation.  Keep the online mask
++ * stable so that no CPU can come online without either receiving this IPI or
++ * taking the normal hotplug TLB reinitialization path afterward.
++ */
++void vpsadminos_livepatch_flush_tlb_all(void)
++{
++	cpus_read_lock();
++	flush_tlb_all();
++	cpus_read_unlock();
++}
++#endif
++
+diff --git a/fs/fuse/dev.c b/fs/fuse/dev.c
+index f7e305c9ad4e8be3320d5fe38da833125529f0c5..bd3e321572c7e07c7256ffe031e712d605b3f39f 100644
+--- a/fs/fuse/dev.c
++++ b/fs/fuse/dev.c
+@@ -68,0 +69,13 @@ static void fuse_request_free(struct fuse_req *req)
++	struct fuse_iqueue *fiq = &req->fm->fc->iq;
++
++	/*
++	 * A request resent before a livepatch transition can still have its
++	 * interrupt entry linked after the old pending-removal path drops the
++	 * queue reference.  Serialize with interrupt dequeue before freeing it.
++	 */
++	if (test_bit(FR_INTERRUPTED, &req->flags)) {
++		spin_lock(&fiq->lock);
++		list_del_init(&req->intr_entry);
++		spin_unlock(&fiq->lock);
++	}
++	WARN_ON(!list_empty(&req->intr_entry));
+@@ -963 +976 @@ static int fuse_ref_page(struct fuse_copy_state *cs, struct page *page,
+-	return 0;
++	return lock_request(cs->req);
+@@ -1883,0 +1897,8 @@ static void fuse_resend(struct fuse_conn *fc)
++	/*
++	 * Remove interrupt entries for resent requests to prevent stale
++	 * intr_entry on fiq->interrupts after the request is re-queued.
++	 */
++	list_for_each_entry(req, &to_queue, list) {
++		if (test_bit(FR_INTERRUPTED, &req->flags))
++			list_del_init(&req->intr_entry);
++	}
+diff --git a/fs/nfs/delegation.c b/fs/nfs/delegation.c
+index 8bdbc4dca89ca62e5763d6aaf6df3938b20c2128..c1bbc358833dd5e0a8a3f176d45519907cb5502c 100644
+--- a/fs/nfs/delegation.c
++++ b/fs/nfs/delegation.c
+@@ -151,0 +152 @@ static int nfs_delegation_claim_locks(struct nfs4_state *state, const nfs4_state
++	struct nfs_inode *nfsi = NFS_I(inode);
+@@ -160,0 +162,3 @@ static int nfs_delegation_claim_locks(struct nfs4_state *state, const nfs4_state
++
++	/* Guard against reclaim and new lock/unlock calls */
++	down_write(&nfsi->rwsem);
+@@ -168 +172,2 @@ static int nfs_delegation_claim_locks(struct nfs4_state *state, const nfs4_state
+-		if (status < 0)
++		if (status < 0) {
++			up_write(&nfsi->rwsem);
+@@ -169,0 +175 @@ static int nfs_delegation_claim_locks(struct nfs4_state *state, const nfs4_state
++		}
+@@ -176,0 +183 @@ static int nfs_delegation_claim_locks(struct nfs4_state *state, const nfs4_state
++	up_write(&nfsi->rwsem);
+diff --git a/fs/nfs/nfs4proc.c b/fs/nfs/nfs4proc.c
+index c76acd537be05008cd4d84cf87091b50c0b84f3d..d24a448593d23c511364211000f0b394cbb6c583 100644
+--- a/fs/nfs/nfs4proc.c
++++ b/fs/nfs/nfs4proc.c
+@@ -7131 +7130,0 @@ static void nfs4_locku_done(struct rpc_task *task, void *data)
+-			locks_lock_inode_wait(calldata->lsp->ls_state->inode, &calldata->fl);
+@@ -7398,0 +7398,4 @@ static void nfs4_lock_done(struct rpc_task *task, void *calldata)
++			struct inode *inode = lsp->ls_state->inode;
++			struct nfs_inode *nfsi = NFS_I(inode);
++			int status;
++
+@@ -7400 +7403,4 @@ static void nfs4_lock_done(struct rpc_task *task, void *calldata)
+-			if (locks_lock_inode_wait(lsp->ls_state->inode, &data->fl) < 0)
++			down_read(&nfsi->rwsem);
++			status = locks_lock_inode_wait(inode, &data->fl);
++			up_read(&nfsi->rwsem);
++			if (status < 0)
+@@ -7512,5 +7518,4 @@ static int _nfs4_do_setlk(struct nfs4_state *state, int cmd, struct file_lock *f
+-	if (recovery_type > NFS_LOCK_NEW) {
+-		if (recovery_type == NFS_LOCK_RECLAIM)
+-			data->arg.reclaim = NFS_LOCK_RECLAIM;
+-	} else
+-		data->arg.new_lock = 1;
++
++	if (recovery_type == NFS_LOCK_RECLAIM)
++		data->arg.reclaim = NFS_LOCK_RECLAIM;
++
+@@ -7627,0 +7633,7 @@ static int _nfs4_proc_setlk(struct nfs4_state *state, int cmd, struct file_lock
++	if (status)
++		goto out;
++
++	down_read(&nfsi->rwsem);
++	request->c.flc_flags &= ~(FL_SLEEP | FL_ACCESS);
++	status = locks_lock_inode_wait(state->inode, request);
++	up_read(&nfsi->rwsem);
+diff --git a/include/linux/inetdevice.h b/include/linux/inetdevice.h
+index 9c0f263e2cd2884248f11b1965e3f6eb2477f236..d1a51865fc2a54e2ddfeee3ad3175e201542b590 100644
+--- a/include/linux/inetdevice.h
++++ b/include/linux/inetdevice.h
+@@ -286,0 +287,5 @@ static inline void in_dev_put(struct in_device *idev)
++static inline bool in_dev_hold_safe(struct in_device *idev)
++{
++	return refcount_inc_not_zero(&idev->refcnt);
++}
++
+diff --git a/include/linux/netfilter/nfnetlink.h b/include/linux/netfilter/nfnetlink.h
+index e9a9ab34a7ccc35db2b355cdd281d40935d1f044..5c80b94467a15a9902bfdbc9d4dbebb197781117 100644
+--- a/include/linux/netfilter/nfnetlink.h
++++ b/include/linux/netfilter/nfnetlink.h
+@@ -52,0 +53,3 @@ int nfnetlink_subsys_unregister(const struct nfnetlink_subsystem *n);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_nfnl_try_unregister(const struct nfnetlink_subsystem *n);
++#endif
+diff --git a/include/linux/sunrpc/clnt.h b/include/linux/sunrpc/clnt.h
+index 5321585c778fcc1fef0e0420cb481786c02a7aac..bd6ac060450cb637c561643d549882cab6202890 100644
+--- a/include/linux/sunrpc/clnt.h
++++ b/include/linux/sunrpc/clnt.h
+@@ -188,0 +189 @@ void		rpc_shutdown_client(struct rpc_clnt *);
++void		rpc_hold_client(struct rpc_clnt *);
+diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..ac8f263fe6d058dd9b3ebdd321425c6440bac549
+--- /dev/null
++++ b/include/linux/vpsadminos-livepatch.h
+@@ -0,0 +1,65 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
++#define _LINUX_VPSADMINOS_LIVEPATCH_H
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_XFRM)
++int vpsadminos_xfrm_livepatch_pre_patch(void);
++void vpsadminos_xfrm_livepatch_post_patch(void);
++void vpsadminos_xfrm_livepatch_pre_unpatch(void);
++#else
++static inline int vpsadminos_xfrm_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_xfrm_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_xfrm_livepatch_pre_unpatch(void)
++{
++}
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_NETFILTER)
++void vpsadminos_nfqueue_livepatch_post_patch(void);
++void vpsadminos_nfqueue_livepatch_post_unpatch(void);
++#else
++static inline void vpsadminos_nfqueue_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_nfqueue_livepatch_post_unpatch(void)
++{
++}
++#endif
++
++#ifdef CONFIG_LIVEPATCH
++void vpsadminos_pipapo_livepatch_cleanup(void);
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_SUNRPC)
++int vpsadminos_sunrpc_livepatch_pre_patch(void);
++void vpsadminos_sunrpc_livepatch_post_patch(void);
++void vpsadminos_sunrpc_livepatch_pre_unpatch(void);
++void vpsadminos_sunrpc_livepatch_post_unpatch(void);
++#else
++static inline int vpsadminos_sunrpc_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_sunrpc_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_sunrpc_livepatch_pre_unpatch(void)
++{
++}
++
++static inline void vpsadminos_sunrpc_livepatch_post_unpatch(void)
++{
++}
++#endif
++
++#endif
+diff --git a/include/net/addrconf.h b/include/net/addrconf.h
+index 363dd63babe72f67f2b494bcf7fc0fd5153c6f3a..4af28eecb8067d41a16e2cbffc7e71a909f7af40 100644
+--- a/include/net/addrconf.h
++++ b/include/net/addrconf.h
+@@ -417,0 +418,5 @@ static inline void in6_dev_hold(struct inet6_dev *idev)
++static inline bool in6_dev_hold_safe(struct inet6_dev *idev)
++{
++	return refcount_inc_not_zero(&idev->refcnt);
++}
++
+diff --git a/include/net/net_namespace.h b/include/net/net_namespace.h
+index 7ee37be62005852df283fdc315b7e5ea40db93c4..637db952987961fc1f796f99be404946b319128c 100644
+--- a/include/net/net_namespace.h
++++ b/include/net/net_namespace.h
+@@ -498,0 +499,3 @@ void unregister_pernet_device(struct pernet_operations *);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_pernet_try_register(struct pernet_operations *ops);
++#endif
+diff --git a/include/net/netfilter/nf_queue.h b/include/net/netfilter/nf_queue.h
+index 3978c3174cdbe0c2329fe4dde28342e619c96d8b..9d080ec1382d6b35be77f8a733f9986233e5dc06 100644
+--- a/include/net/netfilter/nf_queue.h
++++ b/include/net/netfilter/nf_queue.h
+@@ -20,0 +21,3 @@ struct nf_queue_entry {
++#if !defined(CONFIG_LIVEPATCH)
++	struct net_device	*bridge_dev;
++#endif
+@@ -30,0 +34,4 @@ struct nf_queue_entry {
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID	0xc0318879138399d1UL
++#endif
++
+diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
+index 517710c89fa50516212244a78f7a24c5c50d7b59..56621e2d7cd678886d35c8710e30152ca9fbc448 100644
+--- a/kernel/bpf/core.c
++++ b/kernel/bpf/core.c
+@@ -40,0 +41,4 @@
++#include <linux/vpsadminos-livepatch.h>
++#ifdef CONFIG_LIVEPATCH
++#include <linux/livepatch.h>
++#endif
+@@ -44,0 +49,4 @@
++#ifdef CONFIG_X86
++#include <asm/tlbflush.h>
++#endif
++
+@@ -894,0 +903,130 @@ void bpf_jit_fill_hole_with_zero(void *area, unsigned int size)
++#if defined(CONFIG_X86) && defined(CONFIG_BPF_JIT)
++void vpsadminos_bpf_jit_ibpb(void);
++#else
++static inline void vpsadminos_bpf_jit_ibpb(void)
++{
++}
++#endif
++
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_PIPAPO_STATE_ID	0x7a1f024282b3489dUL
++#define VPSADMINOS_PIPAPO_STATE_ACTIVE	((void *)1UL)
++
++static struct klp_state vpsadminos_pipapo_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_PIPAPO_STATE_ID,
++	.version = 2,
++};
++
++static void vpsadminos_pipapo_livepatch_post_patch(void)
++{
++	struct klp_state *prev_state;
++
++	WRITE_ONCE(vpsadminos_pipapo_state.data,
++		   VPSADMINOS_PIPAPO_STATE_ACTIVE);
++	prev_state = klp_get_prev_state(VPSADMINOS_PIPAPO_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == VPSADMINOS_PIPAPO_STATE_ACTIVE)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++static void vpsadminos_pipapo_livepatch_post_unpatch(void)
++{
++	WRITE_ONCE(vpsadminos_pipapo_state.data, NULL);
++}
++
++#ifndef CONFIG_X86
++static inline void vpsadminos_livepatch_flush_tlb_all(void)
++{
++}
++#endif
++
++struct klp_object;
++
++struct vpsadminos_pre_patch_callback {
++	int (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_pre_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_post_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++/*
++ * Kpatch accepts only one callback of each type for a target object.  Keep all
++ * vmlinux transition work in these coordinators.
++ */
++static int vpsadminos_livepatch_pre_patch(struct klp_object *obj)
++{
++	int ret;
++
++	(void)obj;
++	ret = vpsadminos_xfrm_livepatch_pre_patch();
++	if (ret)
++		return ret;
++	return vpsadminos_sunrpc_livepatch_pre_patch();
++}
++
++static void vpsadminos_livepatch_post_patch(struct klp_object *obj)
++{
++	(void)obj;
++	vpsadminos_pipapo_livepatch_post_patch();
++	vpsadminos_nfqueue_livepatch_post_patch();
++	vpsadminos_sunrpc_livepatch_post_patch();
++	vpsadminos_xfrm_livepatch_post_patch();
++	vpsadminos_bpf_jit_ibpb();
++	vpsadminos_livepatch_flush_tlb_all();
++}
++
++static void vpsadminos_livepatch_pre_unpatch(struct klp_object *obj)
++{
++	(void)obj;
++	vpsadminos_sunrpc_livepatch_pre_unpatch();
++	vpsadminos_xfrm_livepatch_pre_unpatch();
++}
++
++static void vpsadminos_livepatch_post_unpatch(struct klp_object *obj)
++{
++	(void)obj;
++	vpsadminos_sunrpc_livepatch_post_unpatch();
++	vpsadminos_nfqueue_livepatch_post_unpatch();
++	vpsadminos_pipapo_livepatch_post_unpatch();
++}
++
++static struct vpsadminos_pre_patch_callback vpsadminos_pre_patch_data
++__section(".kpatch.callbacks.pre_patch") __used = {
++	.fn = vpsadminos_livepatch_pre_patch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_post_patch_callback vpsadminos_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_livepatch_post_patch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_pre_unpatch_callback vpsadminos_pre_unpatch_data
++__section(".kpatch.callbacks.pre_unpatch") __used = {
++	.fn = vpsadminos_livepatch_pre_unpatch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_post_unpatch_callback vpsadminos_post_unpatch_data
++__section(".kpatch.callbacks.post_unpatch") __used = {
++	.fn = vpsadminos_livepatch_post_unpatch,
++	.objname = NULL,
++};
++#endif
++
+@@ -983,0 +1122 @@ void *bpf_prog_pack_alloc(u32 size, bpf_jit_fill_hole_t bpf_fill_ill_insns)
++	vpsadminos_bpf_jit_ibpb();
+diff --git a/kernel/events/core.c b/kernel/events/core.c
+index 9099c0cc933be2221b9103036518f84ce1ffe395..6fdae4f923f3e333135849df4775178aff6fd7de 100644
+--- a/kernel/events/core.c
++++ b/kernel/events/core.c
+@@ -2208,0 +2209,3 @@ static inline struct list_head *get_event_list(struct perf_event *event)
++static void
++event_sched_out(struct perf_event *event, struct perf_event_context *ctx);
++
+@@ -2253,0 +2257,10 @@ static void perf_group_detach(struct perf_event *event)
++		/*
++		 * A leader removed by an old remove-on-exec path is no
++		 * longer attached to the context, but its siblings can still
++		 * be active.  Schedule those siblings out before promoting
++		 * them so they are not added to the PMU twice later.
++		 */
++		if (!(event->attach_state & PERF_ATTACH_CONTEXT) &&
++		    sibling->state == PERF_EVENT_STATE_ACTIVE)
++			event_sched_out(sibling, ctx);
++
+@@ -3958,0 +3972,10 @@ static int merge_sched_in(struct perf_event *event, void *data)
++	/*
++	 * An old remove-on-exec path can leave an active sibling promoted to a
++	 * singleton and linked on the PMU active list before livepatch
++	 * activation.  It is already programmed; do not schedule or link it a
++	 * second time.
++	 */
++	if (event->state == PERF_EVENT_STATE_ACTIVE &&
++	    !list_empty(&event->active_list))
++		return 0;
++
+@@ -4540 +4563,2 @@ static void perf_event_exit_event(struct perf_event *event,
+-				  struct perf_event_context *ctx);
++				  struct perf_event_context *ctx,
++				  unsigned long detach_flags);
+@@ -4567 +4591 @@ static void perf_event_remove_on_exec(struct perf_event_context *ctx)
+-		perf_event_exit_event(event, ctx);
++		perf_event_exit_event(event, ctx, DETACH_GROUP);
+@@ -13481 +13505,3 @@ static void
+-perf_event_exit_event(struct perf_event *event, struct perf_event_context *ctx)
++perf_event_exit_event(struct perf_event *event,
++		      struct perf_event_context *ctx,
++		      unsigned long detach_flags)
+@@ -13484 +13509,0 @@ perf_event_exit_event(struct perf_event *event, struct perf_event_context *ctx)
+-	unsigned long detach_flags = 0;
+@@ -13499 +13524 @@ perf_event_exit_event(struct perf_event *event, struct perf_event_context *ctx)
+-		detach_flags = DETACH_GROUP | DETACH_CHILD;
++		detach_flags |= DETACH_GROUP | DETACH_CHILD;
+@@ -13578 +13603 @@ static void perf_event_exit_task_context(struct task_struct *child)
+-		perf_event_exit_event(child_event, child_ctx);
++		perf_event_exit_event(child_event, child_ctx, 0);
+diff --git a/net/bridge/br_if.c b/net/bridge/br_if.c
+index 6ffc81eedf0748a6a3cc8b8484d16537ef979ebd..eee6ceb7cddab030edd2376c40a6eeeb7d2e65ab 100644
+--- a/net/bridge/br_if.c
++++ b/net/bridge/br_if.c
+@@ -393,0 +394,3 @@ void br_dev_delete(struct net_device *dev, struct list_head *head)
++	timer_shutdown_sync(&br->hello_timer);
++	timer_shutdown_sync(&br->topology_change_timer);
++	timer_shutdown_sync(&br->tcn_timer);
+diff --git a/net/bridge/br_stp.c b/net/bridge/br_stp.c
+index 7d27b2e6038fb7bec698fd8c056f93ebdc761540..4cfebf5fcdf54db2ec9876ce196a9ff1b8cde0cb 100644
+--- a/net/bridge/br_stp.c
++++ b/net/bridge/br_stp.c
+@@ -374 +374,2 @@ void br_topology_change_detection(struct net_bridge *br)
+-	if (br->stp_enabled != BR_KERNEL_STP)
++	if (br->stp_enabled != BR_KERNEL_STP ||
++	    !(br->dev->flags & IFF_UP))
+diff --git a/net/core/net_namespace.c b/net/core/net_namespace.c
+index 16b646f0c1d58c54a869082f25dd299a858c7def..b75dea1675a0d309a33d2c65fbe687189ce346d5 100644
+--- a/net/core/net_namespace.c
++++ b/net/core/net_namespace.c
+@@ -1378,0 +1379,14 @@ EXPORT_SYMBOL_GPL(register_pernet_subsys);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_pernet_try_register(struct pernet_operations *ops)
++{
++	int error;
++
++	if (!down_write_trylock(&pernet_ops_rwsem))
++		return -EBUSY;
++	error = register_pernet_operations(first_device, ops);
++	up_write(&pernet_ops_rwsem);
++
++	return error;
++}
++#endif
++
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index fede3aa3ddbc102978ef60c5e512f7f8b6c3a123..fa2a37c1488a05f1aa0c1043c70c01eacfa842a1 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -1098,0 +1099,3 @@ static void skb_release_data(struct sk_buff *skb, enum skb_drop_reason reason)
++	if (unlikely(skb_zcopy_managed(skb) && !skb_zcopy(skb)))
++		skb_zcopy_downgrade_managed(skb);
++
+diff --git a/net/ipv4/igmp.c b/net/ipv4/igmp.c
+index 52c661c6749f367aeb2a663b084638e06cc7a9ec..3a6e0a371127e78021862325240b5911774bde58 100644
+--- a/net/ipv4/igmp.c
++++ b/net/ipv4/igmp.c
+@@ -235,2 +235,4 @@ static void igmp_gq_start_timer(struct in_device *in_dev)
+-	if (!mod_timer(&in_dev->mr_gq_timer, exp))
+-		in_dev_hold(in_dev);
++	if (in_dev_hold_safe(in_dev)) {
++		if (mod_timer(&in_dev->mr_gq_timer, exp))
++			in_dev_put(in_dev);
++	}
+@@ -241 +243,2 @@ static void igmp_ifc_start_timer(struct in_device *in_dev, int delay)
+-	int tv = get_random_u32_below(delay);
++	if (in_dev_hold_safe(in_dev)) {
++		int tv = get_random_u32_below(delay);
+@@ -243,2 +246,3 @@ static void igmp_ifc_start_timer(struct in_device *in_dev, int delay)
+-	if (!mod_timer(&in_dev->mr_ifc_timer, jiffies+tv+2))
+-		in_dev_hold(in_dev);
++		if (mod_timer(&in_dev->mr_ifc_timer, jiffies + tv + 2))
++			in_dev_put(in_dev);
++	}
+@@ -1818,0 +1823 @@ void ip_mc_destroy_dev(struct in_device *in_dev)
++		ip_mc_hash_remove(in_dev, i);
+diff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c
+index 59f0ddd0ffceecc4d9cfc006bf1910a7bbc49f8b..f77ba850865792b19d51f919941ee60531c372be 100644
+--- a/net/ipv4/tcp_output.c
++++ b/net/ipv4/tcp_output.c
+@@ -2455 +2455 @@ static int tcp_mtu_probe(struct sock *sk)
+-	int size_needed;
++	u64 size_needed;
+@@ -2479 +2479 @@ static int tcp_mtu_probe(struct sock *sk)
+-	size_needed = probe_size + (tp->reordering + 1) * tp->mss_cache;
++	size_needed = probe_size + ((u64)tp->reordering + 1) * tp->mss_cache;
+diff --git a/net/ipv6/mcast.c b/net/ipv6/mcast.c
+index b769e856a068d241774b02c72dfeb63667d6f635..92f321635e4ec3f173a443e3ae383d2ec84b4bbd 100644
+--- a/net/ipv6/mcast.c
++++ b/net/ipv6/mcast.c
+@@ -108,3 +108,3 @@ int sysctl_mld_qrv __read_mostly = MLD_QRV_DEFAULT;
+-/*
+- *	socket join on multicast group
+- */
++#define mc_assert_locked(idev)			\
++	lockdep_assert_held(&(idev)->mc_lock)
++
+@@ -168,0 +169,3 @@ static int unsolicited_report_interval(struct inet6_dev *idev)
++/*
++ *	socket join on multicast group
++ */
+@@ -668 +670,0 @@ bool inet6_mc_check(const struct sock *sk, const struct in6_addr *mc_addr,
+-/* called with mc_lock */
+@@ -673,0 +676,2 @@ static void igmp6_group_added(struct ifmcaddr6 *mc)
++	mc_assert_locked(mc->idev);
++
+@@ -703 +706,0 @@ static void igmp6_group_added(struct ifmcaddr6 *mc)
+-/* called with mc_lock */
+@@ -708,0 +712,2 @@ static void igmp6_group_dropped(struct ifmcaddr6 *mc)
++	mc_assert_locked(mc->idev);
++
+@@ -729,4 +734 @@ static void igmp6_group_dropped(struct ifmcaddr6 *mc)
+-/*
+- * deleted ifmcaddr6 manipulation
+- * called with mc_lock
+- */
++/* deleted ifmcaddr6 manipulation */
+@@ -736,0 +739,2 @@ static void mld_add_delrec(struct inet6_dev *idev, struct ifmcaddr6 *im)
++	mc_assert_locked(idev);
++
+@@ -770 +773,0 @@ static void mld_add_delrec(struct inet6_dev *idev, struct ifmcaddr6 *im)
+-/* called with mc_lock */
+@@ -776,0 +780,2 @@ static void mld_del_delrec(struct inet6_dev *idev, struct ifmcaddr6 *im)
++	mc_assert_locked(idev);
++
+@@ -813 +817,0 @@ static void mld_del_delrec(struct inet6_dev *idev, struct ifmcaddr6 *im)
+-/* called with mc_lock */
+@@ -817,0 +822,2 @@ static void mld_clear_delrec(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -874 +879,0 @@ static void ma_put(struct ifmcaddr6 *mc)
+-/* called with mc_lock */
+@@ -880,0 +886,2 @@ static struct ifmcaddr6 *mca_alloc(struct inet6_dev *idev,
++	mc_assert_locked(idev);
++
+@@ -1050 +1056,0 @@ bool ipv6_chk_mcast_addr(struct net_device *dev, const struct in6_addr *group,
+-/* called with mc_lock */
+@@ -1054,0 +1061,2 @@ static void mld_gq_start_work(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -1056,2 +1064,4 @@ static void mld_gq_start_work(struct inet6_dev *idev)
+-	if (!mod_delayed_work(mld_wq, &idev->mc_gq_work, tv + 2))
+-		in6_dev_hold(idev);
++	if (in6_dev_hold_safe(idev)) {
++		if (mod_delayed_work(mld_wq, &idev->mc_gq_work, tv + 2))
++			in6_dev_put(idev);
++	}
+@@ -1060 +1069,0 @@ static void mld_gq_start_work(struct inet6_dev *idev)
+-/* called with mc_lock */
+@@ -1062,0 +1072,2 @@ static void mld_gq_stop_work(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -1068 +1078,0 @@ static void mld_gq_stop_work(struct inet6_dev *idev)
+-/* called with mc_lock */
+@@ -1073,2 +1083,6 @@ static void mld_ifc_start_work(struct inet6_dev *idev, unsigned long delay)
+-	if (!mod_delayed_work(mld_wq, &idev->mc_ifc_work, tv + 2))
+-		in6_dev_hold(idev);
++	mc_assert_locked(idev);
++
++	if (in6_dev_hold_safe(idev)) {
++		if (mod_delayed_work(mld_wq, &idev->mc_ifc_work, tv + 2))
++			in6_dev_put(idev);
++	}
+@@ -1077 +1090,0 @@ static void mld_ifc_start_work(struct inet6_dev *idev, unsigned long delay)
+-/* called with mc_lock */
+@@ -1079,0 +1093,2 @@ static void mld_ifc_stop_work(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -1085 +1099,0 @@ static void mld_ifc_stop_work(struct inet6_dev *idev)
+-/* called with mc_lock */
+@@ -1090,2 +1104,6 @@ static void mld_dad_start_work(struct inet6_dev *idev, unsigned long delay)
+-	if (!mod_delayed_work(mld_wq, &idev->mc_dad_work, tv + 2))
+-		in6_dev_hold(idev);
++	mc_assert_locked(idev);
++
++	if (in6_dev_hold_safe(idev)) {
++		if (mod_delayed_work(mld_wq, &idev->mc_dad_work, tv + 2))
++			in6_dev_put(idev);
++	}
+@@ -1114,4 +1132 @@ static void mld_report_stop_work(struct inet6_dev *idev)
+-/*
+- * IGMP handling (alias multicast ICMPv6 messages)
+- * called with mc_lock
+- */
++/* IGMP handling (alias multicast ICMPv6 messages) */
+@@ -1121,0 +1137,2 @@ static void igmp6_group_queried(struct ifmcaddr6 *ma, unsigned long resptime)
++	mc_assert_locked(ma->idev);
++
+@@ -1140,3 +1157 @@ static void igmp6_group_queried(struct ifmcaddr6 *ma, unsigned long resptime)
+-/* mark EXCLUDE-mode sources
+- * called with mc_lock
+- */
++/* mark EXCLUDE-mode sources */
+@@ -1148,0 +1164,2 @@ static bool mld_xmarksources(struct ifmcaddr6 *pmc, int nsrcs,
++	mc_assert_locked(pmc->idev);
++
+@@ -1171 +1187,0 @@ static bool mld_xmarksources(struct ifmcaddr6 *pmc, int nsrcs,
+-/* called with mc_lock */
+@@ -1177,0 +1194,2 @@ static bool mld_marksources(struct ifmcaddr6 *pmc, int nsrcs,
++	mc_assert_locked(pmc->idev);
++
+@@ -1376,0 +1395 @@ void igmp6_event_query(struct sk_buff *skb)
++	bool put = false;
+@@ -1382 +1401,2 @@ void igmp6_event_query(struct sk_buff *skb)
+-	if (skb_queue_len(&idev->mc_query_queue) < MLD_MAX_SKBS) {
++	if (skb_queue_len(&idev->mc_query_queue) < MLD_MAX_SKBS &&
++	    in6_dev_hold_safe(idev)) {
+@@ -1384,2 +1404,2 @@ void igmp6_event_query(struct sk_buff *skb)
+-		if (!mod_delayed_work(mld_wq, &idev->mc_query_work, 0))
+-			in6_dev_hold(idev);
++		if (mod_delayed_work(mld_wq, &idev->mc_query_work, 0))
++			put = true;
+@@ -1388,0 +1409,3 @@ void igmp6_event_query(struct sk_buff *skb)
++
++	if (put)
++		in6_dev_put(idev);
+@@ -1544,0 +1568 @@ void igmp6_event_report(struct sk_buff *skb)
++	bool put = false;
+@@ -1550 +1574,2 @@ void igmp6_event_report(struct sk_buff *skb)
+-	if (skb_queue_len(&idev->mc_report_queue) < MLD_MAX_SKBS) {
++	if (skb_queue_len(&idev->mc_report_queue) < MLD_MAX_SKBS &&
++	    in6_dev_hold_safe(idev)) {
+@@ -1552,2 +1577,2 @@ void igmp6_event_report(struct sk_buff *skb)
+-		if (!mod_delayed_work(mld_wq, &idev->mc_report_work, 0))
+-			in6_dev_hold(idev);
++		if (mod_delayed_work(mld_wq, &idev->mc_report_work, 0))
++			put = true;
+@@ -1556,0 +1582,3 @@ void igmp6_event_report(struct sk_buff *skb)
++
++	if (put)
++		in6_dev_put(idev);
+@@ -1872 +1899,0 @@ static struct sk_buff *add_grhead(struct sk_buff *skb, struct ifmcaddr6 *pmc,
+-/* called with mc_lock */
+@@ -1885,0 +1913,2 @@ static struct sk_buff *add_grec(struct sk_buff *skb, struct ifmcaddr6 *pmc,
++	mc_assert_locked(idev);
++
+@@ -2004 +2032,0 @@ static struct sk_buff *add_grec(struct sk_buff *skb, struct ifmcaddr6 *pmc,
+-/* called with mc_lock */
+@@ -2009,0 +2038,2 @@ static void mld_send_report(struct inet6_dev *idev, struct ifmcaddr6 *pmc)
++	mc_assert_locked(idev);
++
+@@ -2031,4 +2061 @@ static void mld_send_report(struct inet6_dev *idev, struct ifmcaddr6 *pmc)
+-/*
+- * remove zero-count source records from a source filter list
+- * called with mc_lock
+- */
++/* remove zero-count source records from a source filter list */
+@@ -2058 +2084,0 @@ static void mld_clear_zeros(struct ip6_sf_list __rcu **ppsf, struct inet6_dev *i
+-/* called with mc_lock */
+@@ -2222 +2247,0 @@ static void igmp6_send(struct in6_addr *addr, struct net_device *dev, int type)
+-/* called with mc_lock */
+@@ -2225 +2249,0 @@ static void mld_send_initial_cr(struct inet6_dev *idev)
+-	struct sk_buff *skb;
+@@ -2226,0 +2251 @@ static void mld_send_initial_cr(struct inet6_dev *idev)
++	struct sk_buff *skb;
+@@ -2228,0 +2254,2 @@ static void mld_send_initial_cr(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -2275 +2301,0 @@ static void mld_dad_work(struct work_struct *work)
+-/* called with mc_lock */
+@@ -2277 +2303 @@ static int ip6_mc_del1_src(struct ifmcaddr6 *pmc, int sfmode,
+-	const struct in6_addr *psfsrc)
++			   const struct in6_addr *psfsrc)
+@@ -2281,0 +2308,2 @@ static int ip6_mc_del1_src(struct ifmcaddr6 *pmc, int sfmode,
++	mc_assert_locked(pmc->idev);
++
+@@ -2318 +2345,0 @@ static int ip6_mc_del1_src(struct ifmcaddr6 *pmc, int sfmode,
+-/* called with mc_lock */
+@@ -2329,0 +2357,2 @@ static int ip6_mc_del_src(struct inet6_dev *idev, const struct in6_addr *pmca,
++	mc_assert_locked(idev);
++
+@@ -2371,4 +2400 @@ static int ip6_mc_del_src(struct inet6_dev *idev, const struct in6_addr *pmca,
+-/*
+- * Add multicast single-source filter to the interface list
+- * called with mc_lock
+- */
++/* Add multicast single-source filter to the interface list */
+@@ -2376 +2402 @@ static int ip6_mc_add1_src(struct ifmcaddr6 *pmc, int sfmode,
+-	const struct in6_addr *psfsrc)
++			   const struct in6_addr *psfsrc)
+@@ -2379,0 +2406,2 @@ static int ip6_mc_add1_src(struct ifmcaddr6 *pmc, int sfmode,
++	mc_assert_locked(pmc->idev);
++
+@@ -2402 +2429,0 @@ static int ip6_mc_add1_src(struct ifmcaddr6 *pmc, int sfmode,
+-/* called with mc_lock */
+@@ -2405 +2431,0 @@ static void sf_markstate(struct ifmcaddr6 *pmc)
+-	struct ip6_sf_list *psf;
+@@ -2406,0 +2433,3 @@ static void sf_markstate(struct ifmcaddr6 *pmc)
++	struct ip6_sf_list *psf;
++
++	mc_assert_locked(pmc->idev);
+@@ -2419 +2447,0 @@ static void sf_markstate(struct ifmcaddr6 *pmc)
+-/* called with mc_lock */
+@@ -2422 +2449,0 @@ static int sf_setstate(struct ifmcaddr6 *pmc)
+-	struct ip6_sf_list *psf, *dpsf;
+@@ -2423,0 +2451 @@ static int sf_setstate(struct ifmcaddr6 *pmc)
++	struct ip6_sf_list *psf, *dpsf;
+@@ -2426,0 +2455,2 @@ static int sf_setstate(struct ifmcaddr6 *pmc)
++	mc_assert_locked(pmc->idev);
++
+@@ -2485,4 +2515 @@ static int sf_setstate(struct ifmcaddr6 *pmc)
+-/*
+- * Add multicast source filter list to the interface list
+- * called with mc_lock
+- */
++/* Add multicast source filter list to the interface list */
+@@ -2499,0 +2527,2 @@ static int ip6_mc_add_src(struct inet6_dev *idev, const struct in6_addr *pmca,
++	mc_assert_locked(idev);
++
+@@ -2545 +2573,0 @@ static int ip6_mc_add_src(struct inet6_dev *idev, const struct in6_addr *pmca,
+-/* called with mc_lock */
+@@ -2549,0 +2578,2 @@ static void ip6_mc_clear_src(struct ifmcaddr6 *pmc)
++	mc_assert_locked(pmc->idev);
++
+@@ -2569 +2598,0 @@ static void ip6_mc_clear_src(struct ifmcaddr6 *pmc)
+-/* called with mc_lock */
+@@ -2573,0 +2603,2 @@ static void igmp6_join_group(struct ifmcaddr6 *ma)
++	mc_assert_locked(ma->idev);
++
+@@ -2620 +2650,0 @@ static int ip6_mc_leave_src(struct sock *sk, struct ipv6_mc_socklist *iml,
+-/* called with mc_lock */
+@@ -2622,0 +2653,2 @@ static void igmp6_leave_group(struct ifmcaddr6 *ma)
++	mc_assert_locked(ma->idev);
++
+@@ -2667 +2698,0 @@ static void mld_ifc_work(struct work_struct *work)
+-/* called with mc_lock */
+@@ -2669,0 +2701,2 @@ static void mld_ifc_event(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+diff --git a/net/ipv6/netfilter.c b/net/ipv6/netfilter.c
+index 4541836ee3da207b163123f432d45647b6f869f7..2fd2c3e315ee873b833a46208b0928b26f374be4 100644
+--- a/net/ipv6/netfilter.c
++++ b/net/ipv6/netfilter.c
+@@ -134 +134 @@ int br_ip6_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
+-	unsigned int mtu, hlen;
++	unsigned int mtu, hlen, nexthdr_offset;
+@@ -142,0 +143 @@ int br_ip6_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
++	nexthdr_offset = prevhdr - skb_network_header(skb);
+@@ -160,0 +162 @@ int br_ip6_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
++	prevhdr = skb_network_header(skb) + nexthdr_offset;
+diff --git a/net/netfilter/ipset/ip_set_core.c b/net/netfilter/ipset/ip_set_core.c
+index a4e1d7951b2c604c97d9dae57bf4f9ab1c803320..46a1bbda48437b44b07c6b27fbffdb83fb7a5df8 100644
+--- a/net/netfilter/ipset/ip_set_core.c
++++ b/net/netfilter/ipset/ip_set_core.c
+@@ -23,0 +24,3 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/livepatch.h>
++#endif
+@@ -1483 +1486,5 @@ ip_set_dump_done(struct netlink_callback *cb)
+-		struct ip_set *set = ip_set_ref_netlink(inst, index);
++		struct ip_set *set;
++
++		rcu_read_lock();
++		set = ip_set_ref_netlink(inst, index);
++		rcu_read_unlock();
+@@ -1687,0 +1695 @@ ip_set_dump_do(struct sk_buff *skb, struct netlink_callback *cb)
++		rcu_read_lock();
+@@ -1688,0 +1697 @@ ip_set_dump_do(struct sk_buff *skb, struct netlink_callback *cb)
++		rcu_read_unlock();
+@@ -2238,0 +2248,95 @@ static struct nfnetlink_subsystem ip_set_netlink_subsys __read_mostly = {
++#ifdef CONFIG_LIVEPATCH
++struct vpsadminos_ipset_pre_patch_callback {
++	int (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_ipset_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_ipset_post_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++static bool vpsadminos_ipset_transition_quiesced;
++
++static int vpsadminos_ipset_netns_hold(struct net *net)
++{
++	if (!maybe_get_net(net))
++		return -ENOENT;
++	return 0;
++}
++
++static void vpsadminos_ipset_netns_release(struct net *net)
++{
++	put_net(net);
++}
++
++static struct pernet_operations vpsadminos_ipset_netns_guard = {
++	.init = vpsadminos_ipset_netns_hold,
++	.exit = vpsadminos_ipset_netns_release,
++};
++
++static int vpsadminos_ipset_livepatch_quiesce(struct klp_object *obj)
++{
++	int ret;
++
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return 0;
++	if (WARN_ON_ONCE(vpsadminos_ipset_transition_quiesced))
++		return -EBUSY;
++
++	ret = vpsadminos_pernet_try_register(&vpsadminos_ipset_netns_guard);
++	if (ret)
++		return ret;
++
++	ret = vpsadminos_nfnl_try_unregister(&ip_set_netlink_subsys);
++	if (ret) {
++		unregister_pernet_subsys(&vpsadminos_ipset_netns_guard);
++		return ret;
++	}
++
++	WRITE_ONCE(vpsadminos_ipset_transition_quiesced, true);
++	return 0;
++}
++
++static void vpsadminos_ipset_livepatch_restore(struct klp_object *obj)
++{
++	int ret;
++
++	if (!READ_ONCE(vpsadminos_ipset_transition_quiesced))
++		return;
++
++	ret = nfnetlink_subsys_register(&ip_set_netlink_subsys);
++	if (ret)
++		pr_err("ip_set: livepatch failed to restore NFNETLINK: %d\n",
++		       ret);
++	unregister_pernet_subsys(&vpsadminos_ipset_netns_guard);
++	WRITE_ONCE(vpsadminos_ipset_transition_quiesced, false);
++}
++
++static struct vpsadminos_ipset_pre_patch_callback
++vpsadminos_ipset_pre_patch_data
++__section(".kpatch.callbacks.pre_patch") __used = {
++	.fn = vpsadminos_ipset_livepatch_quiesce,
++	.objname = NULL,
++};
++
++static struct vpsadminos_ipset_post_patch_callback
++vpsadminos_ipset_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_ipset_livepatch_restore,
++	.objname = NULL,
++};
++
++static struct vpsadminos_ipset_post_unpatch_callback
++vpsadminos_ipset_post_unpatch_data
++__section(".kpatch.callbacks.post_unpatch") __used = {
++	.fn = vpsadminos_ipset_livepatch_restore,
++	.objname = NULL,
++};
++#endif
++
+diff --git a/net/netfilter/ipset/ip_set_hash_gen.h b/net/netfilter/ipset/ip_set_hash_gen.h
+index 4e56269efef28e5add411799397c3d7365abb298..c92944eaeac58379fe92b499912ec9de39d33c5c 100644
+--- a/net/netfilter/ipset/ip_set_hash_gen.h
++++ b/net/netfilter/ipset/ip_set_hash_gen.h
+@@ -454,0 +455,2 @@ mtype_destroy(struct ip_set *set)
++	if (SET_WITH_TIMEOUT(set))
++		disable_delayed_work_sync(&h->gc.dwork);
+@@ -607 +609 @@ mtype_cancel_gc(struct ip_set *set)
+-		cancel_delayed_work_sync(&h->gc.dwork);
++		disable_delayed_work_sync(&h->gc.dwork);
+diff --git a/net/netfilter/ipvs/ip_vs_xmit.c b/net/netfilter/ipvs/ip_vs_xmit.c
+index ed8b2616cf178280b923c7f74165f89510c95b14..fa1b03c3201f1350c6075e62af1a9e7fcc8c082a 100644
+--- a/net/netfilter/ipvs/ip_vs_xmit.c
++++ b/net/netfilter/ipvs/ip_vs_xmit.c
+@@ -736,3 +736 @@ ip_vs_bypass_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-	struct iphdr  *iph = ip_hdr(skb);
+-
+-	if (__ip_vs_get_out_rt(cp->ipvs, cp->af, skb, NULL, iph->daddr,
++	if (__ip_vs_get_out_rt(cp->ipvs, cp->af, skb, NULL, ip_hdr(skb)->daddr,
+@@ -742 +740 @@ ip_vs_bypass_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-	ip_send_check(iph);
++	ip_send_check(ip_hdr(skb));
+diff --git a/net/netfilter/nf_queue.c b/net/netfilter/nf_queue.c
+index dd416c8532c551c28cbcc99093f114c2e4167c77..0c0a1f20e853f987d7994dc6c6981af42643dea3 100644
+--- a/net/netfilter/nf_queue.c
++++ b/net/netfilter/nf_queue.c
+@@ -17,0 +18,4 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/livepatch.h>
++#include <linux/vpsadminos-livepatch.h>
++#endif
+@@ -25,0 +30,34 @@ static const struct nf_queue_handler __rcu *nf_queue_handler;
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_NFQUEUE_STATE_ID	0x0f02b3341af9ad9aUL
++#define VPSADMINOS_NFQUEUE_STATE_ACTIVE	((void *)1UL)
++
++static struct klp_state vpsadminos_nfqueue_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_NFQUEUE_STATE_ID,
++	.version = 1,
++};
++
++void vpsadminos_nfqueue_livepatch_post_patch(void)
++{
++	struct klp_state *prev_state;
++
++	WRITE_ONCE(vpsadminos_nfqueue_state.data,
++		   VPSADMINOS_NFQUEUE_STATE_ACTIVE);
++	prev_state = klp_get_prev_state(VPSADMINOS_NFQUEUE_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == VPSADMINOS_NFQUEUE_STATE_ACTIVE)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++void vpsadminos_nfqueue_livepatch_post_unpatch(void)
++{
++	/*
++	 * A compatible predecessor keeps its own active marker and shadow
++	 * contract.  This patch owns only its marker, so both a reversed
++	 * transition and a clean removal clear the same local field.
++	 */
++	WRITE_ONCE(vpsadminos_nfqueue_state.data, NULL);
++}
++#endif
++
+@@ -60,0 +99,3 @@ static void nf_queue_entry_release_refs(struct nf_queue_entry *entry)
++#if IS_ENABLED(CONFIG_BRIDGE_NETFILTER) && defined(CONFIG_LIVEPATCH)
++	struct net_device **bridge_dev;
++#endif
+@@ -69,0 +111,9 @@ static void nf_queue_entry_release_refs(struct nf_queue_entry *entry)
++#ifdef CONFIG_LIVEPATCH
++	bridge_dev = klp_shadow_get(entry,
++				    VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID);
++	if (bridge_dev)
++		dev_put(*bridge_dev);
++	klp_shadow_free(entry, VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID, NULL);
++#else
++	dev_put(entry->bridge_dev);
++#endif
+@@ -85,0 +136,4 @@ static void __nf_queue_entry_init_physdevs(struct nf_queue_entry *entry)
++#if !defined(CONFIG_LIVEPATCH)
++	struct dst_entry *dst = skb_dst(skb);
++	struct net_device *dev = NULL;
++#endif
+@@ -93,0 +148,11 @@ static void __nf_queue_entry_init_physdevs(struct nf_queue_entry *entry)
++
++#if !defined(CONFIG_LIVEPATCH)
++	if (entry->state.pf == NFPROTO_BRIDGE &&
++	    dst && (dst->flags & DST_FAKE_RTABLE))
++		dev = dst_dev_rcu(dst);
++
++	/* Must hold a reference on the bridge device: dst_hold() protects
++	 * the dst itself, but the fake rtable is embedded in bridge-private
++	 * storage that netdevice teardown can free independently.
++	 */
++	entry->bridge_dev = dev;
+@@ -94,0 +160,13 @@ static void __nf_queue_entry_init_physdevs(struct nf_queue_entry *entry)
++#endif
++}
++
++#if IS_ENABLED(CONFIG_BRIDGE_NETFILTER) && defined(CONFIG_LIVEPATCH)
++static struct net_device *
++vpsadminos_nfqueue_bridge_dev(const struct nf_queue_entry *entry)
++{
++	struct dst_entry *dst = skb_dst(entry->skb);
++
++	if (entry->state.pf == NFPROTO_BRIDGE &&
++	    dst && (dst->flags & DST_FAKE_RTABLE))
++		return dst_dev_rcu(dst);
++	return NULL;
+@@ -96,0 +175,10 @@ static void __nf_queue_entry_init_physdevs(struct nf_queue_entry *entry)
++static int vpsadminos_nfqueue_bridge_shadow_ctor(void *obj, void *shadow_data,
++						 void *ctor_data)
++{
++	struct net_device **bridge_dev = shadow_data;
++
++	*bridge_dev = ctor_data;
++	return 0;
++}
++#endif
++
+@@ -100,0 +189,4 @@ bool nf_queue_entry_get_refs(struct nf_queue_entry *entry)
++#if IS_ENABLED(CONFIG_BRIDGE_NETFILTER) && defined(CONFIG_LIVEPATCH)
++	struct net_device **bridge_shadow;
++	struct net_device *bridge_dev;
++#endif
+@@ -109,0 +202,20 @@ bool nf_queue_entry_get_refs(struct nf_queue_entry *entry)
++#ifdef CONFIG_LIVEPATCH
++	dev_hold(entry->physin);
++	dev_hold(entry->physout);
++
++	bridge_dev = vpsadminos_nfqueue_bridge_dev(entry);
++	if (bridge_dev) {
++		dev_hold(bridge_dev);
++		bridge_shadow = klp_shadow_alloc
++				(entry, VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID,
++				 sizeof(*bridge_shadow), GFP_ATOMIC,
++				 vpsadminos_nfqueue_bridge_shadow_ctor,
++				 bridge_dev);
++		if (!bridge_shadow) {
++			dev_put(bridge_dev);
++			nf_queue_entry_release_refs(entry);
++			return false;
++		}
++	}
++#else
++	dev_hold(entry->bridge_dev);
+@@ -111,0 +224 @@ bool nf_queue_entry_get_refs(struct nf_queue_entry *entry)
++#endif
+diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
+index 838c9f49e4e01a9745227c26e94caf375e3829f7..c38f52b3eba90e7b25fdcf23ca97dabdc3809dab 100644
+--- a/net/netfilter/nf_tables_api.c
++++ b/net/netfilter/nf_tables_api.c
+@@ -18,0 +19,4 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/livepatch.h>
++#include <linux/vpsadminos-livepatch.h>
++#endif
+@@ -11124,0 +11129,166 @@ static const struct nfnetlink_subsystem nf_tables_subsys = {
++#ifdef CONFIG_LIVEPATCH
++struct vpsadminos_nftables_pre_patch_callback {
++	int (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nftables_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nftables_pre_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nftables_post_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++static bool vpsadminos_nftables_transition_quiesced;
++static bool vpsadminos_nftables_patch_active;
++
++static noinline void vpsadminos_nftables_livepatch_notifier_frame(void)
++{
++	barrier();
++}
++
++static int vpsadminos_nftables_netns_hold(struct net *net)
++{
++	if (!maybe_get_net(net))
++		return -ENOENT;
++	return 0;
++}
++
++static void vpsadminos_nftables_netns_release(struct net *net)
++{
++	put_net(net);
++}
++
++static struct pernet_operations vpsadminos_nftables_netns_guard = {
++	.init = vpsadminos_nftables_netns_hold,
++	.exit = vpsadminos_nftables_netns_release,
++};
++
++static int
++vpsadminos_nftables_livepatch_quiesce(struct klp_object *obj)
++{
++	int ret;
++
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return 0;
++	if (WARN_ON_ONCE(vpsadminos_nftables_transition_quiesced))
++		return -EBUSY;
++
++	ret = vpsadminos_pernet_try_register
++				(&vpsadminos_nftables_netns_guard);
++	if (ret)
++		return ret;
++
++	ret = vpsadminos_nfnl_try_unregister(&nf_tables_subsys);
++	if (ret) {
++		unregister_pernet_subsys(&vpsadminos_nftables_netns_guard);
++		return ret;
++	}
++
++	WRITE_ONCE(vpsadminos_nftables_transition_quiesced, true);
++	return 0;
++}
++
++static void
++vpsadminos_nftables_livepatch_quiesce_blocking(struct klp_object *obj)
++{
++	int ret;
++
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return;
++	if (WARN_ON_ONCE(vpsadminos_nftables_transition_quiesced))
++		return;
++
++	do {
++		ret = register_pernet_subsys
++				(&vpsadminos_nftables_netns_guard);
++		if (ret)
++			cond_resched();
++	} while (ret);
++
++	nfnetlink_subsys_unregister(&nf_tables_subsys);
++	WRITE_ONCE(vpsadminos_nftables_transition_quiesced, true);
++}
++
++static void
++vpsadminos_nftables_livepatch_pre_unpatch(struct klp_object *obj)
++{
++	vpsadminos_nftables_livepatch_quiesce_blocking(obj);
++	if (READ_ONCE(vpsadminos_nftables_transition_quiesced) &&
++	    READ_ONCE(vpsadminos_nftables_patch_active))
++		vpsadminos_pipapo_livepatch_cleanup();
++}
++
++static void vpsadminos_nftables_livepatch_restore(void)
++{
++	int ret;
++
++	if (!READ_ONCE(vpsadminos_nftables_transition_quiesced))
++		return;
++
++	ret = nfnetlink_subsys_register(&nf_tables_subsys);
++	if (ret)
++		pr_err("livepatch failed to restore NF_TABLES: %d\n", ret);
++	unregister_pernet_subsys(&vpsadminos_nftables_netns_guard);
++	WRITE_ONCE(vpsadminos_nftables_transition_quiesced, false);
++}
++
++static void
++vpsadminos_nftables_livepatch_post_patch(struct klp_object *obj)
++{
++	if (!obj->mod || obj->mod->state == MODULE_STATE_GOING)
++		return;
++
++	WRITE_ONCE(vpsadminos_nftables_patch_active, true);
++	vpsadminos_nftables_livepatch_restore();
++}
++
++static void
++vpsadminos_nftables_livepatch_post_unpatch(struct klp_object *obj)
++{
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE) {
++		WRITE_ONCE(vpsadminos_nftables_patch_active, false);
++		return;
++	}
++
++	WRITE_ONCE(vpsadminos_nftables_patch_active, false);
++	vpsadminos_nftables_livepatch_restore();
++}
++
++static struct vpsadminos_nftables_pre_patch_callback
++vpsadminos_nftables_pre_patch_data
++__section(".kpatch.callbacks.pre_patch") __used = {
++	.fn = vpsadminos_nftables_livepatch_quiesce,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nftables_post_patch_callback
++vpsadminos_nftables_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_nftables_livepatch_post_patch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nftables_pre_unpatch_callback
++vpsadminos_nftables_pre_unpatch_data
++__section(".kpatch.callbacks.pre_unpatch") __used = {
++	.fn = vpsadminos_nftables_livepatch_pre_unpatch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nftables_post_unpatch_callback
++vpsadminos_nftables_post_unpatch_data
++__section(".kpatch.callbacks.post_unpatch") __used = {
++	.fn = vpsadminos_nftables_livepatch_post_unpatch,
++	.objname = NULL,
++};
++#endif
++
+@@ -11718,0 +11889,4 @@ static int nft_rcv_nl_event(struct notifier_block *this, unsigned long event,
++#ifdef CONFIG_LIVEPATCH
++	vpsadminos_nftables_livepatch_notifier_frame();
++#endif
++
+diff --git a/net/netfilter/nfnetlink.c b/net/netfilter/nfnetlink.c
+index f12d0d229aaa5334c14ed7ad43a332ca16003243..7961a391ab849ace198b013d4521d73747e70ec5 100644
+--- a/net/netfilter/nfnetlink.c
++++ b/net/netfilter/nfnetlink.c
+@@ -146,0 +147,17 @@ EXPORT_SYMBOL_GPL(nfnetlink_subsys_unregister);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_nfnl_try_unregister(const struct nfnetlink_subsystem *n)
++{
++	if (!mutex_trylock(&table[n->subsys_id].mutex))
++		return -EBUSY;
++	if (rcu_access_pointer(table[n->subsys_id].subsys) != n) {
++		mutex_unlock(&table[n->subsys_id].mutex);
++		return -ENOENT;
++	}
++	RCU_INIT_POINTER(table[n->subsys_id].subsys, NULL);
++	mutex_unlock(&table[n->subsys_id].mutex);
++	synchronize_rcu();
++
++	return 0;
++}
++#endif
++
+@@ -370,0 +388,7 @@ enum {
++#ifdef CONFIG_LIVEPATCH
++static noinline void vpsadminos_nfnl_livepatch_batch_frame(void)
++{
++	barrier();
++}
++#endif
++
+@@ -383,0 +408,4 @@ static void nfnetlink_rcv_batch(struct sk_buff *skb, struct nlmsghdr *nlh,
++#ifdef CONFIG_LIVEPATCH
++	vpsadminos_nfnl_livepatch_batch_frame();
++#endif
++
+diff --git a/net/netfilter/nfnetlink_queue.c b/net/netfilter/nfnetlink_queue.c
+index 1b517cd2bb58cc3722b7e6577934154f96921ee0..e03cbc7738ec94149e2fd7cdee17c5355c16dba9 100644
+--- a/net/netfilter/nfnetlink_queue.c
++++ b/net/netfilter/nfnetlink_queue.c
+@@ -34,0 +35,4 @@
++#ifdef CONFIG_LIVEPATCH
++#include <linux/livepatch.h>
++#include <linux/rtnetlink.h>
++#endif
+@@ -35,0 +40 @@
++#include <net/net_namespace.h>
+@@ -1239,0 +1245,3 @@ dev_cmp(struct nf_queue_entry *entry, unsigned long ifindex)
++#ifdef CONFIG_LIVEPATCH
++	struct net_device **bridge_dev;
++#endif
+@@ -1245,0 +1254,10 @@ dev_cmp(struct nf_queue_entry *entry, unsigned long ifindex)
++
++#ifdef CONFIG_LIVEPATCH
++	bridge_dev = klp_shadow_get(entry,
++				    VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID);
++	if (bridge_dev && (*bridge_dev)->ifindex == ifindex)
++		return 1;
++#else
++	if (entry->bridge_dev && entry->bridge_dev->ifindex == ifindex)
++		return 1;
++#endif
+@@ -1759,0 +1778,139 @@ static const struct nfnetlink_subsystem nfqnl_subsys = {
++#ifdef CONFIG_LIVEPATCH
++struct vpsadminos_nfqueue_pre_patch_callback {
++	int (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nfqueue_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nfqueue_pre_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nfqueue_post_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++static bool vpsadminos_nfqueue_transition_quiesced;
++
++static void vpsadminos_nfqueue_drain_all(void)
++{
++	struct net *net;
++
++	rcu_read_lock();
++	for_each_net_rcu(net)
++		nfqnl_nf_hook_drop(net);
++	rcu_read_unlock();
++}
++
++static int
++vpsadminos_nfqueue_livepatch_quiesce(struct klp_object *obj)
++{
++	int ret = -EBUSY;
++
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return 0;
++	if (WARN_ON_ONCE(vpsadminos_nfqueue_transition_quiesced))
++		return -EBUSY;
++
++	if (!down_write_trylock(&pernet_ops_rwsem))
++		return -EBUSY;
++	if (!rtnl_trylock())
++		goto out_unlock_pernet;
++
++	ret = vpsadminos_nfnl_try_unregister(&nfqnl_subsys);
++	if (ret)
++		goto out_unlock_rtnl;
++
++	nf_unregister_queue_handler();
++	synchronize_net();
++	vpsadminos_nfqueue_drain_all();
++	rcu_barrier();
++	flush_workqueue(nfq_cleanup_wq);
++
++	WRITE_ONCE(vpsadminos_nfqueue_transition_quiesced, true);
++	rtnl_unlock();
++	up_write(&pernet_ops_rwsem);
++	return 0;
++
++out_unlock_rtnl:
++	rtnl_unlock();
++out_unlock_pernet:
++	up_write(&pernet_ops_rwsem);
++	return ret;
++}
++
++static void
++vpsadminos_nfqueue_livepatch_quiesce_blocking(struct klp_object *obj)
++{
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return;
++	if (WARN_ON_ONCE(vpsadminos_nfqueue_transition_quiesced))
++		return;
++
++	down_write(&pernet_ops_rwsem);
++	rtnl_lock();
++	nfnetlink_subsys_unregister(&nfqnl_subsys);
++	nf_unregister_queue_handler();
++	synchronize_net();
++	vpsadminos_nfqueue_drain_all();
++	rcu_barrier();
++	flush_workqueue(nfq_cleanup_wq);
++
++	WRITE_ONCE(vpsadminos_nfqueue_transition_quiesced, true);
++	rtnl_unlock();
++	up_write(&pernet_ops_rwsem);
++}
++
++static void
++vpsadminos_nfqueue_livepatch_restore(struct klp_object *obj)
++{
++	int ret;
++
++	if (!READ_ONCE(vpsadminos_nfqueue_transition_quiesced))
++		return;
++
++	ret = nfnetlink_subsys_register(&nfqnl_subsys);
++	if (ret) {
++		pr_err("livepatch failed to restore NFNETLINK_QUEUE: %d\n",
++		       ret);
++	} else {
++		nf_register_queue_handler(&nfqh);
++	}
++	WRITE_ONCE(vpsadminos_nfqueue_transition_quiesced, false);
++}
++
++static struct vpsadminos_nfqueue_pre_patch_callback
++vpsadminos_nfqueue_pre_patch_data
++__section(".kpatch.callbacks.pre_patch") __used = {
++	.fn = vpsadminos_nfqueue_livepatch_quiesce,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nfqueue_post_patch_callback
++vpsadminos_nfqueue_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_nfqueue_livepatch_restore,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nfqueue_pre_unpatch_callback
++vpsadminos_nfqueue_pre_unpatch_data
++__section(".kpatch.callbacks.pre_unpatch") __used = {
++	.fn = vpsadminos_nfqueue_livepatch_quiesce_blocking,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nfqueue_post_unpatch_callback
++vpsadminos_nfqueue_post_unpatch_data
++__section(".kpatch.callbacks.post_unpatch") __used = {
++	.fn = vpsadminos_nfqueue_livepatch_restore,
++	.objname = NULL,
++};
++#endif
++
+diff --git a/net/netfilter/nft_set_pipapo.c b/net/netfilter/nft_set_pipapo.c
+index a2dd1212e0f0dfdfb02baa978996c57772c0270b..2ed97e802290e6e4b158413fb1753b457037a319 100644
+--- a/net/netfilter/nft_set_pipapo.c
++++ b/net/netfilter/nft_set_pipapo.c
+@@ -340,0 +341,5 @@
++#ifdef CONFIG_LIVEPATCH
++#include <linux/livepatch.h>
++#include <linux/rtnetlink.h>
++#include <linux/vpsadminos-livepatch.h>
++#endif
+@@ -344,0 +350,94 @@
++static void nft_pipapo_abort(const struct nft_set *set);
++static void pipapo_free_match(struct nft_pipapo_match *m);
++
++#ifdef CONFIG_LIVEPATCH
++static int vpsadminos_pipapo_clone_state_ctor(void *obj, void *shadow_data,
++					      void *ctor_data)
++{
++	u8 *state = shadow_data;
++
++	*state = NFT_PIPAPO_CLONE_NEW;
++	return 0;
++}
++
++static u8 *
++vpsadminos_pipapo_clone_state(const struct nft_pipapo_match *m)
++{
++	return klp_shadow_get((void *)m,
++			      VPSADMINOS_PIPAPO_CLONE_SHADOW_ID);
++}
++
++static int
++vpsadminos_pipapo_clone_state_alloc(struct nft_pipapo_match *m)
++{
++	u8 *state;
++
++	state = klp_shadow_alloc(m, VPSADMINOS_PIPAPO_CLONE_SHADOW_ID,
++				 sizeof(*state), GFP_KERNEL_ACCOUNT,
++				 vpsadminos_pipapo_clone_state_ctor, NULL);
++	return state ? 0 : -ENOMEM;
++}
++
++static enum nft_pipapo_clone_state
++vpsadminos_pipapo_clone_state_get(const struct nft_pipapo_match *m)
++{
++	u8 *state = vpsadminos_pipapo_clone_state(m);
++
++	return state ? *state : NFT_PIPAPO_CLONE_ERR;
++}
++
++static void
++vpsadminos_pipapo_clone_state_set(struct nft_pipapo_match *m,
++				  enum nft_pipapo_clone_state value)
++{
++	u8 *state = vpsadminos_pipapo_clone_state(m);
++
++	if (WARN_ON_ONCE(!state))
++		return;
++	*state = value;
++}
++
++static void
++vpsadminos_pipapo_clone_state_free(struct nft_pipapo_match *m)
++{
++	klp_shadow_free(m, VPSADMINOS_PIPAPO_CLONE_SHADOW_ID, NULL);
++}
++
++static bool
++vpsadminos_pipapo_clone_state_missing(const struct nft_pipapo_match *m)
++{
++	return !vpsadminos_pipapo_clone_state(m);
++}
++#else
++static int
++vpsadminos_pipapo_clone_state_alloc(struct nft_pipapo_match *m)
++{
++	m->state = NFT_PIPAPO_CLONE_NEW;
++	return 0;
++}
++
++static enum nft_pipapo_clone_state
++vpsadminos_pipapo_clone_state_get(const struct nft_pipapo_match *m)
++{
++	return m->state;
++}
++
++static void
++vpsadminos_pipapo_clone_state_set(struct nft_pipapo_match *m,
++				  enum nft_pipapo_clone_state value)
++{
++	m->state = value;
++}
++
++static void
++vpsadminos_pipapo_clone_state_free(struct nft_pipapo_match *m)
++{
++}
++
++static bool
++vpsadminos_pipapo_clone_state_missing(const struct nft_pipapo_match *m)
++{
++	return false;
++}
++#endif
++
+@@ -1253,2 +1352,12 @@ static struct nft_pipapo_match *pipapo_maybe_clone(const struct nft_set *set)
+-	if (priv->clone)
+-		return priv->clone;
++	if (priv->clone) {
++		if (!vpsadminos_pipapo_clone_state_missing(priv->clone))
++			return priv->clone;
++
++		/*
++		 * A clone without livepatch state predates activation.  It may
++		 * be the inconsistent clone left by the old first-insert
++		 * failure, so discard it without inspecting its tables.
++		 */
++		pipapo_free_match(priv->clone);
++		priv->clone = NULL;
++	}
+@@ -1287 +1396,2 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
+-	if (!m)
++	if (!m || vpsadminos_pipapo_clone_state_get(m) ==
++		  NFT_PIPAPO_CLONE_ERR)
+@@ -1358,2 +1468,4 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
+-		if (ret < 0)
+-			return ret;
++		if (ret < 0) {
++			err = ret;
++			goto abort;
++		}
+@@ -1375 +1487 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
+-			return err;
++			goto abort;
+@@ -1386,0 +1499 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
++	vpsadminos_pipapo_clone_state_set(m, NFT_PIPAPO_CLONE_MOD);
+@@ -1387,0 +1501,20 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
++abort:
++	DEBUG_NET_WARN_ON_ONCE(vpsadminos_pipapo_clone_state_get(m) ==
++			       NFT_PIPAPO_CLONE_ERR);
++
++	/* Two rollback cases:
++	 * 1) no previous changes.  nft_pipapo_abort is not
++	 * guaranteed to be invoked (there might be no further
++	 * add/delete requests coming after this).
++	 *
++	 * 2) we had previous changes: there are transaction
++	 * records pointing to this set.  Leave the rollback to
++	 * the transaction handling.
++	 */
++	if (vpsadminos_pipapo_clone_state_get(m) ==
++	    NFT_PIPAPO_CLONE_NEW)
++		nft_pipapo_abort(set); /* releases m */
++	else
++		vpsadminos_pipapo_clone_state_set(m, NFT_PIPAPO_CLONE_ERR);
++
++	return err;
+@@ -1464,0 +1598,2 @@ static struct nft_pipapo_match *pipapo_clone(struct nft_pipapo_match *old)
++	if (vpsadminos_pipapo_clone_state_alloc(new))
++		goto out_state;
+@@ -1466,0 +1602,3 @@ static struct nft_pipapo_match *pipapo_clone(struct nft_pipapo_match *old)
++out_state:
++	pipapo_free_match(new);
++	return NULL;
+@@ -1782,0 +1921,2 @@ static void pipapo_free_match(struct nft_pipapo_match *m)
++	vpsadminos_pipapo_clone_state_free(m);
++
+@@ -1826,0 +1967,6 @@ static void nft_pipapo_commit(struct nft_set *set)
++	if (vpsadminos_pipapo_clone_state_get(priv->clone) ==
++	    NFT_PIPAPO_CLONE_ERR) {
++		nft_pipapo_abort(set);
++		return;
++	}
++
+@@ -1829,0 +1976 @@ static void nft_pipapo_commit(struct nft_set *set)
++	vpsadminos_pipapo_clone_state_free(priv->clone);
+@@ -1888 +2035,2 @@ nft_pipapo_deactivate(const struct net *net, const struct nft_set *set,
+-	if (!m)
++	if (!m || vpsadminos_pipapo_clone_state_get(m) ==
++		  NFT_PIPAPO_CLONE_ERR)
+@@ -1896,0 +2045 @@ nft_pipapo_deactivate(const struct net *net, const struct nft_set *set,
++	vpsadminos_pipapo_clone_state_set(m, NFT_PIPAPO_CLONE_MOD);
+@@ -2062,0 +2212,5 @@ static void nft_pipapo_remove(const struct net *net, const struct nft_set *set,
++	if (WARN_ON_ONCE(!m ||
++			 vpsadminos_pipapo_clone_state_get(m) ==
++			 NFT_PIPAPO_CLONE_ERR))
++		return;
++
+@@ -2350 +2504,5 @@ static void nft_pipapo_destroy(const struct nft_ctx *ctx,
+-		nft_set_pipapo_match_destroy(ctx, set, priv->clone);
++		if (vpsadminos_pipapo_clone_state_get(priv->clone) ==
++		    NFT_PIPAPO_CLONE_ERR)
++			nft_set_pipapo_match_destroy(ctx, set, m);
++		else
++			nft_set_pipapo_match_destroy(ctx, set, priv->clone);
+@@ -2375,0 +2534,64 @@ static void nft_pipapo_gc_init(const struct nft_set *set)
++#ifdef CONFIG_LIVEPATCH
++static bool vpsadminos_is_pipapo_set(const struct nft_set *set)
++{
++	if (set->ops == &nft_set_pipapo_type.ops)
++		return true;
++#if defined(CONFIG_X86_64) && !defined(CONFIG_UML)
++	if (set->ops == &nft_set_pipapo_avx2_type.ops)
++		return true;
++#endif
++	return false;
++}
++
++void vpsadminos_pipapo_livepatch_cleanup(void)
++{
++	struct nftables_pernet *nft_net;
++	struct nft_pipapo_match *clone;
++	struct nft_pipapo *priv;
++	struct nft_table *table;
++	struct nft_set *set;
++	struct net *net;
++
++	down_read(&net_rwsem);
++	for_each_net(net) {
++		nft_net = nft_pernet(net);
++
++		/*
++		 * NFtables is no longer accepting new batches.  Cross the
++		 * commit mutex once so every batch which acquired the
++		 * subsystem before it was unregistered has published any
++		 * deferred destruction, then drain that work while patched
++		 * destroy functions are still active.
++		 */
++		mutex_lock(&nft_net->commit_mutex);
++		mutex_unlock(&nft_net->commit_mutex);
++		nf_tables_trans_destroy_flush_work(net);
++
++		mutex_lock(&nft_net->commit_mutex);
++
++		list_for_each_entry(table, &nft_net->tables, list) {
++			list_for_each_entry(set, &table->sets, list) {
++				if (!vpsadminos_is_pipapo_set(set))
++					continue;
++
++				priv = nft_set_priv(set);
++				clone = priv->clone;
++				if (!clone)
++					continue;
++
++				if (vpsadminos_pipapo_clone_state_get(clone) ==
++				    NFT_PIPAPO_CLONE_ERR) {
++					pipapo_free_match(clone);
++					priv->clone = NULL;
++				} else {
++					vpsadminos_pipapo_clone_state_free(clone);
++				}
++			}
++		}
++
++		mutex_unlock(&nft_net->commit_mutex);
++	}
++	up_read(&net_rwsem);
++}
++#endif
++
+diff --git a/net/netfilter/nft_set_pipapo.h b/net/netfilter/nft_set_pipapo.h
+index 49000f5510b28892a06fc171d237dacdaca7303f..47d3ba27f6b79db00919b74bd7c3aaf8978fe3d9 100644
+--- a/net/netfilter/nft_set_pipapo.h
++++ b/net/netfilter/nft_set_pipapo.h
+@@ -136,0 +137,6 @@ struct nft_pipapo_scratch {
++enum nft_pipapo_clone_state {
++	NFT_PIPAPO_CLONE_NEW,
++	NFT_PIPAPO_CLONE_MOD,
++	NFT_PIPAPO_CLONE_ERR,
++};
++
+@@ -139,0 +146 @@ struct nft_pipapo_scratch {
++ * @state:		add/delete state; used from control plane
+@@ -146,0 +154,3 @@ struct nft_pipapo_match {
++#ifndef CONFIG_LIVEPATCH
++	enum nft_pipapo_clone_state state:8;
++#endif
+@@ -152,0 +163,4 @@ struct nft_pipapo_match {
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_PIPAPO_CLONE_SHADOW_ID	0xb9c17a5984451080UL
++#endif
++
+diff --git a/net/sunrpc/clnt.c b/net/sunrpc/clnt.c
+index e492655cb2212eacfd0f5b9c680f68c2bf05abde..e88e21c2ab3299bba8998d8c905940c135c412ea 100644
+--- a/net/sunrpc/clnt.c
++++ b/net/sunrpc/clnt.c
+@@ -1029,2 +1029,17 @@ rpc_free_auth(struct rpc_clnt *clnt)
+-/*
+- * Release reference to the RPC client
++/**
++ * rpc_hold_client - acquire a reference on an rpc_clnt
++ * @clnt: rpc_clnt to pin
++ *
++ * Pairs with rpc_release_client().
++ */
++void rpc_hold_client(struct rpc_clnt *clnt)
++{
++	refcount_inc(&clnt->cl_count);
++}
++
++/**
++ * rpc_release_client - release a reference on an rpc_clnt
++ * @clnt: rpc_clnt to release
++ *
++ * Pairs with rpc_hold_client(). The rpc_clnt's resources are
++ * freed once its reference count drops to zero.
+diff --git a/net/sunrpc/xprtsock.c b/net/sunrpc/xprtsock.c
+index b78f1aae9e806874c997e2243d1dec0ce62ddb9b..104b27430f86acd8c23af70ac6583ed352a35e2d 100644
+--- a/net/sunrpc/xprtsock.c
++++ b/net/sunrpc/xprtsock.c
+@@ -57 +57,14 @@
+-
++#ifdef CONFIG_LIVEPATCH
++#include <linux/atomic.h>
++#include <linux/kallsyms.h>
++#include <linux/kprobes.h>
++#include <linux/livepatch.h>
++#include <linux/ptrace.h>
++#include <linux/rcupdate.h>
++#include <linux/sched/signal.h>
++#include <linux/stacktrace.h>
++#include <linux/stop_machine.h>
++#include <linux/vpsadminos-livepatch.h>
++#include <linux/wait_bit.h>
++#include "kpatch-macros.h"
++#endif
+@@ -2666,0 +2680,767 @@ static int xs_tls_handshake_sync(struct rpc_xprt *lower_xprt, struct xprtsec_par
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_SUNRPC_TLS_SHADOW_ID	0x02c5d466e3067e6aUL
++#define VPSADMINOS_SUNRPC_TLS_STATE_ID	0x8ad3e4b57a645262UL
++
++enum vpsadminos_sunrpc_tls_owner {
++	VPSADMINOS_SUNRPC_TLS_QUEUED,
++	VPSADMINOS_SUNRPC_TLS_WORKER,
++	VPSADMINOS_SUNRPC_TLS_CALLBACK,
++};
++
++struct vpsadminos_sunrpc_tls_registry {
++	spinlock_t lock;		/* protects queued, inflight, gated, active */
++	struct list_head queued;
++	unsigned int inflight;
++	bool gated;
++	bool active;
++};
++
++struct vpsadminos_sunrpc_tls_work {
++	struct list_head node;
++	struct vpsadminos_sunrpc_tls_registry *registry;
++	struct sock_xprt *transport;
++	struct rpc_clnt *clnt;
++	enum vpsadminos_sunrpc_tls_owner owner;
++};
++
++struct vpsadminos_sunrpc_tls_work_init {
++	struct vpsadminos_sunrpc_tls_registry *registry;
++	struct sock_xprt *transport;
++	struct rpc_clnt *clnt;
++};
++
++static struct vpsadminos_sunrpc_tls_registry *
++vpsadminos_sunrpc_tls_registry;
++
++static void xs_connect(struct rpc_xprt *xprt, struct rpc_task *task);
++static void xs_tcp_tls_setup_socket(struct work_struct *work);
++
++static struct klp_state vpsadminos_sunrpc_tls_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_SUNRPC_TLS_STATE_ID,
++	.version = 1,
++};
++
++static int
++vpsadminos_sunrpc_tls_work_ctor(void *obj, void *shadow_data,
++				void *ctor_data)
++{
++	struct vpsadminos_sunrpc_tls_work_init *init = ctor_data;
++	struct vpsadminos_sunrpc_tls_work *state = shadow_data;
++
++	INIT_LIST_HEAD(&state->node);
++	state->registry = init->registry;
++	state->transport = init->transport;
++	state->clnt = init->clnt;
++	state->owner = VPSADMINOS_SUNRPC_TLS_QUEUED;
++	WARN_ON_ONCE(obj != init->transport);
++	return 0;
++}
++
++#ifdef CONFIG_X86_64
++#define VPSADMINOS_SUNRPC_XS_CONNECT_GATE_OFFSET	0x5
++#define VPSADMINOS_SUNRPC_TLS_WORKER_GATE_OFFSET	0x6
++#define VPSADMINOS_SUNRPC_TLS_WORKER_GATE_INSN_SIZE	0x3
++
++static bool vpsadminos_sunrpc_gates_active;
++static atomic_t vpsadminos_sunrpc_gate_inflight = ATOMIC_INIT(0);
++static struct vpsadminos_sunrpc_tls_registry *
++vpsadminos_sunrpc_gate_registry;
++
++static __always_inline bool vpsadminos_sunrpc_gates_are_active(void)
++{
++	/* Pairs with the release after both probe sites have been armed. */
++	return smp_load_acquire(&vpsadminos_sunrpc_gates_active);
++}
++
++static void vpsadminos_sunrpc_gate_put(void)
++{
++	if (atomic_dec_and_test(&vpsadminos_sunrpc_gate_inflight))
++		wake_up_var(&vpsadminos_sunrpc_gate_inflight);
++}
++
++static noinline void
++vpsadminos_sunrpc_connect_gate_target(struct rpc_xprt *xprt,
++				      struct rpc_task *task)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++
++	registry = READ_ONCE(vpsadminos_sunrpc_gate_registry);
++	if (WARN_ON_ONCE(!registry))
++		return;
++	xs_connect(xprt, task);
++	vpsadminos_sunrpc_gate_put();
++}
++
++static noinline void
++vpsadminos_sunrpc_worker_gate_target(struct work_struct *work)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++
++	registry = READ_ONCE(vpsadminos_sunrpc_gate_registry);
++	if (WARN_ON_ONCE(!registry))
++		return;
++	xs_tcp_tls_setup_socket(work);
++	vpsadminos_sunrpc_gate_put();
++}
++
++static int
++vpsadminos_sunrpc_xs_connect_gate_pre(struct kprobe *probe,
++				      struct pt_regs *regs)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++	struct rpc_xprt *xprt;
++
++	(void)probe;
++	if (!vpsadminos_sunrpc_gates_are_active())
++		return 0;
++	registry = READ_ONCE(vpsadminos_sunrpc_gate_registry);
++	if (!registry)
++		return 0;
++
++	xprt = (struct rpc_xprt *)regs_get_kernel_argument(regs, 0);
++	if (!xprt || xprt->xprtsec.policy == RPC_XPRTSEC_NONE)
++		return 0;
++
++	atomic_inc(&vpsadminos_sunrpc_gate_inflight);
++	regs->ip = (unsigned long)vpsadminos_sunrpc_connect_gate_target;
++	return 1;
++}
++
++NOKPROBE_SYMBOL(vpsadminos_sunrpc_xs_connect_gate_pre);
++
++static int
++vpsadminos_sunrpc_tls_worker_gate_pre(struct kprobe *probe,
++				      struct pt_regs *regs)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++
++	if (!vpsadminos_sunrpc_gates_are_active())
++		return 0;
++	registry = READ_ONCE(vpsadminos_sunrpc_gate_registry);
++	if (!registry)
++		return 0;
++
++	/*
++	 * The exact production xs_tcp_tls_setup_socket() starts with the
++	 * five-byte __fentry__ call and a one-byte push %rbp.  This probe is
++	 * on the following instruction so the focused hold probe can remain
++	 * at +0x5.  Undo that push before entering the replacement at its
++	 * normal function boundary.
++	 */
++	atomic_inc(&vpsadminos_sunrpc_gate_inflight);
++	regs->sp += sizeof(unsigned long);
++	regs->ip = (unsigned long)vpsadminos_sunrpc_worker_gate_target;
++	return 1;
++}
++
++NOKPROBE_SYMBOL(vpsadminos_sunrpc_tls_worker_gate_pre);
++
++static void
++vpsadminos_sunrpc_xs_connect_gate_post(struct kprobe *probe,
++				       struct pt_regs *regs,
++				       unsigned long flags)
++{
++	(void)probe;
++	(void)regs;
++	(void)flags;
++}
++
++NOKPROBE_SYMBOL(vpsadminos_sunrpc_xs_connect_gate_post);
++
++static struct kprobe vpsadminos_sunrpc_xs_connect_gate = {
++	.symbol_name = "xs_connect",
++	.offset = VPSADMINOS_SUNRPC_XS_CONNECT_GATE_OFFSET,
++	.pre_handler = vpsadminos_sunrpc_xs_connect_gate_pre,
++	.flags = KPROBE_FLAG_DISABLED,
++	/*
++	 * An optimized kprobe ignores instruction-pointer changes made by
++	 * its pre-handler.  A post-handler keeps this gate unoptimized.
++	 */
++	.post_handler = vpsadminos_sunrpc_xs_connect_gate_post,
++};
++
++static struct kprobe vpsadminos_sunrpc_tls_worker_gate = {
++	.symbol_name = "xs_tcp_tls_setup_socket",
++	.offset = VPSADMINOS_SUNRPC_TLS_WORKER_GATE_OFFSET,
++	.pre_handler = vpsadminos_sunrpc_tls_worker_gate_pre,
++	.post_handler = vpsadminos_sunrpc_xs_connect_gate_post,
++	.flags = KPROBE_FLAG_DISABLED,
++};
++
++static struct kprobe *vpsadminos_sunrpc_gates[] = {
++	&vpsadminos_sunrpc_tls_worker_gate,
++	&vpsadminos_sunrpc_xs_connect_gate,
++};
++
++static bool vpsadminos_sunrpc_gates_registered;
++
++#define VPSADMINOS_SUNRPC_STACK_ENTRIES	100
++
++struct vpsadminos_sunrpc_stack_scan {
++	unsigned long escaped_start;
++	unsigned long worker_end;
++};
++
++/*
++ * stop_machine() leaves only stopper threads runnable. Every ordinary
++ * workqueue worker is therefore inactive and has a stable stack for the
++ * reliable unwinder. A worker whose saved instruction pointer still names
++ * the gate instruction will execute the registered probe when it resumes and
++ * can be redirected safely. Only a worker past the end of that instruction
++ * has escaped the gate.
++ */
++static int vpsadminos_sunrpc_scan_worker_stacks(void *data)
++{
++	struct vpsadminos_sunrpc_stack_scan *scan = data;
++	unsigned long entries[VPSADMINOS_SUNRPC_STACK_ENTRIES];
++	struct task_struct *group, *task;
++	int i, nr_entries;
++	int ret = 0;
++
++	rcu_read_lock();
++	for_each_process_thread(group, task) {
++		if (!(READ_ONCE(task->flags) & PF_WQ_WORKER))
++			continue;
++
++		nr_entries = stack_trace_save_tsk_reliable(task, entries,
++							   ARRAY_SIZE(entries));
++		if (nr_entries < 0) {
++			ret = -EAGAIN;
++			break;
++		}
++		if (nr_entries == ARRAY_SIZE(entries)) {
++			ret = -E2BIG;
++			break;
++		}
++		for (i = 0; i < nr_entries; i++) {
++			if (entries[i] >= scan->escaped_start &&
++			    entries[i] < scan->worker_end) {
++				ret = -EBUSY;
++				goto out;
++			}
++		}
++	}
++out:
++	rcu_read_unlock();
++	return ret;
++}
++
++static int vpsadminos_sunrpc_validate_worker_stacks(void)
++{
++	struct vpsadminos_sunrpc_stack_scan scan;
++	unsigned long worker_start;
++	unsigned long size;
++
++	if (WARN_ON_ONCE(!vpsadminos_sunrpc_tls_worker_gate.addr))
++		return -ENOENT;
++
++	worker_start =
++		(unsigned long)vpsadminos_sunrpc_tls_worker_gate.addr -
++		VPSADMINOS_SUNRPC_TLS_WORKER_GATE_OFFSET;
++	if (!kallsyms_lookup_size_offset(worker_start, &size, NULL) ||
++	    !size)
++		return -ENOENT;
++	scan.worker_end = worker_start + size;
++	scan.escaped_start =
++		(unsigned long)vpsadminos_sunrpc_tls_worker_gate.addr +
++		VPSADMINOS_SUNRPC_TLS_WORKER_GATE_INSN_SIZE;
++	if (scan.worker_end < worker_start ||
++	    scan.escaped_start <
++		    (unsigned long)vpsadminos_sunrpc_tls_worker_gate.addr ||
++	    scan.escaped_start > scan.worker_end)
++		return -EOVERFLOW;
++
++	return stop_machine(vpsadminos_sunrpc_scan_worker_stacks, &scan, NULL);
++}
++
++static bool
++vpsadminos_sunrpc_gate_has_peer(const struct kprobe *gate)
++{
++	/*
++	 * An independent kprobe owns an empty list node.  Kprobes can instead
++	 * reuse a core-owned empty aggregate, in which case this gate is the
++	 * aggregate's sole child and both of its list links point to the
++	 * aggregate head.  Only unequal non-self links prove that another
++	 * child occupies the instruction.
++	 */
++	return !list_empty(&gate->list) &&
++	       gate->list.next != gate->list.prev;
++}
++
++static int
++vpsadminos_sunrpc_gates_register(struct vpsadminos_sunrpc_tls_registry *registry)
++{
++	size_t i;
++	int ret;
++
++	if (WARN_ON_ONCE(vpsadminos_sunrpc_gates_registered) ||
++	    WARN_ON_ONCE(READ_ONCE(vpsadminos_sunrpc_gate_registry)) ||
++	    WARN_ON_ONCE(atomic_read(&vpsadminos_sunrpc_gate_inflight)))
++		return -EBUSY;
++
++	/*
++	 * Removing the last child of an optimized aggregate kprobe can leave
++	 * an unused aggregate in the hash until the delayed optimizer runs.
++	 * Registering into that wrapper makes the new gate's list non-empty
++	 * even though it is the sole child, which looks like an occupied site
++	 * below.  Flush that core-owned cleanup first so aggregate membership
++	 * here represents a live peer probe.
++	 */
++	wait_for_kprobe_optimizer();
++
++	WRITE_ONCE(vpsadminos_sunrpc_gate_registry, registry);
++
++	/*
++	 * unregister_kprobe() retains the resolved address.  Clear it before
++	 * re-enabling a still-loaded livepatch so symbol-name lookup is used
++	 * again instead of presenting both an address and a name.
++	 */
++	for (i = 0; i < ARRAY_SIZE(vpsadminos_sunrpc_gates); i++) {
++		vpsadminos_sunrpc_gates[i]->addr = NULL;
++		vpsadminos_sunrpc_gates[i]->flags = KPROBE_FLAG_DISABLED;
++	}
++	ret = register_kprobes(vpsadminos_sunrpc_gates,
++			       ARRAY_SIZE(vpsadminos_sunrpc_gates));
++	if (ret)
++		goto err_clear_registry;
++
++	/*
++	 * Execution-changing kprobes cannot safely share this instruction:
++	 * an aggregate handler may suppress a later handler.  Refuse an
++	 * already occupied site instead of depending on handler order.
++	 */
++	for (i = 0; i < ARRAY_SIZE(vpsadminos_sunrpc_gates); i++) {
++		if (vpsadminos_sunrpc_gate_has_peer(vpsadminos_sunrpc_gates[i])) {
++			ret = -EBUSY;
++			goto err_unregister;
++		}
++	}
++
++	/*
++	 * Keep both handlers pass-through until both sites are armed.  This
++	 * prevents a partial enable failure from admitting module text which
++	 * the failed livepatch activation could subsequently unload.
++	 */
++	for (i = 0; i < ARRAY_SIZE(vpsadminos_sunrpc_gates); i++) {
++		ret = enable_kprobe(vpsadminos_sunrpc_gates[i]);
++		if (ret)
++			goto err_unregister;
++	}
++	WRITE_ONCE(vpsadminos_sunrpc_gates_registered, true);
++	/* Publishes the initialized registry after both probes are armed. */
++	smp_store_release(&vpsadminos_sunrpc_gates_active, true);
++	return 0;
++
++err_unregister:
++	unregister_kprobes(vpsadminos_sunrpc_gates,
++			   ARRAY_SIZE(vpsadminos_sunrpc_gates));
++err_clear_registry:
++	WRITE_ONCE(vpsadminos_sunrpc_gate_registry, NULL);
++	return ret;
++}
++
++static void
++vpsadminos_sunrpc_gates_unregister(struct vpsadminos_sunrpc_tls_registry *registry)
++{
++	if (!READ_ONCE(vpsadminos_sunrpc_gates_registered))
++		return;
++
++	/* Stops new redirections before either probe is disarmed. */
++	smp_store_release(&vpsadminos_sunrpc_gates_active, false);
++	WRITE_ONCE(vpsadminos_sunrpc_gates_registered, false);
++	unregister_kprobes(vpsadminos_sunrpc_gates,
++			   ARRAY_SIZE(vpsadminos_sunrpc_gates));
++
++	/*
++	 * unregister_kprobes() drains handlers, but a redirected producer or
++	 * worker may already be executing or sleeping in module text after
++	 * its handler returned.  Do not let failed activation unload that
++	 * text, or let a completed transition retire this gate registry,
++	 * until every admitted invocation has returned through its target.
++	 */
++	wait_var_event(&vpsadminos_sunrpc_gate_inflight,
++		       !atomic_read(&vpsadminos_sunrpc_gate_inflight));
++	WARN_ON_ONCE(READ_ONCE(vpsadminos_sunrpc_gate_registry) != registry);
++	WRITE_ONCE(vpsadminos_sunrpc_gate_registry, NULL);
++}
++#else
++static int
++vpsadminos_sunrpc_gates_register(struct vpsadminos_sunrpc_tls_registry *registry)
++{
++	(void)registry;
++	return -EOPNOTSUPP;
++}
++
++static void
++vpsadminos_sunrpc_gates_unregister(struct vpsadminos_sunrpc_tls_registry *registry)
++{
++	(void)registry;
++}
++#endif
++
++static void
++vpsadminos_sunrpc_tls_fail_connect(struct sock_xprt *transport, int status)
++{
++	struct rpc_xprt *xprt = &transport->xprt;
++
++	WRITE_ONCE(transport->clnt, NULL);
++	clear_bit(XPRT_SOCK_CONNECTING, &transport->sock_state);
++	xprt_clear_connecting(xprt);
++	xprt_wake_pending_tasks(xprt, status);
++	xs_run_error_worker(transport, XPRT_SOCK_WAKE_PENDING);
++	xprt_unlock_connect(xprt, transport);
++}
++
++static void
++vpsadminos_sunrpc_tls_release_work(struct vpsadminos_sunrpc_tls_work *state)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry = state->registry;
++	struct sock_xprt *transport = state->transport;
++	struct rpc_clnt *clnt = state->clnt;
++	bool wake = false;
++
++	WARN_ON_ONCE(state->owner != VPSADMINOS_SUNRPC_TLS_WORKER);
++	spin_lock(&registry->lock);
++	klp_shadow_free(transport, VPSADMINOS_SUNRPC_TLS_SHADOW_ID, NULL);
++	if (WARN_ON_ONCE(!registry->inflight))
++		registry->inflight = 0;
++	else if (!--registry->inflight)
++		wake = true;
++	spin_unlock(&registry->lock);
++
++	rpc_release_client(clnt);
++	if (wake) {
++		/* Pairs the zero transition with wait_var_event(). */
++		smp_mb();
++		wake_up_var(&registry->inflight);
++	}
++}
++
++static noinline void vpsadminos_sunrpc_cb_release(struct vpsadminos_sunrpc_tls_work *state)
++{
++	struct sock_xprt *transport = state->transport;
++	struct rpc_clnt *clnt = state->clnt;
++
++	WARN_ON_ONCE(state->owner != VPSADMINOS_SUNRPC_TLS_CALLBACK);
++	klp_shadow_free(transport, VPSADMINOS_SUNRPC_TLS_SHADOW_ID, NULL);
++	rpc_release_client(clnt);
++}
++
++static struct vpsadminos_sunrpc_tls_work *
++vpsadminos_sunrpc_tls_alloc_locked(struct vpsadminos_sunrpc_tls_registry *registry,
++				   struct sock_xprt *transport,
++				   struct rpc_clnt *clnt)
++{
++	struct vpsadminos_sunrpc_tls_work_init init = {
++		.registry = registry,
++		.transport = transport,
++		.clnt = clnt,
++	};
++	struct vpsadminos_sunrpc_tls_work *state;
++
++	lockdep_assert_held(&registry->lock);
++	if (klp_shadow_get(transport, VPSADMINOS_SUNRPC_TLS_SHADOW_ID))
++		return ERR_PTR(-EBUSY);
++
++	state = klp_shadow_alloc(transport, VPSADMINOS_SUNRPC_TLS_SHADOW_ID,
++				 sizeof(*state), GFP_ATOMIC,
++				 vpsadminos_sunrpc_tls_work_ctor, &init);
++	if (!state)
++		return ERR_PTR(-ENOMEM);
++
++	list_add_tail(&state->node, &registry->queued);
++	return state;
++}
++
++/*
++ * Return 0 for ordinary boot semantics, 1 for a shadow-owned operation, and
++ * a negative error for work queued by the unpatched producer.
++ */
++static int
++vpsadminos_sunrpc_tls_claim_work(struct sock_xprt *transport,
++				 struct vpsadminos_sunrpc_tls_work **statep)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++	struct vpsadminos_sunrpc_tls_work *state;
++	bool release_stale = false;
++	int ret = 1;
++
++	registry = READ_ONCE(vpsadminos_sunrpc_tls_registry);
++	if (!registry)
++		return 0;
++
++	spin_lock(&registry->lock);
++	state = klp_shadow_get(transport, VPSADMINOS_SUNRPC_TLS_SHADOW_ID);
++	if (!state) {
++		ret = -ESTALE;
++	} else if (WARN_ON_ONCE(state->registry != registry)) {
++		ret = -EUCLEAN;
++	} else if (READ_ONCE(transport->clnt) != state->clnt) {
++		if (state->owner == VPSADMINOS_SUNRPC_TLS_QUEUED) {
++			list_del_init(&state->node);
++			state->owner = VPSADMINOS_SUNRPC_TLS_WORKER;
++			registry->inflight++;
++			release_stale = true;
++		}
++		ret = -ESTALE;
++	} else if (state->owner == VPSADMINOS_SUNRPC_TLS_QUEUED) {
++		list_del_init(&state->node);
++		state->owner = VPSADMINOS_SUNRPC_TLS_WORKER;
++		registry->inflight++;
++	} else if (state->owner == VPSADMINOS_SUNRPC_TLS_CALLBACK) {
++		ret = -ECANCELED;
++	} else {
++		WARN_ON_ONCE(1);
++		ret = -EUCLEAN;
++	}
++	spin_unlock(&registry->lock);
++
++	if (release_stale)
++		vpsadminos_sunrpc_tls_release_work(state);
++	if (ret > 0)
++		*statep = state;
++	return ret;
++}
++
++static int
++vpsadminos_sunrpc_tls_queue_work(struct sock_xprt *transport,
++				 struct rpc_clnt *clnt,
++				 unsigned long delay)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++	struct vpsadminos_sunrpc_tls_work *state;
++	bool queued;
++	int ret = 0;
++
++	rpc_hold_client(clnt);
++	registry = READ_ONCE(vpsadminos_sunrpc_tls_registry);
++	if (!registry) {
++		WRITE_ONCE(transport->clnt, clnt);
++		queued = queue_delayed_work(xprtiod_workqueue,
++					    &transport->connect_worker, delay);
++		if (WARN_ON_ONCE(!queued)) {
++			WRITE_ONCE(transport->clnt, NULL);
++			ret = -EBUSY;
++			goto out_release;
++		}
++		return 0;
++	}
++
++	state = NULL;
++	spin_lock(&registry->lock);
++	if (registry->gated) {
++		ret = -EAGAIN;
++	} else {
++		state = vpsadminos_sunrpc_tls_alloc_locked(registry, transport,
++							   clnt);
++		if (IS_ERR(state)) {
++			ret = PTR_ERR(state);
++			state = NULL;
++		} else {
++			WRITE_ONCE(transport->clnt, clnt);
++			queued = queue_delayed_work(xprtiod_workqueue,
++						    &transport->connect_worker,
++						    delay);
++			if (WARN_ON_ONCE(!queued)) {
++				list_del_init(&state->node);
++				WRITE_ONCE(transport->clnt, NULL);
++				klp_shadow_free(transport,
++						VPSADMINOS_SUNRPC_TLS_SHADOW_ID,
++						NULL);
++				state = NULL;
++				ret = -EBUSY;
++			}
++		}
++	}
++	spin_unlock(&registry->lock);
++
++	if (!ret)
++		return 0;
++
++out_release:
++	rpc_release_client(clnt);
++	return ret;
++}
++
++static struct vpsadminos_sunrpc_tls_work *
++vpsadminos_sunrpc_tls_take_work(struct vpsadminos_sunrpc_tls_registry *registry,
++				bool only_completed)
++{
++	struct vpsadminos_sunrpc_tls_work *state;
++
++	spin_lock(&registry->lock);
++	list_for_each_entry(state, &registry->queued, node) {
++		if (only_completed &&
++		    READ_ONCE(state->transport->clnt))
++			continue;
++		list_del_init(&state->node);
++		state->owner = VPSADMINOS_SUNRPC_TLS_CALLBACK;
++		spin_unlock(&registry->lock);
++		return state;
++	}
++	spin_unlock(&registry->lock);
++	return NULL;
++}
++
++static void
++vpsadminos_sunrpc_tls_reap_completed(struct vpsadminos_sunrpc_tls_registry *registry)
++{
++	struct vpsadminos_sunrpc_tls_work *state;
++
++	while ((state = vpsadminos_sunrpc_tls_take_work(registry, true)))
++		vpsadminos_sunrpc_cb_release(state);
++}
++
++static void
++vpsadminos_sunrpc_tls_drain(struct vpsadminos_sunrpc_tls_registry *registry)
++{
++	struct vpsadminos_sunrpc_tls_work *state;
++	bool canceled;
++
++	spin_lock(&registry->lock);
++	registry->gated = true;
++	spin_unlock(&registry->lock);
++
++	while ((state = vpsadminos_sunrpc_tls_take_work(registry, false))) {
++		canceled = cancel_delayed_work_sync
++				(&state->transport->connect_worker);
++		if (canceled ||
++		    READ_ONCE(state->transport->clnt) == state->clnt)
++			vpsadminos_sunrpc_tls_fail_connect(state->transport,
++							   -ECANCELED);
++		vpsadminos_sunrpc_cb_release(state);
++	}
++}
++
++int vpsadminos_sunrpc_livepatch_pre_patch(void)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++	struct klp_state *prev_state;
++	bool busy;
++	int ret;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_SUNRPC_TLS_STATE_ID);
++	registry = prev_state ? READ_ONCE(prev_state->data) : NULL;
++	if (registry && READ_ONCE(registry->active))
++		goto publish;
++
++	registry = kzalloc(sizeof(*registry), GFP_KERNEL);
++	if (!registry)
++		return -ENOMEM;
++	spin_lock_init(&registry->lock);
++	INIT_LIST_HEAD(&registry->queued);
++
++publish:
++	WRITE_ONCE(vpsadminos_sunrpc_tls_state.data, registry);
++	WRITE_ONCE(vpsadminos_sunrpc_tls_registry, registry);
++
++	/*
++	 * A compatible active predecessor has already completed its boot-code
++	 * transition and owns the same shadow ABI.  Only a first activation
++	 * needs to interpose the boot producer and capture its published work.
++	 */
++	if (prev_state && READ_ONCE(registry->active))
++		return 0;
++
++	ret = vpsadminos_sunrpc_gates_register(registry);
++	if (ret)
++		goto err_free;
++
++	/*
++	 * xs_connect() has no voluntary scheduling point.  Once the gate is
++	 * installed, an RCU Tasks grace period therefore proves that every
++	 * producer already past +0x5 has either returned after publishing its
++	 * raw client or no longer exists. Queued workers will enter through the
++	 * worker gate and fail closed without reading that pointer. Reject the
++	 * activation only if an old worker is already past the worker gate;
++	 * stop_machine() makes that direct stack test race-free.
++	 */
++	synchronize_rcu_tasks();
++	ret = vpsadminos_sunrpc_validate_worker_stacks();
++	if (!ret)
++		return 0;
++
++	vpsadminos_sunrpc_gates_unregister(registry);
++	vpsadminos_sunrpc_tls_drain(registry);
++	wait_var_event(&registry->inflight,
++		       !READ_ONCE(registry->inflight));
++	spin_lock(&registry->lock);
++	busy = !list_empty(&registry->queued) || registry->inflight;
++	WARN_ON_ONCE(busy);
++	spin_unlock(&registry->lock);
++	if (busy)
++		goto err_clear;
++err_free:
++	kfree(registry);
++err_clear:
++	WRITE_ONCE(vpsadminos_sunrpc_tls_state.data, NULL);
++	WRITE_ONCE(vpsadminos_sunrpc_tls_registry, NULL);
++	return ret;
++}
++
++void vpsadminos_sunrpc_livepatch_post_patch(void)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++	struct klp_state *prev_state;
++
++	registry = READ_ONCE(vpsadminos_sunrpc_tls_registry);
++	if (WARN_ON_ONCE(!registry))
++		return;
++
++	vpsadminos_sunrpc_gates_unregister(registry);
++	vpsadminos_sunrpc_tls_reap_completed(registry);
++
++	spin_lock(&registry->lock);
++	registry->active = true;
++	registry->gated = false;
++	spin_unlock(&registry->lock);
++
++	prev_state = klp_get_prev_state(VPSADMINOS_SUNRPC_TLS_STATE_ID);
++	if (prev_state && READ_ONCE(prev_state->data) == registry)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++void vpsadminos_sunrpc_livepatch_pre_unpatch(void)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++
++	registry = READ_ONCE(vpsadminos_sunrpc_tls_registry);
++	if (registry)
++		vpsadminos_sunrpc_tls_drain(registry);
++}
++
++void vpsadminos_sunrpc_livepatch_post_unpatch(void)
++{
++	struct vpsadminos_sunrpc_tls_registry *registry;
++	struct klp_state *prev_state;
++	bool busy;
++
++	registry = READ_ONCE(vpsadminos_sunrpc_tls_registry);
++	if (!registry)
++		return;
++
++	vpsadminos_sunrpc_gates_unregister(registry);
++	prev_state = klp_get_prev_state(VPSADMINOS_SUNRPC_TLS_STATE_ID);
++	if (prev_state && READ_ONCE(prev_state->data) == registry &&
++	    READ_ONCE(registry->active)) {
++		WRITE_ONCE(vpsadminos_sunrpc_tls_state.data, NULL);
++		WRITE_ONCE(vpsadminos_sunrpc_tls_registry, NULL);
++		return;
++	}
++
++	vpsadminos_sunrpc_tls_drain(registry);
++	spin_lock(&registry->lock);
++	registry->active = false;
++	busy = !list_empty(&registry->queued) || registry->inflight;
++	WARN_ON_ONCE(busy);
++	spin_unlock(&registry->lock);
++
++	WRITE_ONCE(vpsadminos_sunrpc_tls_state.data, NULL);
++	WRITE_ONCE(vpsadminos_sunrpc_tls_registry, NULL);
++	if (!busy)
++		kfree(registry);
++}
++#endif
++
+@@ -2688 +3467,0 @@ static void xs_tcp_tls_setup_socket(struct work_struct *work)
+-	struct rpc_clnt *upper_clnt = upper_transport->clnt;
+@@ -2690,17 +3469,2 @@ static void xs_tcp_tls_setup_socket(struct work_struct *work)
+-	struct rpc_create_args args = {
+-		.net		= upper_xprt->xprt_net,
+-		.protocol	= upper_xprt->prot,
+-		.address	= (struct sockaddr *)&upper_xprt->addr,
+-		.addrsize	= upper_xprt->addrlen,
+-		.timeout	= upper_clnt->cl_timeout,
+-		.servername	= upper_xprt->servername,
+-		.program	= upper_clnt->cl_program,
+-		.prognumber	= upper_clnt->cl_prog,
+-		.version	= upper_clnt->cl_vers,
+-		.authflavor	= RPC_AUTH_TLS,
+-		.cred		= upper_clnt->cl_cred,
+-		.xprtsec	= {
+-			.policy		= RPC_XPRTSEC_NONE,
+-		},
+-		.stats		= upper_clnt->cl_stats,
+-	};
++	struct rpc_create_args args = { 0 };
++	struct rpc_clnt *upper_clnt;
+@@ -2709,0 +3474,4 @@ static void xs_tcp_tls_setup_socket(struct work_struct *work)
++#ifdef CONFIG_LIVEPATCH
++	struct vpsadminos_sunrpc_tls_work *livepatch_state = NULL;
++	int livepatch_work;
++#endif
+@@ -2711,0 +3480,27 @@ static void xs_tcp_tls_setup_socket(struct work_struct *work)
++#ifdef CONFIG_LIVEPATCH
++	livepatch_work = vpsadminos_sunrpc_tls_claim_work(upper_transport,
++							  &livepatch_state);
++	if (livepatch_work < 0) {
++		vpsadminos_sunrpc_tls_fail_connect(upper_transport, -EAGAIN);
++		return;
++	}
++	if (livepatch_state)
++		upper_clnt = livepatch_state->clnt;
++	else
++#endif
++		upper_clnt = READ_ONCE(upper_transport->clnt);
++
++	args.net = upper_xprt->xprt_net;
++	args.protocol = upper_xprt->prot;
++	args.address = (struct sockaddr *)&upper_xprt->addr;
++	args.addrsize = upper_xprt->addrlen;
++	args.timeout = upper_clnt->cl_timeout;
++	args.servername = upper_xprt->servername;
++	args.program = upper_clnt->cl_program;
++	args.prognumber = upper_clnt->cl_prog;
++	args.version = upper_clnt->cl_vers;
++	args.authflavor = RPC_AUTH_TLS;
++	args.cred = upper_clnt->cl_cred;
++	args.xprtsec.policy = RPC_XPRTSEC_NONE;
++	args.stats = upper_clnt->cl_stats;
++
+@@ -2769 +3564,11 @@ static void xs_tcp_tls_setup_socket(struct work_struct *work)
+-	upper_transport->clnt = NULL;
++	WRITE_ONCE(upper_transport->clnt, NULL);
++#ifdef CONFIG_LIVEPATCH
++	if (livepatch_state) {
++		if (livepatch_state->owner ==
++		    VPSADMINOS_SUNRPC_TLS_WORKER)
++			vpsadminos_sunrpc_tls_release_work(livepatch_state);
++		upper_clnt = NULL;
++	}
++#endif
++	if (upper_clnt)
++		rpc_release_client(upper_clnt);
+@@ -2803,0 +3609,3 @@ static void xs_connect(struct rpc_xprt *xprt, struct rpc_task *task)
++#ifdef CONFIG_LIVEPATCH
++	int status;
++#endif
+@@ -2817 +3625,18 @@ static void xs_connect(struct rpc_xprt *xprt, struct rpc_task *task)
+-	transport->clnt = task->tk_client;
++	/*
++	 * Only the TLS connect_worker reads transport->clnt; pinning
++	 * the upper rpc_clnt unconditionally would form a cycle with
++	 * cl_xprt and prevent xprt destruction.
++	 */
++	if (xprt->xprtsec.policy != RPC_XPRTSEC_NONE) {
++#ifdef CONFIG_LIVEPATCH
++		status = vpsadminos_sunrpc_tls_queue_work(transport,
++							  task->tk_client,
++							  delay);
++		if (status)
++			vpsadminos_sunrpc_tls_fail_connect(transport, status);
++		return;
++#else
++		rpc_hold_client(task->tk_client);
++		transport->clnt = task->tk_client;
++#endif
++	}
+@@ -3770,0 +4596,4 @@ module_param_named(udp_slot_table_entries, xprt_udp_slot_table_entries,
++
++#ifdef CONFIG_LIVEPATCH
++KPATCH_IGNORE_FUNCTION(xs_setup_xprt)
++#endif
+diff --git a/net/vmw_vsock/virtio_transport_common.c b/net/vmw_vsock/virtio_transport_common.c
+index 95170c7be7586d4fc187edb6613eb17d180388ec..c3547d783db23ca2cac69e1157fc1e699f2faa2d 100644
+--- a/net/vmw_vsock/virtio_transport_common.c
++++ b/net/vmw_vsock/virtio_transport_common.c
+@@ -75,29 +74,0 @@ static bool virtio_transport_can_zcopy(const struct virtio_transport *t_ops,
+-static int virtio_transport_init_zcopy_skb(struct vsock_sock *vsk,
+-					   struct sk_buff *skb,
+-					   struct msghdr *msg,
+-					   bool zerocopy)
+-{
+-	struct ubuf_info *uarg;
+-
+-	if (msg->msg_ubuf) {
+-		uarg = msg->msg_ubuf;
+-		net_zcopy_get(uarg);
+-	} else {
+-		struct iov_iter *iter = &msg->msg_iter;
+-		struct ubuf_info_msgzc *uarg_zc;
+-
+-		uarg = msg_zerocopy_realloc(sk_vsock(vsk),
+-					    iter->count,
+-					    NULL);
+-		if (!uarg)
+-			return -1;
+-
+-		uarg_zc = uarg_to_msgzc(uarg);
+-		uarg_zc->zerocopy = zerocopy ? 1 : 0;
+-	}
+-
+-	skb_zcopy_init(skb, uarg);
+-
+-	return 0;
+-}
+-
+@@ -323,0 +295 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
++	struct ubuf_info *uarg = NULL;
+@@ -325,0 +298 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
++	bool have_uref = false;
+@@ -366,0 +340,19 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
++
++		if (info->msg->msg_flags & MSG_ZEROCOPY &&
++		    info->op == VIRTIO_VSOCK_OP_RW) {
++			uarg = info->msg->msg_ubuf;
++
++			if (!uarg) {
++				uarg = msg_zerocopy_realloc(sk_vsock(vsk),
++							    pkt_len, NULL);
++				if (!uarg) {
++					virtio_transport_put_credit(vvs, pkt_len);
++					return -ENOMEM;
++				}
++
++				if (!can_zcopy)
++					uarg_to_msgzc(uarg)->zerocopy = 0;
++
++				have_uref = true;
++			}
++		}
+@@ -385,15 +377 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
+-		/* We process buffer part by part, allocating skb on
+-		 * each iteration. If this is last skb for this buffer
+-		 * and MSG_ZEROCOPY mode is in use - we must allocate
+-		 * completion for the current syscall.
+-		 */
+-		if (info->msg && info->msg->msg_flags & MSG_ZEROCOPY &&
+-		    skb_len == rest_len && info->op == VIRTIO_VSOCK_OP_RW) {
+-			if (virtio_transport_init_zcopy_skb(vsk, skb,
+-							    info->msg,
+-							    can_zcopy)) {
+-				kfree_skb(skb);
+-				ret = -ENOMEM;
+-				break;
+-			}
+-		}
++		skb_zcopy_set(skb, uarg, NULL);
+@@ -422,0 +401,12 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
++	/* msg_zerocopy_realloc() initializes the ubuf_info refcnt to 1.
++	 * skb_zcopy_set() increases it for each skb, so we can drop that
++	 * initial reference to keep it balanced.
++	 */
++	if (have_uref) {
++		if (rest_len == pkt_len)
++			/* No data sent, abort the notification. */
++			net_zcopy_put_abort(uarg, true);
++		else
++			net_zcopy_put(uarg);
++	}
++
+diff --git a/net/xfrm/xfrm_state.c b/net/xfrm/xfrm_state.c
+index 04cb201638027d0b45f174353180962c1db5ba55..3df03b2d35990c4753d4171893358e1a5219b27e 100644
+--- a/net/xfrm/xfrm_state.c
++++ b/net/xfrm/xfrm_state.c
+@@ -29,0 +30,4 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/vpsadminos-livepatch.h>
++#include <linux/livepatch.h>
++#endif
+@@ -32,0 +37,4 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <net/net_namespace.h>
++#endif
++
+@@ -60,0 +69,25 @@ static inline bool xfrm_state_hold_rcu(struct xfrm_state __rcu *x)
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_XFRM_INPUT_CACHE_STATE_ID	0xddd3d0132920319aUL
++#define VPSADMINOS_XFRM_INPUT_CACHE_RETIRED	((void *)1UL)
++
++static bool vpsadminos_xfrm_input_cache_retired;
++
++static struct klp_state vpsadminos_xfrm_input_cache_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_XFRM_INPUT_CACHE_STATE_ID,
++	.version = 1,
++};
++
++static bool vpsadminos_xfrm_input_cache_is_retired(void)
++{
++	/* Pair with the callback release stores publishing cache state. */
++	return smp_load_acquire(&vpsadminos_xfrm_input_cache_retired);
++}
++#else
++static bool vpsadminos_xfrm_input_cache_is_retired(void)
++{
++	return false;
++}
++#endif
++
+@@ -750,0 +784 @@ int __xfrm_state_delete(struct xfrm_state *x)
++	bool input_cache_retired;
+@@ -752,0 +787,2 @@ int __xfrm_state_delete(struct xfrm_state *x)
++	input_cache_retired = vpsadminos_xfrm_input_cache_is_retired();
++
+@@ -764 +800,4 @@ int __xfrm_state_delete(struct xfrm_state *x)
+-		if (!hlist_unhashed(&x->state_cache_input))
++		if (input_cache_retired ||
++		    vpsadminos_xfrm_input_cache_is_retired())
++			INIT_HLIST_NODE(&x->state_cache_input);
++		else if (!hlist_unhashed(&x->state_cache_input))
+@@ -1144 +1183 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-	struct hlist_head *state_cache_input;
++	struct hlist_head *state_cache_input = NULL;
+@@ -1147 +1186,2 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-	state_cache_input = raw_cpu_ptr(net->xfrm.state_cache_input);
++	/* BH is always disabled on the input path. */
++	lockdep_assert_in_softirq();
+@@ -1149,7 +1189,2 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-	rcu_read_lock();
+-	hlist_for_each_entry_rcu(x, state_cache_input, state_cache_input) {
+-		if (x->props.family != family ||
+-		    x->id.spi       != spi ||
+-		    x->id.proto     != proto ||
+-		    !xfrm_addr_equal(&x->id.daddr, daddr, family))
+-			continue;
++	if (!vpsadminos_xfrm_input_cache_is_retired())
++		state_cache_input = raw_cpu_ptr(net->xfrm.state_cache_input);
+@@ -1157,6 +1192,15 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-		if ((mark & x->mark.m) != x->mark.v)
+-			continue;
+-		if (!xfrm_state_hold_rcu(x))
+-			continue;
+-		goto out;
+-	}
++	if (state_cache_input)
++		hlist_for_each_entry_rcu(x, state_cache_input,
++					 state_cache_input) {
++			if (x->props.family != family ||
++			    x->id.spi       != spi ||
++			    x->id.proto     != proto ||
++			    !xfrm_addr_equal(&x->id.daddr, daddr, family))
++				continue;
++
++			if ((mark & x->mark.m) != x->mark.v)
++				continue;
++			if (!xfrm_state_hold_rcu(x))
++				continue;
++			goto out;
++		}
+@@ -1167,4 +1211,10 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-
+-	if (x && x->km.state == XFRM_STATE_VALID) {
+-		spin_lock_bh(&net->xfrm.xfrm_state_lock);
+-		if (hlist_unhashed(&x->state_cache_input)) {
++	if (x && state_cache_input) {
++		spin_lock(&net->xfrm.xfrm_state_lock);
++		if (x->km.state != XFRM_STATE_VALID) {
++			/*
++			 * The state is about to be destroyed.
++			 *
++			 * Don't add it to the cache but still
++			 * return it to the caller.
++			 */
++		} else if (hlist_unhashed(&x->state_cache_input)) {
+@@ -1176 +1226 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-		spin_unlock_bh(&net->xfrm.xfrm_state_lock);
++		spin_unlock(&net->xfrm.xfrm_state_lock);
+@@ -1180 +1229,0 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-	rcu_read_unlock();
+@@ -3409,0 +3459,80 @@ EXPORT_SYMBOL_GPL(xfrm_audit_state_icvfail);
++
++#ifdef CONFIG_LIVEPATCH
++static void vpsadminos_xfrm_input_cache_reset(bool restore_nodes)
++{
++	struct xfrm_state_walk *walk;
++	struct xfrm_state *state;
++	struct net *net;
++	int cpu;
++
++	down_read(&net_rwsem);
++	for_each_net(net) {
++		spin_lock_bh(&net->xfrm.xfrm_state_lock);
++
++		for_each_possible_cpu(cpu)
++			INIT_HLIST_HEAD(per_cpu_ptr(net->xfrm.state_cache_input,
++						    cpu));
++
++		if (restore_nodes) {
++			/*
++			 * state_all also contains active walk cursors.  They
++			 * use XFRM_STATE_DEAD and are not embedded in an
++			 * xfrm_state.
++			 */
++			list_for_each_entry(walk, &net->xfrm.state_all, all) {
++				if (walk->state == XFRM_STATE_DEAD)
++					continue;
++
++				state = container_of(walk, struct xfrm_state, km);
++				INIT_HLIST_NODE(&state->state_cache_input);
++			}
++		}
++
++		spin_unlock_bh(&net->xfrm.xfrm_state_lock);
++	}
++	up_read(&net_rwsem);
++}
++
++int vpsadminos_xfrm_livepatch_pre_patch(void)
++{
++	struct klp_state *prev_state;
++	bool inherited;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_XFRM_INPUT_CACHE_STATE_ID);
++	inherited = prev_state &&
++		    READ_ONCE(prev_state->data) ==
++		    VPSADMINOS_XFRM_INPUT_CACHE_RETIRED;
++	/* Publish the inherited contract before replacement functions run. */
++	smp_store_release(&vpsadminos_xfrm_input_cache_retired, inherited);
++
++	return 0;
++}
++
++void vpsadminos_xfrm_livepatch_post_patch(void)
++{
++	/* Stop new cache users before draining readers which saw false. */
++	smp_store_release(&vpsadminos_xfrm_input_cache_retired, true);
++
++	/*
++	 * Input lookups run in network RCU read-side sections.  Drain every
++	 * lookup which observed the non-retired state before abandoning the
++	 * cache heads.
++	 */
++	synchronize_net();
++	vpsadminos_xfrm_input_cache_reset(false);
++	WRITE_ONCE(vpsadminos_xfrm_input_cache_state.data,
++		   VPSADMINOS_XFRM_INPUT_CACHE_RETIRED);
++}
++
++void vpsadminos_xfrm_livepatch_pre_unpatch(void)
++{
++	/*
++	 * Lookups still bypass the cache here.  Repair the empty heads and
++	 * every live node before either replacement or boot code may use it.
++	 */
++	vpsadminos_xfrm_input_cache_reset(true);
++	/* Publish the repaired heads and nodes before allowing cache use. */
++	smp_store_release(&vpsadminos_xfrm_input_cache_retired, false);
++	WRITE_ONCE(vpsadminos_xfrm_input_cache_state.data, NULL);
++}
++#endif

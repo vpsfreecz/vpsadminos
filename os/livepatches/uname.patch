@@ -5,7 +5,7 @@
  #include "sched/sched.h"
  
 +#include <linux/utsname.h>
-+#include <linux/vpsadminos-livepatch.h>
++#include <linux/vpsadminos-livepatch-build.h>
 +#include "kpatch-macros.h"
 +char old_uname[65];
 +char new_uname[65];
