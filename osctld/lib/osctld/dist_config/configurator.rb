@@ -1,6 +1,7 @@
 require 'libosctl'
 require 'json'
 require 'osctld/dist_config/helpers/common'
+require 'osctld/dist_config/resolver'
 
 module OsCtld
   # Base class for per-distribution configurators
@@ -98,12 +99,10 @@ module OsCtld
     # Configure DNS resolvers
     # @param resolvers [Array<String>]
     def dns_resolvers(resolvers)
-      writable?(File.join(rootfs, 'etc', 'resolv.conf')) do |path|
-        File.open("#{path}.new", 'w') do |f|
-          resolvers.each { |v| f.puts("nameserver #{v}") }
-          f.puts('options edns0')
-        end
+      payload = DistConfig::Resolver.render(resolvers)
 
+      writable?(File.join(rootfs, 'etc', 'resolv.conf')) do |path|
+        File.write("#{path}.new", payload)
         File.rename("#{path}.new", path)
       end
 

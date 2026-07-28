@@ -6,6 +6,8 @@ module OsCtld
     module Helpers; end
     module Network; end
 
+    class ApplyError < StandardError; end
+
     extend OsCtl::Lib::Utils::Exception
 
     def self.register(distribution, klass)
@@ -20,7 +22,19 @@ module OsCtld
     # @param ctrc [Container::RunConfiruration]
     # @param cmd [Symbol]
     # @param opts [Hash]
-    def self.run(ctrc, cmd, **opts)
+    def self.run(ctrc, cmd, **)
+      success, value = run_with_status(ctrc, cmd, **)
+      success ? value : nil
+    end
+
+    # Run a distribution command and report whether its handler completed.
+    #
+    # This retains {.run}'s historical value semantics while allowing callers
+    # which apply live state to distinguish a successful nil return from an
+    # exception that was logged and suppressed.
+    #
+    # @return [Array(Boolean, Object)]
+    def self.run_with_status(ctrc, cmd, **opts)
       klass = self.for(ctrc.distribution.to_sym)
 
       # Make sure the container's dataset is mounted
@@ -34,10 +48,11 @@ module OsCtld
       d = (klass || self.for(:other)).new(ctrc)
 
       begin
-        d.method(cmd).call(opts)
+        [true, d.method(cmd).call(opts)]
       rescue StandardError => e
         ctrc.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
         ctrc.log(:warn, denixstorify(e.backtrace).join("\n"))
+        [false, nil]
       end
     end
   end
