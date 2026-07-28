@@ -11,6 +11,7 @@ module OsCtl::Lib
     SYS_OPENAT2 = 437
     O_CLOEXEC = 0x0008_0000
     O_DIRECTORY = 0x0001_0000
+    O_PATH = 0x0020_0000
 
     RESOLVE_NO_MAGICLINKS = 0x02
     RESOLVE_NO_SYMLINKS = 0x04
@@ -58,6 +59,11 @@ module OsCtl::Lib
       extern 'int klogctl(int type, char *bufp, int len)'
       extern 'int pidfd_open(int pid, unsigned int flags)'
       extern 'int openat(int dirfd, const char *pathname, int flags, unsigned int mode)'
+      extern 'int fchmod(int fd, unsigned int mode)'
+      extern 'int mkdirat(int dirfd, const char *pathname, unsigned int mode)'
+      extern 'int renameat(int olddirfd, const char *oldpath, ' \
+             'int newdirfd, const char *newpath)'
+      extern 'int unlinkat(int dirfd, const char *pathname, int flags)'
       extern 'long syscall(long number, long arg1, const char *arg2, ' \
              'const void *arg3, size_t arg4)'
     end
@@ -92,16 +98,49 @@ module OsCtl::Lib
     # to reopen root and namespace descriptors through a retained /proc/<pid>
     # directory after entering another mount namespace.
     def openat_io(dir, path, flags: File::RDONLY, mode: 0)
-      relative_path = path.to_s
-      if relative_path.empty? || relative_path.start_with?('/') || relative_path.include?("\0") ||
-         relative_path.split('/').include?('..')
-        raise ArgumentError, 'path has to be a safe relative path'
-      end
+      relative_path = safe_relative_path(path)
 
       fd = Int.openat(dir.fileno, relative_path, Integer(flags) | O_CLOEXEC, Integer(mode))
       raise SystemCallError, Fiddle.last_error if fd < 0
 
       IO.for_fd(fd, autoclose: true).tap { |io| io.close_on_exec = true }
+    end
+
+    def mkdirat(dir, path, mode)
+      relative_path = safe_relative_path(path)
+      ret = Int.mkdirat(dir.fileno, relative_path, Integer(mode))
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
+    def fchmod(io, mode)
+      ret = Int.fchmod(io.fileno, Integer(mode))
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
+    def renameat(old_dir, old_path, new_dir, new_path)
+      old_relative_path = safe_relative_path(old_path)
+      new_relative_path = safe_relative_path(new_path)
+      ret = Int.renameat(
+        old_dir.fileno,
+        old_relative_path,
+        new_dir.fileno,
+        new_relative_path
+      )
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
+    def unlinkat(dir, path, flags: 0)
+      relative_path = safe_relative_path(path)
+      ret = Int.unlinkat(dir.fileno, relative_path, Integer(flags))
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
     end
 
     # Open +path+ below an already-open directory without permitting symlink
@@ -129,6 +168,20 @@ module OsCtl::Lib
 
       IO.for_fd(fd, autoclose: true).tap { |io| io.close_on_exec = true }
     end
+
+    protected
+
+    def safe_relative_path(path)
+      relative_path = path.to_s
+      if relative_path.empty? || relative_path.start_with?('/') || relative_path.include?("\0") ||
+         relative_path.split('/').include?('..')
+        raise ArgumentError, 'path has to be a safe relative path'
+      end
+
+      relative_path
+    end
+
+    public
 
     def move_mount(src, dst)
       ret = Int.mount(src, dst, 0, MS_MGC_VAL | MS_MOVE, 0)
