@@ -20,7 +20,13 @@ module OsCtld
           changes[attr] = opts[attr] if opts.has_key?(attr)
         end
 
-        ct.unset(changes)
+        begin
+          ct.unset(changes)
+        rescue DistConfig::ApplyError => e
+          log_history(ct.pool)
+          next error(e.message)
+        end
+
         ok
       end
     end

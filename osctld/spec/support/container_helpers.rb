@@ -571,8 +571,21 @@ module ContainerHelpers
       end
     end
 
+    resolver_module = Module.new do
+      def self.render(resolvers)
+        "#{resolvers.map { |resolver| "nameserver #{resolver}\n" }.join}options edns0\n"
+      end
+    end
+
     dist_config_module = Module.new do
+      const_set(:ApplyError, Class.new(StandardError))
+      const_set(:Resolver, resolver_module)
+
       def self.run(*); end
+
+      def self.run_with_status(*)
+        [true, nil]
+      end
     end
 
     erb_template_class = Class.new do

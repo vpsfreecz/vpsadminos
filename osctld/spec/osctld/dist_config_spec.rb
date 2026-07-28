@@ -81,4 +81,36 @@ RSpec.describe OsCtld::DistConfig do
     expect(ctrc).to have_received(:mount).once
     expect(ctrc).to have_received(:log).with(:warn, 'DistConfig.start failed: boom')
   end
+
+  it 'reports handler completion separately from the legacy return value' do
+    ctrc = instance_double(run_config_class, distribution: 'alpine', mount: nil, log: nil)
+    dist_class = Class.new do
+      def initialize(_ctrc); end
+
+      def start(_opts)
+        :started
+      end
+    end
+
+    described_class.register(:alpine, dist_class)
+
+    expect(described_class.run_with_status(ctrc, :start)).to eq([true, :started])
+    expect(described_class.run(ctrc, :start)).to eq(:started)
+  end
+
+  it 'reports a suppressed distribution error to status-aware callers' do
+    ctrc = instance_double(run_config_class, distribution: 'alpine', mount: nil, log: nil)
+    dist_class = Class.new do
+      def initialize(_ctrc); end
+
+      def start(_opts)
+        raise 'boom'
+      end
+    end
+
+    described_class.register(:alpine, dist_class)
+    allow(described_class).to receive(:denixstorify).and_return(['trace'])
+
+    expect(described_class.run_with_status(ctrc, :start)).to eq([false, nil])
+  end
 end

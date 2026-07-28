@@ -78,6 +78,31 @@ RSpec.describe OsCtl::Lib::Sys do
     expect(described_class::Int).not_to have_received(:openat)
   end
 
+  it_behaves_like 'simple Int wrapper',
+                  :mkdirat, :mkdirat,
+                  [Struct.new(:fileno).new(9), 'managed', 0o755], {},
+                  [9, 'managed', 0o755]
+
+  it_behaves_like 'simple Int wrapper',
+                  :fchmod, :fchmod,
+                  [Struct.new(:fileno).new(9), 0o755], {},
+                  [9, 0o755]
+
+  it_behaves_like 'simple Int wrapper',
+                  :renameat, :renameat,
+                  [
+                    Struct.new(:fileno).new(9),
+                    '.temporary',
+                    Struct.new(:fileno).new(10),
+                    'target'
+                  ], {},
+                  [9, '.temporary', 10, 'target']
+
+  it_behaves_like 'simple Int wrapper',
+                  :unlinkat, :unlinkat,
+                  [Struct.new(:fileno).new(9), '.temporary'], {},
+                  [9, '.temporary', 0]
+
   it 'opens relative paths beneath a held directory without symlink traversal' do
     dir = instance_double(File, fileno: 9)
     opened = instance_double(IO)
