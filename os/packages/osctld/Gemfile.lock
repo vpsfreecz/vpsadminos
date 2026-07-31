@@ -9,7 +9,7 @@ GEM
     gli (2.22.2)
       ostruct
     ipaddress (0.8.3)
-    json (2.21.1)
+    json (2.21.2)
     libosctl (26.05.0)
       fiddle
       logger
