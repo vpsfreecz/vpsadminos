@@ -98,33 +98,9 @@ jobs:
       
       - name: Evaluate test results
         if: always()
-        run: |
-          EXPECTED_SUCCESSFUL=$(grep -oP "\d+ tests successful" test.log | cut -f1 -d ' ')
-          EXPECTED_FAILED=$(grep -oP "\d+ tests failed as expected" test.log | cut -f1 -d ' ')
-          UNEXPECTED_FAILED=$(grep -oP "\d+ tests should have succeeded" test.log | cut -f1 -d ' ')
-          UNEXPECTED_SUCCESSFUL=$(grep -oP "\d+ tests should have failed" test.log | cut -f1 -d ' ')
-
-          echo "expected_successful=${EXPECTED_SUCCESS:-0}" >> $GITHUB_OUTPUT
-          echo "expected_failed=${EXPECTED_FAILED:-0}" >> $GITHUB_OUTPUT
-          echo "unexpected_failed=${UNEXPECTED_FAILED:-0}" >> $GITHUB_OUTPUT
-          echo "unexpected_successful=${UNEXPECTED_SUCCESSFUL:-0}" >> $GITHUB_OUTPUT
-
-          {
-            echo '### Test summary'
-            echo ""
-            echo "| Result | Count |"
-            echo "|--------|-------|"
-            echo "| ✅ Successful (expected) | ${EXPECTED_SUCCESSFUL:-0} |"
-            echo "| ⚠️ Failed (expected) | ${EXPECTED_FAILED:-0} |"
-            echo "| ❌ Failed (unexpected) | ${UNEXPECTED_FAILED:-0} |"
-            echo "| ❌ Successful (unexpected) | ${UNEXPECTED_SUCCESSFUL:-0} |"
-            echo ""
-          } >> $GITHUB_STEP_SUMMARY
-
-          if [ "${UNEXPECTED_FAILED:-0}" -gt 0 ] || [ "${UNEXPECTED_SUCCESSFUL:-0}" -gt 0 ]; then
-            echo "::error::${UNEXPECTED_FAILED:-0} tests unexpectedly failed, ${UNEXPECTED_SUCCESSFUL:-0} tests unexpectedly succeeded"
-            exit 1
-          fi
+        uses: ./.github/actions/evaluate-test-results
+        with:
+          log-file: test.log
 
       - name: Summarise test logs
         if: always()
