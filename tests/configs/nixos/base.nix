@@ -77,6 +77,10 @@ in
 
     boot.kernelParams = [
       "console=ttyS0"
+      # Keep initrd module loading deterministic. Parallel udev workers can
+      # otherwise race while x86 static-call sites in modules are patched,
+      # leaving a test VM without its root disk after a __text_poke BUG.
+      "rd.udev.children_max=1"
     ];
 
     boot.initrd.availableKernelModules = [
