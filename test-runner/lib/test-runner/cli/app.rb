@@ -106,7 +106,7 @@ module TestRunner::Cli
         c.desc 'Default timeout for machine commands, in seconds'
         c.flag %w[timeout], type: Integer, default_value: 900
 
-        c.desc 'Stop testing when one test fails'
+        c.desc 'Stop scheduling tests after the first unexpected result'
         c.switch 'stop-on-failure', default_value: false
 
         c.desc 'Determines where machine disk files are kept'

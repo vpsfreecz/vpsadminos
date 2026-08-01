@@ -367,14 +367,16 @@ RSpec.describe TestRunner::Executor do
       expected_to_succeed?: true,
       successful?: true,
       expected_to_fail?: false,
-      failed?: false
+      failed?: false,
+      script_results: []
     )
     expected_failed = instance_double(
       TestRunner::TestResult,
       expected_to_succeed?: false,
       successful?: false,
       expected_to_fail?: true,
-      failed?: true
+      failed?: true,
+      script_results: []
     )
     running_test = build_test(path: 'suite/running', name: 'running')
     pending_test = build_test(path: 'suite/pending', name: 'pending')
@@ -399,28 +401,48 @@ RSpec.describe TestRunner::Executor do
       expected_to_succeed?: true,
       successful?: true,
       expected_to_fail?: false,
-      failed?: false
+      failed?: false,
+      script_results: []
     )
     expected_failed = instance_double(
       TestRunner::TestResult,
       expected_to_succeed?: false,
       successful?: false,
       expected_to_fail?: true,
-      failed?: true
+      failed?: true,
+      script_results: []
     )
     unexpected_failed = instance_double(
       TestRunner::TestResult,
       expected_to_succeed?: true,
       successful?: false,
       expected_to_fail?: false,
-      failed?: true
+      failed?: true,
+      script_results: [
+        instance_double(
+          TestRunner::TestScriptResult,
+          unexpected_result?: true,
+          successful?: false,
+          failed?: true,
+          test_script: instance_double(TestRunner::TestScript, path: 'suite/unexpected-failed')
+        )
+      ]
     )
     unexpected_successful = instance_double(
       TestRunner::TestResult,
       expected_to_succeed?: false,
       successful?: true,
       expected_to_fail?: true,
-      failed?: false
+      failed?: false,
+      script_results: [
+        instance_double(
+          TestRunner::TestScriptResult,
+          unexpected_result?: true,
+          successful?: true,
+          failed?: false,
+          test_script: instance_double(TestRunner::TestScript, path: 'suite/unexpected-successful')
+        )
+      ]
     )
     running_test = build_test(path: 'suite/running', name: 'running')
     pending_test = build_test(path: 'suite/pending', name: 'pending')
@@ -438,7 +460,45 @@ RSpec.describe TestRunner::Executor do
 
     expect(logs).to contain_exactly(
       'Status: failed; 1 succeeded as expected, 1 failed as expected, ' \
-      '1 unexpectedly failed, 1 unexpectedly succeeded; 1 running, 1 remaining'
+      '1 unexpectedly failed, 1 unexpectedly succeeded; 1 running, 1 remaining',
+      'Unexpectedly failed test scripts: suite/unexpected-failed',
+      'Unexpectedly successful test scripts: suite/unexpected-successful'
+    )
+  end
+
+  it 'classifies mixed unexpected script paths by their own outcomes' do
+    test = build_test(
+      path: 'suite/mixed',
+      scripts: {
+        'unexpected-failed' => {},
+        'unexpected-successful' => { 'expectFailure' => true }
+      }
+    )
+    failed_script = test.test_scripts.fetch('unexpected-failed')
+    successful_script = test.test_scripts.fetch('unexpected-successful')
+    result = TestRunner::TestResult.new(
+      test,
+      [
+        TestRunner::TestScriptResult.new(failed_script, false, 0.1),
+        TestRunner::TestScriptResult.new(successful_script, true, 0.1)
+      ],
+      false,
+      0.2,
+      '/tmp/state'
+    )
+    executor = build_executor([failed_script, successful_script])
+    logs = []
+    allow(executor).to receive(:log) { |msg| logs << msg }
+    executor.instance_variable_set(:@results, [result])
+    executor.instance_variable_set(:@pending, [])
+
+    executor.send(:log_status)
+
+    expect(logs).to contain_exactly(
+      'Status: failed; 0 succeeded as expected, 0 failed as expected, ' \
+      '1 unexpectedly failed, 0 unexpectedly succeeded; 0 running, 0 remaining',
+      'Unexpectedly failed test scripts: suite/mixed#unexpected-failed',
+      'Unexpectedly successful test scripts: suite/mixed#unexpected-successful'
     )
   end
 

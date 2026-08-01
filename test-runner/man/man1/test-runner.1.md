@@ -93,8 +93,9 @@ selected tests and reporting results.
       How often to print suite status while tests are running. The status
       includes the aggregate passing or failed state, expected successes,
       expected failures, unexpected failures, unexpected successes, running
-      tests, and remaining tests. Defaults to `300`. Set to `0` to disable
-      periodic suite status messages.
+      tests, and remaining tests. Failed status messages also list the test
+      scripts with unexpected results. Defaults to `300`. Set to `0` to
+      disable periodic suite status messages.
 
     `-v`, `--verbose`
       Show verbose diagnostic progress messages, including the per-test
@@ -128,7 +129,9 @@ selected tests and reporting results.
       themselves. In seconds, defaults to `900`.
 
     `--stop-on-failure`
-      Stop further execution when a test fails.
+      Stop scheduling new tests after the first unexpected failure or
+      unexpected success. Tests that are already running finish normally so
+      their logs and results are retained. Disabled by default.
 
     `--destructive`
       Determines whether machine disk files are kept

@@ -88,6 +88,8 @@ module TestRunner
       expected_failed = result_groups.fetch(:expected_failed)
       unexpected_failed = result_groups.fetch(:unexpected_failed)
       unexpected_successful = result_groups.fetch(:unexpected_successful)
+      unexpected_failed_paths = unexpected_script_paths(results, successful: false)
+      unexpected_successful_paths = unexpected_script_paths(results, successful: true)
 
       if expected_successful.any?
         log("#{expected_successful.length} tests successful")
@@ -105,30 +107,18 @@ module TestRunner
         log("#{unexpected_successful.length} tests should have failed, but succeeded")
       end
 
-      if unexpected_failed.any?
+      if unexpected_failed_paths.any?
         log('Unexpectedly failed test scripts:')
 
-        unexpected_failed.each do |test_result|
-          test_result.script_results.each do |test_script_result|
-            next if test_script_result.expected_result?
-
-            log("  #{test_script_result.test_script.path}")
-          end
-        end
+        unexpected_failed_paths.each { |path| log("  #{path}") }
 
         puts
       end
 
-      if unexpected_successful.any?
+      if unexpected_successful_paths.any?
         log('Unexpectedly successful test scripts:')
 
-        unexpected_successful.each do |test_result|
-          test_result.script_results.each do |test_script_result|
-            next if test_script_result.expected_result?
-
-            log("  #{test_script_result.test_script.path}")
-          end
-        end
+        unexpected_successful_paths.each { |path| log("  #{path}") }
 
         puts
       end
@@ -391,6 +381,8 @@ module TestRunner
         expected_failed: result_groups.fetch(:expected_failed).length,
         unexpected_failed:,
         unexpected_successful:,
+        unexpected_failed_paths: unexpected_script_paths(finished_results, successful: false),
+        unexpected_successful_paths: unexpected_script_paths(finished_results, successful: true),
         running: running_count,
         remaining: pending_count
       }
@@ -407,6 +399,23 @@ module TestRunner
         "#{snapshot.fetch(:unexpected_successful)} unexpectedly succeeded; " \
         "#{snapshot.fetch(:running)} running, #{snapshot.fetch(:remaining)} remaining"
       )
+
+      unless snapshot.fetch(:unexpected_failed_paths).empty?
+        log("Unexpectedly failed test scripts: #{snapshot.fetch(:unexpected_failed_paths).join(', ')}")
+      end
+
+      return if snapshot.fetch(:unexpected_successful_paths).empty?
+
+      log("Unexpectedly successful test scripts: #{snapshot.fetch(:unexpected_successful_paths).join(', ')}")
+    end
+
+    def unexpected_script_paths(test_results, successful:)
+      test_results.flat_map(&:script_results)
+                  .select(&:unexpected_result?)
+                  .select { |script_result| successful ? script_result.successful? : script_result.failed? }
+                  .map { |script_result| script_result.test_script.path }
+                  .uniq
+                  .sort
     end
 
     def log_reserved_resources(test, resources)
