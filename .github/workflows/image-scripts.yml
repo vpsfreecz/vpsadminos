@@ -1,6 +1,13 @@
 name: Build and test changed container images
 
 on:
+  workflow_dispatch:
+    inputs:
+      stop_on_failure:
+        description: Stop scheduling after the first unexpected result
+        required: true
+        default: false
+        type: boolean
   push:
     paths:
       - .github/workflows/image-scripts.yml
@@ -88,14 +95,29 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Build and test images
+        id: run-tests
+        env:
+          STOP_ON_FAILURE: ${{ github.event.inputs.stop_on_failure || 'false' }}
         run: |
           set -o pipefail
-          ./test-runner.sh test \
-            -f \
-            --jobs auto \
-            "image-scripts/test@{${{ needs.detect.outputs.images }}}" \
-            | tee test.log
-      
+
+          args=(
+            test
+            -f
+            --jobs auto
+            "image-scripts/test@{${{ needs.detect.outputs.images }}}"
+          )
+
+          if [[ "$STOP_ON_FAILURE" == "true" ]]; then
+            args+=(--stop-on-failure)
+          fi
+
+          ./test-runner.sh "${args[@]}" | tee test.log
+
+      - name: Upload full test logs
+        if: failure() || cancelled()
+        uses: ./.github/actions/upload-test-logs
+
       - name: Evaluate test results
         if: always()
         uses: ./.github/actions/evaluate-test-results
@@ -105,14 +127,3 @@ jobs:
       - name: Summarise test logs
         if: always()
         uses: ./.github/actions/summarise-test-logs
-
-      - name: Upload full test logs
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: os-test-logs-${{ github.run_id }}
-          path: |
-            /tmp/os-test-runner/**/*.log
-            /tmp/os-test-runner/**/*.txt
-          retention-days: 14
-          if-no-files-found: ignore

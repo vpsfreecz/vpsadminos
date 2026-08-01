@@ -2,6 +2,12 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      stop_on_failure:
+        description: Stop scheduling after the first unexpected result
+        required: true
+        default: false
+        type: boolean
   push:
     paths:
       - .github/workflows/ci.yml
@@ -85,24 +91,35 @@ jobs:
       - name: Run tests
         id: run-tests
         timeout-minutes: 260
+        env:
+          STOP_ON_FAILURE: ${{ github.event.inputs.stop_on_failure || 'false' }}
         run: |
           set -o pipefail
-          ./test-runner.sh test \
-            --test-config tests/test-configs/ci.nix \
-            -f \
-            --jobs auto \
-            -t ci | tee test.log
+
+          args=(
+            test
+            --test-config tests/test-configs/ci.nix
+            -f
+            --jobs auto
+            -t ci
+          )
+
+          if [[ "$STOP_ON_FAILURE" == "true" ]]; then
+            args+=(--stop-on-failure)
+          fi
+
+          ./test-runner.sh "${args[@]}" | tee test.log
+
+      - name: Upload full test logs
+        if: failure() || cancelled()
+        uses: ./.github/actions/upload-test-logs
 
       - name: Evaluate test results
         if: always()
-        uses: vpsfreecz/vpsadminos/.github/actions/evaluate-test-results@staging
+        uses: ./.github/actions/evaluate-test-results
         with:
           log-file: test.log
 
       - name: Summarise test logs
         if: always()
-        uses: vpsfreecz/vpsadminos/.github/actions/summarise-test-logs@staging
-
-      - name: Upload full test logs
-        if: failure()
-        uses: vpsfreecz/vpsadminos/.github/actions/upload-test-logs@staging
+        uses: ./.github/actions/summarise-test-logs
