@@ -88,6 +88,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Prepare test state
+        id: prepare-tests
+        uses: ./.github/actions/prepare-test-state
+
       - name: Run tests
         id: run-tests
         timeout-minutes: 260
@@ -99,6 +103,7 @@ jobs:
           args=(
             test
             --test-config tests/test-configs/ci.nix
+            --state-dir "$TEST_RUNNER_STATE_DIR"
             -f
             --jobs auto
             -t ci
@@ -111,15 +116,40 @@ jobs:
           ./test-runner.sh "${args[@]}" | tee test.log
 
       - name: Upload full test logs
-        if: failure() || cancelled()
+        id: upload-test-logs
+        if: >-
+          (failure() || cancelled()) &&
+          steps.prepare-tests.outcome == 'success' &&
+          steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/upload-test-logs
+        with:
+          paths: |
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
 
       - name: Evaluate test results
-        if: always()
+        if: >-
+          always() &&
+          steps.prepare-tests.outcome == 'success' &&
+          steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/evaluate-test-results
         with:
           log-file: test.log
 
       - name: Summarise test logs
-        if: always()
+        if: >-
+          always() &&
+          steps.prepare-tests.outcome == 'success' &&
+          steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/summarise-test-logs
+        with:
+          logs-root: ${{ steps.prepare-tests.outputs.state-directory }}
+
+      - name: Cleanup test state
+        if: always()
+        uses: ./.github/actions/cleanup-test-state
+        with:
+          state-directory: ${{ steps.prepare-tests.outputs.state-directory }}
+          prepare-outcome: ${{ steps.prepare-tests.outcome }}
+          test-outcome: ${{ steps.run-tests.outcome }}
+          upload-outcome: ${{ steps.upload-test-logs.outcome }}

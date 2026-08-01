@@ -19,7 +19,7 @@ inputs:
   if-no-files-found:
     description: Behavior when no files are found (error, warn, ignore)
     required: false
-    default: ignore
+    default: error
 
 runs:
   using: composite

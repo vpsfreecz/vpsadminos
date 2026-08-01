@@ -1,0 +1,30 @@
+name: cleanup-test-state
+description: Remove published or successful test-runner state and preserve unrecoverable evidence
+
+inputs:
+  state-directory:
+    description: State directory produced by prepare-test-state
+    required: false
+  prepare-outcome:
+    description: Outcome of the prepare-test-state step
+    required: true
+  test-outcome:
+    description: Outcome of the test-runner step
+    required: true
+  upload-outcome:
+    description: Outcome of the failure artifact upload step
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TEST_STATE_DIRECTORY: ${{ inputs.state-directory }}
+        TEST_STATE_PREPARE_OUTCOME: ${{ inputs.prepare-outcome }}
+        TEST_STATE_TEST_OUTCOME: ${{ inputs.test-outcome }}
+        TEST_STATE_UPLOAD_OUTCOME: ${{ inputs.upload-outcome }}
+        TEST_STATE_REPOSITORY_ID: ${{ github.repository_id }}
+        TEST_STATE_RUN_ID: ${{ github.run_id }}
+        TEST_STATE_RUN_ATTEMPT: ${{ github.run_attempt }}
+      run: bash "$GITHUB_ACTION_PATH/cleanup-test-state.bash"
