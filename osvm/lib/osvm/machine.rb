@@ -267,12 +267,32 @@ module OsVm
       command_shell(shell).succeeds(cmd, timeout:)
     end
 
+    # Execute a command repeatedly until it succeeds or all attempts are used
+    # @param cmd [String]
+    # @param attempts [Integer]
+    # @param retry_delay [Numeric]
+    # @param timeout [Integer] timeout for each attempt
+    # @return [Array<Integer, String>]
+    def succeeds_with_retries(cmd, attempts:, retry_delay: 1, timeout: @default_timeout, shell: nil)
+      command_shell(shell).succeeds_with_retries(cmd, attempts:, retry_delay:, timeout:)
+    end
+
     # Execute command and check that it fails
     # @param cmd [String]
     # @param timeout [Integer]
     # @return [Array<Integer, String>]
     def fails(cmd, timeout: @default_timeout, shell: nil)
       command_shell(shell).fails(cmd, timeout:)
+    end
+
+    # Execute a command repeatedly until it fails or all attempts are used
+    # @param cmd [String]
+    # @param attempts [Integer]
+    # @param retry_delay [Numeric]
+    # @param timeout [Integer] timeout for each attempt
+    # @return [Array<Integer, String>]
+    def fails_with_retries(cmd, attempts:, retry_delay: 1, timeout: @default_timeout, shell: nil)
+      command_shell(shell).fails_with_retries(cmd, attempts:, retry_delay:, timeout:)
     end
 
     # Execute all commands and check that they all succeed

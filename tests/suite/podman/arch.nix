@@ -4,8 +4,11 @@ import ./base.nix {
     {
       version = "latest";
       setup = ''
-        machine.all_succeed(
+        machine.succeeds_with_retries(
           "osctl ct exec #{ct} pacman -Syu --noconfirm podman",
+          attempts: 3,
+          retry_delay: 15,
+          timeout: 900,
         )
 
         configure_podman_registry_mirrors(ct)

@@ -324,7 +324,13 @@ RSpec.describe OsVm::Machine do
       aux_shell = machine.shells['aux']
       allow(aux_shell).to receive(:execute).with('echo aux', timeout: 10).and_return([0, "aux\n"])
       allow(aux_shell).to receive(:succeeds).with('true', timeout: 7).and_return([0, ''])
+      allow(aux_shell).to receive(:succeeds_with_retries)
+        .with('flaky', attempts: 3, retry_delay: 2, timeout: 11)
+        .and_return([0, 'ready'])
       allow(aux_shell).to receive(:fails).with('false', timeout: 8).and_return([1, ''])
+      allow(aux_shell).to receive(:fails_with_retries)
+        .with('eventually-down', attempts: 4, retry_delay: 3, timeout: 12)
+        .and_return([1, 'stopped'])
       allow(aux_shell).to receive(:all_succeed).with('a', 'b').and_return([[0, 'a'], [0, 'b']])
       allow(aux_shell).to receive(:all_fail).with('a', 'b').and_return([[1, 'a'], [1, 'b']])
       allow(aux_shell).to receive(:wait_until_succeeds).with('ready', timeout: 9).and_return([0, 'ready'])
@@ -332,7 +338,17 @@ RSpec.describe OsVm::Machine do
 
       expect(machine.execute('echo aux', shell: 'aux')).to eq([0, "aux\n"])
       expect(machine.succeeds('true', timeout: 7, shell: :aux)).to eq([0, ''])
+      expect(
+        machine.succeeds_with_retries(
+          'flaky', attempts: 3, retry_delay: 2, timeout: 11, shell: :aux
+        )
+      ).to eq([0, 'ready'])
       expect(machine.fails('false', timeout: 8, shell: 'aux')).to eq([1, ''])
+      expect(
+        machine.fails_with_retries(
+          'eventually-down', attempts: 4, retry_delay: 3, timeout: 12, shell: :aux
+        )
+      ).to eq([1, 'stopped'])
       expect(machine.all_succeed('a', 'b', shell: 'aux')).to eq([[0, 'a'], [0, 'b']])
       expect(machine.all_fail('a', 'b', shell: 'aux')).to eq([[1, 'a'], [1, 'b']])
       expect(machine.wait_until_succeeds('ready', timeout: 9, shell: 'aux')).to eq([0, 'ready'])

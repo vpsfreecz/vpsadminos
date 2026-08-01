@@ -151,6 +151,16 @@ module OsVm
       [status, output]
     end
 
+    # Execute a command repeatedly until it succeeds or all attempts are used
+    # @param cmd [String]
+    # @param attempts [Integer]
+    # @param retry_delay [Numeric]
+    # @param timeout [Integer] timeout for each attempt
+    # @return [Array<Integer, String>]
+    def succeeds_with_retries(cmd, attempts:, retry_delay: 1, timeout: @default_timeout)
+      expect_with_retries(cmd, attempts:, retry_delay:, timeout:, success: true)
+    end
+
     # Execute command and check that it fails
     # @param cmd [String]
     # @param timeout [Integer]
@@ -163,6 +173,16 @@ module OsVm
       end
 
       [status, output]
+    end
+
+    # Execute a command repeatedly until it fails or all attempts are used
+    # @param cmd [String]
+    # @param attempts [Integer]
+    # @param retry_delay [Numeric]
+    # @param timeout [Integer] timeout for each attempt
+    # @return [Array<Integer, String>]
+    def fails_with_retries(cmd, attempts:, retry_delay: 1, timeout: @default_timeout)
+      expect_with_retries(cmd, attempts:, retry_delay:, timeout:, success: false)
     end
 
     # Execute all commands and check that they all succeed
@@ -216,6 +236,28 @@ module OsVm
     protected
 
     attr_reader :server, :io, :log, :mutex
+
+    def expect_with_retries(cmd, attempts:, retry_delay:, timeout:, success:)
+      unless attempts.is_a?(Integer) && attempts > 0
+        raise ArgumentError, 'attempts must be a positive integer'
+      end
+
+      status = output = nil
+
+      attempts.times do |attempt|
+        status, output = execute(cmd, timeout:)
+        matches = success ? (status == 0) : (status != 0)
+        return [status, output] if matches
+
+        sleep(retry_delay) unless attempt + 1 == attempts
+      end
+
+      if success
+        raise CommandFailed, "Command '#{cmd}' failed with status #{status}. Output:\n #{output}"
+      end
+
+      raise CommandSucceeded, "Command '#{cmd}' succeeds with status #{status}. Output:\n #{output}"
+    end
 
     def accept(timeout: @default_timeout)
       raise "machine #{machine.name} is not running" unless machine.running?
