@@ -58,17 +58,12 @@ import ../../make-test.nix (
       end
 
       def self.expect_logged_modprobe(machine, action, text)
-        log_message = "action=#{action} #{text}"
+        log_message = "kernel.modprobe: action=#{action} #{text}"
 
         machine.wait_until_succeeds(
-          "grep -F #{Shellwords.escape(log_message)} /var/log/messages",
+          "grep -F -m 1 -- #{Shellwords.escape(log_message)} /var/log/messages",
           timeout: 30
         )
-
-        _, messages = machine.succeeds("cat /var/log/messages")
-        lines = messages.lines.select { |line| line.include?(log_message) }
-
-        expect(lines.any? { |line| line.include?("kernel.modprobe") }).to be(true), messages
       end
 
       def self.cleanup_probe(machine, ctid, probe)
