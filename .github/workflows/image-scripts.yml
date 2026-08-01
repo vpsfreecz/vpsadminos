@@ -31,12 +31,12 @@ jobs:
       - name: Determine branch name
         id: vars
         run: |
-          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
 
       - name: Build toplevel closure
         run: |
           make toplevel
-          echo "BUILD_OUT=$(readlink -f os/result/toplevel)" >> $GITHUB_ENV
+          echo "BUILD_OUT=$(readlink -f os/result/toplevel)" >> "$GITHUB_ENV"
 
       - name: Copy toplevel closure to binary cache
         env:
