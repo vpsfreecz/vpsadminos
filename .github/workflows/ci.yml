@@ -50,7 +50,7 @@ jobs:
     timeout-minutes: 480
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Determine branch name
         id: vars
@@ -86,7 +86,7 @@ jobs:
     timeout-minutes: 240
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Run tests
         id: run-tests
