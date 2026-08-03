@@ -63,12 +63,14 @@ let
   mkContainer = {
     user = "kloadavg";
 
-    autostart.enable = true;
+    autostart.enable = false;
 
     startMenu.enable = false;
 
     config = {
       environment.systemPackages = [
+        common.compatSysinfo
+        pkgs.busybox
         pkgs.sysinfo-to-json
       ];
 
@@ -106,6 +108,12 @@ in
       '';
 
       script = common.useMachine 2 + ''
+        SCHED_LOAD_SHIFT = 11
+        SYSINFO_LOAD_SHIFT = 16
+        SYSINFO_TO_SCHED_SHIFT = SYSINFO_LOAD_SHIFT - SCHED_LOAD_SHIFT
+        SCHED_FIXED_ONE = 1 << SCHED_LOAD_SHIFT
+        PROC_LOAD_ROUNDING = SCHED_FIXED_ONE / 200
+
         testcts = %w[${testctsRuby}]
         loadavgs = %w[1m 5m 15m]
 
@@ -118,24 +126,261 @@ in
           machine.succeeds("osctl ct exec #{testct} systemctl stop genload >/dev/null 2>&1 || true")
         end
 
+        def self.parse_loadavg_fields(content)
+          content.strip.split.first(3)
+        end
+
         def self.parse_loadavg(content)
-          content.strip.split[0..2].map(&:to_f)
+          parse_loadavg_fields(content).map(&:to_f)
+        end
+
+        def self.read_host_load_fields
+          parse_loadavg_fields(machine.succeeds('cat /proc/loadavg')[1])
+        end
+
+        def self.read_container_load_fields(testct)
+          parse_loadavg_fields(
+            machine.succeeds(
+              "osctl ct exec #{testct} cat /proc/loadavg"
+            )[1]
+          )
         end
 
         def self.read_host_load
-          parse_loadavg(machine.succeeds('cat /proc/loadavg')[1])
+          read_host_load_fields.map(&:to_f)
         end
 
         def self.read_container_load(testct)
-          parse_loadavg(machine.succeeds("osctl ct exec #{testct} cat /proc/loadavg")[1])
+          read_container_load_fields(testct).map(&:to_f)
         end
 
         def self.host_sysinfo
-          JSON.parse(machine.succeeds("sysinfo-to-json")[1])
+          JSON.parse(machine.succeeds('sysinfo-to-json')[1])
         end
 
         def self.container_sysinfo(testct)
           JSON.parse(machine.succeeds("osctl ct exec #{testct} sysinfo-to-json")[1])
+        end
+
+        def self.raw_sysinfo_loads_to_proc(raw_loads)
+          divisor = 1 << SYSINFO_TO_SCHED_SHIFT
+
+          raw_loads.map do |raw|
+            expect(raw).to be_a(Integer)
+            expect(raw % divisor).to eq(0)
+
+            sched_load = raw >> SYSINFO_TO_SCHED_SHIFT
+            rounded = sched_load + PROC_LOAD_ROUNDING
+            integer = rounded >> SCHED_LOAD_SHIFT
+            fraction =
+              ((rounded & (SCHED_FIXED_ONE - 1)) * 100) >>
+                SCHED_LOAD_SHIFT
+
+            format('%d.%02d', integer, fraction)
+          end
+        end
+
+        def self.sysinfo_load_snapshot(testct:, binary:)
+          script =
+            'printf "PROC_BEFORE "; cat /proc/loadavg; ' \
+              "printf \"SYSINFO \"; #{binary}; " \
+              'printf "PROC_AFTER "; cat /proc/loadavg'
+          command =
+            if testct
+              "osctl ct exec #{testct} sh -c '#{script}'"
+            else
+              "sh -c '#{script}'"
+            end
+
+          _, output = machine.succeeds(command)
+          lines = output.lines.map(&:strip)
+          proc_before_line =
+            lines.detect { |line| line.start_with?('PROC_BEFORE ') }
+          sysinfo_line = lines.detect { |line| line.start_with?('SYSINFO ') }
+          proc_after_line =
+            lines.detect { |line| line.start_with?('PROC_AFTER ') }
+
+          return { output: output } unless (
+            proc_before_line && sysinfo_line && proc_after_line
+          )
+
+          proc_before =
+            parse_loadavg_fields(
+              proc_before_line.delete_prefix('PROC_BEFORE ')
+            )
+          sysinfo = JSON.parse(sysinfo_line.delete_prefix('SYSINFO '))
+          proc_after =
+            parse_loadavg_fields(
+              proc_after_line.delete_prefix('PROC_AFTER ')
+            )
+
+          {
+            proc_before: proc_before,
+            proc_after: proc_after,
+            sysinfo_proc:
+              raw_sysinfo_loads_to_proc(sysinfo.fetch('loads_raw')),
+            sysinfo: sysinfo
+          }
+        end
+
+        def self.stable_sysinfo_load_snapshot(
+          name,
+          testct:,
+          binary:,
+          expected_word_bits:,
+          timeout: 30,
+          interval: 0.2
+        )
+          deadline = Time.now + timeout
+          last_snapshot = nil
+
+          loop do
+            last_snapshot =
+              sysinfo_load_snapshot(testct: testct, binary: binary)
+
+            if (
+              last_snapshot[:proc_before] &&
+              last_snapshot[:proc_before] == last_snapshot[:proc_after] &&
+              last_snapshot[:sysinfo_proc] == last_snapshot[:proc_before]
+            )
+              sysinfo = last_snapshot.fetch(:sysinfo)
+              if expected_word_bits
+                expect(sysinfo.fetch('word_bits')).to eq(expected_word_bits)
+              else
+                expected_floats =
+                  sysinfo.fetch('loads_raw').map do |raw|
+                    raw / (1 << SYSINFO_LOAD_SHIFT).to_f
+                  end
+
+                expect(sysinfo.fetch('loads')).to eq(expected_floats)
+              end
+
+              return last_snapshot
+            end
+
+            break if Time.now >= deadline
+            sleep(interval)
+          end
+
+          fail(
+            "#{name} did not produce a stable proc/sysinfo sample " \
+              "within #{timeout}s: #{last_snapshot.inspect}"
+          )
+        end
+
+        def self.stable_load_snapshot(
+          name,
+          testct: nil,
+          timeout: 30,
+          interval: 0.2
+        )
+          compat_binary =
+            testct ? 'sysinfo-compat-to-json' : '/scripts/sysinfo-compat-to-json'
+
+          {
+            native: stable_sysinfo_load_snapshot(
+              "#{name} native",
+              testct: testct,
+              binary: 'sysinfo-to-json',
+              expected_word_bits: nil,
+              timeout: timeout,
+              interval: interval
+            ),
+            compat: stable_sysinfo_load_snapshot(
+              "#{name} compat",
+              testct: testct,
+              binary: compat_binary,
+              expected_word_bits: 32,
+              timeout: timeout,
+              interval: interval
+            )
+          }
+        end
+
+        def self.stable_nested_native_load_snapshot(
+          name,
+          testct,
+          timeout: 30,
+          interval: 0.2
+        )
+          deadline = Time.now + timeout
+          last_snapshot = nil
+
+          loop do
+            unit = "loadavg-snapshot-#{Process.pid}-#{rand(1_000_000)}"
+            _, output = machine.succeeds(
+              "osctl ct exec #{testct} " \
+                "systemd-run --quiet --wait --pipe --collect " \
+                "--unit #{unit} /bin/sh -c " \
+                "'printf \"PROC_BEFORE \"; " \
+                "/run/current-system/sw/bin/cat /proc/loadavg; " \
+                "printf \"SYSINFO \"; " \
+                "/run/current-system/sw/bin/sysinfo-to-json; " \
+                "printf \"PROC_AFTER \"; " \
+                "/run/current-system/sw/bin/cat /proc/loadavg'"
+            )
+
+            lines = output.lines.map(&:strip)
+            proc_before_line =
+              lines.detect { |line| line.start_with?('PROC_BEFORE ') }
+            native_line =
+              lines.detect { |line| line.start_with?('SYSINFO ') }
+            proc_after_line =
+              lines.detect { |line| line.start_with?('PROC_AFTER ') }
+
+            if proc_before_line && native_line && proc_after_line
+              proc_before =
+                parse_loadavg_fields(
+                  proc_before_line.delete_prefix('PROC_BEFORE ')
+                )
+              native =
+                JSON.parse(native_line.delete_prefix('SYSINFO '))
+              proc_after =
+                parse_loadavg_fields(
+                  proc_after_line.delete_prefix('PROC_AFTER ')
+                )
+              native_proc =
+                raw_sysinfo_loads_to_proc(native.fetch('loads_raw'))
+
+              last_snapshot = {
+                proc_before: proc_before,
+                proc_after: proc_after,
+                native_proc: native_proc,
+                native: native
+              }
+
+              if proc_before == proc_after && native_proc == proc_before
+                return last_snapshot
+              end
+            else
+              last_snapshot = { output: output }
+            end
+
+            break if Time.now >= deadline
+            sleep(interval)
+          end
+
+          fail(
+            "#{name} did not produce a stable nested-service sample " \
+              "within #{timeout}s: #{last_snapshot.inspect}"
+          )
+        end
+
+        def self.busybox_loadavg(testct)
+          _, output = machine.succeeds(
+            "osctl ct exec #{testct} env LC_ALL=C busybox uptime"
+          )
+          pattern = Regexp.new(
+            'load averages?:\s*' \
+              '([0-9]+\.[0-9]+),\s*' \
+              '([0-9]+\.[0-9]+),\s*' \
+              '([0-9]+\.[0-9]+)'
+          )
+          match = output.match(pattern)
+
+          fail "unable to parse BusyBox uptime output: #{output.inspect}" unless match
+
+          match.captures.map(&:to_f)
         end
 
         def self.wait_for_load_at_least(name, target_load, timeout: 60, interval: 5)
@@ -160,9 +405,18 @@ in
 
         before(:suite) do
           ensure_kernel_machine
+          push_sysinfo_script
 
           testcts.each do |testct|
-            machine.wait_for_osctl_container(testct)
+            machine.wait_until_succeeds(
+              "sv check ct-tank-#{testct}",
+              timeout: 10 * 60
+            )
+            machine.succeeds(
+              "osctl ct start --wait 0 #{testct}",
+              timeout: 60
+            )
+            machine.wait_for_osctl_container(testct, timeout: 5 * 60)
             machine.wait_until_succeeds("osctl ct exec #{testct} systemctl is-system-running")
             stop_genload(testct)
           end
@@ -177,6 +431,23 @@ in
         end
 
         describe 'loadavg' do
+          testcts.each do |testct|
+            context "initial ABI view in #{testct}" do
+              it 'matches proc through native and compat sysinfo' do
+                stable_load_snapshot(
+                  "initial load in #{testct}",
+                  testct: testct
+                )
+              end
+
+              it 'reports low load through BusyBox uptime' do
+                busybox_loadavg(testct).each do |load|
+                  expect(load).to be < 1
+                end
+              end
+            end
+          end
+
           testcts[0..0].each do |testct|
             context "in container #{testct}" do
               loadavgs.each_with_index do |lavg, i|
@@ -185,7 +456,6 @@ in
                 end
 
                 it "has low #{lavg} load in sysinfo()" do
-                  skip('https://github.com/vpsfreecz/vpsadminos/issues/78')
                   expect(container_sysinfo(testct)['loads'][i]).to be < 1
                 end
               end
@@ -235,7 +505,6 @@ in
                     end
 
                     it "saturates #{lavg} load in sysinfo()" do
-                      skip('https://github.com/vpsfreecz/vpsadminos/issues/78')
                       expect(container_sysinfo(testct)['loads'][i]).to be >= (load_config.values.sum / increase_ratio)
                     end
                   end
@@ -248,7 +517,6 @@ in
                       end
 
                       it "does not affect #{lavg} load in other container #{other_ct} in sysinfo()" do
-                        pending('https://github.com/vpsfreecz/vpsadminos/issues/78')
                         expect(container_sysinfo(other_ct)['loads'][i]).to be < 1
                       end
                     end
@@ -274,6 +542,48 @@ in
 
                       expect(host_load).to be >= target_load
                     end
+                  end
+
+                  it 'matches proc through native and compat sysinfo while loaded' do
+                    stable_load_snapshot(
+                      "loaded view in #{testct}",
+                      testct: testct
+                    )
+                  end
+
+                  it 'uses the top-level namespace from a nested service cgroup' do
+                    stable_nested_native_load_snapshot(
+                      "nested service view in #{testct}",
+                      testct
+                    )
+                  end
+
+                  it 'reports the loaded view through BusyBox uptime' do
+                    target_load =
+                      load_config.values.sum / increase_ratio
+
+                    busybox_loadavg(testct).each do |load|
+                      expect(load).to be >= target_load
+                    end
+                  end
+
+                  (testcts - [testct]).each do |other_ct|
+                    it "keeps proc and both syscall ABIs isolated in #{other_ct}" do
+                      stable_load_snapshot(
+                        "sibling view in #{other_ct}",
+                        testct: other_ct
+                      )
+                    end
+
+                    it "keeps BusyBox uptime isolated in #{other_ct}" do
+                      busybox_loadavg(other_ct).each do |load|
+                        expect(load).to be < 1
+                      end
+                    end
+                  end
+
+                  it 'keeps host proc and syscall ABIs on the global fallback' do
+                    stable_load_snapshot('host global load')
                   end
 
                   it 'stops genload' do
@@ -307,9 +617,15 @@ in
 
                   loadavgs.each_with_index do |lavg, i|
                     it "decreases #{lavg} load in sysinfo()" do
-                      skip('https://github.com/vpsfreecz/vpsadminos/issues/78')
                       expect(container_sysinfo(testct)['loads'][i]).to be <= (load_config.values.sum / decrease_ratio)
                     end
+                  end
+
+                  it 'matches proc and both syscall ABIs after bounded decay' do
+                    stable_load_snapshot(
+                      "decayed view in #{testct}",
+                      testct: testct
+                    )
                   end
 
                   it 'restarts container' do
@@ -323,8 +639,20 @@ in
                     end
 
                     it "resets #{lavg} load in sysinfo() on container restart" do
-                      skip('https://github.com/vpsfreecz/vpsadminos/issues/78')
                       expect(container_sysinfo(testct)['loads'][i]).to be < 1
+                    end
+                  end
+
+                  it 'matches proc and both syscall ABIs after restart' do
+                    stable_load_snapshot(
+                      "restarted view in #{testct}",
+                      testct: testct
+                    )
+                  end
+
+                  it 'reports the reset view through BusyBox uptime' do
+                    busybox_loadavg(testct).each do |load|
+                      expect(load).to be < 1
                     end
                   end
                 end
