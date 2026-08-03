@@ -1,5 +1,9 @@
 name: CI
 
+env:
+  VPSADMINOS_CONFIG: >-
+    ${{ (github.ref == 'refs/heads/snajpa-6.18' || github.head_ref == 'snajpa-6.18') && format('{0}/os/configs/unstable.nix', github.workspace) || '' }}
+
 on:
   workflow_dispatch:
     inputs:
