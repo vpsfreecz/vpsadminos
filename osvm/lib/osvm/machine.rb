@@ -1,9 +1,132 @@
 require 'digest'
 require 'fileutils'
+require 'timeout'
 
 module OsVm
   class Machine
     SHELL_INDEX_KEY = :osvm_machine_shell_index
+
+    # Owns all wait and signal operations for one QEMU child. A nonblocking
+    # wait is always performed before pending signals are sent. If the child
+    # exits between that wait and Process.kill, it remains this process's
+    # unreaped zombie, so its PID cannot be reused for an unrelated process.
+    class QemuReaper
+      POLL_INTERVAL = 0.01
+
+      def initialize(pid, &on_exit)
+        @pid = pid
+        @on_exit = on_exit
+        @mutex = Mutex.new
+        @condition = ConditionVariable.new
+        @signals = []
+        @reaped = false
+        @started = false
+        @start = Queue.new
+        @thread = Thread.new do
+          @start.pop
+          run
+        end
+      end
+
+      def start
+        activate = @mutex.synchronize do
+          next false if @started
+
+          @started = true
+          true
+        end
+        @start << true if activate
+        self
+      end
+
+      # Request a signal from the sole child owner.
+      # @return [Boolean] true when Process.kill was attempted, false when the
+      #   child had already been reaped
+      def signal(signal)
+        start
+        response = Queue.new
+        queued = @mutex.synchronize do
+          next false if @reaped
+
+          @signals << [signal, response]
+          @condition.signal
+          true
+        end
+        return false unless queued
+
+        result = response.pop
+        raise result if result.is_a?(Exception)
+
+        result
+      end
+
+      def join(timeout = nil)
+        start
+        @thread.join(timeout) && self
+      end
+
+      protected
+
+      attr_reader :pid
+
+      def run
+        @on_exit.call(reap)
+      ensure
+        mark_reaped
+      end
+
+      def reap
+        status = nil
+
+        loop do
+          waited = Process.waitpid2(pid, Process::WNOHANG)
+          if waited
+            status = waited.last
+            mark_reaped
+            break
+          end
+
+          deliver_signals
+          @mutex.synchronize do
+            @condition.wait(@mutex, POLL_INTERVAL) if @signals.empty? && !@reaped
+          end
+        end
+
+        status
+      rescue Errno::ECHILD
+        # No signal may be sent once ownership can no longer be proven.
+        mark_reaped
+        nil
+      end
+
+      def deliver_signals
+        pending = @mutex.synchronize do
+          next [] if @reaped
+
+          @signals.shift(@signals.length)
+        end
+
+        pending.each do |signal, response|
+          result = begin
+            Process.kill(signal, pid)
+            true
+          rescue Errno::ESRCH
+            false
+          rescue StandardError => e
+            e
+          end
+          response << result
+        end
+      end
+
+      def mark_reaped
+        pending = @mutex.synchronize do
+          @reaped = true
+          @signals.shift(@signals.length)
+        end
+        pending.each { |entry| entry.last << false }
+      end
+    end
 
     def self.with_shell(index)
       original_index = Thread.current[SHELL_INDEX_KEY]
@@ -70,69 +193,114 @@ module OsVm
     # @param kernel_params [Array<String>]
     # @param wait_for_boot [Boolean]
     # @return [Machine]
-    def start(kernel_params: [], wait_for_boot: false)
-      @start_mutex.synchronize do
-        if running?
-          unless start_kernel_params == kernel_params
-            raise 'Machine already started with different kernel parameters'
+    def start(kernel_params: [], wait_for_boot: false, deadline: nil, timeout_message: nil)
+      timeout_message ||= "Timeout while starting machine #{name}"
+
+      with_deadline(deadline, timeout_message) do
+        @start_mutex.synchronize do
+          if running?
+            unless start_kernel_params == kernel_params
+              raise 'Machine already started with different kernel parameters'
+            end
+
+            self.wait_for_boot(deadline:, timeout_message:) if wait_for_boot
+            return self
           end
 
-          self.wait_for_boot if wait_for_boot
-          return self
+          qemu_write = nil
+          started_qemu_pid = nil
+          started_qemu_reaper = nil
+
+          startup = proc do
+            # virtiofsd cannot be relaunched right away, it needs some time settle
+            # for unknown reasons, so we ensure there's a 5 second gap between stop
+            # and start of this machine
+            if @stopped_at
+              diff = Time.now - @stopped_at
+              delay = 5
+              if diff <= delay
+                sleep_with_deadline(
+                  [delay - diff, delay].min,
+                  deadline,
+                  timeout_message
+                )
+              end
+            end
+
+            log.start
+            prepare_disks
+
+            shell_instances.each(&:prepare)
+
+            shared_dir.setup
+            @shared_dir_mounted = false
+            start_virtiofs
+            sleep_with_deadline(1, deadline, timeout_message)
+
+            qemu_kwargs = {}
+
+            unless @interactive_console
+              # Rollback must always own both ends of a prepared pipe. Defer the
+              # asynchronous deadline until the descriptors are recorded.
+              Thread.handle_interrupt(TimeoutError => :never) do
+                @qemu_read, qemu_write = IO.pipe
+              end
+
+              qemu_kwargs = {
+                in: :close,
+                out: qemu_write,
+                err: qemu_write
+              }
+            end
+
+            @start_kernel_params = kernel_params
+
+            # Keep QEMU creation, PID publication, pipe/console handoff and
+            # reaper ownership indivisible with respect to the asynchronous
+            # deadline. Publish running before starting the reaper: an
+            # immediately exiting QEMU may otherwise clear the state before
+            # this thread incorrectly republishes it as live.
+            Thread.handle_interrupt(TimeoutError => :never) do
+              started_qemu_pid = Process.spawn(
+                *qemu_command(kernel_params:),
+                **qemu_kwargs
+              )
+              @qemu_pid = started_qemu_pid
+              started_qemu_reaper = run_qemu_reaper(started_qemu_pid)
+              @qemu_reaper = started_qemu_reaper
+              qemu_write&.close
+              qemu_write = nil
+              @running = true
+              run_console_thread unless @interactive_console
+              started_qemu_reaper&.start
+            end
+
+            self.wait_for_boot(deadline:, timeout_message:) if wait_for_boot
+            self
+          end
+
+          # Mask asynchronous startup timeouts across the exception-to-rollback
+          # handoff. The startup body explicitly enables them, while rollback
+          # keeps every exact process, thread and descriptor under ownership
+          # until cleanup and stopped-state publication are complete.
+          Thread.handle_interrupt(TimeoutError => :never) do
+            Thread.handle_interrupt(TimeoutError => :immediate, &startup)
+          rescue StandardError
+            rollback_start(
+              qemu_pid: started_qemu_pid,
+              qemu_reaper: started_qemu_reaper,
+              qemu_write:
+            )
+            raise
+          end
         end
-
-        # virtiofsd cannot be relaunched right away, it needs some time settle
-        # for unknown reasons, so we ensure there's a 5 second gap between stop
-        # and start of this machine
-        if @stopped_at
-          diff = Time.now - @stopped_at
-          delay = 5
-          sleep([delay - diff, delay].min) if diff <= delay
-        end
-
-        log.start
-        prepare_disks
-
-        shell_instances.each(&:prepare)
-
-        shared_dir.setup
-        @shared_dir_mounted = false
-        start_virtiofs
-        sleep(1)
-
-        qemu_kwargs = {}
-
-        unless @interactive_console
-          @qemu_read, w = IO.pipe
-
-          qemu_kwargs = {
-            in: :close,
-            out: w,
-            err: w
-          }
-        end
-
-        @start_kernel_params = kernel_params
-
-        @qemu_pid = Process.spawn(
-          *qemu_command(kernel_params:),
-          **qemu_kwargs
-        )
-        w.close unless @interactive_console
-        run_qemu_reaper(qemu_pid)
-
-        @running = true
-
-        run_console_thread unless @interactive_console
-
-        self.wait_for_boot if wait_for_boot
-        self
       end
     end
 
     # Block until the machine stops
     def join(timeout: @default_timeout)
-      qemu_reaper.join(timeout)
+      reaper = qemu_reaper
+      reaper&.join(timeout)
       nil
     end
 
@@ -140,6 +308,9 @@ module OsVm
     # @param timeout [Integer]
     # @return [Machine]
     def stop(timeout: @default_timeout)
+      reaper = qemu_reaper
+      return self unless reaper
+
       log.stop
       begin
         execute(poweroff_command)
@@ -147,7 +318,7 @@ module OsVm
         # The shell logs the failed command.
       end
 
-      if qemu_reaper && qemu_reaper.join(timeout).nil?
+      if reaper.join(timeout).nil?
         raise UnrecoverableTimeoutError, "Timeout while stopping machine #{name}"
       end
 
@@ -158,7 +329,8 @@ module OsVm
     # @param signal ['TERM', 'KILL']
     # @return [Machine]
     def kill(signal: 'TERM')
-      unless running?
+      reaper = qemu_reaper
+      unless reaper && running?
         log.kill('NONE')
         return self
       end
@@ -166,27 +338,27 @@ module OsVm
       log.kill(signal)
 
       begin
-        Process.kill(signal, qemu_pid)
+        reaper.signal(signal)
       rescue Errno::ESRCH
         warn "Unable to kill machine #{name} using SIG#{signal}"
       end
 
       if signal == 'KILL'
-        qemu_reaper.join
+        reaper.join
         return self
-      elsif qemu_reaper.join(60)
+      elsif reaper.join(60)
         return self
       end
 
       log.kill('KILL')
 
       begin
-        Process.kill('KILL', qemu_pid)
+        reaper.signal('KILL')
       rescue Errno::ESRCH
         warn "Unable to kill machine #{name} using SIGKILL"
       end
 
-      qemu_reaper.join
+      reaper.join
       self
     end
 
@@ -246,8 +418,11 @@ module OsVm
 
     # Wait until the system has booted
     # @param timeout [Integer]
-    def wait_for_boot(timeout: @default_timeout)
-      current_shell.wait(timeout:)
+    def wait_for_boot(timeout: @default_timeout, deadline: nil, timeout_message: nil)
+      options = { timeout: }
+      options[:deadline] = deadline if deadline
+      options[:timeout_message] = timeout_message if timeout_message
+      current_shell.wait(**options)
     end
 
     # Execute a command
@@ -255,8 +430,11 @@ module OsVm
     # @param timeout [Integer]
     # @raise [MachineShellClosed]
     # @return [Array<Integer, String>] exit status and output
-    def execute(cmd, timeout: @default_timeout, shell: nil)
-      command_shell(shell).execute(cmd, timeout:)
+    def execute(cmd, timeout: @default_timeout, shell: nil, deadline: nil, timeout_message: nil)
+      options = { timeout: }
+      options[:deadline] = deadline if deadline
+      options[:timeout_message] = timeout_message if timeout_message
+      command_shell(shell).execute(cmd, **options)
     end
 
     # Execute command and check that it succeeds
@@ -323,9 +501,31 @@ module OsVm
 
     # Wait until network is operational, including DNS
     # @return [Machine]
-    def wait_until_online(timeout: @default_timeout)
-      wait_until_succeeds('curl --head https://check-online.vpsadminos.org', timeout:)
-      self
+    def wait_until_online(timeout: 20 * 60)
+      timeout_message = 'Timeout occurred while waiting for network to become online'
+      deadline = monotonic_deadline(timeout)
+
+      remaining_time!(deadline, timeout_message)
+      start(deadline:, timeout_message:) unless running?
+      wait_for_boot(
+        timeout: remaining_time!(deadline, timeout_message),
+        deadline:,
+        timeout_message:
+      )
+
+      loop do
+        status, = execute(
+          'curl --head --max-time 10 https://check-online.vpsadminos.org',
+          timeout: remaining_time!(deadline, timeout_message),
+          deadline:,
+          timeout_message:
+        )
+        remaining_time!(deadline, timeout_message)
+
+        return self if status == 0
+
+        sleep_with_deadline(1, deadline, timeout_message)
+      end
     end
 
     # Wait until the machine shuts down
@@ -443,6 +643,39 @@ module OsVm
                 :console_thread, :shell_instances, :log, :virtiofsd_pids, :shared_dir,
                 :hash_base, :shared_filesystems
 
+    def monotonic_deadline(timeout)
+      monotonic_now + timeout
+    end
+
+    def remaining_time!(deadline, timeout_message)
+      remaining = deadline - monotonic_now
+      raise TimeoutError, timeout_message if remaining <= 0
+
+      remaining
+    end
+
+    def monotonic_now
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    def with_deadline(deadline, timeout_message, &block)
+      return block.call unless deadline
+
+      ::Timeout.timeout(
+        remaining_time!(deadline, timeout_message),
+        TimeoutError,
+        timeout_message,
+        &block
+      )
+    end
+
+    def sleep_with_deadline(duration, deadline, timeout_message)
+      return sleep(duration) unless deadline
+
+      sleep([duration, remaining_time!(deadline, timeout_message)].min)
+      remaining_time!(deadline, timeout_message)
+    end
+
     def qemu_command(kernel_params: [])
       raise NotImplementedError, "#{self.class} must implement #qemu_command"
     end
@@ -540,17 +773,48 @@ module OsVm
       shared_filesystems.each do |name, path|
         f = File.open(virtiofs_log_path(name), 'w')
 
-        virtiofsd_pids << Process.spawn(
-          File.join(config.virtiofsd, 'bin/virtiofsd'),
-          '--socket-path', virtiofs_socket_path(name),
-          '--shared-dir', path,
-          '--cache', 'auto',
-          in: :close,
-          out: f,
-          err: f
-        )
+        begin
+          # If the deadline fires as spawn returns, publish the child PID before
+          # delivering it so startup rollback cannot lose ownership.
+          Thread.handle_interrupt(TimeoutError => :never) do
+            virtiofsd_pids << Process.spawn(
+              File.join(config.virtiofsd, 'bin/virtiofsd'),
+              '--socket-path', virtiofs_socket_path(name),
+              '--shared-dir', path,
+              '--cache', 'auto',
+              in: :close,
+              out: f,
+              err: f
+            )
+          end
+        ensure
+          f.close
+        end
+      end
+    end
 
-        f.close
+    def rollback_start(qemu_pid:, qemu_reaper:, qemu_write:)
+      begin
+        qemu_write&.close
+      rescue IOError
+        # The spawn handoff may already have closed this exact descriptor.
+      end
+
+      if qemu_pid
+        if qemu_reaper
+          qemu_reaper.signal('KILL')
+          qemu_reaper.join
+        else
+          terminate_unreaped_child(qemu_pid, 'KILL')
+        end
+      end
+    ensure
+      begin
+        # A completed reaper has already run these operations. Every step is
+        # deliberately idempotent so rollback can repeat them after join.
+        cleanup_runtime_resources
+      ensure
+        mark_runtime_stopped
       end
     end
 
@@ -569,55 +833,94 @@ module OsVm
     end
 
     def run_qemu_reaper(pid)
-      @qemu_reaper = Thread.new do
-        Process.wait(pid)
-        log.exit($?.exitstatus)
-
-        @qemu_pid = nil
-
-        if @qemu_read
-          @qemu_read.close
-          @qemu_read = nil
+      QemuReaper.new(pid) do |status|
+        log.exit(status.exitstatus) if status
+      ensure
+        begin
+          cleanup_runtime_resources
+        ensure
+          mark_runtime_stopped
         end
-
-        if @console_thread
-          console_thread.join
-          @console_thread = nil
-        end
-
-        shell_instances.each(&:close)
-
-        stop_virtiofs
-
-        cleanup
-
-        @qemu_reaper = nil
-        @running = false
-        @stopped_at = Time.now
       end
+    end
+
+    # Before a reaper exists, this thread is the sole child owner. Poll before
+    # signaling; after a live poll an exit remains an unreaped zombie until the
+    # final wait, which prevents PID reuse across the signal operation.
+    def terminate_unreaped_child(pid, signal)
+      waited = Process.waitpid2(pid, Process::WNOHANG)
+      return waited.last if waited
+
+      begin
+        Process.kill(signal, pid)
+      rescue Errno::ESRCH
+        # The child may have exited after the nonblocking wait.
+      end
+
+      Process.waitpid2(pid).last
+    rescue Errno::ECHILD
+      nil
+    end
+
+    def cleanup_runtime_resources
+      cleanup_error = nil
+      cleanup_steps = [
+        lambda do
+          @qemu_read&.close
+        rescue IOError
+          # ignore
+        ensure
+          @qemu_read = nil
+        end,
+        lambda do
+          if @console_thread
+            console_thread.join
+            @console_thread = nil
+          end
+        end,
+        -> { shell_instances.each(&:close) },
+        -> { stop_virtiofs },
+        -> { cleanup }
+      ]
+
+      cleanup_steps.each do |step|
+        step.call
+      rescue StandardError => e
+        cleanup_error ||= e
+      end
+
+      raise cleanup_error if cleanup_error
+    end
+
+    def mark_runtime_stopped
+      @qemu_pid = nil
+      @qemu_reaper = nil
+      @running = false
+      @stopped_at = Time.now
     end
 
     def run_console_thread
       @console_output = ''
+      console_read = qemu_read
 
       @console_thread = Thread.new do
         console_log = File.open(console_log_path, 'w')
 
         begin
           loop do
-            rs = qemu_read.wait_readable
+            rs = console_read.wait_readable
             next unless rs
 
-            data = read_nonblock(qemu_read)
+            data = read_nonblock(console_read)
             @mutex.synchronize { @console_output << data }
 
             console_log.write(data)
             console_log.flush
           end
-        rescue EOFError
-          console_log.close
         rescue IOError
           # pass
+        ensure
+          console_log.close
         end
       end
     end
