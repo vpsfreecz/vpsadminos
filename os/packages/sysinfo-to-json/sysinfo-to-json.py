@@ -4,7 +4,8 @@ Dump the Linux sysinfo(2) struct as JSON.
 
 Fields whose units depend on `mem_unit` (RAM, swap, buffers, etc.)
 are emitted in **bytes**.
-Load averages are reported as floats (same scale as /proc/loadavg).
+Load averages are reported as both raw ABI integers and floats on the same
+scale as /proc/loadavg.
 """
 
 import ctypes
@@ -37,10 +38,12 @@ if libc.sysinfo(ctypes.byref(info)) != 0:
     raise OSError("sysinfo() failed")
 
 to_bytes = lambda x: x * info.mem_unit
+loads_raw = [int(value) for value in info.loads]
 
 result = {
     "uptime":         info.uptime,
-    "loads":          [l / 65536.0 for l in info.loads],
+    "loads_raw":      loads_raw,
+    "loads":          [value / 65536.0 for value in loads_raw],
     "totalram":       to_bytes(info.totalram),
     "freeram":        to_bytes(info.freeram),
     "sharedram":      to_bytes(info.sharedram),
