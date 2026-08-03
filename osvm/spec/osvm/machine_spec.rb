@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'timeout'
 
 RSpec.describe OsVm::Machine do
   it 'creates tmp and socket directories and adds the default shared filesystem' do
@@ -156,6 +155,26 @@ RSpec.describe OsVm::Machine do
     end
   end
 
+  it 'treats console EOF as a normal shutdown' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      console_read, console_write = IO.pipe
+      machine.instance_variable_set(:@qemu_read, console_read)
+
+      machine.send(:run_console_thread)
+      console_write.write('console output')
+      console_write.close
+
+      thread = machine.send(:console_thread)
+      expect(thread.join(5)).to be(thread)
+      expect(thread.value).to be_nil
+      expect(File.read(machine.send(:console_log_path))).to eq('console output')
+    ensure
+      console_write&.close unless console_write&.closed?
+      console_read&.close unless console_read&.closed?
+    end
+  end
+
   it 'delegates pull_file to the shared dir' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)
@@ -179,92 +198,40 @@ RSpec.describe OsVm::Machine do
     end
   end
 
-  it 'waits for cleanup when qemu was reaped before kill' do
+  it 'keeps the exact reaper when an immediate exit clears published state' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)
-      reaper = instance_double(Thread)
-      machine.instance_variable_set(:@running, true)
-      machine.instance_variable_set(:@qemu_pid, nil)
+      reaper = instance_double(OsVm::Machine::QemuReaper, join: true)
       machine.instance_variable_set(:@qemu_reaper, reaper)
-      allow(reaper).to receive(:join)
-      allow(Process).to receive(:kill)
+      machine.instance_variable_set(:@running, true)
+      allow(machine).to receive(:execute) do
+        machine.send(:mark_runtime_stopped)
+        [0, '']
+      end
 
-      expect(machine.kill).to eq(machine)
-      expect(Process).not_to have_received(:kill)
-      expect(reaper).to have_received(:join)
+      expect(machine.stop(timeout: 3)).to eq(machine)
+
+      expect(reaper).to have_received(:join).with(3).once
+      expect(machine.send(:qemu_reaper)).to be_nil
+      expect(machine).not_to be_running
     end
   end
 
-  it 'tolerates qemu exiting before a kill signal is delivered' do
+  it 'signals the snapshotted reaper when running state clears concurrently' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)
-      reaper = instance_double(Thread)
-      machine.instance_variable_set(:@running, true)
-      machine.instance_variable_set(:@qemu_pid, 123)
+      reaper = instance_double(OsVm::Machine::QemuReaper, signal: true, join: true)
       machine.instance_variable_set(:@qemu_reaper, reaper)
-      allow(reaper).to receive(:join)
-      allow(machine).to receive(:warn)
-      allow(Process).to receive(:kill).with('KILL', 123).and_raise(Errno::ESRCH)
+      machine.instance_variable_set(:@running, true)
+      allow(machine).to receive(:running?) do
+        machine.send(:mark_runtime_stopped)
+        true
+      end
 
       expect(machine.kill(signal: 'KILL')).to eq(machine)
-      expect(machine).to have_received(:warn).with(/Unable to kill machine test using SIGKILL/)
-      expect(reaper).to have_received(:join)
-    end
-  end
 
-  it 'escalates to sigkill only while the same qemu process is active' do
-    with_tmpdir do |dir|
-      machine = build_machine(dir:)
-      reaper = instance_double(Thread)
-      machine.instance_variable_set(:@running, true)
-      machine.instance_variable_set(:@qemu_pid, 123)
-      machine.instance_variable_set(:@qemu_reaper, reaper)
-      allow(reaper).to receive(:join)
-      allow(machine).to receive(:wait_for_qemu_exit).with(123, 60).and_return(false)
-      allow(Process).to receive(:kill)
-
-      expect(machine.kill).to eq(machine)
-      expect(Process).to have_received(:kill).with('TERM', 123).ordered
-      expect(Process).to have_received(:kill).with('KILL', 123).ordered
-      expect(reaper).to have_received(:join)
-    end
-  end
-
-  it 'does not signal a pid after the reaper has reaped it' do
-    with_tmpdir do |dir|
-      machine = build_machine(dir:)
-      status = instance_double(Process::Status, exitstatus: 0, signaled?: false)
-      wait_entered = Queue.new
-      release_wait = Queue.new
-      reaper = nil
-      killer = nil
-
-      machine.instance_variable_set(:@running, true)
-      machine.instance_variable_set(:@qemu_pid, 123)
-      allow(Process).to receive(:wait2).with(123, Process::WNOHANG) do
-        wait_entered << true
-        release_wait.pop
-        [123, status]
-      end
-      allow(Process).to receive(:kill)
-
-      machine.send(:qemu_mutex).synchronize do
-        reaper = machine.send(:run_qemu_reaper, 123)
-        machine.instance_variable_set(:@qemu_reaper, reaper)
-      end
-
-      wait_entered.pop
-      killer = Thread.new { machine.send(:signal_qemu, 'KILL', 123) }
-      Timeout.timeout(1) { Thread.pass until killer.status == 'sleep' }
-      release_wait << true
-      reaper.value
-      killer.value
-
-      expect(Process).not_to have_received(:kill)
-    ensure
-      release_wait << true if reaper&.alive?
-      reaper&.join
-      killer&.join
+      expect(reaper).to have_received(:signal).with('KILL').once
+      expect(reaper).to have_received(:join).once
     end
   end
 
@@ -299,6 +266,315 @@ RSpec.describe OsVm::Machine do
       allow(shell).to receive(:sleep)
 
       expect(machine.wait_until_fails('false')).to eq([1, 'failed'])
+    end
+  end
+
+  it 'keeps a sub-five-second online budget through the real shell protocol' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      shell = machine.send(:current_shell)
+      writes = []
+      wait_timeouts = []
+      io = instance_double(IO, closed?: false, close: nil)
+      allow(io).to receive(:write) { |data| writes << data }
+      allow(io).to receive(:wait_readable) do |timeout|
+        wait_timeouts << timeout
+        true
+      end
+      allow(io).to receive(:read_nonblock).and_return(
+        "#{Base64.strict_encode64('online')}\n",
+        "0\n"
+      )
+      machine.instance_variable_set(:@running, true)
+      shell.instance_variable_set(:@up, true)
+      shell.instance_variable_set(:@io, io)
+
+      expect(machine.wait_until_online(timeout: 0.5)).to eq(machine)
+
+      guest_timeout = writes.first.match(/timeout ([0-9.]+)/)[1].to_f
+      expect(guest_timeout).to be_between(0, 0.5).exclusive
+      expect(wait_timeouts).not_to be_empty
+      expect(wait_timeouts).to all(be_between(0, 0.5).exclusive)
+    end
+  end
+
+  it 'does not add output-read allowances beyond the online deadline' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      shell = machine.send(:current_shell)
+      wait_timeouts = []
+      io = instance_double(IO, closed?: false, close: nil, write: nil)
+      allow(io).to receive(:wait_readable) do |timeout|
+        wait_timeouts << timeout
+        sleep(timeout)
+        false
+      end
+      machine.instance_variable_set(:@running, true)
+      shell.instance_variable_set(:@up, true)
+      shell.instance_variable_set(:@io, io)
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+      expect do
+        machine.wait_until_online(timeout: 0.05)
+      end.to raise_error(OsVm::TimeoutError, /waiting for network to become online/)
+
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+      expect(elapsed).to be < 0.5
+      expect(wait_timeouts).not_to be_empty
+      expect(wait_timeouts).to all(be_between(0, 0.05).exclusive)
+    end
+  end
+
+  it 'caps the five-second restart delay at the startup deadline' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      machine.instance_variable_set(:@stopped_at, Time.now)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.05
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+      expect do
+        machine.start(deadline:, timeout_message: 'startup deadline expired')
+      end.to raise_error(OsVm::TimeoutError, 'startup deadline expired')
+
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+      expect(elapsed).to be < 0.5
+      expect(machine).not_to be_running
+    end
+  end
+
+  it 'rolls back prepared listeners and virtiofs after startup expires' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      shell = machine.send(:current_shell)
+      allow(machine).to receive(:start_virtiofs) do
+        machine.send(:virtiofsd_pids) << 12_345
+      end
+      allow(machine).to receive(:stop_virtiofs) do
+        machine.send(:virtiofsd_pids).clear
+      end
+      allow(machine).to receive(:sleep_with_deadline).and_raise(
+        OsVm::TimeoutError,
+        'startup deadline expired'
+      )
+
+      expect do
+        machine.start(
+          deadline: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10,
+          timeout_message: 'startup deadline expired'
+        )
+      end.to raise_error(OsVm::TimeoutError, 'startup deadline expired')
+
+      expect(machine).not_to be_running
+      expect(machine.send(:virtiofsd_pids)).to be_empty
+      expect(shell.send(:server)).to be_nil
+      expect(File.exist?(shell.socket_path)).to be(false)
+      expect(machine).to have_received(:stop_virtiofs).once
+    end
+  end
+
+  it 'reaps an earlier virtiofs child when a later spawn fails' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      shell = machine.send(:current_shell)
+      spawn_calls = 0
+      allow(Process).to receive(:spawn) do
+        spawn_calls += 1
+        raise OsVm::TimeoutError, 'startup deadline expired' if spawn_calls == 2
+
+        12_345
+      end
+      allow(Process).to receive(:kill).with('TERM', 12_345)
+      allow(Process).to receive(:wait).with(12_345)
+
+      expect do
+        machine.start(
+          deadline: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10,
+          timeout_message: 'startup deadline expired'
+        )
+      end.to raise_error(OsVm::TimeoutError, 'startup deadline expired')
+
+      expect(spawn_calls).to eq(2)
+      expect(Process).to have_received(:kill).with('TERM', 12_345).once
+      expect(Process).to have_received(:wait).with(12_345).once
+      expect(machine.send(:virtiofsd_pids)).to be_empty
+      expect(machine).not_to be_running
+      expect(shell.send(:server)).to be_nil
+      expect(File.exist?(shell.socket_path)).to be(false)
+    end
+  end
+
+  it 'takes back QEMU ownership when startup expires around reaper handoff' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      shell = machine.send(:current_shell)
+      allow(machine).to receive(:start_virtiofs)
+      allow(machine).to receive(:stop_virtiofs)
+      allow(machine).to receive(:sleep_with_deadline)
+      allow(Process).to receive(:spawn).and_return(43_210)
+      status = instance_double(Process::Status, exitstatus: 0)
+      allow(Process).to receive(:waitpid2).with(43_210, Process::WNOHANG).and_return(nil)
+      allow(Process).to receive(:waitpid2).with(43_210).and_return([43_210, status])
+      allow(Process).to receive(:kill).with('KILL', 43_210)
+      allow(machine).to receive(:run_qemu_reaper).with(43_210).and_raise(
+        OsVm::TimeoutError,
+        'startup deadline expired'
+      )
+
+      expect do
+        machine.start(
+          deadline: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10,
+          timeout_message: 'startup deadline expired'
+        )
+      end.to raise_error(OsVm::TimeoutError, 'startup deadline expired')
+
+      expect(Process).to have_received(:kill).with('KILL', 43_210).once
+      expect(Process).to have_received(:waitpid2).with(43_210, Process::WNOHANG).once
+      expect(Process).to have_received(:waitpid2).with(43_210).once
+      expect(machine).not_to be_running
+      expect(machine.send(:qemu_pid)).to be_nil
+      expect(machine.send(:qemu_read)).to be_nil
+      expect(shell.send(:server)).to be_nil
+    end
+  end
+
+  it 'activates a published paused reaper when pre-start console setup fails' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      failure = RuntimeError.new('console setup failed')
+      status = instance_double(Process::Status, exitstatus: 0)
+      wait_calls = 0
+      allow(machine).to receive(:start_virtiofs)
+      allow(machine).to receive(:stop_virtiofs)
+      allow(machine).to receive(:sleep_with_deadline)
+      allow(machine).to receive(:run_console_thread).and_raise(failure)
+      allow(Process).to receive(:spawn).and_return(43_210)
+      allow(Process).to receive(:waitpid2).with(43_210, Process::WNOHANG) do
+        wait_calls += 1
+        wait_calls == 1 ? nil : [43_210, status]
+      end
+      allow(Process).to receive(:kill).with('KILL', 43_210)
+
+      expect do
+        Timeout.timeout(5) do
+          machine.start(
+            deadline: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10,
+            timeout_message: 'startup deadline expired'
+          )
+        end
+      end.to raise_error(failure)
+
+      expect(Process).to have_received(:kill).with('KILL', 43_210).once
+      expect(wait_calls).to eq(2)
+      expect(machine.send(:qemu_reaper)).to be_nil
+      expect(machine).not_to be_running
+    end
+  end
+
+  it 'defers a second timeout until startup rollback reclaims every resource' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      shell = machine.send(:current_shell)
+      rollback_entered = Queue.new
+      release_rollback = Queue.new
+      result = Queue.new
+      first_error = OsVm::TimeoutError.new('first startup timeout')
+      second_error = OsVm::TimeoutError.new('second startup timeout')
+
+      allow(machine).to receive(:start_virtiofs) do
+        machine.send(:virtiofsd_pids) << 12_345
+      end
+      allow(machine).to receive(:stop_virtiofs) do
+        machine.send(:virtiofsd_pids).clear
+      end
+      allow(machine).to receive(:sleep_with_deadline)
+      allow(machine).to receive(:wait_for_boot).and_raise(first_error)
+      allow(machine).to receive(:run_qemu_reaper).with(43_210).and_return(nil)
+      allow(Process).to receive(:spawn).and_return(43_210)
+      status = instance_double(Process::Status, exitstatus: 0)
+      allow(Process).to receive(:waitpid2).with(43_210, Process::WNOHANG).and_return(nil)
+      allow(Process).to receive(:waitpid2).with(43_210).and_return([43_210, status])
+      allow(Process).to receive(:kill).with('KILL', 43_210) do
+        rollback_entered << true
+        Timeout.timeout(5) { release_rollback.pop }
+      end
+
+      start_thread = Thread.new do
+        Thread.current.report_on_exception = false
+        machine.start(
+          wait_for_boot: true,
+          deadline: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10,
+          timeout_message: 'startup deadline expired'
+        )
+      rescue StandardError => e
+        result << e
+      end
+
+      Timeout.timeout(5) { rollback_entered.pop }
+      injector = Thread.new { start_thread.raise(second_error) }
+      Timeout.timeout(5) do
+        sleep(0.01) until start_thread.pending_interrupt?(OsVm::TimeoutError)
+      end
+      expect { result.pop(true) }.to raise_error(ThreadError)
+
+      release_rollback << true
+      expect(injector.join(5)).to be(injector)
+      expect(start_thread.join(5)).to be(start_thread)
+      expect(Timeout.timeout(5) { result.pop }).to be(second_error)
+
+      expect(Process).to have_received(:kill).with('KILL', 43_210).once
+      expect(Process).to have_received(:waitpid2).with(43_210, Process::WNOHANG).once
+      expect(Process).to have_received(:waitpid2).with(43_210).once
+      expect(machine.send(:virtiofsd_pids)).to be_empty
+      expect(machine.send(:qemu_pid)).to be_nil
+      expect(machine.send(:qemu_read)).to be_nil
+      expect(machine.send(:console_thread)).to be_nil
+      expect(machine).not_to be_running
+      expect(shell.send(:server)).to be_nil
+      expect(File.exist?(shell.socket_path)).to be(false)
+    ensure
+      release_rollback&.push(true) if start_thread&.alive?
+      injector&.join(5)
+      start_thread&.join(5)
+    end
+  end
+
+  it 'never kills a reaped immediate-exit PID when startup times out later' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      observed_running = Queue.new
+      child_reaped = Queue.new
+      allow(machine).to receive(:start_virtiofs)
+      allow(machine).to receive(:stop_virtiofs).and_call_original
+      allow(machine).to receive(:cleanup).and_call_original
+      allow(machine).to receive(:sleep_with_deadline)
+      allow(machine).to receive(:wait_for_boot) do
+        Timeout.timeout(5) { child_reaped.pop }
+        raise OsVm::TimeoutError, 'startup deadline expired'
+      end
+      allow(Process).to receive(:spawn).and_return(43_210)
+      status = instance_double(Process::Status, exitstatus: 0)
+      allow(Process).to receive(:waitpid2).with(43_210, Process::WNOHANG) do
+        observed_running << machine.running?
+        child_reaped << true
+        [43_210, status]
+      end
+      allow(Process).to receive(:kill)
+
+      expect do
+        machine.start(
+          wait_for_boot: true,
+          deadline: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10,
+          timeout_message: 'startup deadline expired'
+        )
+      end.to raise_error(OsVm::TimeoutError, 'startup deadline expired')
+
+      expect(Timeout.timeout(5) { observed_running.pop }).to be(true)
+      expect(Process).not_to have_received(:kill).with('KILL', 43_210)
+      expect(machine).not_to be_running
+      expect(machine.send(:qemu_pid)).to be_nil
+      expect(machine.send(:qemu_read)).to be_nil
+      expect(machine).to have_received(:stop_virtiofs).twice
+      expect(machine).to have_received(:cleanup).twice
     end
   end
 
