@@ -52,6 +52,7 @@ let
   # fails to load due to unknown parameters. Set them at runtime instead.
   runtimeOnlyZfsModuleParams = [
     "zfs_xattr_trusted_userns_enable"
+    "zfs_container_statfs_enabled"
     "zfs_statfs_shack_enabled"
   ];
 
