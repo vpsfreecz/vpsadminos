@@ -24,43 +24,48 @@ module OsVm
     # @param name [String]
     # @param timeout [Integer]
     # @return [Machine]
-    def wait_for_osctl_pool(name, timeout: @default_timeout, poll_timeout: 10)
-      t1 = Time.now
-      cur_timeout = timeout
+    def wait_for_osctl_pool(name, timeout: 20 * 60, poll_timeout: 60)
       last_state = nil
       last_error = nil
+      timeout_message = lambda do
+        message = "Timeout occurred while waiting for pool #{name.inspect} to become active"
+        message += ", last state: #{last_state.inspect}" if last_state
+        message += ", last error: #{last_error.message.inspect}" if last_error
+        message
+      end
+      deadline = monotonic_deadline(timeout)
+
+      remaining_time!(deadline, timeout_message.call)
+      start(deadline:, timeout_message: timeout_message.call) unless running?
+      wait_for_boot(
+        timeout: remaining_time!(deadline, timeout_message.call),
+        deadline:,
+        timeout_message: timeout_message.call
+      )
 
       loop do
         status = nil
-
-        if cur_timeout <= 0
-          message = "Timeout occurred while waiting for pool #{name.inspect} to become active"
-          message += ", last state: #{last_state.inspect}" if last_state
-          message += ", last error: #{last_error.message.inspect}" if last_error
-          raise TimeoutError, message
-        end
+        cur_timeout = remaining_time!(deadline, timeout_message.call)
 
         begin
           status, output = execute(
             "osctl pool show -H -o state #{name}",
-            timeout: [poll_timeout, cur_timeout].min
+            timeout: [poll_timeout, cur_timeout].min,
+            deadline:,
+            timeout_message: timeout_message.call
           )
           last_state = output.strip
           last_error = nil
         rescue TimeoutError => e
-          raise if e.is_a?(UnrecoverableTimeoutError)
-
           last_error = e
+          raise UnrecoverableTimeoutError, timeout_message.call if e.is_a?(UnrecoverableTimeoutError)
         end
 
+        remaining_time!(deadline, timeout_message.call)
         return self if status == 0 && last_state == 'active'
 
-        cur_timeout = timeout - (Time.now - t1)
-
-        sleep(1)
+        sleep_with_deadline(1, deadline, timeout_message.call)
       end
-
-      self
     end
 
     # Wait for osctl container to exist and be in a given state

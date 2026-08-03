@@ -1,6 +1,7 @@
 require 'base64'
 require 'shellwords'
 require 'socket'
+require 'timeout'
 
 module OsVm
   class Shell
@@ -40,7 +41,11 @@ module OsVm
     rescue Errno::ENOENT
       # ignore
     ensure
-      @server = UNIXServer.new(socket_path)
+      # Do not let an asynchronous startup deadline split UNIXServer creation
+      # from recording the descriptor which rollback has to close.
+      Thread.handle_interrupt(TimeoutError => :never) do
+        @server = UNIXServer.new(socket_path)
+      end
     end
 
     def qemu_options
@@ -90,55 +95,84 @@ module OsVm
 
     # @param timeout [Integer]
     # @return [void]
-    def wait(timeout: @default_timeout)
+    def wait(timeout: @default_timeout, deadline: nil, timeout_message: nil)
       machine.raise_if_kernel_failed!
       raise "machine #{machine.name} is not running" unless machine.running?
       return if up?
 
-      t1 = Time.now
-      buffer = ''
+      timeout_message ||= 'Timeout occurred while waiting for shell'
+      deadline = effective_deadline(timeout, deadline)
 
-      loop do
-        machine.raise_if_kernel_failed!
+      with_deadline(deadline, timeout_message) do
+        buffer = ''
 
-        if t1 + timeout < Time.now
-          raise TimeoutError, 'Timeout occurred while waiting for shell'
+        loop do
+          machine.raise_if_kernel_failed!
+          remaining = remaining_time!(deadline, timeout_message)
+
+          reset if io&.closed?
+          if io.nil?
+            accept(
+              timeout: remaining,
+              deadline:,
+              timeout_message:
+            )
+          end
+
+          remaining = remaining_time!(deadline, timeout_message)
+          rs = io.wait_readable([1, remaining].min)
+          next unless rs
+
+          begin
+            buffer << read_nonblock(io)
+          rescue EOFError
+            reset
+            buffer = ''
+            next
+          end
+
+          next unless buffer.include?("test-shell-ready\n")
+
+          @up = true
+          machine.__send__(:mount_shared_dir_once)
+          return
         end
-
-        reset if io&.closed?
-        accept(timeout: t1 + timeout - Time.now) if io.nil?
-
-        rs = io.wait_readable(1)
-        next unless rs
-
-        begin
-          buffer << read_nonblock(io)
-        rescue EOFError
-          reset
-          buffer = ''
-          next
-        end
-
-        next unless buffer.include?("test-shell-ready\n")
-
-        @up = true
-        machine.__send__(:mount_shared_dir_once)
-        return
       end
     end
 
     # @param cmd [String]
     # @param timeout [Integer]
     # @return [Array<Integer, String>] exit status and output
-    def execute(cmd, timeout: @default_timeout)
-      machine.raise_if_kernel_failed!
-      machine.start unless machine.running?
-      machine.raise_if_kernel_failed!
-      wait
+    def execute(cmd, timeout: @default_timeout, deadline: nil, timeout_message: nil)
+      timeout_message ||= "Timeout occurred while running command '#{cmd}'"
+      deadline = effective_deadline(timeout, deadline)
 
-      mutex.synchronize do
-        wait
-        execute_command(cmd, timeout:)
+      with_deadline(deadline, timeout_message) do
+        machine.raise_if_kernel_failed!
+        unless machine.running?
+          machine.start(deadline:, timeout_message:)
+        end
+        machine.raise_if_kernel_failed!
+
+        wait(
+          timeout: remaining_time!(deadline, timeout_message),
+          deadline:,
+          timeout_message:
+        )
+
+        mutex.synchronize do
+          wait(
+            timeout: remaining_time!(deadline, timeout_message),
+            deadline:,
+            timeout_message:
+          )
+          execute_command(
+            cmd,
+            timeout: remaining_time!(deadline, timeout_message),
+            deadline:,
+            timeout_message:
+          )
+        end
       end
     end
 
@@ -264,48 +298,61 @@ module OsVm
       raise CommandSucceeded, "Command '#{cmd}' succeeds with status #{status}. Output:\n #{output}"
     end
 
-    def accept(timeout: @default_timeout)
+    def accept(timeout: @default_timeout, deadline: nil, timeout_message: nil)
+      machine.raise_if_kernel_failed!
       raise "machine #{machine.name} is not running" unless machine.running?
       return io unless io.nil?
 
-      t1 = Time.now
+      timeout_message ||= 'Timeout occurred while waiting for shell connection'
+      deadline = effective_deadline(timeout, deadline)
 
-      loop do
-        machine.raise_if_kernel_failed!
+      with_deadline(deadline, timeout_message) do
+        loop do
+          machine.raise_if_kernel_failed!
+          remaining = remaining_time!(deadline, timeout_message)
+          raise Error, 'Machine is not running' unless machine.running?
 
-        if t1 + timeout < Time.now
-          raise TimeoutError, 'Timeout occurred while waiting for shell connection'
-        elsif !machine.running?
-          raise Error, 'Machine is not running'
-        end
+          rs = server.wait_readable([1, remaining].min)
+          next unless rs
 
-        rs = server.wait_readable(1)
-        next unless rs
-
-        begin
-          @io = server.accept_nonblock
-          return io
-        rescue IO::WaitReadable, Errno::EINTR
-          next
+          begin
+            @io = server.accept_nonblock
+            return io
+          rescue IO::WaitReadable, Errno::EINTR
+            next
+          end
         end
       end
     end
 
-    def execute_command(cmd, timeout:)
-      real_timeout = [timeout, 5].max
+    def execute_command(cmd, timeout:, deadline: nil, timeout_message: nil)
+      timeout_message ||= "Timeout occurred while running command '#{cmd}'"
+      deadline = effective_deadline(timeout, deadline)
+      remaining = remaining_time!(deadline, timeout_message)
+      protocol_reserve = [5.0, remaining * 0.2].min
+      kill_after = [2.0, remaining * 0.1].min
+      guest_timeout = remaining - protocol_reserve - kill_after
       vm_command = "set -euo pipefail; #{cmd}"
-      timeout_command = "timeout #{real_timeout}"
+      timeout_command = "timeout --kill-after=#{format_timeout(kill_after)} #{format_timeout(guest_timeout)}"
 
       # For unknown reason, the first character written to the shell is cut. Sometimes
       # more characters are lost. We therefore prefix the executed command with whitespace
       # which can be lost.
       workaround = ' ' * 10
+      log_started_at = log.execute_begin(cmd)
+      protocol_started = true
+      replies_consumed = false
+      output = nil
 
       io.write("#{workaround}#{timeout_command} bash -c #{Shellwords.escape(vm_command)} 2>&1 | (base64 -w 0; echo)\n")
-      log_started_at = log.execute_begin(cmd)
 
       begin
-        raw_output = read_output(timeout: real_timeout + 5, command: vm_command)
+        raw_output = read_output(
+          timeout: remaining_time!(deadline, timeout_message),
+          deadline:,
+          timeout_message:,
+          command: vm_command
+        )
       rescue MachineShellClosed
         log.execute_end(-1, '[machine shell closed]', log_started_at)
         raise
@@ -316,35 +363,56 @@ module OsVm
       io.write("#{workaround}echo ${PIPESTATUS[0]}\n")
 
       begin
-        status = read_output(timeout: 60, command: 'echo ${PIPESTATUS[0]}').strip.to_i
+        status = read_output(
+          timeout: remaining_time!(deadline, timeout_message),
+          deadline:,
+          timeout_message:,
+          command: 'echo ${PIPESTATUS[0]}'
+        ).strip.to_i
+        replies_consumed = true
       rescue MachineShellClosed
         log.execute_end(-1, output, log_started_at)
         raise
       end
 
-      if timeout && status == 124
+      if [124, 137].include?(status)
         log.execute_end(-1, output, log_started_at)
-        raise TimeoutError, "Timeout occurred while running command '#{cmd}', " \
-                            "output: #{output.inspect}"
+        raise TimeoutError, "#{timeout_message}, output: #{output.inspect}"
       end
 
       log.execute_end(status, output, log_started_at)
       [status, output]
+    rescue TimeoutError => e
+      # A command and its output/status replies form one stream protocol
+      # transaction. Once any part of the command may have reached the guest,
+      # a deadline before both replies are consumed leaves that stream
+      # desynchronized. Close it and make the timeout unrecoverable so polling
+      # callers cannot send a second command over ambiguous bytes.
+      if protocol_started && !replies_consumed
+        reset
+        log.execute_end(-1, output || '[shell protocol timeout]', log_started_at) if log_started_at
+        raise if e.is_a?(UnrecoverableTimeoutError)
+
+        raise UnrecoverableTimeoutError, e.message
+      end
+
+      raise
     end
 
-    def read_output(timeout:, command:)
-      t1 = Time.now
+    def read_output(timeout:, command:, deadline: nil, timeout_message: nil)
+      timeout_message ||= "Timeout occurred while running command '#{command}'"
+      deadline = effective_deadline(timeout, deadline)
       buffer = ''
 
       loop do
         machine.raise_if_kernel_failed!
+        remaining = remaining_time!(
+          deadline,
+          "#{timeout_message}, buffer contents: #{buffer.inspect}",
+          error_class: UnrecoverableTimeoutError
+        )
 
-        if t1 + timeout < Time.now
-          raise UnrecoverableTimeoutError, "Timeout occurred while running command '#{command}', " \
-                                           "buffer contents: #{buffer.inspect}"
-        end
-
-        rs = io.wait_readable(1)
+        rs = io.wait_readable([1, remaining].min)
         next unless rs
 
         begin
@@ -359,6 +427,35 @@ module OsVm
       end
 
       buffer
+    end
+
+    def effective_deadline(timeout, outer_deadline)
+      local_deadline = monotonic_now + timeout
+      outer_deadline ? [local_deadline, outer_deadline].min : local_deadline
+    end
+
+    def remaining_time!(deadline, timeout_message, error_class: TimeoutError)
+      remaining = deadline - monotonic_now
+      raise error_class, timeout_message if remaining <= 0
+
+      remaining
+    end
+
+    def monotonic_now
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    def with_deadline(deadline, timeout_message, &)
+      ::Timeout.timeout(
+        remaining_time!(deadline, timeout_message),
+        TimeoutError,
+        timeout_message,
+        &
+      )
+    end
+
+    def format_timeout(timeout)
+      format('%.9f', timeout).sub(/\.?0+\z/, '')
     end
 
     def reset

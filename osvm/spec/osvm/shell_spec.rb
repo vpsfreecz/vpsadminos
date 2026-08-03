@@ -69,6 +69,24 @@ RSpec.describe OsVm::Shell do
     end
   end
 
+  it 'reserves forced-kill and protocol-drain time for guest commands' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      writes = []
+      io = instance_double(IO)
+      allow(io).to receive(:write) { |data| writes << data }
+      allow(shell).to receive(:monotonic_now).and_return(100.0)
+      allow(shell).to receive(:read_output).and_return(
+        "#{Base64.strict_encode64("ok\n")}\n",
+        "0\n"
+      )
+      shell.instance_variable_set(:@io, io)
+
+      expect(shell.send(:execute_command, 'true', timeout: 10)).to eq([0, "ok\n"])
+      expect(writes.first).to include('timeout --kill-after=1 7 bash')
+    end
+  end
+
   it 'checks successful and failed commands' do
     with_tmpdir do |dir|
       shell = build_shell(dir:)
