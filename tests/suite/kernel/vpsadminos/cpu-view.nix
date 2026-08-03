@@ -14,6 +14,9 @@ let
 
         script = common.useMachine cgroupsVersion + ''
           @cpu_view_testct = nil
+          vm_cpu_count = ${toString common.vmCpuCount}
+          at_host_cpu_limit = vm_cpu_count * 100
+          above_host_cpu_limit = (vm_cpu_count + 2) * 100
 
           def self.testct
             @cpu_view_testct ||= get_container_id('${prefix}')
@@ -166,7 +169,10 @@ let
             end
 
             it 'virtualizes view in /proc/cpuinfo' do
-              _, limit_cpuinfo = machine.succeeds("osctl ct exec #{testct} grep processor /proc/cpuinfo")
+              _, limit_cpuinfo = machine.succeeds(
+                "osctl ct exec #{testct} grep processor /proc/cpuinfo",
+                timeout: 30
+              )
               proc_count = limit_cpuinfo.strip.split("\n").count
               expect(proc_count).to eq(cpu_count)
             end
@@ -267,21 +273,20 @@ let
               check_cpus(50, 1)
             end
 
-            context 'raise to 800%' do
-              check_cpus(800, 8)
+            context 'at host capacity' do
+              check_cpus(at_host_cpu_limit, vm_cpu_count)
             end
 
-            # TODO: kernel bug in /proc/cpuinfo here
-            # context '1000% limit' do
-            #   check_cpus(1000, 8)
-            # end
+            context 'above host capacity' do
+              check_cpus(above_host_cpu_limit, vm_cpu_count)
+            end
 
             context 'with 500% limit' do
               check_cpus(500, 5)
             end
 
             context 'unset limit' do
-              check_cpus(nil, 8)
+              check_cpus(nil, vm_cpu_count)
             end
           end
 
@@ -318,14 +323,13 @@ let
               check_cpus(50, 1)
             end
 
-            context 'raise to 800%' do
-              check_cpus(800, 8)
+            context 'at host capacity' do
+              check_cpus(at_host_cpu_limit, vm_cpu_count)
             end
 
-            # TODO: kernel bug in /proc/cpuinfo here
-            # context 'with 1000% limit' do
-            #   check_cpus(1000, 8)
-            # end
+            context 'above host capacity' do
+              check_cpus(above_host_cpu_limit, vm_cpu_count)
+            end
           end
         '';
       };
