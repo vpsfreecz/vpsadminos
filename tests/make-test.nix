@@ -249,7 +249,7 @@ let
           sockets = machine.sockets or 1;
         };
       cpus = if machine ? cpus then machine.cpus else cpuCfg.cores * cpuCfg.threads * cpuCfg.sockets;
-      diskImageBase = "nixos-test-${testAttrs.name}-${name}";
+      diskImageBase = "nixos-test";
       diskImage = import "${nixpkgs.path}/nixos/lib/make-disk-image.nix" {
         pkgs = nixpkgs;
         lib = nixpkgs.lib;
@@ -258,7 +258,7 @@ let
         partitionTableType = "none";
         installBootLoader = false;
         baseName = diskImageBase;
-        name = "nixos-${testAttrs.name}-${name}-disk-image";
+        name = "nixos-test-disk-image";
         label = diskLabel;
         fsType = fsType;
         diskSize = machine.diskSize or "auto";

@@ -758,6 +758,9 @@
           };
         in
         {
+          nixos-disk-image-reuse = import ./tests/nixos-disk-image-reuse-check.nix {
+            inherit nixpkgs system testFramework;
+          };
           os-eval = sys.config.system.build.toplevel;
         }
       );
