@@ -5,8 +5,8 @@ module TestRunner
   class TestConfig
     # @param test [Test]
     # @param config_path [String]
-    def self.build(test, config_path:, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
-      tc = new(test, system:, test_config_path:, config_path:)
+    def self.build(test, config_path:, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil, repo_root: nil)
+      tc = new(test, system:, test_config_path:, repo_root:, config_path:)
       tc.build
       tc
     end
@@ -16,9 +16,9 @@ module TestRunner
 
     # @param test [Test]
     # @param config_path [String]
-    def initialize(test, config_path:, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
+    def initialize(test, config_path:, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil, repo_root: nil)
       @test = test
-      @nix = NixCli.new(system:, test_config_path:)
+      @nix = NixCli.new(system:, test_config_path:, repo_root:)
       @config_path = config_path
       @config = {}
     end

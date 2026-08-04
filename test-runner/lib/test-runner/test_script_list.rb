@@ -1,7 +1,7 @@
 module TestRunner
   class TestScriptList
-    def initialize(system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
-      @test_list = TestList.new(system:, test_config_path:)
+    def initialize(system: NixCli::DEFAULT_SYSTEM, test_config_path: nil, repo_root: nil)
+      @test_list = TestList.new(system:, test_config_path:, repo_root:)
     end
 
     # Return a list of all known test scripts

@@ -30,6 +30,7 @@ module TestRunner
     # @option opts [Numeric] :resource_refresh_interval
     # @option opts [Numeric] :status_interval
     # @option opts [Boolean] :verbose
+    # @option opts [String] :repo_root
     def initialize(test_scripts, **opts)
       @test_scripts = test_scripts
       @opts = opts
@@ -547,6 +548,7 @@ module TestRunner
           scripts,
           system: opts[:system],
           test_config_path: opts[:test_config_path],
+          repo_root: opts[:repo_root],
           state_dir: dir,
           sock_dir: test_sock_dir,
           default_timeout: opts[:default_timeout],

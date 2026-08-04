@@ -85,7 +85,8 @@ RSpec.describe TestRunner::Cli::Command do
       destructive: true,
       recreate_disks: false,
       system: 'x86_64-linux',
-      test_config_path: nil
+      test_config_path: nil,
+      repo_root: REPO_ROOT
     )
   end
 
@@ -143,6 +144,7 @@ RSpec.describe TestRunner::Cli::Command do
       [script],
       system: 'x86_64-linux',
       test_config_path: nil,
+      repo_root: REPO_ROOT,
       state_dir: '/tmp/os-test-runner/os-test-debug-test',
       sock_dir: '/tmp/os-test-runner/socks',
       default_timeout: 60,
@@ -178,6 +180,38 @@ RSpec.describe TestRunner::Cli::Command do
     )
 
     expect(filtered).to eq([matching])
+  end
+
+  it 'passes one immutable source to discovery and execution' do
+    scripts = [instance_double(TestRunner::TestScript, path: 'suite/a')]
+    executor = instance_double(TestRunner::Executor, run: [])
+    source = instance_double(
+      TestRunner::RepositorySource,
+      path: '/nix/store/stable-source',
+      resolve_path: '/nix/store/stable-source/tests/config.nix'
+    )
+    stub_test_script_list(scripts)
+    allow(TestRunner::Executor).to receive(:new).and_return(executor)
+
+    command.instance_variable_set(:@repository_source, source)
+    described_class.new(
+      {},
+      opts.merge('test-config' => 'tests/config.nix'),
+      []
+    ).tap { |cmd| cmd.instance_variable_set(:@repository_source, source) }.test
+
+    expect(TestRunner::TestScriptList).to have_received(:new).with(
+      system: 'x86_64-linux',
+      test_config_path: '/nix/store/stable-source/tests/config.nix',
+      repo_root: '/nix/store/stable-source'
+    )
+    expect(TestRunner::Executor).to have_received(:new).with(
+      scripts,
+      hash_including(
+        test_config_path: '/nix/store/stable-source/tests/config.nix',
+        repo_root: '/nix/store/stable-source'
+      )
+    )
   end
 
   it 'filters scripts by metadata expression' do

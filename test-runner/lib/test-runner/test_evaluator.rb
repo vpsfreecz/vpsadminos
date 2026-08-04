@@ -36,7 +36,7 @@ module TestRunner
     # @option opts [Boolean] :recreate_disks
     # @option opts [String] :state_dir
     # @option opts [String] :sock_dir
-    def initialize(test, scripts, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil, **opts)
+    def initialize(test, scripts, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil, repo_root: nil, **opts)
       scripts.each do |s|
         next if s.test == test
 
@@ -50,6 +50,7 @@ module TestRunner
         test,
         system:,
         test_config_path:,
+        repo_root:,
         config_path: File.join(@opts.fetch(:state_dir), 'config.json')
       )
       @machines = {}
