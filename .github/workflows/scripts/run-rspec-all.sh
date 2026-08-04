@@ -93,6 +93,18 @@ run_suite() {
   (
     set -euo pipefail
 
+    if [ "$name" = "test-runner" ]; then
+      ensure_libosctl_native
+      cd "$workspace"
+      nix develop .#test-runner --command env TMPDIR=/tmp \
+        bundle exec rspec \
+        -I test-runner/spec \
+        --format progress \
+        --profile 10 \
+        test-runner/spec
+      exit
+    fi
+
     export BUNDLE_GEMFILE="${workspace}/${dir}/Gemfile"
     export BUNDLE_PATH="${bundle_path}"
 
@@ -108,7 +120,7 @@ run_suite() {
         ensure_osctld_native
         ensure_ruby_lxc_native
         ;;
-      converter|osctl|osctl-exporter|osctl-exportfs|osctl-image|osctl-oomd|osctl-repo|osup|osvm|svctl|test-runner)
+      converter|osctl|osctl-exporter|osctl-exportfs|osctl-image|osctl-oomd|osctl-repo|osup|osvm|svctl)
         ensure_libosctl_native
         ;;
     esac
