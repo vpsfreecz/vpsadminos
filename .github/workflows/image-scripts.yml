@@ -117,7 +117,7 @@ jobs:
             args+=(--stop-on-failure)
           fi
 
-          ./test-runner.sh "${args[@]}" | tee test.log
+          ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"
 
       - name: Upload full test logs
         id: upload-test-logs
@@ -138,7 +138,7 @@ jobs:
           steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/evaluate-test-results
         with:
-          log-file: test.log
+          log-file: ${{ steps.prepare-tests.outputs.state-directory }}/test.log
 
       - name: Summarise test logs
         if: >-
