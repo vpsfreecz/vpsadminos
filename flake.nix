@@ -717,6 +717,8 @@
 
               export REPO_ROOT
               export TEST_RUNNER_ROOT
+              export TEST_RUNNER_NIXPKGS_PATH=${pkgs.path}
+              export TEST_RUNNER_NIX_SYSTEM=${pkgs.stdenv.hostPlatform.system}
               export GEM_HOME
               export GEM_PATH="$GEM_HOME:$TEST_RUNNER_ROOT/lib"
               export PATH="$GEM_HOME/bin:$PATH"

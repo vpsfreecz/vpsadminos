@@ -214,6 +214,28 @@ RSpec.describe TestRunner::Cli::Command do
     )
   end
 
+  it 'exports the immutable source to test definitions and restores the environment' do
+    source = instance_double(TestRunner::RepositorySource, path: '/nix/store/stable-source')
+    original_root = ENV.fetch('TEST_RUNNER_REPO_ROOT', nil)
+    ENV['TEST_RUNNER_REPO_ROOT'] = '/work/original-source'
+    allow(TestRunner::RepositorySource).to receive(:open).and_yield(source)
+
+    described_class.new({}, opts.merge('system' => 'aarch64-linux'), []).send(:with_repository_source) do
+      expect(ENV.fetch('TEST_RUNNER_REPO_ROOT')).to eq('/nix/store/stable-source')
+    end
+
+    expect(ENV.fetch('TEST_RUNNER_REPO_ROOT')).to eq('/work/original-source')
+    expect(TestRunner::RepositorySource).to have_received(:open).with(
+      original_path: '/work/original-source'
+    )
+  ensure
+    if original_root.nil?
+      ENV.delete('TEST_RUNNER_REPO_ROOT')
+    else
+      ENV['TEST_RUNNER_REPO_ROOT'] = original_root
+    end
+  end
+
   it 'filters scripts by metadata expression' do
     matching = instance_double(
       TestRunner::TestScript,

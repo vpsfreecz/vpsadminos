@@ -1,23 +1,24 @@
 require 'fileutils'
-require 'json'
 require 'open3'
 require 'pathname'
 require 'securerandom'
+require 'tmpdir'
 
 module TestRunner
   class RepositorySource
-    ROOT_DIRECTORY = '.repository-sources'.freeze
+    ROOT_DIRECTORY = 'os-test-runner-repository-sources'.freeze
+    attr_reader :original_path, :path, :root_directory
 
-    attr_reader :original_path, :path
-
-    def self.open(original_path:, state_dir:)
-      source = new(original_path:, state_dir:)
+    def self.open(original_path:, root_directory: nil, nixpkgs_path: nil, nix_system: nil)
+      source = new(original_path:, root_directory:, nixpkgs_path:, nix_system:)
       source.open { yield(source) }
     end
 
-    def initialize(original_path:, state_dir:)
+    def initialize(original_path:, root_directory: nil, nixpkgs_path: nil, nix_system: nil)
       @original_path = File.expand_path(original_path)
-      @state_dir = File.expand_path(state_dir)
+      @root_directory = File.expand_path(root_directory || default_root_directory)
+      @nixpkgs_path = File.expand_path(nixpkgs_path || ENV.fetch('TEST_RUNNER_NIXPKGS_PATH'))
+      @nix_system = nix_system || ENV.fetch('TEST_RUNNER_NIX_SYSTEM')
       @path = nil
       @lock_file = nil
       @lock_path = nil
@@ -25,11 +26,9 @@ module TestRunner
     end
 
     def open
-      FileUtils.mkdir_p(root_directory)
-      cleanup_stale_roots
-
-      @path = resolve_source
-      create_gc_root
+      FileUtils.mkdir_p(root_directory, mode: 0o700)
+      reserve_gc_root
+      @path = resolve_and_root_source
 
       yield(self)
     ensure
@@ -52,54 +51,70 @@ module TestRunner
       File.expand_path('../../nix/resolve-repository-source.nix', __dir__)
     end
 
-    def resolve_source
+    def resolve_and_root_source
       out, status = Open3.capture2(
-        'nix-instantiate',
-        '--eval',
-        '--strict',
-        '--json',
+        'nix-build',
+        '--out-link',
+        @root_path,
         helper_file,
         '--arg',
         'repoRoot',
-        original_path
+        original_path,
+        '--arg',
+        'nixpkgsPath',
+        @nixpkgs_path,
+        '--argstr',
+        'nixSystem',
+        @nix_system
       )
 
       unless status.success?
-        raise "unable to resolve repository source (#{status.exitstatus})"
+        raise "unable to resolve and GC-root repository source (#{status.exitstatus})"
       end
 
-      JSON.parse(out)
+      output_path = out.lines.map(&:strip).reject(&:empty?).last
+      raise 'nix-build returned no repository source output' if output_path.nil?
+
+      File.realpath(File.join(output_path, 'source'))
     end
 
-    def create_gc_root
-      token = "#{Process.pid}-#{SecureRandom.hex(8)}"
-      @lock_path = File.join(root_directory, "#{token}.lock")
-      @root_path = File.join(root_directory, "#{token}.root")
-      @lock_file = File.open(@lock_path, File::RDWR | File::CREAT, 0o600)
-      @lock_file.flock(File::LOCK_EX)
+    def reserve_gc_root
+      with_registry_lock do
+        cleanup_stale_roots
 
-      _out, status = Open3.capture2e(
-        'nix-store',
-        '--realise',
-        path,
-        '--add-root',
-        @root_path,
-        '--indirect'
-      )
+        loop do
+          token = "#{Process.pid}-#{SecureRandom.hex(8)}"
+          @lock_path = File.join(root_directory, "#{token}.lock")
+          @root_path = File.join(root_directory, "#{token}.root")
 
-      return if status.success?
+          begin
+            @lock_file = File.open(
+              @lock_path,
+              File::RDWR | File::CREAT | File::EXCL,
+              0o600
+            )
+            break
+          rescue Errno::EEXIST
+            next
+          end
+        end
 
-      raise "unable to GC-root repository source (#{status.exitstatus})"
+        @lock_file.flock(File::LOCK_EX)
+      end
     end
 
     def remove_gc_root
-      unlink_gc_root(@root_path)
+      return if @lock_path.nil? && @root_path.nil?
 
-      @lock_file&.flock(File::LOCK_UN)
-      @lock_file&.close
-      @lock_file = nil
+      with_registry_lock do
+        unlink_gc_root(@root_path)
 
-      File.unlink(@lock_path) if @lock_path && File.file?(@lock_path)
+        @lock_file&.flock(File::LOCK_UN)
+        @lock_file&.close
+        @lock_file = nil
+
+        File.unlink(@lock_path) if @lock_path && File.file?(@lock_path)
+      end
     rescue Errno::ENOENT
       nil
     ensure
@@ -125,6 +140,15 @@ module TestRunner
       end
     end
 
+    def with_registry_lock
+      File.open(registry_lock_path, File::RDWR | File::CREAT, 0o600) do |lock_file|
+        lock_file.flock(File::LOCK_EX)
+        yield
+      ensure
+        lock_file.flock(File::LOCK_UN)
+      end
+    end
+
     def unlink_gc_root(root_path)
       return if root_path.nil?
       return unless File.file?(root_path) || File.symlink?(root_path)
@@ -134,8 +158,15 @@ module TestRunner
       nil
     end
 
-    def root_directory
-      File.join(@state_dir, ROOT_DIRECTORY)
+    def registry_lock_path
+      "#{root_directory}.lock"
+    end
+
+    def default_root_directory
+      runtime_dir = ENV.fetch('XDG_RUNTIME_DIR', nil)
+      runtime_dir = Dir.tmpdir if runtime_dir.nil? || runtime_dir.empty?
+
+      File.join(runtime_dir, "#{ROOT_DIRECTORY}-#{Process.uid}")
     end
   end
 end

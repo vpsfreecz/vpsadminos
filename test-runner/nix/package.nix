@@ -19,6 +19,8 @@ pkgs.writeShellScriptBin "test-runner" ''
   export GEM_HOME=${deps}/${ruby.gemPath}
   export GEM_PATH=${deps}/${ruby.gemPath}
   export RUBYLIB=${testRunnerSrc}/lib:${osvmSrc}/lib:${libosctlSrc}/lib
+  export TEST_RUNNER_NIXPKGS_PATH=${pkgs.path}
+  export TEST_RUNNER_NIX_SYSTEM=${pkgs.stdenv.hostPlatform.system}
 
   exec ${ruby}/bin/ruby ${testRunnerSrc}/bin/test-runner "$@"
 ''

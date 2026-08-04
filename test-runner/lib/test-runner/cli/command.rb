@@ -115,9 +115,9 @@ module TestRunner
     end
 
     def with_repository_source(&)
-      RepositorySource.open(original_path: original_repo_root, state_dir:) do |source|
+      RepositorySource.open(original_path: original_repo_root) do |source|
         @repository_source = source
-        yield
+        with_repository_environment(source.path, &)
       ensure
         @repository_source = nil
       end
@@ -135,6 +135,19 @@ module TestRunner
       return opts['test-config'] unless @repository_source
 
       @repository_source.resolve_path(opts['test-config'])
+    end
+
+    def with_repository_environment(source_path)
+      original_env = ENV.fetch('TEST_RUNNER_REPO_ROOT', nil)
+      ENV['TEST_RUNNER_REPO_ROOT'] = source_path
+
+      yield
+    ensure
+      if original_env.nil?
+        ENV.delete('TEST_RUNNER_REPO_ROOT')
+      else
+        ENV['TEST_RUNNER_REPO_ROOT'] = original_env
+      end
     end
 
     def load_extensions
