@@ -15,14 +15,14 @@ let
   };
   pkgs = evaluated.pkgs;
   base = evaluated.config.system.build.livePatches;
-  source = pkgs.runCommand "livepatches-predecessor-v4" { } ''
+  source = pkgs.runCommand "livepatches-released-v1" { } ''
     mkdir "$out"
-    cp ${./bp-6.12.95-predecessor-v4.patch} \
-      "$out/bp-6.12.95-predecessor-v4.patch"
+    cp ${./bp-6.12.95-released-v1.patch} \
+      "$out/bp-6.12.95-released-v1.patch"
   '';
 in
 base.overrideAttrs (old: {
-  name = "livepatch_predecessor_1-6.12.95";
+  name = "livepatch_1-6.12.95";
   inherit source;
   src = source;
   buildPhase =
@@ -33,12 +33,10 @@ base.overrideAttrs (old: {
         "bp-6.12.95-cumulative.patch"
       ]
       [
-        ''#define LIVEPATCH_NAME                       "predecessor_1"''
-        "livepatch_predecessor_1"
-        "bp-6.12.95-predecessor-v4.patch"
+        ''#define LIVEPATCH_NAME                       "1"''
+        "livepatch_1"
+        "bp-6.12.95-released-v1.patch"
       ]
       old.buildPhase;
-  installPhase =
-    builtins.replaceStrings [ "livepatch_2" ] [ "livepatch_predecessor_1" ]
-      old.installPhase;
+  installPhase = builtins.replaceStrings [ "livepatch_2" ] [ "livepatch_1" ] old.installPhase;
 })

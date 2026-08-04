@@ -1,18 +1,23 @@
 let
   correctedModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_MODULE";
+  releasedV1ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V1_MODULE";
   predecessorModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE";
   exampleFilter = builtins.getEnv "VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER";
 in
 assert correctedModuleEnv != "";
+assert releasedV1ModuleEnv != "";
 assert predecessorModuleEnv != "";
 import ../../make-test.nix (
   { pkgs }:
   let
     correctedModule = builtins.storePath correctedModuleEnv;
+    releasedV1Module = builtins.storePath releasedV1ModuleEnv;
     predecessorModule = builtins.storePath predecessorModuleEnv;
     correctedSha256 = builtins.hashFile "sha256" correctedModule;
+    releasedV1Sha256 = builtins.hashFile "sha256" releasedV1Module;
     predecessorSha256 = builtins.hashFile "sha256" predecessorModule;
-    expectedCorrectedSha256 = "a3f79b223f1ad1eba764ed10e687b5800aea28b42eb1cc9fffb95f43d6260a30";
+    expectedCorrectedSha256 = "d111f14a4042b04993ae27c719546382639024b90c56caff46260f9447fcb2b2";
+    expectedReleasedV1Sha256 = "a3f79b223f1ad1eba764ed10e687b5800aea28b42eb1cc9fffb95f43d6260a30";
     expectedPredecessorSha256 = "70f22f6f2a1a5b0eaf57d09fdd8e988561adbea6c77fb59dcdf89b2415a9f79e";
 
     perfTransition = pkgs.stdenv.mkDerivation {
@@ -162,6 +167,24 @@ import ../../make-test.nix (
       '';
     };
 
+    v2Runtime = pkgs.stdenv.mkDerivation {
+      pname = "livepatch-test-v2-runtime";
+      version = "1";
+      src = ./livepatch-6.12.95;
+
+      buildInputs = [ pkgs.lksctp-tools ];
+      dontConfigure = true;
+
+      buildPhase = ''
+        "$CC" -std=gnu11 -O2 -Wall -Wextra -Werror \
+          -o v2_runtime v2_runtime.c -lsctp -lrt
+      '';
+
+      installPhase = ''
+        install -Dm755 v2_runtime "$out/bin/v2_runtime"
+      '';
+    };
+
     transitionStress = pkgs.writeShellScriptBin "livepatch-transition-stress" ''
       state_dir="''${1:?state directory is required}"
       stop_file="$state_dir/stop"
@@ -224,6 +247,10 @@ import ../../make-test.nix (
         if ${pkgs.iproute2}/bin/ip netns add klpns0 &&
            ${pkgs.iproute2}/bin/ip netns exec klpns0 \
              ${pkgs.iproute2}/bin/ip link set lo up &&
+           ${pkgs.iproute2}/bin/ip netns exec klpns0 \
+             ${pkgs.procps}/bin/sysctl -q -w net.sctp.auth_enable=1 &&
+           ${pkgs.iproute2}/bin/ip netns exec klpns0 \
+             ${pkgs.procps}/bin/sysctl -n net.sctp.auth_enable >/dev/null &&
            ${pkgs.iproute2}/bin/ip netns del klpns0; then
           record_success netns
         else
@@ -322,6 +349,7 @@ import ../../make-test.nix (
           pkgs.iptables
           pkgs.ipvsadm
           pkgs.nftables
+          pkgs.procps
           pkgs.socat
           pkgs.util-linux
           transitionStress
@@ -329,6 +357,7 @@ import ../../make-test.nix (
 
         environment.etc = {
           "livepatch-test/corrected.ko".source = correctedModule;
+          "livepatch-test/released-v1.ko".source = releasedV1Module;
           "livepatch-test/predecessor.ko".source = predecessorModule;
           "livepatch-test/perf-transition".source = "${perfTransition}/bin/perf_transition";
           "livepatch-test/cbpf-churn".source = "${cbpfChurn}/bin/cbpf_churn";
@@ -338,6 +367,7 @@ import ../../make-test.nix (
           "livepatch-test/nfqueue-hold".source = "${nfqueueHold}/bin/nfqueue_hold";
           "livepatch-test/fuse-transition".source = "${fuseTransition}/bin/fuse_transition";
           "livepatch-test/ipv6-fragment-partial".source = "${ipv6FragmentPartial}/bin/ipv6_fragment_partial";
+          "livepatch-test/v2-runtime".source = "${v2Runtime}/bin/v2_runtime";
           "livepatch-test/pernet-hold.ko".source =
             "${livepatchTestModules}/lib/modules/${kernel.modDirVersion}/extra/livepatch_test_pernet_hold.ko";
           "livepatch-test/probe.ko".source =
@@ -346,6 +376,7 @@ import ../../make-test.nix (
       };
   in
   assert correctedSha256 == expectedCorrectedSha256;
+  assert releasedV1Sha256 == expectedReleasedV1Sha256;
   assert predecessorSha256 == expectedPredecessorSha256;
   {
     name = "kernel-livepatch-6.12.95";
@@ -377,6 +408,7 @@ import ../../make-test.nix (
       end
 
       CORRECTED_MODULE = "/etc/livepatch-test/corrected.ko"
+      RELEASED_V1_MODULE = "/etc/livepatch-test/released-v1.ko"
       PREDECESSOR_MODULE = "/etc/livepatch-test/predecessor.ko"
       PERF_TRANSITION = "/etc/livepatch-test/perf-transition"
       CBPF_CHURN = "/etc/livepatch-test/cbpf-churn"
@@ -386,12 +418,15 @@ import ../../make-test.nix (
       NFQUEUE_HOLD = "/etc/livepatch-test/nfqueue-hold"
       FUSE_TRANSITION = "/etc/livepatch-test/fuse-transition"
       IPV6_FRAGMENT_PARTIAL = "/etc/livepatch-test/ipv6-fragment-partial"
+      V2_RUNTIME = "/etc/livepatch-test/v2-runtime"
       PERNET_HOLD_MODULE = "/etc/livepatch-test/pernet-hold.ko"
       PROBE_MODULE = "/etc/livepatch-test/probe.ko"
       PROBE_PARAMETERS = "/sys/module/livepatch_test_probe/parameters"
-      CORRECTED_NAME = "livepatch_1"
+      CORRECTED_NAME = "livepatch_2"
+      RELEASED_V1_NAME = "livepatch_1"
       PREDECESSOR_NAME = "livepatch_predecessor_1"
       CORRECTED_SHA256 = ${builtins.toJSON expectedCorrectedSha256}
+      RELEASED_V1_SHA256 = ${builtins.toJSON expectedReleasedV1Sha256}
       PREDECESSOR_SHA256 = ${builtins.toJSON expectedPredecessorSha256}
       # Exact GCC 15.2 disassembly places the fuse_copy_finish() call in the
       # inlined fuse_ref_page() at this offset in the boot, predecessor, and
@@ -472,6 +507,10 @@ import ../../make-test.nix (
       ALWAYS_LOADED_TARGET_OBJECTS = %w[
         vmlinux
         fuse
+        af_packet
+        ppp_generic
+        sctp
+        libceph
         nfnetlink
         nf_tables
         ip_set
@@ -489,6 +528,28 @@ import ../../make-test.nix (
         nf_conntrack_bridge
         br_netfilter
         vsock_loopback
+      ].freeze
+      V2_REPLACEMENT_FUNCTIONS = %w[
+        release_task
+        posix_cpu_timer_del
+        posix_cpu_timer_rearm
+        posix_cpu_timer_set
+        xfrm6_fill_dst
+        xfrm6_dst_destroy
+        ppp_destroy_channel
+        packet_set_ring
+        sctp_process_asconf
+        sctp_defaults_init
+        sctp_defaults_exit
+        sctp_ctrlsock_init
+        sctp_ctrlsock_exit
+        sctp_sysctl_net_unregister
+        setup_net
+        cleanup_net
+        decode_new_up_state_weight
+        ceph_x_update_authorizer
+        ceph_con_v1_try_write
+        nat_keepalive_send
       ].freeze
       KERNEL_FAULT_PATTERN =
         /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|KASAN|UBSAN|Invalid relocation target|disagrees about version|Unknown symbol/
@@ -912,7 +973,7 @@ import ../../make-test.nix (
         end
 
         machine.execute(
-          "for name in #{CORRECTED_NAME} #{PREDECESSOR_NAME}; do " \
+          "for name in #{CORRECTED_NAME} #{RELEASED_V1_NAME} #{PREDECESSOR_NAME}; do " \
           "dir=/sys/kernel/livepatch/$name; " \
           "if test -e \"$dir/enabled\"; then " \
           "echo 0 > \"$dir/enabled\" 2>/dev/null || true; " \
@@ -1795,9 +1856,13 @@ import ../../make-test.nix (
             "test \"$(sha256sum #{CORRECTED_MODULE} | cut -d' ' -f1)\" = #{CORRECTED_SHA256}"
           )
           machine.succeeds(
+            "test \"$(sha256sum #{RELEASED_V1_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V1_SHA256}"
+          )
+          machine.succeeds(
             "test \"$(sha256sum #{PREDECESSOR_MODULE} | cut -d' ' -f1)\" = #{PREDECESSOR_SHA256}"
           )
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
+          machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
 
           machine.all_succeed(
@@ -1805,6 +1870,10 @@ import ../../make-test.nix (
             "mountpoint -q /sys/fs/fuse/connections || " \
             "mount -t fusectl fusectl /sys/fs/fuse/connections",
             "modprobe nfsv4",
+            "modprobe l2tp_ppp",
+            "modprobe af_packet",
+            "modprobe sctp",
+            "modprobe libceph",
             "modprobe nf_tables",
             "modprobe nfnetlink_queue",
             "modprobe nft_queue",
@@ -1847,8 +1916,10 @@ import ../../make-test.nix (
 
         it "keeps unpatched credential lifetimes healthy through fork and RCU callbacks" do
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
+          machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
           machine.fails("test -d #{patch_dir(CORRECTED_NAME)}")
+          machine.fails("test -d #{patch_dir(RELEASED_V1_NAME)}")
           machine.fails("test -d #{patch_dir(PREDECESSOR_NAME)}")
 
           _, before_fork = machine.succeeds(
@@ -1867,6 +1938,7 @@ import ../../make-test.nix (
           )
           expect(after_rcu).not_to match(KERNEL_FAULT_PATTERN)
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
+          machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
         end
 
@@ -3251,6 +3323,39 @@ import ../../make-test.nix (
           remove_module(machine, CORRECTED_NAME)
         end
 
+        it "contains and exercises the v2 replacement functions" do
+          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          wait_for_patch(machine, CORRECTED_NAME, 1)
+
+          V2_REPLACEMENT_FUNCTIONS.each do |function|
+            symbol_address(machine, function, CORRECTED_NAME)
+          end
+
+          set_probe(machine, "posix_cpu_timer_set", CORRECTED_NAME)
+          machine.succeeds("#{V2_RUNTIME} cpu-timer")
+          machine.succeeds("test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0")
+
+          set_probe(machine, "packet_set_ring", CORRECTED_NAME)
+          machine.succeeds("#{V2_RUNTIME} packet-ring")
+          machine.succeeds("test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0")
+
+          set_probe(machine, "ppp_destroy_channel", CORRECTED_NAME)
+          machine.succeeds("#{V2_RUNTIME} pppol2tp")
+          machine.succeeds("test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0")
+
+          machine.all_succeed(
+            "sysctl -q -w net.sctp.auth_enable=1",
+            "sysctl -q -w net.sctp.addip_enable=1"
+          )
+          set_probe(machine, "sctp_process_asconf", CORRECTED_NAME)
+          machine.succeeds("#{V2_RUNTIME} sctp-asconf")
+          machine.succeeds("test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0")
+
+          clear_probe(machine)
+          disable_patch(machine, CORRECTED_NAME)
+          remove_module(machine, CORRECTED_NAME)
+        end
+
         it "activates, exercises, disables, and removes the corrected patch" do
           machine.succeeds("modprobe -r nft_queue")
           unload_late_target_dependents(machine)
@@ -3319,12 +3424,12 @@ import ../../make-test.nix (
           machine.succeeds("ipset list -n")
         end
 
-        it "atomically replaces the predecessor and rejects its downgrade" do
-          machine.succeeds("insmod #{PREDECESSOR_MODULE}")
-          wait_for_patch(machine, PREDECESSOR_NAME, 1)
+        it "atomically replaces released v1 with v2 and rejects an incompatible downgrade" do
+          machine.succeeds("insmod #{RELEASED_V1_MODULE}")
+          wait_for_patch(machine, RELEASED_V1_NAME, 1)
           start_stress(machine)
-          predecessor_before = stress_counts(machine)
-          wait_for_stress_advance(machine, predecessor_before)
+          released_v1_before = stress_counts(machine)
+          wait_for_stress_advance(machine, released_v1_before)
           stop_stress(machine)
 
           replacement_state = start_fuse_helper(
@@ -3340,7 +3445,7 @@ import ../../make-test.nix (
           set_offset_probe(
             machine,
             "fuse_copy_page",
-            PREDECESSOR_NAME,
+            RELEASED_V1_NAME,
             FUSE_REF_PAGE_FINISH_CALL_OFFSET
           )
           machine.succeeds(
@@ -3369,13 +3474,13 @@ import ../../make-test.nix (
           )
           clear_probe(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
-          wait_for_patch(machine, PREDECESSOR_NAME, 0)
+          wait_for_patch(machine, RELEASED_V1_NAME, 0)
           start_stress(machine)
           corrected_before = stress_counts(machine)
           wait_for_stress_advance(machine, corrected_before)
 
-          machine.succeeds("rmmod #{PREDECESSOR_NAME}")
-          machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
+          machine.succeeds("rmmod #{RELEASED_V1_NAME}")
+          machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
           downgrade_log_start =
             machine.succeeds("dmesg | wc -l")[1].to_i + 1
           status, output = machine.execute(
@@ -3393,6 +3498,7 @@ import ../../make-test.nix (
           stop_stress(machine)
           disable_patch(machine, CORRECTED_NAME)
           remove_module(machine, CORRECTED_NAME)
+          remove_module(machine, RELEASED_V1_NAME)
           remove_module(machine, PREDECESSOR_NAME)
           cleanup_fuse_workloads(machine)
         end

@@ -11,7 +11,7 @@ let
     {
       name = "bp-6.12.95-cumulative";
       filterFn = availableFor "6.12.95";
-      version = 1;
+      version = 2;
       # kpatch-build groups these .ko targets into one modpost pass. Include
       # direct module dependencies so modpost sees their exported symbols.
       targets = [
@@ -43,6 +43,13 @@ let
         "net/netfilter/ipvs/ip_vs.ko"
         "net/netfilter/nf_tables.ko"
         "net/netfilter/nfnetlink_queue.ko"
+        "drivers/net/slip/slhc.ko"
+        "drivers/net/ppp/ppp_generic.ko"
+        "net/ipv4/udp_tunnel.ko"
+        "net/ipv6/ip6_udp_tunnel.ko"
+        "net/packet/af_packet.ko"
+        "net/sctp/sctp.ko"
+        "net/ceph/libceph.ko"
         "net/vmw_vsock/vsock.ko"
         "net/vmw_vsock/vmw_vsock_virtio_transport_common.ko"
       ];
