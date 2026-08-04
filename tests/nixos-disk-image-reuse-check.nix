@@ -35,24 +35,31 @@ let
     in
     test.config.machines.${machineName}.diskImage;
 
-  firstImage = makeImage {
-    testName = "disk-image-reuse-first";
-    machineName = "first";
+  baseImage = makeImage {
+    testName = "disk-image-reuse";
+    machineName = "machine";
   };
-  renamedImage = makeImage {
+  renamedTestImage = makeImage {
     testName = "disk-image-reuse-renamed";
-    machineName = "renamed";
+    machineName = "machine";
+  };
+  renamedMachineImage = makeImage {
+    testName = "disk-image-reuse";
+    machineName = "renamed-machine";
   };
   changedImage = makeImage {
-    testName = "disk-image-reuse-first";
-    machineName = "first";
+    testName = "disk-image-reuse";
+    machineName = "machine";
     additionalSpace = "1G";
   };
 in
-assert pkgs.lib.assertMsg (firstImage == renamedImage) (
-  "identical NixOS machine configurations produced different disk images"
+assert pkgs.lib.assertMsg (baseImage == renamedTestImage) (
+  "changing only the test name produced a different NixOS disk image"
 );
-assert pkgs.lib.assertMsg (firstImage != changedImage) (
+assert pkgs.lib.assertMsg (baseImage == renamedMachineImage) (
+  "changing only the machine name produced a different NixOS disk image"
+);
+assert pkgs.lib.assertMsg (baseImage != changedImage) (
   "different NixOS machine configurations produced the same disk image"
 );
 pkgs.runCommand "nixos-test-disk-image-reuse" { } ''
