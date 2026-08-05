@@ -10,6 +10,10 @@ let
   availablePatches = [
     {
       name = "bp-6.12.95-cumulative";
+      buildPatches = [
+        "bp-6.12.95-cumulative"
+        "bp-6.12.95-uname"
+      ];
       filterFn = availableFor "6.12.95";
       version = 2;
       # kpatch-build groups these .ko targets into one modpost pass. Include
@@ -83,7 +87,9 @@ let
   filterPatchesVersionsSum =
     kernelVersion: foldl (x: y: x + y) 0 (filterPatchesVersions kernelVersion);
 
-  patchListForVersion = kernelVersion: map (patch: patch.name) (filterPatches kernelVersion);
+  patchListForVersion =
+    kernelVersion:
+    concatMap (patch: patch.buildPatches or [ patch.name ]) (filterPatches kernelVersion);
   patchTargetsForVersion =
     kernelVersion: unique (concatMap (patch: patch.targets or [ ]) (filterPatches kernelVersion));
 in

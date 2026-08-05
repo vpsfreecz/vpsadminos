@@ -31,11 +31,15 @@ base.overrideAttrs (old: {
         ''#define LIVEPATCH_NAME                       "2"''
         "livepatch_2"
         "bp-6.12.95-cumulative.patch"
+        " $src/bp-6.12.95-uname.patch"
+        " bp-6.12.95-uname.patch"
       ]
       [
         ''#define LIVEPATCH_NAME                       "predecessor_1"''
         "livepatch_predecessor_1"
         "bp-6.12.95-predecessor-v4.patch"
+        ""
+        ""
       ]
       old.buildPhase;
   installPhase =

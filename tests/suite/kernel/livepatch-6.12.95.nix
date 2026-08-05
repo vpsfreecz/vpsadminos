@@ -16,7 +16,7 @@ import ../../make-test.nix (
     correctedSha256 = builtins.hashFile "sha256" correctedModule;
     releasedV1Sha256 = builtins.hashFile "sha256" releasedV1Module;
     predecessorSha256 = builtins.hashFile "sha256" predecessorModule;
-    expectedCorrectedSha256 = "d111f14a4042b04993ae27c719546382639024b90c56caff46260f9447fcb2b2";
+    expectedCorrectedSha256 = "88e7aede28426a8f9d628cc6675f3b79e0df13865e1e8a2c78f528163709b1ae";
     expectedReleasedV1Sha256 = "a3f79b223f1ad1eba764ed10e687b5800aea28b42eb1cc9fffb95f43d6260a30";
     expectedPredecessorSha256 = "70f22f6f2a1a5b0eaf57d09fdd8e988561adbea6c77fb59dcdf89b2415a9f79e";
 
@@ -1912,6 +1912,16 @@ import ../../make-test.nix (
             machine.execute("rmmod livepatch_test_pernet_hold >/dev/null 2>&1 || true")
             machine.execute("rmmod livepatch_test_probe >/dev/null 2>&1 || true")
           end
+        end
+
+        it "reports the cumulative livepatch version through uname" do
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95")
+          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          wait_for_patch(machine, CORRECTED_NAME, 1)
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.2")
+          disable_patch(machine, CORRECTED_NAME)
+          remove_module(machine, CORRECTED_NAME)
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95")
         end
 
         it "keeps unpatched credential lifetimes healthy through fork and RCU callbacks" do

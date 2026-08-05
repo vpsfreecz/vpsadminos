@@ -1,0 +1,41 @@
+diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
+--- a/kernel/bpf/core.c
++++ b/kernel/bpf/core.c
+@@ -43,0 +44,2 @@
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch-build.h>
+@@ -921,0 +924,30 @@ static struct klp_state vpsadminos_pipapo_state
++static char vpsadminos_livepatch_old_release[__NEW_UTS_LEN + 1];
++static bool vpsadminos_livepatch_uname_changed;
++
++static void vpsadminos_livepatch_set_uname(void)
++{
++	down_write(&uts_sem);
++	strscpy(vpsadminos_livepatch_old_release,
++		init_uts_ns.name.release,
++		sizeof(vpsadminos_livepatch_old_release));
++	scnprintf(init_uts_ns.name.release,
++		  sizeof(init_uts_ns.name.release), "%s.%s",
++		  LIVEPATCH_ORIG_KERNEL_VERSION, LIVEPATCH_NAME);
++	vpsadminos_livepatch_uname_changed = true;
++	up_write(&uts_sem);
++	uts_proc_notify(UTS_PROC_OSRELEASE);
++}
++
++static void vpsadminos_livepatch_restore_uname(void)
++{
++	down_write(&uts_sem);
++	if (vpsadminos_livepatch_uname_changed) {
++		strscpy(init_uts_ns.name.release,
++			vpsadminos_livepatch_old_release,
++			sizeof(init_uts_ns.name.release));
++		vpsadminos_livepatch_uname_changed = false;
++	}
++	up_write(&uts_sem);
++	uts_proc_notify(UTS_PROC_OSRELEASE);
++}
++
+@@ -990,0 +1023 @@ static void vpsadminos_livepatch_post_patch(struct klp_object *obj)
++	vpsadminos_livepatch_set_uname();
+@@ -1005,0 +1039 @@ static void vpsadminos_livepatch_post_unpatch(struct klp_object *obj)
++	vpsadminos_livepatch_restore_uname();
