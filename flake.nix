@@ -764,6 +764,9 @@
             inherit nixpkgs system testFramework;
           };
           os-eval = sys.config.system.build.toplevel;
+          vpsadminos-disk-image-reuse = import ./tests/vpsadminos-disk-image-reuse-check.nix {
+            inherit nixpkgs system testFramework;
+          };
         }
       );
     };

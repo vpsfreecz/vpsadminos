@@ -57,6 +57,9 @@ jobs:
       - name: Check NixOS disk image reuse
         run: nix build .#checks.x86_64-linux.nixos-disk-image-reuse --no-link
 
+      - name: Check vpsAdminOS disk image reuse
+        run: nix build .#checks.x86_64-linux.vpsadminos-disk-image-reuse --no-link
+
       - name: Determine branch name
         id: vars
         run: |
