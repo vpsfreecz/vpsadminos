@@ -1,3 +1,158 @@
+diff --git a/arch/x86/entry/entry_64.S b/arch/x86/entry/entry_64.S
+index 9c6a110a52d48c08d185762354bbd23acf5d4233..7e72e04456822f43bacf9edd397b85ee19b4be61 100644
+--- a/arch/x86/entry/entry_64.S
++++ b/arch/x86/entry/entry_64.S
+@@ -938,0 +939,2 @@ SYM_CODE_START(paranoid_entry)
++	HANDLE_INTR_SAFERET 8(%rsp)
++
+@@ -1040,0 +1043,5 @@ SYM_CODE_START(error_entry)
++
++	VALIDATE_UNRET_END
++
++	HANDLE_INTR_SAFERET 8(%rsp)
++
+@@ -1059 +1065,0 @@ SYM_CODE_START(error_entry)
+-	VALIDATE_UNRET_END
+@@ -1087,0 +1094,73 @@ SYM_CODE_END(error_entry)
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_MITIGATION_SRSO)
++/*
++ * A running kernel cannot grow paranoid_entry() and error_entry() in place.
++ * The cumulative livepatch redirects their existing terminal return-thunk
++ * jumps to the matching stub below.  Keep the interrupted Safe-RET handling
++ * identical to HANDLE_INTR_SAFERET and preserve the selected return thunk.
++ */
++	.pushsection .text.vpsadminos.saferet, "ax"
++SYM_CODE_START(vpsadminos_saferet_paranoid_srso)
++	UNWIND_HINT_FUNC
++	__HANDLE_INTR_SAFERET(srso_safe_ret, 8(%rsp))
++	jmp	srso_return_thunk
++SYM_CODE_END(vpsadminos_saferet_paranoid_srso)
++
++SYM_CODE_START(vpsadminos_saferet_paranoid_alias)
++	UNWIND_HINT_FUNC
++	__HANDLE_INTR_SAFERET(srso_alias_safe_ret, 8(%rsp))
++	jmp	srso_alias_return_thunk
++SYM_CODE_END(vpsadminos_saferet_paranoid_alias)
++
++SYM_CODE_START(vpsadminos_saferet_error_srso)
++	UNWIND_HINT_FUNC
++	__HANDLE_INTR_SAFERET(srso_safe_ret, 8(%rsp))
++	leaq	8(%rsp), %rax
++	jmp	srso_return_thunk
++SYM_CODE_END(vpsadminos_saferet_error_srso)
++
++SYM_CODE_START(vpsadminos_saferet_error_alias)
++	UNWIND_HINT_FUNC
++	__HANDLE_INTR_SAFERET(srso_alias_safe_ret, 8(%rsp))
++	leaq	8(%rsp), %rax
++	jmp	srso_alias_return_thunk
++SYM_CODE_END(vpsadminos_saferet_error_alias)
++	.popsection
++
++	/*
++	 * SYM_CODE symbols are STT_NOTYPE and share the non-bundlable
++	 * .entry.text section, so kpatch's STT_FUNC-only function-ignore record
++	 * cannot describe these entries.  The boot-only HANDLE_INTR_SAFERET
++	 * expansion also changes the owning object's alternative-instruction
++	 * metadata and replacement payload.  Ignore all three boot-only sections
++	 * from their owning object and keep the livepatch stubs in the separate
++	 * section above so create-diff-object still bundles them.
++	 */
++	.pushsection .rodata, "a"
++.Lvpsadminos_kpatch_ignore_entry_text:
++	.string ".entry.text"
++.Lvpsadminos_kpatch_ignore_altinstructions:
++	.string ".altinstructions"
++.Lvpsadminos_kpatch_ignore_altinstr_replacement:
++	.string ".altinstr_replacement"
++	.popsection
++
++	.pushsection .kpatch.ignore.sections, "aw"
++	.balign 8
++	.globl __UNIQUE_ID_kpatch_ignore_section_vpsadminos_entry_text
++	.type __UNIQUE_ID_kpatch_ignore_section_vpsadminos_entry_text, @object
++	.size __UNIQUE_ID_kpatch_ignore_section_vpsadminos_entry_text, 8
++__UNIQUE_ID_kpatch_ignore_section_vpsadminos_entry_text:
++	.quad .Lvpsadminos_kpatch_ignore_entry_text
++	.globl __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstructions
++	.type __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstructions, @object
++	.size __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstructions, 8
++__UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstructions:
++	.quad .Lvpsadminos_kpatch_ignore_altinstructions
++	.globl __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstr_replacement
++	.type __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstr_replacement, @object
++	.size __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstr_replacement, 8
++__UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstr_replacement:
++	.quad .Lvpsadminos_kpatch_ignore_altinstr_replacement
++	.popsection
++#endif
++
+diff --git a/arch/x86/include/asm/nospec-branch.h b/arch/x86/include/asm/nospec-branch.h
+index f2cc7754918c0d3b663e677f4c8f4df7d31dfa21..c2feb9f733434d5e1f42298d7f7876166a9ee424 100644
+--- a/arch/x86/include/asm/nospec-branch.h
++++ b/arch/x86/include/asm/nospec-branch.h
+@@ -179,0 +180,47 @@
++/*
++ * Helper for detecting if an interrupt occurred at an unsafe location within
++ * Safe-RET.  If Safe-RET is interrupted after the CALL or LEA the RSB may get
++ * poisoned by the interrupt handler.
++ *
++ * The Safe-RET sequence is:
++ *
++ * CALL
++ * LEA 8(%RSP), %RSP
++ * RET
++ *
++ * The two CMPs below check whether RIP points to after the CALL or after the
++ * LEA.
++ *
++ * The LFENCE below is to address this particular speculation case:
++ *
++ * 1. Userspace runs and poisons the BTB around the safe-RET routine
++ *
++ * 2. Userspace triggers some kind of exception
++ *
++ * 3. Kernel executes error_entry() and mis-speculates the branch into thinking
++ *    it actually came from kernel space
++ *
++ * 4. The kernel then further mis-speculates that the exception occurred due
++ *    to an interrupted safe-RET
++ *
++ * 5. The handle_interrupted_saferet() routine speculatively executes and
++ *    speculatively does a safe-RET. But this is unsafe since it was never
++ *    untrained.
++ *
++ * The LFENCE fixes this by ensuring step 5 is never reached speculatively.
++ * Note that this LFENCE only occurs if safe-RET was actually interrupted (so
++ * it's outside of the normal path).
++ *
++ * (The 128 below is RIP offset, used as a naked number here for ease of
++ * backporting).
++ */
++#define __HANDLE_INTR_SAFERET(name, pt_regs)		\
++	cmpq	$(name), 128+pt_regs;			\
++	jb	1f;					\
++	cmpq	$(name)+5, 128+pt_regs;			\
++	ja	1f;					\
++	lfence;						\
++	leaq	pt_regs, %rdi;				\
++	call	handle_interrupted_saferet;		\
++	1:
++
+@@ -308,0 +356,8 @@
++.macro HANDLE_INTR_SAFERET pt_regs
++#ifdef CONFIG_MITIGATION_SRSO
++	ALTERNATIVE_2 "", \
++	__stringify(__HANDLE_INTR_SAFERET(srso_safe_ret, \pt_regs)), X86_FEATURE_SRSO, \
++	__stringify(__HANDLE_INTR_SAFERET(srso_alias_safe_ret, \pt_regs)), X86_FEATURE_SRSO_ALIAS
++
++#endif
++.endm
+@@ -637,0 +693,4 @@ static __always_inline void x86_idle_clear_cpu_buffers(void)
++void srso_safe_ret(void);
++void srso_alias_safe_ret(void);
++void handle_interrupted_saferet(struct pt_regs *regs);
++
 diff --git a/arch/x86/include/asm/tlbflush.h b/arch/x86/include/asm/tlbflush.h
 index 3da645139748538daac70166618d8ad95116eb74..fd665bd454e3b0168d558636272bf08d7cd532af 100644
 --- a/arch/x86/include/asm/tlbflush.h
@@ -7,10 +162,20 @@ index 3da645139748538daac70166618d8ad95116eb74..fd665bd454e3b0168d558636272bf08d
 +void vpsadminos_livepatch_flush_tlb_all(void);
 +#endif
 diff --git a/arch/x86/kernel/cpu/bugs.c b/arch/x86/kernel/cpu/bugs.c
-index 939401b5d2ef04d3cda281ed432f91af9029b63b..1af64c54fe6975012282c2effc3e8617f7e8bf94 100644
+index 939401b5d2ef04d3cda281ed432f91af9029b63b..67585cbedd72994c2c6530c2c1f0185cb59c9677 100644
 --- a/arch/x86/kernel/cpu/bugs.c
 +++ b/arch/x86/kernel/cpu/bugs.c
-@@ -1870,0 +1871,22 @@ static void __init bhi_select_mitigation(void)
+@@ -18,0 +19,5 @@
++#ifdef CONFIG_LIVEPATCH
++#include <linux/livepatch.h>
++#include <linux/memory.h>
++#include <linux/vpsadminos-livepatch.h>
++#endif
+@@ -33,0 +39,3 @@
++#ifdef CONFIG_LIVEPATCH
++#include <asm/text-patching.h>
++#endif
+@@ -1870,0 +1879,22 @@ static void __init bhi_select_mitigation(void)
 +#ifdef CONFIG_BPF_JIT
 +void vpsadminos_bpf_jit_ibpb(void);
 +
@@ -32,6 +197,406 @@ index 939401b5d2ef04d3cda281ed432f91af9029b63b..1af64c54fe6975012282c2effc3e8617
 +	cpus_read_unlock();
 +}
 +#endif
++
+@@ -3485,0 +3516,262 @@ void __warn_thunk(void)
++
++#ifdef CONFIG_MITIGATION_SRSO
++/*
++ * Called during exception/interrupt entry if interrupted during the
++ * safe-RET sequence.  The safe-RET sequence consists of 3 instructions:
++ *
++ *	CALL
++ *	LEA 8(%RSP), %RSP
++ *	RET
++ *
++ * An interrupt after the CALL or after the LEA could potentially lead
++ * to branch predictor poisoning and results in the sequence not being
++ * able to be safely resumed.
++ *
++ * Therefore, modify the regs state as if the remaining part of the
++ * safe-RET sequence executed so the interrupt returns back to the
++ * desired return target, instead of the to the safe-RET sequence.
++ */
++void noinstr handle_interrupted_saferet(struct pt_regs *regs)
++{
++	unsigned long rip = regs->ip;
++
++	if (rip == (unsigned long) srso_safe_ret ||
++	    rip == (unsigned long) srso_alias_safe_ret) {
++	    /* Modify stack pointer as if LEA executed: */
++	    regs->sp += 8;
++	}
++
++	/*
++	 * Adjust registers as if RET executed:
++	 *
++	 * 1. Read the return address off the stack and into rIP:
++	 */
++	regs->ip = *(unsigned long *)(regs->sp);
++
++	/* 2. Pop rIP off the stack: */
++	regs->sp += 8;
++}
++
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_SAFERET_STATE_ID	0x7e7f81cf6f5ca331UL
++#define VPSADMINOS_PARANOID_RETURN_OFFSET	0xe1
++#define VPSADMINOS_ERROR_RETURN_OFFSET		0xdb
++
++static struct klp_state vpsadminos_saferet_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_SAFERET_STATE_ID,
++	.version = 1,
++};
++
++struct vpsadminos_saferet_transition {
++	/* Boot-kernel bytes propagated for final clean removal. */
++	u8 original_paranoid[JMP32_INSN_SIZE];
++	u8 original_error[JMP32_INSN_SIZE];
++	/* Current owner's bytes verified by a cumulative successor. */
++	u8 patched_paranoid[JMP32_INSN_SIZE];
++	u8 patched_error[JMP32_INSN_SIZE];
++};
++
++static struct vpsadminos_saferet_transition vpsadminos_saferet_transition;
++static struct vpsadminos_saferet_transition *vpsadminos_saferet_predecessor;
++static u8 vpsadminos_saferet_previous_paranoid[JMP32_INSN_SIZE];
++static u8 vpsadminos_saferet_previous_error[JMP32_INSN_SIZE];
++static bool vpsadminos_saferet_text_patched;
++
++static void *vpsadminos_saferet_paranoid_site(void)
++{
++	return (void *)((unsigned long)paranoid_entry +
++			VPSADMINOS_PARANOID_RETURN_OFFSET);
++}
++
++static void *vpsadminos_saferet_error_site(void)
++{
++	return (void *)((unsigned long)error_entry +
++			VPSADMINOS_ERROR_RETURN_OFFSET);
++}
++
++static int vpsadminos_saferet_make_jump(union text_poke_insn *insn,
++					void *site, void *target)
++{
++	s64 displacement = (s64)(unsigned long)target -
++			   ((s64)(unsigned long)site + JMP32_INSN_SIZE);
++
++	if (displacement != (s64)(s32)displacement)
++		return -ERANGE;
++
++	__text_gen_insn(insn, JMP32_INSN_OPCODE, site, target,
++			JMP32_INSN_SIZE);
++	return 0;
++}
++
++static int vpsadminos_saferet_select_stubs(void **paranoid_stub,
++					   void **error_stub)
++{
++	if (boot_cpu_has(X86_FEATURE_SRSO_ALIAS)) {
++		*paranoid_stub = vpsadminos_saferet_paranoid_alias;
++		*error_stub = vpsadminos_saferet_error_alias;
++		return 1;
++	}
++
++	if (boot_cpu_has(X86_FEATURE_SRSO)) {
++		*paranoid_stub = vpsadminos_saferet_paranoid_srso;
++		*error_stub = vpsadminos_saferet_error_srso;
++		return 1;
++	}
++
++	return 0;
++}
++
++int vpsadminos_saferet_livepatch_pre_patch(void)
++{
++	struct vpsadminos_saferet_transition *prev_transition = NULL;
++	struct klp_state *prev_state;
++	union text_poke_insn expected_paranoid;
++	union text_poke_insn expected_error;
++	union text_poke_insn patched_paranoid;
++	union text_poke_insn patched_error;
++	const u8 *original_paranoid;
++	const u8 *original_error;
++	const u8 *expected_paranoid_text;
++	const u8 *expected_error_text;
++	void *paranoid_site = vpsadminos_saferet_paranoid_site();
++	void *error_site = vpsadminos_saferet_error_site();
++	void *paranoid_stub;
++	void *error_stub;
++	int ret;
++
++	if (!vpsadminos_saferet_select_stubs(&paranoid_stub, &error_stub))
++		return 0;
++
++	if (vpsadminos_saferet_text_patched)
++		return -EBUSY;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_SAFERET_STATE_ID);
++	if (prev_state)
++		prev_transition = READ_ONCE(prev_state->data);
++
++	if (prev_transition) {
++		expected_paranoid_text = prev_transition->patched_paranoid;
++		expected_error_text = prev_transition->patched_error;
++		original_paranoid = prev_transition->original_paranoid;
++		original_error = prev_transition->original_error;
++	} else {
++		ret = vpsadminos_saferet_make_jump(&expected_paranoid,
++						   paranoid_site,
++						   x86_return_thunk);
++		if (ret)
++			return ret;
++		ret = vpsadminos_saferet_make_jump(&expected_error, error_site,
++						   x86_return_thunk);
++		if (ret)
++			return ret;
++
++		expected_paranoid_text = expected_paranoid.text;
++		expected_error_text = expected_error.text;
++		original_paranoid = expected_paranoid.text;
++		original_error = expected_error.text;
++	}
++
++	ret = vpsadminos_saferet_make_jump(&patched_paranoid, paranoid_site,
++					   paranoid_stub);
++	if (ret)
++		return ret;
++	ret = vpsadminos_saferet_make_jump(&patched_error, error_site,
++					   error_stub);
++	if (ret)
++		return ret;
++
++	mutex_lock(&text_mutex);
++	if (memcmp(paranoid_site, expected_paranoid_text, JMP32_INSN_SIZE) ||
++	    memcmp(error_site, expected_error_text, JMP32_INSN_SIZE)) {
++		pr_err("livepatch Safe-RET target bytes do not match 6.12.95\n");
++		ret = -EINVAL;
++		goto unlock;
++	}
++
++	memcpy(vpsadminos_saferet_previous_paranoid, paranoid_site,
++	       JMP32_INSN_SIZE);
++	memcpy(vpsadminos_saferet_previous_error, error_site,
++	       JMP32_INSN_SIZE);
++	memcpy(vpsadminos_saferet_transition.original_paranoid,
++	       original_paranoid, JMP32_INSN_SIZE);
++	memcpy(vpsadminos_saferet_transition.original_error,
++	       original_error, JMP32_INSN_SIZE);
++	memcpy(vpsadminos_saferet_transition.patched_paranoid,
++	       patched_paranoid.text, JMP32_INSN_SIZE);
++	memcpy(vpsadminos_saferet_transition.patched_error,
++	       patched_error.text, JMP32_INSN_SIZE);
++	vpsadminos_saferet_predecessor = prev_transition;
++
++	text_poke_queue(paranoid_site,
++			vpsadminos_saferet_transition.patched_paranoid,
++			JMP32_INSN_SIZE, NULL);
++	text_poke_queue(error_site,
++			vpsadminos_saferet_transition.patched_error,
++			JMP32_INSN_SIZE, NULL);
++	text_poke_finish();
++	vpsadminos_saferet_text_patched = true;
++	ret = 0;
++
++unlock:
++	mutex_unlock(&text_mutex);
++	return ret;
++}
++
++void vpsadminos_saferet_livepatch_post_patch(void)
++{
++	struct klp_state *prev_state;
++
++	if (!vpsadminos_saferet_text_patched)
++		return;
++
++	WRITE_ONCE(vpsadminos_saferet_state.data,
++		   &vpsadminos_saferet_transition);
++	prev_state = klp_get_prev_state(VPSADMINOS_SAFERET_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == vpsadminos_saferet_predecessor)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++void vpsadminos_saferet_livepatch_post_unpatch(void)
++{
++	const u8 *restore_paranoid;
++	const u8 *restore_error;
++	bool committed;
++	void *paranoid_site = vpsadminos_saferet_paranoid_site();
++	void *error_site = vpsadminos_saferet_error_site();
++
++	committed = READ_ONCE(vpsadminos_saferet_state.data) ==
++		    &vpsadminos_saferet_transition;
++	WRITE_ONCE(vpsadminos_saferet_state.data, NULL);
++	if (!vpsadminos_saferet_text_patched)
++		return;
++
++	if (committed) {
++		restore_paranoid =
++			vpsadminos_saferet_transition.original_paranoid;
++		restore_error = vpsadminos_saferet_transition.original_error;
++	} else {
++		restore_paranoid = vpsadminos_saferet_previous_paranoid;
++		restore_error = vpsadminos_saferet_previous_error;
++	}
++
++	mutex_lock(&text_mutex);
++	WARN_ON_ONCE(memcmp(paranoid_site,
++			    vpsadminos_saferet_transition.patched_paranoid,
++			    JMP32_INSN_SIZE));
++	WARN_ON_ONCE(memcmp(error_site,
++			    vpsadminos_saferet_transition.patched_error,
++			    JMP32_INSN_SIZE));
++	text_poke_queue(paranoid_site, restore_paranoid,
++			JMP32_INSN_SIZE, NULL);
++	text_poke_queue(error_site, restore_error,
++			JMP32_INSN_SIZE, NULL);
++	text_poke_finish();
++	vpsadminos_saferet_text_patched = false;
++	vpsadminos_saferet_predecessor = NULL;
++	mutex_unlock(&text_mutex);
++}
++#endif /* CONFIG_LIVEPATCH */
++#endif /* CONFIG_MITIGATION_SRSO */
+diff --git a/arch/x86/kvm/mmu/mmu.c b/arch/x86/kvm/mmu/mmu.c
+index aab26f90c28551d57e57949b3194697374957684..ad17b84aee06bfe0d0daf8745753e3ebbe5102b4 100644
+--- a/arch/x86/kvm/mmu/mmu.c
++++ b/arch/x86/kvm/mmu/mmu.c
+@@ -4604 +4603,0 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
+-	r = RET_PF_RETRY;
+@@ -4607,3 +4605,0 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
+-	if (is_page_fault_stale(vcpu, fault))
+-		goto out_unlock;
+-
+@@ -4613,0 +4610,5 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
++	if (is_page_fault_stale(vcpu, fault)) {
++		r = RET_PF_RETRY;
++		goto out_unlock;
++	}
++
+diff --git a/arch/x86/kvm/mmu/paging_tmpl.h b/arch/x86/kvm/mmu/paging_tmpl.h
+index b08017683920f026a2985df73130e0cb2194fc94..ce467bc3383c99c617a112f1b2ebe9663a2bc3a3 100644
+--- a/arch/x86/kvm/mmu/paging_tmpl.h
++++ b/arch/x86/kvm/mmu/paging_tmpl.h
+@@ -842 +841,0 @@ static int FNAME(page_fault)(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
+-	r = RET_PF_RETRY;
+@@ -845,3 +843,0 @@ static int FNAME(page_fault)(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
+-	if (is_page_fault_stale(vcpu, fault))
+-		goto out_unlock;
+-
+@@ -850,0 +847,6 @@ static int FNAME(page_fault)(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
++
++	if (is_page_fault_stale(vcpu, fault)) {
++		r = RET_PF_RETRY;
++		goto out_unlock;
++	}
++
+diff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c
+index 83062c98308f27e362c19d79f36a2d8d5904f177..f84640e7e6811c381b133fd749e9603adbe6e564 100644
+--- a/arch/x86/kvm/svm/svm.c
++++ b/arch/x86/kvm/svm/svm.c
+@@ -30,0 +31,3 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/livepatch.h>
++#endif
+@@ -251,0 +255,40 @@ DEFINE_PER_CPU(struct svm_cpu_data, svm_data);
++#ifdef CONFIG_LIVEPATCH
++struct vpsadminos_svm_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_svm_pre_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++static void vpsadminos_svm_bump_asid_generation_cpu(void *unused)
++{
++	struct svm_cpu_data *sd = this_cpu_ptr(&svm_data);
++
++	(void)unused;
++	sd->asid_generation++;
++}
++
++static void vpsadminos_svm_bump_asid_generation(struct klp_object *obj)
++{
++	(void)obj;
++	on_each_cpu(vpsadminos_svm_bump_asid_generation_cpu, NULL, 1);
++}
++
++static struct vpsadminos_svm_post_patch_callback
++vpsadminos_svm_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_svm_bump_asid_generation,
++	.objname = NULL,
++};
++
++static struct vpsadminos_svm_pre_unpatch_callback
++vpsadminos_svm_pre_unpatch_data
++__section(".kpatch.callbacks.pre_unpatch") __used = {
++	.fn = vpsadminos_svm_bump_asid_generation,
++	.objname = NULL,
++};
++#endif
++
+@@ -629 +672,6 @@ static int svm_enable_virtualization_cpu(void)
+-	sd->asid_generation = 1;
++	/*
++	 * Bump the current asid_generation value to ensure any vCPU that
++	 * previously ran on this CPU sees a stale generation and is forced
++	 * to acquire a new ASID, preventing a latent ASID collision.
++	 */
++	sd->asid_generation++;
+diff --git a/arch/x86/kvm/vmx/nested.c b/arch/x86/kvm/vmx/nested.c
+index 1a7a12af4a3a847d0472012f808d99ee8c9d626a..40078d5e6b29173f71f13edca5e53337ba18f514 100644
+--- a/arch/x86/kvm/vmx/nested.c
++++ b/arch/x86/kvm/vmx/nested.c
+@@ -327,0 +328 @@ static void free_nested(struct kvm_vcpu *vcpu)
++	struct vmcs *shadow_vmcs;
+@@ -345,2 +346,7 @@ static void free_nested(struct kvm_vcpu *vcpu)
+-		vmcs_clear(vmx->vmcs01.shadow_vmcs);
+-		free_vmcs(vmx->vmcs01.shadow_vmcs);
++
++		/*
++		 * Keep the pointer visible until after VMCLEAR, so migration
++		 * can clear an active shadow VMCS on the old CPU.
++		 */
++		shadow_vmcs = vmx->vmcs01.shadow_vmcs;
++		vmcs_clear(shadow_vmcs);
+@@ -347,0 +354 @@ static void free_nested(struct kvm_vcpu *vcpu)
++		free_vmcs(shadow_vmcs);
+diff --git a/arch/x86/lib/retpoline.S b/arch/x86/lib/retpoline.S
+index 614fb9aee2ff65c36db2d3bfb4450780e091ea9f..bc66ce29ccc8b5c9ff56ae0e5c89b696276b4f6d 100644
+--- a/arch/x86/lib/retpoline.S
++++ b/arch/x86/lib/retpoline.S
+@@ -170,0 +171,11 @@ SYM_CODE_START_NOALIGN(srso_alias_safe_ret)
++
++	/*
++	 * Tell objtool that those are not function pointers referenced by
++	 * __HANDLE_INTR_SAFERET(). Below too.
++	 */
++	ANNOTATE_NOENDBR
++
++	/*
++	 * Safe-RET sequence. If you need to change it, adjust
++	 * handle_interrupted_saferet() too.
++	 */
+@@ -172,0 +184,2 @@ SYM_CODE_START_NOALIGN(srso_alias_safe_ret)
++
++	ANNOTATE_NOENDBR
+@@ -174,0 +188 @@ SYM_CODE_START_NOALIGN(srso_alias_safe_ret)
++	/* End of Safe-RET sequence */
+@@ -208,0 +223,4 @@ SYM_INNER_LABEL(srso_safe_ret, SYM_L_GLOBAL)
++	/*
++	 * Safe-RET sequence. If you need to change it, adjust
++	 * handle_interrupted_saferet() too.
++	 */
+@@ -210,0 +229,2 @@ SYM_INNER_LABEL(srso_safe_ret, SYM_L_GLOBAL)
++	/* End of Safe-RET sequence */
 +
 diff --git a/arch/x86/mm/tlb.c b/arch/x86/mm/tlb.c
 index 8629d90fdcd922c4dbe55e809d06e4a3354af700..d6bfdb2d087c8f93ceba2430efe948bf24d46bef 100644
@@ -79,6 +644,12 @@ index c70994c6a265e3c29c5dfa3914812b9972410ecf..4f48d426209e40c33cc05e479ea4e421
 @@ -3572,0 +3573,2 @@ static void ppp_destroy_channel(struct channel *pch)
 +	/* A late ppp_input() may still queue an skb on pch->file.rq. */
 +	synchronize_rcu();
+diff --git a/fs/ceph/caps.c b/fs/ceph/caps.c
+index bed34fc11c9195d926d400524b5d1ba055a5d602..52e02996d2eb61d82045c6a4bfce1a8d6c2e2630 100644
+--- a/fs/ceph/caps.c
++++ b/fs/ceph/caps.c
+@@ -4380,0 +4381 @@ void ceph_handle_caps(struct ceph_mds_session *session,
++	ceph_decode_need(&snaptrace, end, snaptrace_len, bad);
 diff --git a/fs/fuse/dev.c b/fs/fuse/dev.c
 index f7e305c9ad4e8be3320d5fe38da833125529f0c5..bd3e321572c7e07c7256ffe031e712d605b3f39f 100644
 --- a/fs/fuse/dev.c
@@ -188,10 +759,10 @@ index 5321585c778fcc1fef0e0420cb481786c02a7aac..bd6ac060450cb637c561643d549882ca
 +void		rpc_hold_client(struct rpc_clnt *);
 diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..ac8f263fe6d058dd9b3ebdd321425c6440bac549
+index 0000000000000000000000000000000000000000..3dc4540e91cd10ee39139d2a64954e49eed1174f
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch.h
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,91 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
 +#define _LINUX_VPSADMINOS_LIVEPATCH_H
@@ -230,6 +801,32 @@ index 0000000000000000000000000000000000000000..ac8f263fe6d058dd9b3ebdd321425c64
 +
 +#ifdef CONFIG_LIVEPATCH
 +void vpsadminos_pipapo_livepatch_cleanup(void);
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_X86) && \
++	defined(CONFIG_MITIGATION_SRSO)
++void error_entry(void);
++void paranoid_entry(void);
++void vpsadminos_saferet_paranoid_srso(void);
++void vpsadminos_saferet_paranoid_alias(void);
++void vpsadminos_saferet_error_srso(void);
++void vpsadminos_saferet_error_alias(void);
++int vpsadminos_saferet_livepatch_pre_patch(void);
++void vpsadminos_saferet_livepatch_post_patch(void);
++void vpsadminos_saferet_livepatch_post_unpatch(void);
++#else
++static inline int vpsadminos_saferet_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_saferet_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_saferet_livepatch_post_unpatch(void)
++{
++}
 +#endif
 +
 +#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_SUNRPC)
@@ -289,7 +886,7 @@ index 3978c3174cdbe0c2329fe4dde28342e619c96d8b..9d080ec1382d6b35be77f8a733f99862
 +#endif
 +
 diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
-index 517710c89fa50516212244a78f7a24c5c50d7b59..56621e2d7cd678886d35c8710e30152ca9fbc448 100644
+index 517710c89fa50516212244a78f7a24c5c50d7b59..4ef21237c69a90d73d476fa749baff4a6874dfac 100644
 --- a/kernel/bpf/core.c
 +++ b/kernel/bpf/core.c
 @@ -40,0 +41,4 @@
@@ -302,7 +899,7 @@ index 517710c89fa50516212244a78f7a24c5c50d7b59..56621e2d7cd678886d35c8710e30152c
 +#include <asm/tlbflush.h>
 +#endif
 +
-@@ -894,0 +903,130 @@ void bpf_jit_fill_hole_with_zero(void *area, unsigned int size)
+@@ -894,0 +903,157 @@ void bpf_jit_fill_hole_with_zero(void *area, unsigned int size)
 +#if defined(CONFIG_X86) && defined(CONFIG_BPF_JIT)
 +void vpsadminos_bpf_jit_ibpb(void);
 +#else
@@ -376,15 +973,29 @@ index 517710c89fa50516212244a78f7a24c5c50d7b59..56621e2d7cd678886d35c8710e30152c
 +	int ret;
 +
 +	(void)obj;
-+	ret = vpsadminos_xfrm_livepatch_pre_patch();
++	ret = vpsadminos_saferet_livepatch_pre_patch();
 +	if (ret)
 +		return ret;
-+	return vpsadminos_sunrpc_livepatch_pre_patch();
++
++	ret = vpsadminos_xfrm_livepatch_pre_patch();
++	if (ret)
++		goto restore_saferet;
++
++	ret = vpsadminos_sunrpc_livepatch_pre_patch();
++	if (ret)
++		goto restore_saferet;
++
++	return 0;
++
++restore_saferet:
++	vpsadminos_saferet_livepatch_post_unpatch();
++	return ret;
 +}
 +
 +static void vpsadminos_livepatch_post_patch(struct klp_object *obj)
 +{
 +	(void)obj;
++	vpsadminos_saferet_livepatch_post_patch();
 +	vpsadminos_pipapo_livepatch_post_patch();
 +	vpsadminos_nfqueue_livepatch_post_patch();
 +	vpsadminos_sunrpc_livepatch_post_patch();
@@ -406,6 +1017,7 @@ index 517710c89fa50516212244a78f7a24c5c50d7b59..56621e2d7cd678886d35c8710e30152c
 +	vpsadminos_sunrpc_livepatch_post_unpatch();
 +	vpsadminos_nfqueue_livepatch_post_unpatch();
 +	vpsadminos_pipapo_livepatch_post_unpatch();
++	vpsadminos_saferet_livepatch_post_unpatch();
 +}
 +
 +static struct vpsadminos_pre_patch_callback vpsadminos_pre_patch_data
@@ -431,9 +1043,21 @@ index 517710c89fa50516212244a78f7a24c5c50d7b59..56621e2d7cd678886d35c8710e30152c
 +	.fn = vpsadminos_livepatch_post_unpatch,
 +	.objname = NULL,
 +};
++
++/*
++ * Kpatch collects system-state records from the built-in diff object.  Keep
++ * the state owned by the modular KVM SVM callback here so it is registered by
++ * the generated cumulative livepatch even when kvm-amd is not loaded yet.
++ */
++static struct klp_state vpsadminos_svm_asid_generation_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = 0x25f744ffa0c8e799UL,
++	.version = 1,
++};
 +#endif
 +
-@@ -983,0 +1122 @@ void *bpf_prog_pack_alloc(u32 size, bpf_jit_fill_hole_t bpf_fill_ill_insns)
+@@ -983,0 +1149 @@ void *bpf_prog_pack_alloc(u32 size, bpf_jit_fill_hole_t bpf_fill_ill_insns)
 +	vpsadminos_bpf_jit_ibpb();
 diff --git a/kernel/events/core.c b/kernel/events/core.c
 index 9099c0cc933be2221b9103036518f84ce1ffe395..6fdae4f923f3e333135849df4775178aff6fd7de 100644
@@ -709,6 +1333,12 @@ index d44641108ba81f5809d5874f49a3fc6feee61b37..0c65b15813437e2e6dc68e749bc41696
 @@ -1043,2 +1100,0 @@ static void posix_cpu_timer_rearm(struct k_itimer *timer)
 -out:
 -	rcu_read_unlock();
+diff --git a/mm/vmalloc.c b/mm/vmalloc.c
+index 1d2262fb541850e0a9613a95bfde293adcae5a1e..d4a42980b4d028a5ffda2c6cb3edfff5503abdc7 100644
+--- a/mm/vmalloc.c
++++ b/mm/vmalloc.c
+@@ -5206,0 +5207 @@ vmap_node_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
++	guard(mutex)(&vmap_purge_lock);
 diff --git a/net/bridge/br_if.c b/net/bridge/br_if.c
 index 6ffc81eedf0748a6a3cc8b8484d16537ef979ebd..eee6ceb7cddab030edd2376c40a6eeeb7d2e65ab 100644
 --- a/net/bridge/br_if.c
@@ -740,6 +1370,13 @@ index a21c157daf7dd32dd81292dfe5d340e587b88957..28dcf313ef8e9f02cdc80158bbbac4b7
 @@ -787,0 +792,2 @@ static int ceph_x_update_authorizer(
 +	auth->authorizer_buf = au->buf->vec.iov_base;
 +	auth->authorizer_buf_len = au->buf->vec.iov_len;
+diff --git a/net/ceph/crush/mapper.c b/net/ceph/crush/mapper.c
+index 3a5bd1cd1e99f44c9fc688c2912618b1b0634c0c..84789e6e62fb784cca6262486f96019da9d9d5cd 100644
+--- a/net/ceph/crush/mapper.c
++++ b/net/ceph/crush/mapper.c
+@@ -417 +417 @@ static int is_out(const struct crush_map *map,
+-	if (item >= weight_max)
++	if (item < 0 || item >= weight_max)
 diff --git a/net/ceph/messenger_v1.c b/net/ceph/messenger_v1.c
 index 0cb61c76b9b87da0746294cb371bc62defec0f81..2e6094aa93069c3813a33f386a8e1d43fe92d00b 100644
 --- a/net/ceph/messenger_v1.c
@@ -783,21 +1420,24 @@ index 0cb61c76b9b87da0746294cb371bc62defec0f81..2e6094aa93069c3813a33f386a8e1d43
 +		return ret;
 +
 diff --git a/net/ceph/osdmap.c b/net/ceph/osdmap.c
-index c34a5bf86831b3e9f2767523495ccc4d2988a336..6d4aed24a4e60dfa163ce658c817d06ef0bbc82a 100644
+index c34a5bf86831b3e9f2767523495ccc4d2988a336..f6fe0dfe2a569d59c3bad9673761d0727c25a074 100644
 --- a/net/ceph/osdmap.c
 +++ b/net/ceph/osdmap.c
 @@ -12,0 +13,3 @@
 +#ifdef CONFIG_LIVEPATCH
 +#include "kpatch-macros.h"
 +#endif
-@@ -1846,0 +1850,2 @@ static int decode_new_up_state_weight(void **p, void *end, u8 struct_v,
+@@ -522,0 +526,2 @@ static struct crush_map *crush_decode(void *pbyval, void *end)
++		if (b->type == 0)
++			goto bad;
+@@ -1846,0 +1852,2 @@ static int decode_new_up_state_weight(void **p, void *end, u8 struct_v,
 +	const u32 new_state_item_size =
 +	    sizeof(u32) + (struct_v >= 5 ? sizeof(u32) : sizeof(u8));
-@@ -1867 +1872,2 @@ static int decode_new_up_state_weight(void **p, void *end, u8 struct_v,
+@@ -1867 +1874,2 @@ static int decode_new_up_state_weight(void **p, void *end, u8 struct_v,
 -	len *= sizeof(u32) + (struct_v >= 5 ? sizeof(u32) : sizeof(u8));
 +	if (check_mul_overflow(len, new_state_item_size, &len))
 +		goto e_inval;
-@@ -3112,0 +3119,5 @@ int ceph_get_crush_locality(struct ceph_osdmap *osdmap, int id,
+@@ -3112,0 +3121,5 @@ int ceph_get_crush_locality(struct ceph_osdmap *osdmap, int id,
 +
 +#ifdef CONFIG_LIVEPATCH
 +KPATCH_IGNORE_FUNCTION(ceph_osds_copy)
@@ -1276,6 +1916,30 @@ index ed8b2616cf178280b923c7f74165f89510c95b14..fa1b03c3201f1350c6075e62af1a9e7f
 @@ -742 +740 @@ ip_vs_bypass_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
 -	ip_send_check(iph);
 +	ip_send_check(ip_hdr(skb));
+diff --git a/net/netfilter/nf_conntrack_core.c b/net/netfilter/nf_conntrack_core.c
+index f5bde4f13958e13495f96ee9500e30a731d83f05..070160e45426d0a5bd4e4a7e98184fef731ba039 100644
+--- a/net/netfilter/nf_conntrack_core.c
++++ b/net/netfilter/nf_conntrack_core.c
+@@ -567,0 +568 @@ static void destroy_gre_conntrack(struct nf_conn *ct)
++	struct nf_conn_help *help;
+@@ -569,2 +570,15 @@ static void destroy_gre_conntrack(struct nf_conn *ct)
+-	if (master)
+-		nf_ct_gre_keymap_destroy(master);
++	if (!master)
++		return;
++
++	help = nfct_help(master);
++	if (help) {
++		struct nf_conntrack_helper *helper;
++
++		rcu_read_lock();
++		helper = rcu_dereference(help->helper);
++		/* Only pptp helper has a destroy callback. */
++		if (helper && helper->destroy)
++			nf_ct_gre_keymap_destroy(master);
++
++		rcu_read_unlock();
++	}
 diff --git a/net/netfilter/nf_queue.c b/net/netfilter/nf_queue.c
 index dd416c8532c551c28cbcc99093f114c2e4167c77..0c0a1f20e853f987d7994dc6c6981af42643dea3 100644
 --- a/net/netfilter/nf_queue.c
@@ -2121,6 +2785,39 @@ index 96ca400120e608156c7ca30068d0bab134d553a4..36f060d3a23279fe8b0a589dd3822aa9
 +		if (peer == asconf->transport)
 +			return SCTP_ERROR_REQ_REFUSED;
 +
+diff --git a/net/sctp/sm_statefuns.c b/net/sctp/sm_statefuns.c
+index 613c5c3fa8462e67f46cf1e3ef4bc50519870abb..96e92719ff4df3860b923bd751a6d4558d6a4ea4 100644
+--- a/net/sctp/sm_statefuns.c
++++ b/net/sctp/sm_statefuns.c
+@@ -77 +77,2 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-					struct sctp_cmd_seq *commands);
++					struct sctp_cmd_seq *commands,
++					struct sctp_errhdr *err);
+@@ -2497,3 +2498,9 @@ enum sctp_disposition sctp_sf_cookie_echoed_err(
+-		if (SCTP_ERROR_STALE_COOKIE == err->cause)
+-			return sctp_sf_do_5_2_6_stale(net, ep, asoc, type,
+-							arg, commands);
++		if (err->cause != SCTP_ERROR_STALE_COOKIE)
++			continue;
++		/* The staleness is only meaningful if the cause is long
++		 * enough to hold it; a shorter one is malformed.
++		 */
++		if (ntohs(err->length) < sizeof(*err) + sizeof(__be32))
++			break;
++		return sctp_sf_do_5_2_6_stale(net, ep, asoc, type,
++					      arg, commands, err);
+@@ -2541 +2548,2 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-					struct sctp_cmd_seq *commands)
++					struct sctp_cmd_seq *commands,
++					struct sctp_errhdr *err)
+@@ -2544 +2551,0 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-	struct sctp_chunk *chunk = arg, *reply;
+@@ -2547 +2554 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-	struct sctp_errhdr *err;
++	struct sctp_chunk *reply;
+@@ -2558,2 +2564,0 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-	err = (struct sctp_errhdr *)(chunk->skb->data);
+-
 diff --git a/net/sctp/sysctl.c b/net/sctp/sysctl.c
 index ee3eac338a9deef064f273e29bb59b057835d3f1..da3479ed517a12b4954f34f3bff3e8dd769dec80 100644
 --- a/net/sctp/sysctl.c

@@ -1,23 +1,28 @@
 let
   correctedModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_MODULE";
   releasedV1ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V1_MODULE";
+  releasedV2ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V2_MODULE";
   predecessorModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE";
   exampleFilter = builtins.getEnv "VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER";
 in
 assert correctedModuleEnv != "";
 assert releasedV1ModuleEnv != "";
+assert releasedV2ModuleEnv != "";
 assert predecessorModuleEnv != "";
 import ../../make-test.nix (
   { pkgs }:
   let
     correctedModule = builtins.storePath correctedModuleEnv;
     releasedV1Module = builtins.storePath releasedV1ModuleEnv;
+    releasedV2Module = builtins.storePath releasedV2ModuleEnv;
     predecessorModule = builtins.storePath predecessorModuleEnv;
     correctedSha256 = builtins.hashFile "sha256" correctedModule;
     releasedV1Sha256 = builtins.hashFile "sha256" releasedV1Module;
+    releasedV2Sha256 = builtins.hashFile "sha256" releasedV2Module;
     predecessorSha256 = builtins.hashFile "sha256" predecessorModule;
-    expectedCorrectedSha256 = "88e7aede28426a8f9d628cc6675f3b79e0df13865e1e8a2c78f528163709b1ae";
+    expectedCorrectedSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_SHA256";
     expectedReleasedV1Sha256 = "a3f79b223f1ad1eba764ed10e687b5800aea28b42eb1cc9fffb95f43d6260a30";
+    expectedReleasedV2Sha256 = "88e7aede28426a8f9d628cc6675f3b79e0df13865e1e8a2c78f528163709b1ae";
     expectedPredecessorSha256 = "70f22f6f2a1a5b0eaf57d09fdd8e988561adbea6c77fb59dcdf89b2415a9f79e";
 
     perfTransition = pkgs.stdenv.mkDerivation {
@@ -182,6 +187,23 @@ import ../../make-test.nix (
 
       installPhase = ''
         install -Dm755 v2_runtime "$out/bin/v2_runtime"
+      '';
+    };
+
+    kvmSmoke = pkgs.stdenv.mkDerivation {
+      pname = "livepatch-test-kvm-smoke";
+      version = "1";
+      src = ./livepatch-6.12.95;
+
+      dontConfigure = true;
+
+      buildPhase = ''
+        "$CC" -std=gnu11 -O2 -Wall -Wextra -Werror \
+          -o kvm_smoke kvm_smoke.c
+      '';
+
+      installPhase = ''
+        install -Dm755 kvm_smoke "$out/bin/kvm_smoke"
       '';
     };
 
@@ -358,6 +380,7 @@ import ../../make-test.nix (
         environment.etc = {
           "livepatch-test/corrected.ko".source = correctedModule;
           "livepatch-test/released-v1.ko".source = releasedV1Module;
+          "livepatch-test/released-v2.ko".source = releasedV2Module;
           "livepatch-test/predecessor.ko".source = predecessorModule;
           "livepatch-test/perf-transition".source = "${perfTransition}/bin/perf_transition";
           "livepatch-test/cbpf-churn".source = "${cbpfChurn}/bin/cbpf_churn";
@@ -368,6 +391,7 @@ import ../../make-test.nix (
           "livepatch-test/fuse-transition".source = "${fuseTransition}/bin/fuse_transition";
           "livepatch-test/ipv6-fragment-partial".source = "${ipv6FragmentPartial}/bin/ipv6_fragment_partial";
           "livepatch-test/v2-runtime".source = "${v2Runtime}/bin/v2_runtime";
+          "livepatch-test/kvm-smoke".source = "${kvmSmoke}/bin/kvm_smoke";
           "livepatch-test/pernet-hold.ko".source =
             "${livepatchTestModules}/lib/modules/${kernel.modDirVersion}/extra/livepatch_test_pernet_hold.ko";
           "livepatch-test/probe.ko".source =
@@ -377,6 +401,7 @@ import ../../make-test.nix (
   in
   assert correctedSha256 == expectedCorrectedSha256;
   assert releasedV1Sha256 == expectedReleasedV1Sha256;
+  assert releasedV2Sha256 == expectedReleasedV2Sha256;
   assert predecessorSha256 == expectedPredecessorSha256;
   {
     name = "kernel-livepatch-6.12.95";
@@ -409,6 +434,7 @@ import ../../make-test.nix (
 
       CORRECTED_MODULE = "/etc/livepatch-test/corrected.ko"
       RELEASED_V1_MODULE = "/etc/livepatch-test/released-v1.ko"
+      RELEASED_V2_MODULE = "/etc/livepatch-test/released-v2.ko"
       PREDECESSOR_MODULE = "/etc/livepatch-test/predecessor.ko"
       PERF_TRANSITION = "/etc/livepatch-test/perf-transition"
       CBPF_CHURN = "/etc/livepatch-test/cbpf-churn"
@@ -419,14 +445,17 @@ import ../../make-test.nix (
       FUSE_TRANSITION = "/etc/livepatch-test/fuse-transition"
       IPV6_FRAGMENT_PARTIAL = "/etc/livepatch-test/ipv6-fragment-partial"
       V2_RUNTIME = "/etc/livepatch-test/v2-runtime"
+      KVM_SMOKE = "/etc/livepatch-test/kvm-smoke"
       PERNET_HOLD_MODULE = "/etc/livepatch-test/pernet-hold.ko"
       PROBE_MODULE = "/etc/livepatch-test/probe.ko"
       PROBE_PARAMETERS = "/sys/module/livepatch_test_probe/parameters"
-      CORRECTED_NAME = "livepatch_2"
+      CORRECTED_NAME = "livepatch_3"
       RELEASED_V1_NAME = "livepatch_1"
+      RELEASED_V2_NAME = "livepatch_2"
       PREDECESSOR_NAME = "livepatch_predecessor_1"
       CORRECTED_SHA256 = ${builtins.toJSON expectedCorrectedSha256}
       RELEASED_V1_SHA256 = ${builtins.toJSON expectedReleasedV1Sha256}
+      RELEASED_V2_SHA256 = ${builtins.toJSON expectedReleasedV2Sha256}
       PREDECESSOR_SHA256 = ${builtins.toJSON expectedPredecessorSha256}
       # Exact GCC 15.2 disassembly places the fuse_copy_finish() call in the
       # inlined fuse_ref_page() at this offset in the boot, predecessor, and
@@ -973,7 +1002,8 @@ import ../../make-test.nix (
         end
 
         machine.execute(
-          "for name in #{CORRECTED_NAME} #{RELEASED_V1_NAME} #{PREDECESSOR_NAME}; do " \
+          "for name in #{CORRECTED_NAME} #{RELEASED_V1_NAME} " \
+          "#{RELEASED_V2_NAME} #{PREDECESSOR_NAME}; do " \
           "dir=/sys/kernel/livepatch/$name; " \
           "if test -e \"$dir/enabled\"; then " \
           "echo 0 > \"$dir/enabled\" 2>/dev/null || true; " \
@@ -1859,10 +1889,26 @@ import ../../make-test.nix (
             "test \"$(sha256sum #{RELEASED_V1_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V1_SHA256}"
           )
           machine.succeeds(
+            "test \"$(sha256sum #{RELEASED_V2_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V2_SHA256}"
+          )
+          machine.succeeds(
             "test \"$(sha256sum #{PREDECESSOR_MODULE} | cut -d' ' -f1)\" = #{PREDECESSOR_SHA256}"
+          )
+          # The production live-patches loader publishes a module-directory
+          # alias for the active uname suffix before inserting each patch.
+          # This test deliberately disables that service and inserts the
+          # released fixtures itself, so reproduce the same aliases here and
+          # keep post-activation module loading on the ordinary modprobe path.
+          machine.all_succeed(
+            "mkdir -p /lib/modules",
+            "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
+            "/lib/modules/6.12.95.2",
+            "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
+            "/lib/modules/6.12.95.3",
           )
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
+          machine.fails("test -d /sys/module/#{RELEASED_V2_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
 
           machine.all_succeed(
@@ -1914,11 +1960,53 @@ import ../../make-test.nix (
           end
         end
 
-        it "reports the cumulative livepatch version through uname" do
+        it "atomically replaces released v2 with v3 and exercises KVM" do
           machine.succeeds("test \"$(uname -r)\" = 6.12.95")
+          machine.succeeds("insmod #{RELEASED_V2_MODULE}")
+          wait_for_patch(machine, RELEASED_V2_NAME, 1)
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.2")
+
           machine.succeeds("insmod #{CORRECTED_MODULE}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.2")
+          wait_for_patch(machine, RELEASED_V2_NAME, 0)
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.3")
+          machine.succeeds("rmmod #{RELEASED_V2_NAME}")
+          machine.fails("test -d /sys/module/#{RELEASED_V2_NAME}")
+
+          machine.all_succeed("modprobe nf_conntrack", "modprobe ceph")
+          %w[vmlinux nf_conntrack sctp ceph libceph].each do |object|
+            wait_for_object(machine, CORRECTED_NAME, object, 1)
+          end
+
+          machine.execute(
+            "modprobe kvm_intel >/dev/null 2>&1 || " \
+            "modprobe kvm_amd >/dev/null 2>&1 || true"
+          )
+          machine.wait_until_succeeds("test -c /dev/kvm", timeout: 30)
+          vendor =
+            if machine.execute("test -d /sys/module/kvm_intel")[0] == 0
+              "kvm_intel"
+            elsif machine.execute("test -d /sys/module/kvm_amd")[0] == 0
+              "kvm_amd"
+            else
+              raise "KVM device exists without an x86 vendor module"
+            end
+          wait_for_object(machine, CORRECTED_NAME, "kvm", 1)
+          wait_for_object(machine, CORRECTED_NAME, vendor, 1)
+          machine.succeeds(KVM_SMOKE)
+
+          downgrade_log_start =
+            machine.succeeds("dmesg | wc -l")[1].to_i + 1
+          status, output = machine.execute("insmod #{RELEASED_V2_MODULE}")
+          expect(status).not_to eq(0), output
+          machine.fails("test -d /sys/module/#{RELEASED_V2_NAME}")
+          wait_for_patch(machine, CORRECTED_NAME, 1)
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.3")
+          machine.succeeds(
+            "dmesg | tail -n +#{downgrade_log_start} | grep -F " \
+            "'Livepatch patch (#{RELEASED_V2_NAME}) is not compatible with the already installed livepatches.'"
+          )
+
           disable_patch(machine, CORRECTED_NAME)
           remove_module(machine, CORRECTED_NAME)
           machine.succeeds("test \"$(uname -r)\" = 6.12.95")
