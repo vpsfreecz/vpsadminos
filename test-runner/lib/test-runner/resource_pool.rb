@@ -3,8 +3,8 @@ require 'test-runner/test_resources'
 
 module TestRunner
   class ResourcePool
-    DEFAULT_MEMORY_RESERVE_MIB = 4096
-    DEFAULT_SHM_RESERVE_MIB = 4096
+    DEFAULT_MEMORY_RESERVE_MIB = 8192
+    DEFAULT_SHM_RESERVE_MIB = 8192
     DEFAULT_CPU_RESERVE = 0
     DEFAULT_MEMORY_OVERCOMMIT = 1.0
     DEFAULT_SHM_OVERCOMMIT = 1.0
@@ -33,22 +33,56 @@ module TestRunner
     end
 
     class CapacitySource
-      def initialize(max_value:, reserve:, detector:, overcommit:)
+      attr_reader :detected, :initial_available, :reserve, :current_value
+
+      def initialize(
+        max_value:,
+        reserve:,
+        detector:,
+        overcommit:,
+        available_detector: nil,
+        monotonic: false
+      )
         @max_value = max_value
         @reserve = reserve
         @detector = detector
         @overcommit = overcommit
+        @initial_available = available_detector&.call
+        @monotonic = monotonic
+        @initialized = false
+        @current_value = nil
       end
 
       def current
-        detected = @detector.call
+        @detected = @detector.call
+        value = ResourcePool.capacity(limit(overcommit(usable_detected)), reserve)
 
-        ResourcePool.capacity(limit(overcommit(detected)), @reserve)
+        if @monotonic && @initialized
+          value = monotonic_value(value)
+        end
+
+        @initialized = true
+        @current_value = value
       end
 
       protected
 
       attr_reader :max_value
+
+      def usable_detected
+        if detected && initial_available
+          [detected, initial_available].min
+        else
+          detected || initial_available
+        end
+      end
+
+      def monotonic_value(value)
+        return current_value if value.nil?
+        return value if current_value.nil?
+
+        [current_value, value].min
+      end
 
       def overcommit(detected)
         return nil if detected.nil?
@@ -122,14 +156,18 @@ module TestRunner
         memory_capacity: CapacitySource.new(
           max_value: integer_option(opts[:max_memory_mib], env['TEST_RUNNER_MAX_MEMORY_MIB'], nil),
           reserve: memory_reserve_mib,
-          detector: -> { detector_value(detector, :memory_mib, :memory_available_mib) },
-          overcommit: memory_overcommit
+          detector: -> { detector_value(detector, :memory_mib) },
+          available_detector: -> { detector_value(detector, :memory_available_mib) },
+          overcommit: memory_overcommit,
+          monotonic: true
         ),
         shm_capacity: CapacitySource.new(
           max_value: integer_option(opts[:max_shm_mib], env['TEST_RUNNER_MAX_SHM_MIB'], nil),
           reserve: shm_reserve_mib,
-          detector: -> { detector_value(detector, :shm_mib, :shm_available_mib) },
-          overcommit: shm_overcommit
+          detector: -> { detector_value(detector, :shm_mib) },
+          available_detector: -> { detector_value(detector, :shm_available_mib) },
+          overcommit: shm_overcommit,
+          monotonic: true
         ),
         cpu_capacity: CapacitySource.new(
           max_value: integer_option(opts[:max_cpus], env['TEST_RUNNER_MAX_CPUS'], nil),
@@ -182,7 +220,10 @@ module TestRunner
     end
 
     def self.detect_memory_available_mib
-      detect_meminfo_mib('MemAvailable:')
+      host_available = detect_meminfo_mib('MemAvailable:')
+      cgroup_available = detect_cgroup_memory_available_mib
+
+      [host_available, cgroup_available].compact.min
     end
 
     def self.detect_meminfo_mib(key)
@@ -200,6 +241,10 @@ module TestRunner
       detect_cgroup_v2_memory_limit_mib || detect_cgroup_v1_memory_limit_mib
     end
 
+    def self.detect_cgroup_memory_available_mib
+      detect_cgroup_v2_memory_available_mib || detect_cgroup_v1_memory_available_mib
+    end
+
     def self.detect_cgroup_v2_memory_limit_mib
       path = current_cgroup_path(nil)
       return nil if path.nil?
@@ -213,6 +258,24 @@ module TestRunner
       limits.min
     end
 
+    def self.detect_cgroup_v2_memory_available_mib
+      path = current_cgroup_path(nil)
+      return nil if path.nil?
+
+      headrooms = cgroup_path_ancestors(path).filter_map do |ancestor|
+        base = File.join('/sys/fs/cgroup', ancestor)
+        limit = detect_cgroup_memory_limit_file(File.join(base, 'memory.max'))
+        next if limit.nil?
+
+        usage = detect_cgroup_memory_usage_file(File.join(base, 'memory.current'))
+        next if usage.nil?
+
+        [limit - usage, 0].max
+      end
+
+      headrooms.min
+    end
+
     def self.detect_cgroup_v1_memory_limit_mib
       path = current_cgroup_path('memory')
       return nil if path.nil?
@@ -220,6 +283,24 @@ module TestRunner
       detect_cgroup_memory_limit_file(
         File.join('/sys/fs/cgroup/memory', path.sub(%r{\A/}, ''), 'memory.limit_in_bytes')
       )
+    end
+
+    def self.detect_cgroup_v1_memory_available_mib
+      path = current_cgroup_path('memory')
+      return nil if path.nil?
+
+      headrooms = cgroup_path_ancestors(path).filter_map do |ancestor|
+        base = File.join('/sys/fs/cgroup/memory', ancestor)
+        limit = detect_cgroup_memory_limit_file(File.join(base, 'memory.limit_in_bytes'))
+        next if limit.nil?
+
+        usage = detect_cgroup_memory_usage_file(File.join(base, 'memory.usage_in_bytes'))
+        next if usage.nil?
+
+        [limit - usage, 0].max
+      end
+
+      headrooms.min
     end
 
     def self.current_cgroup_path(controller)
@@ -264,6 +345,17 @@ module TestRunner
 
       bytes = Integer(value)
       return nil if bytes <= 0
+
+      bytes / 1024 / 1024
+    rescue Errno::ENOENT, Errno::EACCES, ArgumentError
+      nil
+    end
+
+    def self.detect_cgroup_memory_usage_file(path)
+      return nil unless File.file?(path)
+
+      bytes = Integer(File.read(path).strip)
+      return nil if bytes < 0
 
       bytes / 1024 / 1024
     rescue Errno::ENOENT, Errno::EACCES, ArgumentError
@@ -344,6 +436,13 @@ module TestRunner
         "cpus=#{format_used(cpus, used.cpus, unit: false)}, running=#{running}"
     end
 
+    def capacity_status
+      [
+        format_capacity_source('memory', @memory_capacity),
+        format_capacity_source('shm', @shm_capacity)
+      ].join('; ')
+    end
+
     protected
 
     def capacities
@@ -371,6 +470,17 @@ module TestRunner
       return "#{value} MiB" if value < 1024
 
       format('%.1f GiB', value / 1024.0)
+    end
+
+    def format_capacity_source(name, source)
+      "#{name} assigned=#{format_optional_mib(source.detected)}, " \
+        "available-at-start=#{format_optional_mib(source.initial_available)}, " \
+        "reserve=#{format_mib(source.reserve)}, " \
+        "limit=#{format_optional_mib(source.current_value)}"
+    end
+
+    def format_optional_mib(value)
+      value.nil? ? 'unknown' : format_mib(value)
     end
   end
 end

@@ -2,9 +2,11 @@
 
 module ResourceDetectorHelpers
   class SequenceResourceDetector
-    def initialize(memory_mib: nil, shm_mib: nil, cpus: nil)
+    def initialize(memory_mib: nil, memory_available_mib: nil, shm_mib: nil, shm_available_mib: nil, cpus: nil)
       @memory_mib = sequence(memory_mib)
+      @memory_available_mib = sequence(memory_available_mib)
       @shm_mib = sequence(shm_mib)
+      @shm_available_mib = sequence(shm_available_mib)
       @cpus = sequence(cpus)
     end
 
@@ -12,8 +14,16 @@ module ResourceDetectorHelpers
       next_value(@memory_mib)
     end
 
+    def memory_available_mib
+      next_value(@memory_available_mib)
+    end
+
     def shm_mib
       next_value(@shm_mib)
+    end
+
+    def shm_available_mib
+      next_value(@shm_available_mib)
     end
 
     def cpus
@@ -34,10 +44,12 @@ module ResourceDetectorHelpers
     end
   end
 
-  def resource_detector(memory_mib: nil, shm_mib: nil, cpus: nil)
+  def resource_detector(memory_mib: nil, memory_available_mib: nil, shm_mib: nil, shm_available_mib: nil, cpus: nil)
     SequenceResourceDetector.new(
       memory_mib:,
+      memory_available_mib:,
       shm_mib:,
+      shm_available_mib:,
       cpus:
     )
   end

@@ -64,6 +64,7 @@ module TestRunner
         "Running #{test_scripts.length} scripts of #{@test_count} tests, " \
         "at most #{opts[:jobs]} tests at a time#{opts[:jobs_auto] ? ' (auto)' : ''}"
       )
+      log("Resource detection: #{resource_pool.capacity_status}")
       log("Resource limits: #{resource_pool.status}")
       log("State directory is #{state_dir}")
       t1 = Time.now
@@ -221,7 +222,15 @@ module TestRunner
       # Never deadlock the suite just because one test is larger than the
       # detected capacity. Run it alone and let QEMU or the host enforce the
       # real limit.
-      return 0 if resource_pool.running == 0
+      if resource_pool.running == 0
+        _test_i, test, = pending.first
+        log(
+          "WARNING: Test #{test.path} requests resources beyond the scheduler " \
+          "limits (requested: #{test.resources.summary}; available: #{resource_pool.status}); " \
+          'running it alone may exhaust the host'
+        )
+        return 0
+      end
 
       nil
     end

@@ -18,7 +18,7 @@ RSpec.describe TestRunner::ResourcePool do
     )
   end
 
-  it 'refreshes detected capacity and applies explicit max values as ceilings' do
+  it 'only lowers memory and shm capacity while refreshing assigned capacity' do
     pool = build_pool(
       max_memory_mib: 36_000,
       max_cpus: 10,
@@ -27,20 +27,76 @@ RSpec.describe TestRunner::ResourcePool do
       cpu_reserve: 1,
       cpu_overcommit: 1.0,
       resource_detector: resource_detector(
-        memory_mib: [32_000, 40_000],
-        shm_mib: [16_000, 18_000],
-        cpus: [8, 12]
+        memory_mib: [40_000, 32_000],
+        shm_mib: [18_000, 16_000],
+        cpus: [12, 8]
       )
     )
 
-    expect(pool.memory_mib).to eq(28_000)
-    expect(pool.shm_mib).to eq(15_000)
-    expect(pool.cpus).to eq(7)
-
-    expect(pool.refresh_capacity).to be(true)
     expect(pool.memory_mib).to eq(32_000)
     expect(pool.shm_mib).to eq(17_000)
     expect(pool.cpus).to eq(9)
+
+    expect(pool.refresh_capacity).to be(true)
+    expect(pool.memory_mib).to eq(28_000)
+    expect(pool.shm_mib).to eq(15_000)
+    expect(pool.cpus).to eq(7)
+  end
+
+  it 'uses initial available memory and shm as fixed capacity ceilings' do
+    pool = build_pool(
+      memory_reserve_mib: 1000,
+      shm_reserve_mib: 500,
+      resource_detector: resource_detector(
+        memory_mib: [96_000, 96_000],
+        memory_available_mib: [83_000, 40_000],
+        shm_mib: [96_000, 96_000],
+        shm_available_mib: [90_000, 30_000],
+        cpus: 8
+      )
+    )
+
+    expect(pool.memory_mib).to eq(82_000)
+    expect(pool.shm_mib).to eq(89_500)
+
+    expect(pool.refresh_capacity).to be(false)
+    expect(pool.memory_mib).to eq(82_000)
+    expect(pool.shm_mib).to eq(89_500)
+  end
+
+  it 'does not increase memory and shm capacity when assigned capacity grows' do
+    pool = build_pool(
+      resource_detector: resource_detector(
+        memory_mib: [16_000, 32_000],
+        shm_mib: [8000, 16_000]
+      )
+    )
+
+    expect(pool.refresh_capacity).to be(false)
+    expect(pool.memory_mib).to eq(16_000)
+    expect(pool.shm_mib).to eq(8000)
+  end
+
+  it 'defaults to 8 GiB memory and shm reserves' do
+    pool = described_class.from_options(
+      {
+        max_memory_mib: nil,
+        max_shm_mib: nil,
+        max_cpus: nil,
+        memory_reserve_mib: nil,
+        shm_reserve_mib: nil,
+        cpu_reserve: nil,
+        resource_detector: resource_detector(
+          memory_mib: 32_000,
+          shm_mib: 24_000,
+          cpus: 8
+        )
+      },
+      env: {}
+    )
+
+    expect(pool.memory_mib).to eq(32_000 - 8192)
+    expect(pool.shm_mib).to eq(24_000 - 8192)
   end
 
   it 'falls back to explicit max values when detection fails' do
@@ -183,6 +239,32 @@ RSpec.describe TestRunner::ResourcePool do
     end
 
     expect(described_class.detect_cgroup_v2_memory_limit_mib).to eq(96_000)
+  end
+
+  it 'uses the smallest cgroup v2 memory headroom from current cgroup ancestors' do
+    allow(described_class).to receive(:current_cgroup_path).with(nil).and_return('/machine.slice/runner')
+    allow(described_class).to receive(:detect_cgroup_memory_limit_file) do |path|
+      {
+        '/sys/fs/cgroup/machine.slice/runner/memory.max' => 96_000,
+        '/sys/fs/cgroup/machine.slice/memory.max' => 128_000,
+        '/sys/fs/cgroup/memory.max' => nil
+      }[path]
+    end
+    allow(described_class).to receive(:detect_cgroup_memory_usage_file) do |path|
+      {
+        '/sys/fs/cgroup/machine.slice/runner/memory.current' => 20_000,
+        '/sys/fs/cgroup/machine.slice/memory.current' => 60_000
+      }[path]
+    end
+
+    expect(described_class.detect_cgroup_v2_memory_available_mib).to eq(68_000)
+  end
+
+  it 'uses cgroup headroom as a ceiling for host-available memory' do
+    allow(described_class).to receive(:detect_meminfo_mib).with('MemAvailable:').and_return(80_000)
+    allow(described_class).to receive(:detect_cgroup_memory_available_mib).and_return(64_000)
+
+    expect(described_class.detect_memory_available_mib).to eq(64_000)
   end
 
   it 'detects /dev/shm capacity from total blocks, not available blocks' do

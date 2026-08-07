@@ -280,7 +280,7 @@ RSpec.describe TestRunner::Executor do
     expect(pool.memory_mib).to eq(4000)
   end
 
-  it 'runs a pending test after the resource monitor refreshes capacity' do
+  it 'runs a pending test after the resource monitor refreshes cpu capacity' do
     pending_test = build_test(
       path: 'suite/pending',
       resources: {
@@ -297,13 +297,13 @@ RSpec.describe TestRunner::Executor do
       shm_reserve_mib: 0,
       resource_refresh_interval: 0.01,
       resource_detector: resource_detector(
-        memory_mib: [4000, 6000],
+        memory_mib: 6000,
         shm_mib: 2000,
-        cpus: 2
+        cpus: [1, 2]
       )
     )
     pool = executor.send(:resource_pool)
-    pool.reserve(TestRunner::TestResources.new(memory_mib: 3000, shm_mib: 0))
+    pool.reserve(TestRunner::TestResources.new(memory_mib: 3000, shm_mib: 0, cpus: 1))
     allow(executor).to receive(:log)
 
     thread = Thread.new { executor.send(:reserve_next_test) }
@@ -318,6 +318,7 @@ RSpec.describe TestRunner::Executor do
 
     expect(test).to eq(pending_test)
     expect(pool.used.memory_mib).to eq(5000)
+    expect(pool.used.cpus).to eq(2)
   end
 
   it 'does not start another test when refreshed cpu capacity decreases below current usage' do
@@ -348,8 +349,7 @@ RSpec.describe TestRunner::Executor do
     test = build_test
     executor = build_executor(
       [test.test_scripts['default']],
-      memory_reserve_mib: 0,
-      resource_detector: resource_detector(memory_mib: [4000, 4000, 8000, 8000])
+      resource_detector: resource_detector(cpus: [2, 2, 4, 4])
     )
     logs = []
     allow(executor).to receive(:log) { |msg| logs << msg }
@@ -357,7 +357,7 @@ RSpec.describe TestRunner::Executor do
     3.times { executor.send(:refresh_resource_capacity) }
 
     expect(logs).to contain_exactly(
-      a_string_starting_with('Resource limits updated: memory=0 MiB/7.8 GiB')
+      a_string_starting_with('Resource limits updated:').and(including('cpus=0/6'))
     )
   end
 
@@ -544,12 +544,20 @@ RSpec.describe TestRunner::Executor do
       memory_reserve_mib: 0,
       shm_reserve_mib: 0
     )
-    allow(executor).to receive(:log)
+    logs = []
+    allow(executor).to receive(:log) { |msg| logs << msg }
 
     _i, test, = executor.send(:reserve_next_test)
 
     expect(test).to eq(large)
     expect(executor.send(:resource_pool).used.memory_mib).to eq(12_000)
+    expect(logs).to include(
+      a_string_including(
+        'WARNING: Test suite/large requests resources beyond the scheduler limits',
+        'requested: machines=1, memory=11.7 GiB, shm=11.7 GiB, cpus=4',
+        'running it alone may exhaust the host'
+      )
+    )
   end
 
   it 'releases reserved resources after a test finishes' do

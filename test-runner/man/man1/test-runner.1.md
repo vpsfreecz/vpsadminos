@@ -60,13 +60,15 @@ selected tests and reporting results.
 
     `--max-memory-mib` *n*
       Maximum memory available to running test VMs, in MiB. Detected memory
-      capacity is refreshed during the run; this value is an upper bound and is
-      used as a fallback when detection is unavailable.
+      capacity is limited by memory available when the run starts and cannot
+      increase during the run. This value is an upper bound and is used as a
+      fallback when detection is unavailable.
 
     `--max-shm-mib` *n*
       Maximum `/dev/shm` space available to running test VMs, in MiB. Detected
-      capacity is refreshed during the run; this value is an upper bound and is
-      used as a fallback when detection is unavailable.
+      capacity is limited by space available when the run starts and cannot
+      increase during the run. This value is an upper bound and is used as a
+      fallback when detection is unavailable.
 
     `--max-cpus` *n*
       Maximum CPUs available to running test VMs. Detected CPU capacity is
@@ -87,7 +89,8 @@ selected tests and reporting results.
 
     `--resource-refresh-interval` *seconds*
       How often to refresh detected resource capacity while scheduling tests.
-      Defaults to `15`.
+      Memory and `/dev/shm` limits can only decrease during a run; CPU capacity
+      can increase or decrease. Defaults to `15`.
 
     `--status-interval` *seconds*
       How often to print suite status while tests are running. The status
@@ -103,10 +106,11 @@ selected tests and reporting results.
 
     `--memory-reserve-mib` *n*
       Memory to keep reserved from detected or configured capacity, in MiB.
+      Defaults to `8192`.
 
     `--shm-reserve-mib` *n*
       `/dev/shm` space to keep reserved from detected or configured capacity,
-      in MiB.
+      in MiB. Defaults to `8192`.
 
     `--cpu-reserve` *n*
       CPUs to keep reserved from detected or configured capacity.
