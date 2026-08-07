@@ -53,7 +53,7 @@ GEM
       nio4r (~> 2.0)
     rack (3.2.6)
     rainbow (3.1.1)
-    reline (0.6.3)
+    reline (0.7.0)
       io-console (~> 0.5)
     require_all (2.0.0)
     ruby-progressbar (1.13.0)
