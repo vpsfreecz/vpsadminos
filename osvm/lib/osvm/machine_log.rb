@@ -24,7 +24,13 @@ module OsVm
     def exit(status)
       log do |io|
         io.puts('ACTION: qemu_exit')
-        io.puts("STATUS: #{status}")
+        io.puts("STATUS: #{status.exitstatus}")
+
+        if status.signaled?
+          io.puts("TERMSIG: #{status.termsig}")
+          io.puts("TERMSIG_NAME: SIG#{Signal.signame(status.termsig)}")
+          io.puts("COREDUMP: #{status.coredump?}")
+        end
       end
     end
 

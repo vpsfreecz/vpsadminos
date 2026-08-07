@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'timeout'
 
 RSpec.describe OsVm::Machine do
   it 'creates tmp and socket directories and adds the default shared filesystem' do
@@ -175,6 +176,95 @@ RSpec.describe OsVm::Machine do
       expect do
         machine.stop(timeout: 0)
       end.to raise_error(OsVm::UnrecoverableTimeoutError, /Timeout while stopping machine/)
+    end
+  end
+
+  it 'waits for cleanup when qemu was reaped before kill' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      reaper = instance_double(Thread)
+      machine.instance_variable_set(:@running, true)
+      machine.instance_variable_set(:@qemu_pid, nil)
+      machine.instance_variable_set(:@qemu_reaper, reaper)
+      allow(reaper).to receive(:join)
+      allow(Process).to receive(:kill)
+
+      expect(machine.kill).to eq(machine)
+      expect(Process).not_to have_received(:kill)
+      expect(reaper).to have_received(:join)
+    end
+  end
+
+  it 'tolerates qemu exiting before a kill signal is delivered' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      reaper = instance_double(Thread)
+      machine.instance_variable_set(:@running, true)
+      machine.instance_variable_set(:@qemu_pid, 123)
+      machine.instance_variable_set(:@qemu_reaper, reaper)
+      allow(reaper).to receive(:join)
+      allow(machine).to receive(:warn)
+      allow(Process).to receive(:kill).with('KILL', 123).and_raise(Errno::ESRCH)
+
+      expect(machine.kill(signal: 'KILL')).to eq(machine)
+      expect(machine).to have_received(:warn).with(/Unable to kill machine test using SIGKILL/)
+      expect(reaper).to have_received(:join)
+    end
+  end
+
+  it 'escalates to sigkill only while the same qemu process is active' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      reaper = instance_double(Thread)
+      machine.instance_variable_set(:@running, true)
+      machine.instance_variable_set(:@qemu_pid, 123)
+      machine.instance_variable_set(:@qemu_reaper, reaper)
+      allow(reaper).to receive(:join)
+      allow(machine).to receive(:wait_for_qemu_exit).with(123, 60).and_return(false)
+      allow(Process).to receive(:kill)
+
+      expect(machine.kill).to eq(machine)
+      expect(Process).to have_received(:kill).with('TERM', 123).ordered
+      expect(Process).to have_received(:kill).with('KILL', 123).ordered
+      expect(reaper).to have_received(:join)
+    end
+  end
+
+  it 'does not signal a pid after the reaper has reaped it' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      status = instance_double(Process::Status, exitstatus: 0, signaled?: false)
+      wait_entered = Queue.new
+      release_wait = Queue.new
+      reaper = nil
+      killer = nil
+
+      machine.instance_variable_set(:@running, true)
+      machine.instance_variable_set(:@qemu_pid, 123)
+      allow(Process).to receive(:wait2).with(123, Process::WNOHANG) do
+        wait_entered << true
+        release_wait.pop
+        [123, status]
+      end
+      allow(Process).to receive(:kill)
+
+      machine.send(:qemu_mutex).synchronize do
+        reaper = machine.send(:run_qemu_reaper, 123)
+        machine.instance_variable_set(:@qemu_reaper, reaper)
+      end
+
+      wait_entered.pop
+      killer = Thread.new { machine.send(:signal_qemu, 'KILL', 123) }
+      Timeout.timeout(1) { Thread.pass until killer.status == 'sleep' }
+      release_wait << true
+      reaper.value
+      killer.value
+
+      expect(Process).not_to have_received(:kill)
+    ensure
+      release_wait << true if reaper&.alive?
+      reaper&.join
+      killer&.join
     end
   end
 

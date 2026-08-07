@@ -4,6 +4,7 @@ require 'fileutils'
 module OsVm
   class Machine
     SHELL_INDEX_KEY = :osvm_machine_shell_index
+    QEMU_REAP_INTERVAL = 0.1
 
     def self.with_shell(index)
       original_index = Thread.current[SHELL_INDEX_KEY]
@@ -44,6 +45,8 @@ module OsVm
       @virtiofsd_pids = []
       @mutex = Mutex.new
       @start_mutex = Mutex.new
+      @qemu_mutex = Mutex.new
+      @qemu_cv = ConditionVariable.new
       @shared_dir_mutex = Mutex.new
       @shared_dir_mounted = false
 
@@ -114,14 +117,17 @@ module OsVm
 
         @start_kernel_params = kernel_params
 
-        @qemu_pid = Process.spawn(
+        pid = Process.spawn(
           *qemu_command(kernel_params:),
           **qemu_kwargs
         )
         w.close unless @interactive_console
-        run_qemu_reaper(qemu_pid)
 
-        @running = true
+        qemu_mutex.synchronize do
+          @qemu_pid = pid
+          @running = true
+          @qemu_reaper = run_qemu_reaper(pid)
+        end
 
         run_console_thread unless @interactive_console
 
@@ -132,7 +138,8 @@ module OsVm
 
     # Block until the machine stops
     def join(timeout: @default_timeout)
-      qemu_reaper.join(timeout)
+      _pid, reaper, = qemu_state
+      reaper&.join(timeout)
       nil
     end
 
@@ -147,7 +154,9 @@ module OsVm
         # The shell logs the failed command.
       end
 
-      if qemu_reaper && qemu_reaper.join(timeout).nil?
+      _pid, reaper, = qemu_state
+
+      if reaper && reaper.join(timeout).nil?
         raise UnrecoverableTimeoutError, "Timeout while stopping machine #{name}"
       end
 
@@ -158,35 +167,31 @@ module OsVm
     # @param signal ['TERM', 'KILL']
     # @return [Machine]
     def kill(signal: 'TERM')
-      unless running?
+      pid, reaper, running = qemu_state
+
+      unless running
         log.kill('NONE')
+        return self
+      end
+
+      if pid.nil?
+        log.kill('NONE')
+        reaper&.join
         return self
       end
 
       log.kill(signal)
 
-      begin
-        Process.kill(signal, qemu_pid)
-      rescue Errno::ESRCH
-        warn "Unable to kill machine #{name} using SIG#{signal}"
-      end
+      signal_qemu(signal, pid)
 
-      if signal == 'KILL'
-        qemu_reaper.join
-        return self
-      elsif qemu_reaper.join(60)
+      if signal == 'KILL' || wait_for_qemu_exit(pid, 60)
+        reaper&.join
         return self
       end
 
       log.kill('KILL')
-
-      begin
-        Process.kill('KILL', qemu_pid)
-      rescue Errno::ESRCH
-        warn "Unable to kill machine #{name} using SIGKILL"
-      end
-
-      qemu_reaper.join
+      signal_qemu('KILL', pid)
+      reaper&.join
       self
     end
 
@@ -231,7 +236,7 @@ module OsVm
 
     # @return [Boolean]
     def running?
-      @running
+      qemu_mutex.synchronize { @running }
     end
 
     # @return [Boolean]
@@ -441,7 +446,7 @@ module OsVm
 
     attr_reader :config, :tmpdir, :sockdir, :qemu_pid, :qemu_read, :qemu_reaper,
                 :console_thread, :shell_instances, :log, :virtiofsd_pids, :shared_dir,
-                :hash_base, :shared_filesystems
+                :hash_base, :shared_filesystems, :qemu_mutex, :qemu_cv
 
     def qemu_command(kernel_params: [])
       raise NotImplementedError, "#{self.class} must implement #qemu_command"
@@ -569,32 +574,84 @@ module OsVm
     end
 
     def run_qemu_reaper(pid)
-      @qemu_reaper = Thread.new do
-        Process.wait(pid)
-        log.exit($?.exitstatus)
+      Thread.new do
+        status = wait_for_qemu(pid)
 
-        @qemu_pid = nil
+        begin
+          log.exit(status)
 
-        if @qemu_read
-          @qemu_read.close
-          @qemu_read = nil
+          if @qemu_read
+            @qemu_read.close
+            @qemu_read = nil
+          end
+
+          if @console_thread
+            console_thread.join
+            @console_thread = nil
+          end
+
+          shell_instances.each(&:close)
+
+          stop_virtiofs
+
+          cleanup
+        ensure
+          qemu_mutex.synchronize do
+            @qemu_reaper = nil if @qemu_reaper == Thread.current
+            @running = false
+            @stopped_at = Time.now
+            qemu_cv.broadcast
+          end
         end
-
-        if @console_thread
-          console_thread.join
-          @console_thread = nil
-        end
-
-        shell_instances.each(&:close)
-
-        stop_virtiofs
-
-        cleanup
-
-        @qemu_reaper = nil
-        @running = false
-        @stopped_at = Time.now
       end
+    end
+
+    def wait_for_qemu(pid)
+      loop do
+        result = qemu_mutex.synchronize do
+          ret = Process.wait2(pid, Process::WNOHANG)
+
+          if ret
+            @qemu_pid = nil if @qemu_pid == pid
+            qemu_cv.broadcast
+          end
+
+          ret
+        end
+
+        return result.last if result
+
+        sleep(QEMU_REAP_INTERVAL)
+      end
+    end
+
+    def qemu_state
+      qemu_mutex.synchronize { [@qemu_pid, @qemu_reaper, @running] }
+    end
+
+    def wait_for_qemu_exit(pid, timeout)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+
+      qemu_mutex.synchronize do
+        while @qemu_pid == pid
+          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          return false if remaining <= 0
+
+          qemu_cv.wait(qemu_mutex, remaining)
+        end
+      end
+
+      true
+    end
+
+    def signal_qemu(signal, pid)
+      qemu_mutex.synchronize do
+        return unless @qemu_pid == pid
+
+        Process.kill(signal, pid)
+      end
+    rescue Errno::ESRCH
+      warn "Unable to kill machine #{name} using SIG#{signal}"
     end
 
     def run_console_thread
