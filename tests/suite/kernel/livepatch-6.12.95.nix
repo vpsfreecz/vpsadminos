@@ -449,7 +449,7 @@ import ../../make-test.nix (
       PERNET_HOLD_MODULE = "/etc/livepatch-test/pernet-hold.ko"
       PROBE_MODULE = "/etc/livepatch-test/probe.ko"
       PROBE_PARAMETERS = "/sys/module/livepatch_test_probe/parameters"
-      CORRECTED_NAME = "livepatch_3"
+      CORRECTED_NAME = "livepatch_4"
       RELEASED_V1_NAME = "livepatch_1"
       RELEASED_V2_NAME = "livepatch_2"
       PREDECESSOR_NAME = "livepatch_predecessor_1"
@@ -1904,7 +1904,7 @@ import ../../make-test.nix (
             "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
             "/lib/modules/6.12.95.2",
             "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
-            "/lib/modules/6.12.95.3",
+            "/lib/modules/6.12.95.4",
           )
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
@@ -1960,16 +1960,27 @@ import ../../make-test.nix (
           end
         end
 
-        it "atomically replaces released v2 with v3 and exercises KVM" do
+        it "atomically replaces released v2 with v4 and exercises KVM" do
           machine.succeeds("test \"$(uname -r)\" = 6.12.95")
+          machine.succeeds("modprobe -r kvm_amd")
+          machine.all_succeed(
+            "grep -Eq '^vendor_id[[:space:]]*: AuthenticAMD$' /proc/cpuinfo",
+            "for flag in svm npt nrip_save; do " \
+            "grep -m1 '^flags' /proc/cpuinfo | grep -qw \"$flag\" || exit 1; " \
+            "done",
+            "grep -F 'Safe RET' " \
+            "/sys/devices/system/cpu/vulnerabilities/spec_rstack_overflow",
+            "test ! -d /sys/module/kvm_amd",
+          )
           machine.succeeds("insmod #{RELEASED_V2_MODULE}")
           wait_for_patch(machine, RELEASED_V2_NAME, 1)
           machine.succeeds("test \"$(uname -r)\" = 6.12.95.2")
+          machine.fails("test -d /sys/module/kvm_amd")
 
           machine.succeeds("insmod #{CORRECTED_MODULE}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
           wait_for_patch(machine, RELEASED_V2_NAME, 0)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.3")
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.4")
           machine.succeeds("rmmod #{RELEASED_V2_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V2_NAME}")
 
@@ -2001,7 +2012,7 @@ import ../../make-test.nix (
           expect(status).not_to eq(0), output
           machine.fails("test -d /sys/module/#{RELEASED_V2_NAME}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.3")
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.4")
           machine.succeeds(
             "dmesg | tail -n +#{downgrade_log_start} | grep -F " \
             "'Livepatch patch (#{RELEASED_V2_NAME}) is not compatible with the already installed livepatches.'"

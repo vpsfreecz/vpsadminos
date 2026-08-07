@@ -15,7 +15,7 @@ let
         "bp-6.12.95-uname"
       ];
       filterFn = availableFor "6.12.95";
-      version = 3;
+      version = 4;
       # kpatch-build groups these .ko targets into one modpost pass. Include
       # direct module dependencies so modpost sees their exported symbols.
       targets = [
