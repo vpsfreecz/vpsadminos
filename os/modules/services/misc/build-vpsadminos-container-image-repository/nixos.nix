@@ -7,6 +7,7 @@
 with lib;
 let
   cfg = config.services.build-vpsadminos-container-image-repository;
+  vpsadminosFlake = builtins.getFlake (toString ../../../../..);
 
   shared = import ./shared.nix { inherit config pkgs lib; };
 
@@ -41,8 +42,8 @@ in
 
   config = {
     nixpkgs.overlays = [
-      (import ../../../../overlays/osctl.nix)
-      (import ../../../../overlays/ruby.nix)
+      vpsadminosFlake.overlays.osctl
+      vpsadminosFlake.overlays.ruby
     ];
 
     environment.systemPackages = shared.createSystemPackages cfg;

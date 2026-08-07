@@ -54,6 +54,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Check NixOS container image repository module
+        run: nix eval --impure --raw --file tests/nixos-container-image-repository-eval.nix
+
       - name: Check NixOS disk image reuse
         run: nix build .#checks.x86_64-linux.nixos-disk-image-reuse --no-link
 
