@@ -142,7 +142,10 @@ in
 
             oom_counts[i].times do |j|
               it "triggers event ##{j}" do
-                machine.succeeds("osctl ct exec #{testct} awk 'BEGIN { s=\"xxxxxxxxxxxxxxxxxxxxxxxx\"; while (1) s=s s s }'")
+                status, output = machine.execute(
+                  "osctl ct exec #{testct} awk 'BEGIN { s=\"xxxxxxxxxxxxxxxxxxxxxxxx\"; while (1) s=s s s }'"
+                )
+                expect(status).to eq(137), output
               end
 
               it 'increases oom_kill count in self' do
@@ -187,7 +190,7 @@ in
     describe '/proc/slabinfo' do
       it 'contains only zeroes when read from within containers' do
         slabinfo = machine.succeeds("osctl ct exec #{testct} cat /proc/slabinfo")[1].strip.split("\n")
-        slabinfo[2..].each do |line|
+        slabinfo.drop(2).each do |line|
           _, active_objs, num_objs, _ = line.split
           next if active_objs.to_i == 0 && num_objs.to_i == 0
 
