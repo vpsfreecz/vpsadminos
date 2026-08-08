@@ -8,7 +8,6 @@ import ./base.nix {
       mapBase = null;
       setup = ''
         machine.all_succeed(
-          "osctl ct exec #{ct} dnf -y update",
           "osctl ct exec #{ct} dnf -y install squashfuse snapd",
         )
       '';
@@ -21,7 +20,6 @@ import ./base.nix {
       mapBase = 2800000;
       setup = ''
         machine.all_succeed(
-          "osctl ct exec #{ct} dnf -y update",
           "osctl ct exec #{ct} dnf -y install screen squashfuse snapd",
           "osctl ct exec #{ct} ln -s /var/lib/snapd/snap /snap",
         )

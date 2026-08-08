@@ -5,7 +5,6 @@ import ./base.nix {
       version = "latest";
       setup = ''
         machine.all_succeed(
-          "osctl ct exec #{ct} dnf -y update",
           "osctl ct exec #{ct} dnf -y install podman",
         )
 

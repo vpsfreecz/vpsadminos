@@ -5,7 +5,6 @@ import ./base.nix {
       version = "latest";
       setup = ''
         machine.all_succeed(
-          "osctl ct exec #{ct} dnf -y update",
           "osctl ct exec #{ct} dnf -y install dnf-plugins-core",
           "osctl ct exec #{ct} dnf-3 config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo",
           "osctl ct exec #{ct} dnf -y install docker-ce docker-ce-cli containerd.io",
