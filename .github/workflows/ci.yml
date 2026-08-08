@@ -164,3 +164,77 @@ jobs:
           prepare-outcome: ${{ steps.prepare-tests.outcome }}
           test-outcome: ${{ steps.run-tests.outcome }}
           upload-outcome: ${{ steps.upload-test-logs.outcome }}
+
+  livepatch-lifecycle:
+    name: Livepatch lifecycle (${{ matrix.vendor }})
+    needs: build
+    runs-on: [self-hosted, Linux, X64, "${{ matrix.runner }}"]
+    timeout-minutes: 180
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - vendor: amd
+            runner: amd-kvm
+          - vendor: intel
+            runner: intel-kvm
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare test state
+        id: prepare-tests
+        uses: ./.github/actions/prepare-test-state
+
+      - name: Run livepatch lifecycle tests
+        id: run-tests
+        timeout-minutes: 170
+        run: |
+          set -o pipefail
+
+          ./test-runner.sh test \
+            --state-dir "$TEST_RUNNER_STATE_DIR" \
+            --fresh \
+            --jobs 1 \
+            --tag "livepatch-${{ matrix.vendor }}" \
+            | tee "$TEST_RUNNER_STATE_DIR/test.log"
+
+      - name: Upload full test logs
+        id: upload-test-logs
+        if: >-
+          (failure() || cancelled()) &&
+          steps.prepare-tests.outcome == 'success' &&
+          steps.run-tests.outcome != 'skipped'
+        uses: ./.github/actions/upload-test-logs
+        with:
+          paths: |
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
+
+      - name: Evaluate test results
+        if: >-
+          always() &&
+          steps.prepare-tests.outcome == 'success' &&
+          steps.run-tests.outcome != 'skipped'
+        uses: ./.github/actions/evaluate-test-results
+        with:
+          log-file: ${{ steps.prepare-tests.outputs.state-directory }}/test.log
+
+      - name: Summarise test logs
+        if: >-
+          always() &&
+          steps.prepare-tests.outcome == 'success' &&
+          steps.run-tests.outcome != 'skipped'
+        uses: ./.github/actions/summarise-test-logs
+        with:
+          logs-root: ${{ steps.prepare-tests.outputs.state-directory }}
+
+      - name: Cleanup test state
+        if: always()
+        uses: ./.github/actions/cleanup-test-state
+        with:
+          state-directory: ${{ steps.prepare-tests.outputs.state-directory }}
+          prepare-outcome: ${{ steps.prepare-tests.outcome }}
+          test-outcome: ${{ steps.run-tests.outcome }}
+          upload-outcome: ${{ steps.upload-test-logs.outcome }}
