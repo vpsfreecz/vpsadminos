@@ -28,6 +28,12 @@ let
 
   distributions = import ./distributions.nix { inherit lib; };
 
+  # Keep this list limited to kernels still running in the fleet. Repository
+  # retention alone does not mean that a kernel needs current lifecycle CI.
+  livepatchLifecycleInstances = [
+    { kernelVersion = "6.12.95"; }
+  ];
+
   imageScripts =
     let
       entriesAttrs = builtins.readDir ../image-scripts/images;
@@ -130,6 +136,10 @@ let
         "incus/arch"
         "incus/debian"
         "incus/fedora"
+        {
+          template = "kernel/livepatch-lifecycle";
+          instances = livepatchLifecycleInstances;
+        }
         "kernel/vpsadminos"
         "kernel/module-autoload"
         "osctl/ct-cat"

@@ -193,7 +193,7 @@ import ../../make-test.nix (
     kvmSmoke = pkgs.stdenv.mkDerivation {
       pname = "livepatch-test-kvm-smoke";
       version = "1";
-      src = ./livepatch-6.12.95;
+      src = ./livepatch-lifecycle;
 
       dontConfigure = true;
 
