@@ -77,10 +77,13 @@ in
 
     boot.kernelParams = [
       "console=ttyS0"
-      # Keep initrd module loading deterministic. Parallel udev workers can
-      # otherwise race while x86 static-call sites in modules are patched,
-      # leaving a test VM without its root disk after a __text_poke BUG.
+      # Linux 6.18 can hit module-loader text/execmem races when udev workers
+      # load modules concurrently. The rd. parameter serializes initrd
+      # coldplug; the unprefixed parameter also serializes the normal udev
+      # daemon, including the post-pivot coldplug where a vpsAdmin services VM
+      # Oopsed. These settings apply only to generated test VMs.
       "rd.udev.children_max=1"
+      "udev.children_max=1"
     ];
 
     boot.initrd.availableKernelModules = [
