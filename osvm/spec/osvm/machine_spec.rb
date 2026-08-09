@@ -343,6 +343,168 @@ RSpec.describe OsVm::Machine do
     end
   end
 
+  it 'detects fatal kernel output split across console reads' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:, name: 'services')
+
+      machine.send(:append_console_output, '[    7.067] BUG: unable to handle page')
+      expect(machine.kernel_failed?).to be(false)
+
+      machine.send(:append_console_output, " fault for address: ffffffffc0ef7000\r\n")
+
+      expect(machine.kernel_failed?).to be(true)
+      expect { machine.raise_if_kernel_failed! }
+        .to raise_error(OsVm::KernelFailure) do |error|
+          expect(error.machine_name).to eq('services')
+          expect(error.console_line).to include('BUG: unable to handle page fault')
+          expect(error.console_log_path).to end_with('services-console.log')
+        end
+    end
+  end
+
+  it 'flushes an empty console scan buffer when the console closes' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      machine.send(:append_console_output, "ordinary output\n")
+
+      expect { machine.send(:append_console_output, '', flush: true) }
+        .not_to raise_error
+      expect(machine.kernel_failed?).to be(false)
+    end
+  end
+
+  it 'detects fatal kernel signatures for both machine spins' do
+    with_tmpdir do |dir|
+      machines = [
+        build_vpsadminos_machine(dir:, name: 'vpsadminos'),
+        build_nixos_machine(dir:, name: 'nixos')
+      ]
+
+      machines.each do |machine|
+        machine.send(:append_console_output, "[    1.000] Oops: 0003 [#1] SMP\n")
+        expect { machine.raise_if_kernel_failed! }.to raise_error(OsVm::KernelFailure)
+      end
+    end
+  end
+
+  it 'recognizes all fatal kernel signature classes' do
+    signatures = [
+      'BUG: unable to handle page fault for address: deadbeef',
+      'BUG: kernel NULL pointer dereference, address: 0',
+      'kernel BUG at arch/x86/kernel/alternative.c:2531!',
+      'Oops: 0003 [#1] SMP',
+      'general protection fault, probably for non-canonical address',
+      'Kernel panic - not syncing: fatal exception'
+    ]
+
+    with_tmpdir do |dir|
+      signatures.each_with_index do |signature, i|
+        machine = build_machine(dir:, name: "machine#{i}")
+        machine.send(:append_console_output, "[    1.000] #{signature}\n")
+
+        expect { machine.raise_if_kernel_failed! }.to raise_error(OsVm::KernelFailure, /#{Regexp.escape(signature)}/)
+      end
+    end
+  end
+
+  it 'does not treat warnings and sanitizers as fatal kernel output' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      machine.send(
+        :append_console_output,
+        "[    1.000] WARNING: suspicious state\nKASAN: use-after-free\nUBSAN: array index out of bounds\n"
+      )
+
+      expect(machine.kernel_failed?).to be(false)
+      expect(machine.raise_if_kernel_failed!).to eq(machine)
+    end
+  end
+
+  it 'retains the first unexpected kernel failure' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      machine.send(:append_console_output, "[    1.000] Oops: first failure\n")
+      machine.send(:append_console_output, "[    2.000] Kernel panic - not syncing: second failure\n")
+
+      expect { machine.raise_if_kernel_failed! }
+        .to raise_error(OsVm::KernelFailure, /first failure/)
+    end
+  end
+
+  it 'allows only matching kernel failures within a scoped block' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+
+      machine.allow_kernel_failure(/sysrq triggered crash/) do
+        machine.send(
+          :append_console_output,
+          "[    1.000] Kernel panic - not syncing: sysrq triggered crash\n"
+        )
+      end
+
+      expect(machine.kernel_failed?).to be(false)
+
+      machine.allow_kernel_failure(/sysrq triggered crash/) do
+        machine.send(:append_console_output, "[    2.000] Oops: unrelated failure\n")
+      end
+
+      expect { machine.raise_if_kernel_failed! }
+        .to raise_error(OsVm::KernelFailure, /unrelated failure/)
+    end
+  end
+
+  it 'ends a kernel failure allowance when its block raises' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+
+      expect do
+        machine.allow_kernel_failure(/expected panic/) { raise 'test failure' }
+      end.to raise_error('test failure')
+
+      machine.send(
+        :append_console_output,
+        "[    1.000] Kernel panic - not syncing: expected panic\n"
+      )
+
+      expect { machine.raise_if_kernel_failed! }.to raise_error(OsVm::KernelFailure)
+    end
+  end
+
+  it 'interrupts a join when the console reports a kernel failure' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      reaper = instance_double(Thread)
+      waits = []
+      allow(reaper).to receive(:join) do |timeout|
+        waits << timeout
+        machine.send(:append_console_output, "[    1.000] Oops: join failure\n")
+        nil
+      end
+      allow(machine).to receive(:qemu_state).and_return([123, reaper, true])
+
+      expect { machine.join(timeout: 10) }
+        .to raise_error(OsVm::KernelFailure, /join failure/)
+      expect(waits.length).to eq(1)
+      expect(waits.first).to be <= 1
+    end
+  end
+
+  it 'interrupts the post-poweroff wait on a kernel failure' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      reaper = instance_spy(Thread, join: nil)
+      allow(machine).to receive(:execute) do
+        machine.send(:append_console_output, "[    1.000] Oops: stop failure\n")
+        [0, '']
+      end
+      allow(machine).to receive(:qemu_state).and_return([123, reaper, true])
+
+      expect { machine.stop(timeout: 10) }
+        .to raise_error(OsVm::KernelFailure, /stop failure/)
+      expect(reaper).not_to have_received(:join)
+    end
+  end
+
   it 'times out waiting for console text' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)

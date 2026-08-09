@@ -5,6 +5,8 @@ require 'test-runner/resource_pool'
 
 module TestRunner
   class Executor
+    # Private parent/child status that cannot be accepted by expectFailure.
+    KERNEL_FAILURE_EXIT_STATUS = 86
     DEFAULT_RESOURCE_REFRESH_INTERVAL = 15
     DEFAULT_STATUS_INTERVAL = 300
     TEST_HEARTBEAT_INTERVAL = 300
@@ -371,10 +373,18 @@ module TestRunner
 
     def classify_results(result_list)
       {
-        expected_successful: result_list.select { |r| r.expected_to_succeed? && r.successful? },
-        expected_failed: result_list.select { |r| r.expected_to_fail? && r.failed? },
-        unexpected_failed: result_list.select { |r| r.expected_to_succeed? && r.failed? },
-        unexpected_successful: result_list.select { |r| r.expected_to_fail? && r.successful? }
+        expected_successful: result_list.select do |r|
+          !r.kernel_failure? && r.expected_to_succeed? && r.successful?
+        end,
+        expected_failed: result_list.select do |r|
+          !r.kernel_failure? && r.expected_to_fail? && r.failed?
+        end,
+        unexpected_failed: result_list.select do |r|
+          r.kernel_failure? || (r.expected_to_succeed? && r.failed?)
+        end,
+        unexpected_successful: result_list.select do |r|
+          !r.kernel_failure? && r.expected_to_fail? && r.successful?
+        end
       }
     end
 
@@ -420,12 +430,18 @@ module TestRunner
     end
 
     def unexpected_script_paths(test_results, successful:)
-      test_results.flat_map(&:script_results)
-                  .select(&:unexpected_result?)
-                  .select { |script_result| successful ? script_result.successful? : script_result.failed? }
-                  .map { |script_result| script_result.test_script.path }
-                  .uniq
-                  .sort
+      kernel_failure_paths = if successful
+                               []
+                             else
+                               test_results.select(&:kernel_failure?).map { |result| result.test.path }
+                             end
+      script_paths = test_results.reject(&:kernel_failure?)
+                                 .flat_map(&:script_results)
+                                 .select(&:unexpected_result?)
+                                 .select { |result| successful ? result.successful? : result.failed? }
+                                 .map { |result| result.test_script.path }
+
+      (kernel_failure_paths + script_paths).uniq.sort
     end
 
     def log_reserved_resources(test, resources)
@@ -463,6 +479,7 @@ module TestRunner
         end
 
         break if stop_work?
+        break if last_result.kernel_failure?
 
         remaining_scripts = remaining_scripts.select do |script|
           script_result = latest_script_results.fetch(script)
@@ -500,7 +517,11 @@ module TestRunner
 
       secs = result.elapsed_time.round(2)
 
-      if result.expected_result?
+      if result.kernel_failure?
+        log("#{prefix} Test '#{test.path}' stopped after #{secs} seconds due to a guest kernel failure, " \
+            "see #{result.state_dir}")
+        stop_work! if opts[:stop_on_failure]
+      elsif result.expected_result?
         if result.successful?
           log("#{prefix} Test '#{test.path}' successful in #{secs} seconds")
         else
@@ -529,7 +550,8 @@ module TestRunner
         script_results,
         last_result&.successful? || false,
         elapsed_time,
-        last_result&.state_dir || test_state_dir(test)
+        last_result&.state_dir || test_state_dir(test),
+        kernel_failure: last_result&.kernel_failure? || false
       )
     end
 
@@ -565,8 +587,13 @@ module TestRunner
           recreate_disks: opts[:recreate_disks]
         )
 
-        ev.run do |result_hash|
-          w.puts(result_hash.to_json)
+        begin
+          ev.run do |result_hash|
+            w.puts(result_hash.to_json)
+          end
+        rescue OsVm::KernelFailure => e
+          warn e.full_message
+          exit KERNEL_FAILURE_EXIT_STATUS
         end
       end
 
@@ -657,7 +684,7 @@ module TestRunner
         # pass
       end
 
-      Process.wait(pid)
+      _pid, process_status = Process.wait2(pid)
 
       OsVm::PortReservation.release_ports(key: "test:#{test.path}")
 
@@ -672,9 +699,10 @@ module TestRunner
       result = TestResult.new(
         test,
         script_results,
-        $?.exitstatus == 0,
+        process_status.exitstatus == 0,
         Time.now - t1,
-        dir
+        dir,
+        kernel_failure: process_status.exitstatus == KERNEL_FAILURE_EXIT_STATUS
       )
 
       File.open(File.join(dir, 'test-result.txt'), 'w') do |f|

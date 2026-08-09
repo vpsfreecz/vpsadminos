@@ -261,24 +261,26 @@ import ../../make-test.nix (
           expect_crash_kernel_loaded(crasher)
           crasher.execute("echo #{Shellwords.escape(message)} > /dev/kmsg")
 
-          begin
-            crasher.execute('echo c > /proc/sysrq-trigger', timeout: crash_command_timeout)
-          rescue OsVm::MachineShellClosed
-          else
-            fail 'Expected machine shell to be closed'
+          crasher.allow_kernel_failure(/Kernel panic - not syncing: sysrq triggered crash/) do
+            begin
+              crasher.execute('echo c > /proc/sysrq-trigger', timeout: crash_command_timeout)
+            rescue OsVm::MachineShellClosed
+            else
+              fail 'Expected machine shell to be closed'
+            end
+
+            wait_for_uploaded_crash
+            target = latest_crash_dir
+
+            expect(target).not_to eq("")
+            expect(server.succeeds("cat #{Shellwords.escape(target)}/inspect.exit-status")[1].strip)
+              .to eq('0')
+
+            server.succeeds("grep -F #{Shellwords.escape(message)} #{Shellwords.escape(target)}/dmesg")
+            server.succeeds("grep -F 'vmcore=/proc/vmcore' #{Shellwords.escape(target)}/inspect/manifest")
+            server.succeeds("grep -F 'ps-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
+            server.succeeds("grep -F 'bt-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
           end
-
-          wait_for_uploaded_crash
-          target = latest_crash_dir
-
-          expect(target).not_to eq("")
-          expect(server.succeeds("cat #{Shellwords.escape(target)}/inspect.exit-status")[1].strip)
-            .to eq('0')
-
-          server.succeeds("grep -F #{Shellwords.escape(message)} #{Shellwords.escape(target)}/dmesg")
-          server.succeeds("grep -F 'vmcore=/proc/vmcore' #{Shellwords.escape(target)}/inspect/manifest")
-          server.succeeds("grep -F 'ps-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
-          server.succeeds("grep -F 'bt-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
         end
       end
     '';

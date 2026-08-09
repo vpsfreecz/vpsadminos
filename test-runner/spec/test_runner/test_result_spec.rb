@@ -27,6 +27,22 @@ RSpec.describe TestRunner::TestResult do
     expect(result).to be_expected_result
   end
 
+  it 'always treats a guest kernel failure as unexpected' do
+    failing_test = build_test(expect_failure: true)
+    result = described_class.new(
+      failing_test,
+      [TestRunner::TestScriptResult.new(failing_test.test_scripts['default'], false, 0.1)],
+      false,
+      0.2,
+      '/tmp/state',
+      kernel_failure: true
+    )
+
+    expect(result).to be_kernel_failure
+    expect(result).to be_failed
+    expect(result).to be_unexpected_result
+  end
+
   it 'serializes and deserializes hashes and json' do
     result = described_class.new(test, [TestRunner::TestScriptResult.new(script, true, 0.1)], true, 0.2, '/tmp/state')
 
@@ -35,6 +51,7 @@ RSpec.describe TestRunner::TestResult do
 
     expect(hash).to include('type' => 'test', 'test' => 'suite/example')
     expect(round_trip.successful?).to be(true)
+    expect(round_trip).not_to be_kernel_failure
     expect(round_trip.script_results.first.test_script).to eq(script)
   end
 end

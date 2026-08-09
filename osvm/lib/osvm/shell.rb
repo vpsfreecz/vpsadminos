@@ -91,6 +91,7 @@ module OsVm
     # @param timeout [Integer]
     # @return [void]
     def wait(timeout: @default_timeout)
+      machine.raise_if_kernel_failed!
       raise "machine #{machine.name} is not running" unless machine.running?
       return if up?
 
@@ -98,6 +99,8 @@ module OsVm
       buffer = ''
 
       loop do
+        machine.raise_if_kernel_failed!
+
         if t1 + timeout < Time.now
           raise TimeoutError, 'Timeout occurred while waiting for shell'
         end
@@ -128,7 +131,9 @@ module OsVm
     # @param timeout [Integer]
     # @return [Array<Integer, String>] exit status and output
     def execute(cmd, timeout: @default_timeout)
+      machine.raise_if_kernel_failed!
       machine.start unless machine.running?
+      machine.raise_if_kernel_failed!
       wait
 
       mutex.synchronize do
@@ -266,6 +271,8 @@ module OsVm
       t1 = Time.now
 
       loop do
+        machine.raise_if_kernel_failed!
+
         if t1 + timeout < Time.now
           raise TimeoutError, 'Timeout occurred while waiting for shell connection'
         elsif !machine.running?
@@ -330,6 +337,8 @@ module OsVm
       buffer = ''
 
       loop do
+        machine.raise_if_kernel_failed!
+
         if t1 + timeout < Time.now
           raise UnrecoverableTimeoutError, "Timeout occurred while running command '#{command}', " \
                                            "buffer contents: #{buffer.inspect}"
@@ -342,6 +351,7 @@ module OsVm
           buffer << read_nonblock(io)
         rescue EOFError
           reset
+          machine.raise_if_kernel_failed!
           raise MachineShellClosed
         end
 

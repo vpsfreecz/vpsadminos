@@ -155,27 +155,29 @@ import ../../make-test.nix (
           expect_crash_kernel_loaded(machine)
           machine.execute("echo #{message} > /dev/kmsg")
 
-          begin
-            machine.execute('echo c > /proc/sysrq-trigger', timeout: crash_command_timeout)
-          rescue OsVm::MachineShellClosed
-          else
-            fail 'Expected machine shell to be closed'
+          machine.allow_kernel_failure(/Kernel panic - not syncing: sysrq triggered crash/) do
+            begin
+              machine.execute('echo c > /proc/sysrq-trigger', timeout: crash_command_timeout)
+            rescue OsVm::MachineShellClosed
+            else
+              fail 'Expected machine shell to be closed'
+            end
+
+            timeout = 1
+
+            machine.wait_for_console_text(/sysrq: Trigger a crash/, timeout:)
+            machine.wait_for_console_text(/Kernel panic - not syncing: sysrq triggered crash/, timeout:)
+            machine.wait_for_console_text(/This is a crash kernel/, timeout:)
+            machine.wait_for_console_text(/Running crash-collect/, timeout:)
+            machine.wait_for_console_text(/crash-collect exited with 0/, timeout:)
+            machine.wait_for_console_text(/inspect\/README/, timeout:)
+            machine.wait_for_console_text(/inspect\/ps-active.txt/, timeout:)
+            machine.wait_for_console_text(/inspect\/bt-active.txt/, timeout:)
+            machine.wait_for_console_text(/inspect\/bt-sleeping-interruptible.txt/, timeout:)
+            machine.wait_for_console_text(/inspect\/bt-sleeping-uninterruptible.txt/, timeout:)
+            machine.wait_for_console_text(/Dumping dmesg/, timeout:)
+            machine.wait_for_console_text(/#{Regexp.escape(message)}/, timeout:)
           end
-
-          timeout = 1
-
-          machine.wait_for_console_text(/sysrq: Trigger a crash/, timeout:)
-          machine.wait_for_console_text(/Kernel panic - not syncing: sysrq triggered crash/, timeout:)
-          machine.wait_for_console_text(/This is a crash kernel/, timeout:)
-          machine.wait_for_console_text(/Running crash-collect/, timeout:)
-          machine.wait_for_console_text(/crash-collect exited with 0/, timeout:)
-          machine.wait_for_console_text(/inspect\/README/, timeout:)
-          machine.wait_for_console_text(/inspect\/ps-active.txt/, timeout:)
-          machine.wait_for_console_text(/inspect\/bt-active.txt/, timeout:)
-          machine.wait_for_console_text(/inspect\/bt-sleeping-interruptible.txt/, timeout:)
-          machine.wait_for_console_text(/inspect\/bt-sleeping-uninterruptible.txt/, timeout:)
-          machine.wait_for_console_text(/Dumping dmesg/, timeout:)
-          machine.wait_for_console_text(/#{Regexp.escape(message)}/, timeout:)
         end
       end
     '';

@@ -3,7 +3,10 @@
 require 'spec_helper'
 
 RSpec.describe OsVm::Shell do
-  def build_shell(dir:, machine: instance_double(OsVm::Machine, name: 'test', running?: true))
+  def build_shell(
+    dir:,
+    machine: instance_double(OsVm::Machine, name: 'test', running?: true, raise_if_kernel_failed!: nil)
+  )
     described_class.new(
       machine,
       0,
@@ -47,6 +50,22 @@ RSpec.describe OsVm::Shell do
 
       expect(shell.instance_variable_get(:@io)).to be_nil
       expect(shell).not_to be_up
+    end
+  end
+
+  it 'does not restart a stopped machine after a detected kernel failure' do
+    with_tmpdir do |dir|
+      failure = OsVm::KernelFailure.new(
+        machine_name: 'test',
+        console_line: 'Oops: test failure',
+        console_log_path: File.join(dir, 'console.log')
+      )
+      machine = instance_double(OsVm::Machine, running?: false, start: nil, name: 'test')
+      allow(machine).to receive(:raise_if_kernel_failed!).and_raise(failure)
+      shell = build_shell(dir:, machine:)
+
+      expect { shell.execute('true') }.to raise_error(failure)
+      expect(machine).not_to have_received(:start)
     end
   end
 

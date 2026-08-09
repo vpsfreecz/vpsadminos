@@ -145,23 +145,25 @@ import ../../make-test.nix (
           expect_crash_kernel_loaded(machine)
           machine.execute("echo #{message} > /dev/kmsg")
 
-          begin
-            machine.execute('echo c > /proc/sysrq-trigger')
-          rescue OsVm::MachineShellClosed
-            # pass
-          else
-            fail 'Expected machine shell to be closed'
+          machine.allow_kernel_failure(/Kernel panic - not syncing: sysrq triggered crash/) do
+            begin
+              machine.execute('echo c > /proc/sysrq-trigger')
+            rescue OsVm::MachineShellClosed
+              # pass
+            else
+              fail 'Expected machine shell to be closed'
+            end
+
+            # At this point, the machine is down and the console output is complete
+            timeout = 1
+
+            machine.wait_for_console_text(/sysrq: Trigger a crash/, timeout:)
+            machine.wait_for_console_text(/Kernel panic - not syncing: sysrq triggered crash/, timeout:)
+            machine.wait_for_console_text(/This is a crash kernel/, timeout:)
+            machine.wait_for_console_text(/Dumping dmesg/, timeout:)
+            machine.wait_for_console_text(/makedumpfile exited with 0/, timeout:)
+            machine.wait_for_console_text(/#{Regexp.escape(message)}/, timeout:)
           end
-
-          # At this point, the machine is down and the console output is complete
-          timeout = 1
-
-          machine.wait_for_console_text(/sysrq: Trigger a crash/, timeout:)
-          machine.wait_for_console_text(/Kernel panic - not syncing: sysrq triggered crash/, timeout:)
-          machine.wait_for_console_text(/This is a crash kernel/, timeout:)
-          machine.wait_for_console_text(/Dumping dmesg/, timeout:)
-          machine.wait_for_console_text(/makedumpfile exited with 0/, timeout:)
-          machine.wait_for_console_text(/#{Regexp.escape(message)}/, timeout:)
         end
       end
     '';

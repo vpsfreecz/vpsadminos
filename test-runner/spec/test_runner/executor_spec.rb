@@ -152,6 +152,26 @@ RSpec.describe TestRunner::Executor do
     expect(executor.results.first).to be_successful
   end
 
+  it 'does not retry a test after a guest kernel failure' do
+    test = build_test(attempts: 3)
+    script = test.test_scripts.fetch('default')
+    kernel_failure = TestRunner::TestResult.new(
+      test,
+      [TestRunner::TestScriptResult.new(script, false, 0.1)],
+      false,
+      0.1,
+      '/tmp/state',
+      kernel_failure: true
+    )
+    executor = build_executor([script])
+    allow(executor).to receive(:run_test_attempt).and_return(kernel_failure)
+
+    result = executor.send(:run_test_with_retries, 0, test, [script])
+
+    expect(executor).to have_received(:run_test_attempt).once
+    expect(result).to be_kernel_failure
+  end
+
   it 'runs a smaller pending test when the first pending test does not fit resources' do
     large = build_test(
       path: 'suite/large',
@@ -368,6 +388,7 @@ RSpec.describe TestRunner::Executor do
       successful?: true,
       expected_to_fail?: false,
       failed?: false,
+      kernel_failure?: false,
       script_results: []
     )
     expected_failed = instance_double(
@@ -376,6 +397,7 @@ RSpec.describe TestRunner::Executor do
       successful?: false,
       expected_to_fail?: true,
       failed?: true,
+      kernel_failure?: false,
       script_results: []
     )
     running_test = build_test(path: 'suite/running', name: 'running')
@@ -402,6 +424,7 @@ RSpec.describe TestRunner::Executor do
       successful?: true,
       expected_to_fail?: false,
       failed?: false,
+      kernel_failure?: false,
       script_results: []
     )
     expected_failed = instance_double(
@@ -410,6 +433,7 @@ RSpec.describe TestRunner::Executor do
       successful?: false,
       expected_to_fail?: true,
       failed?: true,
+      kernel_failure?: false,
       script_results: []
     )
     unexpected_failed = instance_double(
@@ -418,6 +442,7 @@ RSpec.describe TestRunner::Executor do
       successful?: false,
       expected_to_fail?: false,
       failed?: true,
+      kernel_failure?: false,
       script_results: [
         instance_double(
           TestRunner::TestScriptResult,
@@ -434,6 +459,7 @@ RSpec.describe TestRunner::Executor do
       successful?: true,
       expected_to_fail?: true,
       failed?: false,
+      kernel_failure?: false,
       script_results: [
         instance_double(
           TestRunner::TestScriptResult,
@@ -604,6 +630,7 @@ RSpec.describe TestRunner::Executor do
       expected_result?: false,
       successful?: false,
       failed?: true,
+      kernel_failure?: false,
       state_dir: '/tmp/state'
     )
     executor = build_executor([script], stop_on_failure: true)
@@ -695,6 +722,31 @@ RSpec.describe TestRunner::Executor do
     expect(result.script_results.length).to eq(1)
     expect(result.script_results.first).to be_failed
     expect(result.script_results.first.elapsed_time).to eq(-1)
+  end
+
+  it 'classifies the kernel-failure child status as unconditionally unexpected' do
+    test = build_test(expect_failure: true)
+    script = test.test_scripts.fetch('default')
+    executor = build_executor([script])
+    result, _logs, dir = run_test_with_output(
+      executor,
+      test,
+      [script],
+      lines: [
+        JSON.dump(
+          'type' => 'script',
+          'script' => 'default',
+          'success' => false,
+          'elapsed_time' => 0.1
+        )
+      ],
+      exitstatus: described_class::KERNEL_FAILURE_EXIT_STATUS
+    )
+
+    expect(result).to be_kernel_failure
+    expect(result).to be_unexpected_result
+    expect(executor.send(:classify_results, [result]).fetch(:unexpected_failed)).to eq([result])
+    expect(File.read(File.join(dir, 'test-result.txt')).strip).to eq('unexpected_failure')
   end
 
   it 'returns the last non-empty line from a file and tolerates missing files' do

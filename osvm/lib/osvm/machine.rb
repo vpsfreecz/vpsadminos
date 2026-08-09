@@ -5,6 +5,14 @@ module OsVm
   class Machine
     SHELL_INDEX_KEY = :osvm_machine_shell_index
     QEMU_REAP_INTERVAL = 0.1
+    KERNEL_FAILURE_PATTERN = Regexp.union(
+      /BUG: unable to handle/,
+      /BUG: kernel NULL pointer dereference/,
+      /kernel BUG at/,
+      /Oops:/,
+      /general protection fault/,
+      /Kernel panic - not syncing:/
+    ).freeze
 
     def self.with_shell(index)
       original_index = Thread.current[SHELL_INDEX_KEY]
@@ -49,6 +57,11 @@ module OsVm
       @qemu_cv = ConditionVariable.new
       @shared_dir_mutex = Mutex.new
       @shared_dir_mounted = false
+      @kernel_failure = nil
+      @kernel_failure_detected_at = nil
+      @allowed_kernel_failure_patterns = []
+      @console_output = ''
+      @console_scan_buffer = ''
 
       FileUtils.mkdir_p(tmpdir)
       FileUtils.mkdir_p(sockdir)
@@ -116,6 +129,7 @@ module OsVm
         end
 
         @start_kernel_params = kernel_params
+        reset_kernel_failure
 
         pid = Process.spawn(
           *qemu_command(kernel_params:),
@@ -139,7 +153,8 @@ module OsVm
     # Block until the machine stops
     def join(timeout: @default_timeout)
       _pid, reaper, = qemu_state
-      reaper&.join(timeout)
+      wait_for_reaper(reaper, timeout:) if reaper
+      raise_if_kernel_failed!
       nil
     end
 
@@ -156,10 +171,11 @@ module OsVm
 
       _pid, reaper, = qemu_state
 
-      if reaper && reaper.join(timeout).nil?
+      if reaper && !wait_for_reaper(reaper, timeout:)
         raise UnrecoverableTimeoutError, "Timeout while stopping machine #{name}"
       end
 
+      raise_if_kernel_failed!
       self
     end
 
@@ -340,6 +356,7 @@ module OsVm
       t1 = Time.now
 
       loop do
+        raise_if_kernel_failed!
         return self unless running?
 
         if t1 + timeout < Time.now
@@ -361,6 +378,49 @@ module OsVm
       self
     end
 
+    # Allow matching fatal kernel console output only while the block runs.
+    # Other kernel failure signatures remain fatal.
+    # @param pattern [Regexp]
+    def allow_kernel_failure(pattern)
+      raise ArgumentError, 'pattern must be a Regexp' unless pattern.is_a?(Regexp)
+
+      @mutex.synchronize { @allowed_kernel_failure_patterns << pattern }
+      yield
+    ensure
+      if pattern.is_a?(Regexp)
+        @mutex.synchronize do
+          i = @allowed_kernel_failure_patterns.rindex(pattern)
+          @allowed_kernel_failure_patterns.delete_at(i) if i
+        end
+      end
+    end
+
+    def kernel_failed?
+      @mutex.synchronize { !@kernel_failure.nil? }
+    end
+
+    def raise_if_kernel_failed!
+      failure = @mutex.synchronize { @kernel_failure&.dup }
+      return self unless failure
+
+      raise KernelFailure.new(
+        machine_name: name,
+        console_line: failure.fetch(:line),
+        console_log_path:
+      )
+    end
+
+    def kill_after_kernel_failure(drain_timeout: 1)
+      detected_at = @mutex.synchronize { @kernel_failure_detected_at }
+
+      if detected_at
+        remaining = drain_timeout - (Process.clock_gettime(Process::CLOCK_MONOTONIC) - detected_at)
+        sleep(remaining) if remaining > 0
+      end
+
+      kill(signal: 'KILL')
+    end
+
     # Return text captured from the machine's console so far
     # @return [String]
     def console_output
@@ -377,6 +437,8 @@ module OsVm
       log_started_at = log.console_wait_begin(regex)
 
       loop do
+        raise_if_kernel_failed!
+
         if regex =~ console_output
           log.console_wait_end(true, nil, log_started_at)
           return self
@@ -644,6 +706,21 @@ module OsVm
       true
     end
 
+    def wait_for_reaper(reaper, timeout:)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+
+      loop do
+        raise_if_kernel_failed!
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        return false if remaining <= 0
+
+        if reaper.join([remaining, 1].min)
+          raise_if_kernel_failed!
+          return true
+        end
+      end
+    end
+
     def signal_qemu(signal, pid)
       qemu_mutex.synchronize do
         return unless @qemu_pid == pid
@@ -655,8 +732,6 @@ module OsVm
     end
 
     def run_console_thread
-      @console_output = ''
-
       @console_thread = Thread.new do
         console_log = File.open(console_log_path, 'w')
 
@@ -666,17 +741,59 @@ module OsVm
             next unless rs
 
             data = read_nonblock(qemu_read)
-            @mutex.synchronize { @console_output << data }
+            append_console_output(data)
 
             console_log.write(data)
             console_log.flush
           end
         rescue EOFError
-          console_log.close
         rescue IOError
           # pass
+        ensure
+          append_console_output('', flush: true)
+          console_log.close unless console_log.closed?
         end
       end
+    end
+
+    def reset_kernel_failure
+      @mutex.synchronize do
+        @kernel_failure = nil
+        @kernel_failure_detected_at = nil
+        @console_output = ''
+        @console_scan_buffer = ''
+      end
+    end
+
+    def append_console_output(data, flush: false)
+      events = @mutex.synchronize do
+        @console_output << data
+        @console_scan_buffer << data
+
+        lines = @console_scan_buffer.split("\n", -1)
+        @console_scan_buffer = lines.pop || ''
+
+        if flush && !@console_scan_buffer.empty?
+          lines << @console_scan_buffer
+          @console_scan_buffer = ''
+        end
+
+        lines.filter_map do |raw_line|
+          line = raw_line.delete_suffix("\r")
+          next unless KERNEL_FAILURE_PATTERN.match?(line)
+
+          expected = @allowed_kernel_failure_patterns.any? { |pattern| pattern.match?(line) }
+
+          unless expected || @kernel_failure
+            @kernel_failure = { line: }
+            @kernel_failure_detected_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          end
+
+          { line:, expected: }
+        end
+      end
+
+      events.each { |event| log.kernel_failure(event.fetch(:line), expected: event.fetch(:expected)) }
     end
 
     def prepare_disks

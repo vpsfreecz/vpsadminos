@@ -312,22 +312,120 @@ RSpec.describe TestRunner::TestEvaluator do
     end.to raise_error(OsVm::TimeoutError, 'Timeout occurred while waiting for thing to fail')
   end
 
+  it 'propagates guest kernel failures from polling helpers' do
+    evaluator = build_evaluator
+    evaluator.instance_variable_set(
+      :@machines,
+      { 'failed' => build_fake_machine(kernel_failed: true) }
+    )
+
+    expect do
+      evaluator.wait_for_block(name: 'thing') { false }
+    end.to raise_error(OsVm::KernelFailure, /Oops: fake failure/)
+  end
+
+  it 'does not accept a guest kernel failure from an expected-failure script' do
+    test = build_test(scripts: { 'default' => { 'expectFailure' => true } })
+    machine = build_fake_machine(kernel_failed: true)
+    evaluator = build_evaluator(
+      test:,
+      scripts: [test.test_scripts.fetch('default')],
+      machines: [machine],
+      config_data: {
+        'machines' => { 'machine' => { 'spin' => 'vpsadminos' } },
+        'framework' => {},
+        'testScripts' => {
+          'default' => {
+            'script' => "wait_for_block(name: 'never') { false }"
+          }
+        }
+      }
+    )
+
+    expect { evaluator.run }
+      .to raise_error(OsVm::KernelFailure, /Oops: fake failure/)
+  end
+
+  it 'fails when the kernel failure arrives during graceful shutdown' do
+    machine = build_fake_machine(kernel_failure_on_stop: true)
+    evaluator = build_evaluator(
+      machines: [machine],
+      config_data: {
+        'machines' => { 'machine' => { 'spin' => 'vpsadminos' } },
+        'framework' => {},
+        'testScripts' => { 'default' => { 'script' => '' } }
+      }
+    )
+
+    expect { evaluator.run }
+      .to raise_error(OsVm::KernelFailure, /Oops: fake failure/)
+    expect(machine.calls).to include(:stop, :kill_after_kernel_failure)
+    expect(machine.calls).not_to include(:kill)
+  end
+
   it 'stops runnable machines and always kills, finalizes, and cleans up' do
     evaluator = build_evaluator
-    runnable = instance_spy(FakeMachine, running?: true, can_execute?: true, stop: nil, kill: nil, destroy: nil, finalize: nil, cleanup: nil)
-    non_exec = instance_spy(FakeMachine, running?: true, can_execute?: false, stop: nil, kill: nil, destroy: nil, finalize: nil, cleanup: nil)
-    stopped = instance_spy(FakeMachine, running?: false, can_execute?: false, stop: nil, kill: nil, destroy: nil, finalize: nil, cleanup: nil)
-    evaluator.instance_variable_set(:@machines, { 'a' => runnable, 'b' => non_exec, 'c' => stopped })
+    runnable = instance_spy(
+      FakeMachine,
+      running?: true,
+      can_execute?: true,
+      kernel_failed?: false,
+      stop: nil,
+      kill: nil,
+      destroy: nil,
+      finalize: nil,
+      cleanup: nil
+    )
+    non_exec = instance_spy(
+      FakeMachine,
+      running?: true,
+      can_execute?: false,
+      kernel_failed?: false,
+      stop: nil,
+      kill: nil,
+      destroy: nil,
+      finalize: nil,
+      cleanup: nil
+    )
+    stopped = instance_spy(
+      FakeMachine,
+      running?: false,
+      can_execute?: false,
+      kernel_failed?: false,
+      stop: nil,
+      kill: nil,
+      destroy: nil,
+      finalize: nil,
+      cleanup: nil
+    )
+    failed = instance_spy(
+      FakeMachine,
+      running?: true,
+      can_execute?: true,
+      kernel_failed?: true,
+      stop: nil,
+      kill: nil,
+      kill_after_kernel_failure: nil,
+      destroy: nil,
+      finalize: nil,
+      cleanup: nil
+    )
+    evaluator.instance_variable_set(
+      :@machines,
+      { 'a' => runnable, 'b' => non_exec, 'c' => stopped, 'd' => failed }
+    )
 
     evaluator.send(:do_run) { nil }
 
     expect(runnable).to have_received(:stop)
     expect(non_exec).not_to have_received(:stop)
     expect(stopped).not_to have_received(:stop)
+    expect(failed).not_to have_received(:stop)
     expect([runnable, non_exec, stopped]).to all(have_received(:kill))
-    expect([runnable, non_exec, stopped]).to all(have_received(:destroy))
-    expect([runnable, non_exec, stopped]).to all(have_received(:finalize))
-    expect([runnable, non_exec, stopped]).to all(have_received(:cleanup))
+    expect(failed).to have_received(:kill_after_kernel_failure)
+    expect([runnable, non_exec, stopped, failed]).to all(have_received(:destroy))
+    expect([runnable, non_exec, stopped, failed]).to all(have_received(:finalize))
+    expect([runnable, non_exec, stopped, failed]).to all(have_received(:cleanup))
   end
 
   it 'prefers hook machine class overrides before spin-based defaults' do

@@ -17,10 +17,14 @@ module TestRunner
     # @return [String]
     attr_reader :state_dir
 
-    def initialize(test, script_results, success, elapsed_time, state_dir)
+    # @return [Boolean]
+    attr_reader :kernel_failure
+
+    def initialize(test, script_results, success, elapsed_time, state_dir, kernel_failure: false)
       @test = test
       @script_results = script_results
-      @success = success && script_results.all?(&:expected_result?)
+      @kernel_failure = kernel_failure
+      @success = !kernel_failure && success && script_results.all?(&:expected_result?)
       @elapsed_time = elapsed_time
       @state_dir = state_dir
     end
@@ -34,6 +38,8 @@ module TestRunner
     end
 
     def expected_result?
+      return false if kernel_failure?
+
       if test.expect_failure
         !@success
       else
@@ -53,6 +59,10 @@ module TestRunner
       test.expect_failure
     end
 
+    def kernel_failure?
+      @kernel_failure
+    end
+
     # @return [Hash]
     def to_h
       {
@@ -61,6 +71,7 @@ module TestRunner
         'success' => successful?,
         'expected_to_succeed' => expected_to_succeed?,
         'expected_result' => expected_result?,
+        'kernel_failure' => kernel_failure?,
         'elapsed_time' => elapsed_time,
         'state_dir' => state_dir,
         'script_results' => script_results.map(&:to_h)
@@ -82,7 +93,8 @@ module TestRunner
         script_results,
         json.fetch('success'),
         json.fetch('elapsed_time'),
-        json.fetch('state_dir')
+        json.fetch('state_dir'),
+        kernel_failure: json.fetch('kernel_failure', false)
       )
     end
 

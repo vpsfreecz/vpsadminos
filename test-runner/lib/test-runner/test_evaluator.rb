@@ -116,6 +116,7 @@ module TestRunner
             event_mutex.synchronize { yield(script_result) } if block_given?
           end
         end
+        raise_if_kernel_failed!
 
         script_results = @scripts.map { |script| script_results_by_name.fetch(script.name) }
         test_result = build_test_result(script_results, Time.now - test_started_at)
@@ -288,12 +289,15 @@ module TestRunner
       cur_timeout = timeout
 
       loop do
+        raise_if_kernel_failed!
+
         ret =
           begin
             yield
           rescue RSpec::Expectations::ExpectationNotMetError
             false
           end
+        raise_if_kernel_failed!
         return ret if ret
 
         cur_timeout = timeout - (Time.now - t1)
@@ -324,6 +328,8 @@ module TestRunner
       cur_timeout = timeout
 
       loop do
+        raise_if_kernel_failed!
+
         ret =
           begin
             yield
@@ -332,6 +338,7 @@ module TestRunner
           rescue OsVm::CommandSucceeded
             true
           end
+        raise_if_kernel_failed!
         return ret if ret
 
         cur_timeout = timeout - (Time.now - t1)
@@ -363,6 +370,8 @@ module TestRunner
       cur_timeout = timeout
 
       loop do
+        raise_if_kernel_failed!
+
         begin
           ret = yield
         rescue OsVm::CommandFailed
@@ -370,6 +379,8 @@ module TestRunner
         rescue OsVm::CommandSucceeded
           ret = true
         end
+
+        raise_if_kernel_failed!
 
         return ret unless ret
 
@@ -433,6 +444,8 @@ module TestRunner
       workers = worker_count.times.map do |worker_i|
         Thread.new do
           loop do
+            break if kernel_failed?
+
             script =
               begin
                 queue.pop(true)
@@ -467,6 +480,7 @@ module TestRunner
 
           yield(example_result) if block_given?
         end
+        raise_if_kernel_failed!
 
         t2 = Time.now
         log "Script #{script.name} finished in #{(t2 - t1).round(2)}s"
@@ -506,15 +520,19 @@ module TestRunner
 
       log 'Evaluating examples'
 
+      raise_if_kernel_failed!
       state.before.each(&:call)
+      raise_if_kernel_failed!
 
       results = ExampleOrdering.sort_by_order(state.example_groups, state.example_config.default_order).map do |grp|
         grp.evaluate do |type, example_or_result|
           if type == :before
+            raise_if_kernel_failed!
             log "[#{i}/#{example_count}] Evaluating '#{example_or_result.full_message}'"
             state.current_example = example_or_result
           else
             result = example_or_result
+            raise_if_kernel_failed!
 
             status =
               if result.success?
@@ -546,6 +564,7 @@ module TestRunner
       end.flatten
 
       state.after.each(&:call)
+      raise_if_kernel_failed!
 
       failed = results.select(&:failure?)
       return if failed.empty?
@@ -594,15 +613,31 @@ module TestRunner
       yield
 
       machines.each_value do |m|
-        m.stop if m.running? && m.can_execute?
+        m.stop if !m.kernel_failed? && m.running? && m.can_execute?
       end
     ensure
-      machines.each_value do |m|
-        m.kill
-        m.destroy if @opts[:destructive]
-        m.finalize
-        m.cleanup
+      begin
+        machines.each_value do |m|
+          if m.kernel_failed?
+            m.kill_after_kernel_failure
+          else
+            m.kill
+          end
+          m.destroy if @opts[:destructive]
+          m.finalize
+          m.cleanup
+        end
+      ensure
+        raise_if_kernel_failed!
       end
+    end
+
+    def kernel_failed?
+      machines.each_value.any?(&:kernel_failed?)
+    end
+
+    def raise_if_kernel_failed!
+      machines.each_value(&:raise_if_kernel_failed!)
     end
 
     def machine_class_for(config)

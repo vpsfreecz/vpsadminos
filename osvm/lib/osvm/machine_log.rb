@@ -34,6 +34,14 @@ module OsVm
       end
     end
 
+    def kernel_failure(line, expected:)
+      log do |io|
+        io.puts('ACTION: kernel-failure')
+        io.puts("EXPECTED: #{expected}")
+        io.puts("LINE: #{line}")
+      end
+    end
+
     def console_wait_begin(regex)
       log_begin do |io|
         io.puts('ACTION: console-wait')
