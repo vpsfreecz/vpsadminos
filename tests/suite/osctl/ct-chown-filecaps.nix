@@ -1,8 +1,6 @@
 import ../../make-test.nix (
   { pkgs }:
   let
-    issue61 = "https://github.com/vpsfreecz/vpsadminos/issues/61";
-
     commonScript = ''
       def self.output_of(cmd)
         machine.succeeds(cmd)[1].strip
@@ -67,13 +65,14 @@ import ../../make-test.nix (
 
     mkScript = mode: ''
       map_mode = ${builtins.toJSON mode}
-      issue61 = ${builtins.toJSON issue61}
       ctid = get_container_id
       src_user = get_container_id
       dst_user = get_container_id
+      next_user = get_container_id
       runtime_binary = "/opt/filecap-test/chown-cap"
       runtime_target_before = "/var/tmp/filecap-test/target-before"
       runtime_target_after = "/var/tmp/filecap-test/target-after"
+      runtime_target_second = "/var/tmp/filecap-test/target-second"
 
       ${commonScript}
 
@@ -89,6 +88,7 @@ import ../../make-test.nix (
         machine.all_succeed(
           "osctl user new #{src_user}",
           "osctl user new #{dst_user}",
+          "osctl user new #{next_user}",
           "osctl ct new --user #{src_user} --distribution fedora " \
             "--version latest --map-mode #{map_mode} #{ctid}",
           "osctl ct unset start-menu #{ctid}",
@@ -116,6 +116,7 @@ import ../../make-test.nix (
           "osctl ct del -f --prune #{ctid} >/dev/null 2>&1 || true",
           "osctl user del #{src_user} >/dev/null 2>&1 || true",
           "osctl user del #{dst_user} >/dev/null 2>&1 || true",
+          "osctl user del #{next_user} >/dev/null 2>&1 || true",
           "osctl repository images prune >/dev/null 2>&1 || true"
         ].join("; ")
 
@@ -196,12 +197,10 @@ import ../../make-test.nix (
 
             context 'runtime-created capability' do
               it 'keeps the runtime-created capability readable' do
-                pending(issue61) if map_mode == 'zfs'
                 expect(read_cap(ctid, runtime_binary)).to include('cap_chown=ep')
               end
 
               it 'keeps the runtime-created capability working' do
-                pending(issue61) if map_mode == 'zfs'
                 reset_root_owned_file(ctid, runtime_target_after)
 
                 machine.succeeds(
@@ -215,6 +214,37 @@ import ../../make-test.nix (
 
             it 'passes osctl healthcheck' do
               machine.succeeds("osctl healthcheck -a")
+            end
+
+            context 'after a second ct chown' do
+              before(:context) do
+                machine.all_succeed(
+                  "osctl ct stop #{ctid}",
+                  "osctl ct chown #{ctid} #{next_user}",
+                  "osctl ct start #{ctid}"
+                )
+
+                wait_ct_exec(ctid)
+              end
+
+              it 'keeps the runtime-created capability readable' do
+                expect(read_cap(ctid, runtime_binary)).to include('cap_chown=ep')
+              end
+
+              it 'keeps the runtime-created capability working' do
+                reset_root_owned_file(ctid, runtime_target_second)
+
+                machine.succeeds(
+                  "osctl ct exec #{ctid} sh -c " \
+                    "#{runtime_use_cmd(@nobody_uid, @nobody_gid, runtime_target_second).inspect}"
+                )
+
+                expect(owner_of(ctid, runtime_target_second)).to eq('123:123')
+              end
+
+              it 'passes osctl healthcheck' do
+                machine.succeeds("osctl healthcheck -a")
+              end
             end
           end
         end
@@ -243,7 +273,7 @@ import ../../make-test.nix (
 
       zfs = {
         description = ''
-          Runtime-created file caps break after ct chown in zfs map mode;
+          Runtime-created file caps survive repeated ct chown in zfs map mode;
           image-shipped Fedora file caps remain preserved.
         '';
         script = mkScript "zfs";
