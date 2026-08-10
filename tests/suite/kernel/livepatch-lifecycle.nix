@@ -75,7 +75,6 @@ import ../../make-template.nix (
             BOOT_VERSION = ${builtins.toJSON kernelVersion}
             CANDIDATE_VERSION = ${toString candidateVersion}
             CANDIDATE_NAME = ${builtins.toJSON candidateName}
-            CANDIDATE_SHA256 = ${builtins.toJSON line.candidateSha256}
             EXPECTED_VENDOR = ${builtins.toJSON expectedVendor}
             KVM_MODULE = ${builtins.toJSON kvmModule}
             KVM_SMOKE = "/etc/livepatch-lifecycle/kvm-smoke"
@@ -181,7 +180,6 @@ import ../../make-template.nix (
 
             candidate = candidate_module(machine)
             machine.all_succeed(
-              "test \"$(sha256sum #{candidate} | cut -d' ' -f1)\" = #{CANDIDATE_SHA256}",
               "test \"$(modinfo -F name #{candidate})\" = #{CANDIDATE_NAME}",
               "modinfo -F vermagic #{candidate} | grep -q '^#{BOOT_VERSION} '",
               "mkdir -p /lib/modules",

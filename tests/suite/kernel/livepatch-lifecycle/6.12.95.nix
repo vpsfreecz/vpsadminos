@@ -30,8 +30,10 @@ let
     };
 in
 {
-  candidateSha256 = "faa3d5a4d7e8db0d97eeb362e9e7e7400139e575c58a56f92573bd7a88c0c811";
-
+  # The candidate comes from the current tree and its locked kernel/toolchain
+  # inputs, so its raw module checksum legitimately changes with dependency
+  # updates. Historical predecessors are evaluated from immutable revisions
+  # and remain checksummed to ensure that the intended shipped bytes are used.
   predecessors = {
     # Shipped v3 can wedge while activating its Safe-RET transition on the
     # affected AMD host, so v4 must be tested there from the latest safe v2.
