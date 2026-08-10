@@ -26,8 +26,18 @@ RSpec.describe TestRunner::RepositorySource do
     File.write(File.join(repo, 'marker'), "before\n")
   end
 
+  def git(repo, *args)
+    out, status = Open3.capture2e('git', '-C', repo, *args)
+    raise "git #{args.join(' ')} failed: #{out}" unless status.success?
+
+    out
+  end
+
   it 'keeps one immutable source while the checkout changes' do
-    Dir.mktmpdir do |repo|
+    Dir.mktmpdir do |dir|
+      repo = File.join(dir, 'plain #?%')
+      FileUtils.mkdir_p(repo)
+
       Dir.mktmpdir do |root_directory|
         write_flake(repo)
 
@@ -44,6 +54,36 @@ RSpec.describe TestRunner::RepositorySource do
         end
 
         expect(Dir.glob(File.join(root_directory, '*'))).to be_empty
+      end
+    end
+  end
+
+  it 'excludes ignored files from Git worktree sources' do
+    Dir.mktmpdir do |dir|
+      repo = File.join(dir, 'repo')
+      worktree = File.join(dir, 'worktree #?%')
+      root_directory = File.join(dir, 'roots')
+      FileUtils.mkdir_p(repo)
+      git(repo, 'init', '--quiet', '--initial-branch=main')
+      write_flake(repo)
+      File.write(File.join(repo, '.gitignore'), ".devcluster/\n")
+      git(repo, 'add', 'flake.nix', 'marker', '.gitignore')
+      git(
+        repo,
+        '-c', 'user.name=Test Runner',
+        '-c', 'user.email=test-runner@example.invalid',
+        'commit', '--quiet', '-m', 'Initial fixture'
+      )
+      git(repo, 'worktree', 'add', '--quiet', '-b', 'test-worktree', worktree)
+      File.write(File.join(worktree, 'marker'), "dirty\n")
+      File.write(File.join(worktree, 'scratch.log'), "untracked\n")
+      FileUtils.mkdir_p(File.join(worktree, '.devcluster'))
+      File.write(File.join(worktree, '.devcluster', 'disk.img'), "ignored\n")
+
+      open_source(worktree, root_directory) do |source|
+        expect(File.read(File.join(source.path, 'marker'))).to eq("dirty\n")
+        expect(File).not_to exist(File.join(source.path, 'scratch.log'))
+        expect(File).not_to exist(File.join(source.path, '.devcluster'))
       end
     end
   end
