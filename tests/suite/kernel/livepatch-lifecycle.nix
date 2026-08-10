@@ -63,10 +63,13 @@ import ../../make-template.nix (
             kvmModule = if vendor == "amd" then "kvm_amd" else "kvm_intel";
             requiredFlags = if vendor == "amd" then [ "svm" ] else [ "vmx" ];
             patchSpecificChecks = lib.optionalString (vendor == "amd" && kernelVersion == "6.12.95") ''
+              # This patch line changes AMD Safe-RET code, so require that mitigation.
+              # The rest of the sysfs text describes firmware and microcode state and
+              # can legitimately change without changing the code path under test.
               machine.all_succeed(
                 "grep -m1 '^flags' /proc/cpuinfo | grep -qw npt",
                 "grep -m1 '^flags' /proc/cpuinfo | grep -qw nrip_save",
-                "grep -Fx 'Vulnerable: Safe RET, no microcode' " \
+                "grep -F 'Safe RET' " \
                 "/sys/devices/system/cpu/vulnerabilities/spec_rstack_overflow",
               )
             '';
