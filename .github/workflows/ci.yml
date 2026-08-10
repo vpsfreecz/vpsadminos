@@ -168,7 +168,9 @@ jobs:
   livepatch-lifecycle:
     name: Livepatch lifecycle (${{ matrix.vendor }})
     needs: build
-    runs-on: [self-hosted, Linux, X64, "${{ matrix.runner }}"]
+    runs-on:
+      group: vpsAdminOS runners
+      labels: "${{ matrix.runner }}"
     timeout-minutes: 180
 
     strategy:
@@ -176,7 +178,7 @@ jobs:
       matrix:
         include:
           - vendor: amd
-            runner: amd-kvm
+            runner: amd-livepatch
           - vendor: intel
             runner: intel-kvm
 
