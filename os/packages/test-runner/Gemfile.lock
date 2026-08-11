@@ -7,7 +7,7 @@ GEM
     fiddle (1.1.8)
     gli (2.22.2)
       ostruct
-    io-console (0.9.1)
+    io-console (0.9.2)
     libosctl (26.05.0)
       fiddle
       logger
