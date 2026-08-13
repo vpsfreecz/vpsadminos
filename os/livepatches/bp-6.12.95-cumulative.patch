@@ -178,12 +178,14 @@ index 3da645139748538daac70166618d8ad95116eb74..fd665bd454e3b0168d558636272bf08d
 +void vpsadminos_livepatch_flush_tlb_all(void);
 +#endif
 diff --git a/arch/x86/kernel/alternative.c b/arch/x86/kernel/alternative.c
-index a0550398313d80e264aadcddc9c59534d0b48575..1c2c1e3c2346fa80f6a5cb4620a1d2284679dfce 100644
+index a0550398313d80e264aadcddc9c59534d0b48575..edf593244e867b415424b02dd80b7200abfd83da 100644
 --- a/arch/x86/kernel/alternative.c
 +++ b/arch/x86/kernel/alternative.c
-@@ -22,0 +23 @@
+@@ -21,0 +22 @@
++#include <linux/vpsadminos-livepatch.h>
+@@ -22,0 +24 @@
 +#include <asm/cmpxchg.h>
-@@ -2085,0 +2087,14 @@ typedef void text_poke_f(void *dst, const void *src, size_t len);
+@@ -2085,0 +2088,14 @@ typedef void text_poke_f(void *dst, const void *src, size_t len);
 +struct text_poke_cmpxchg64_args {
 +	u64 old;
 +	u64 new;
@@ -198,7 +200,7 @@ index a0550398313d80e264aadcddc9c59534d0b48575..1c2c1e3c2346fa80f6a5cb4620a1d228
 +	args->result = arch_sync_cmpxchg((u64 *)dst, args->old, args->new);
 +}
 +
-@@ -2214,0 +2230,28 @@ void *text_poke(void *addr, const void *opcode, size_t len)
+@@ -2214,0 +2231,43 @@ void *text_poke(void *addr, const void *opcode, size_t len)
 +/**
 + * text_poke_cmpxchg64 - Atomically replace one aligned 64-bit text block
 + * @addr: address of the block to modify
@@ -226,6 +228,21 @@ index a0550398313d80e264aadcddc9c59534d0b48575..1c2c1e3c2346fa80f6a5cb4620a1d228
 +
 +	return args.result == old ? 0 : -EAGAIN;
 +}
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_X86_64)
++int vpsadminos_livepatch_text_poke_cmpxchg64(void *addr, u64 old, u64 new)
++{
++	int ret;
++
++	mutex_lock(&text_mutex);
++	ret = text_poke_cmpxchg64(addr, old, new);
++	if (!ret)
++		text_poke_sync();
++	mutex_unlock(&text_mutex);
++
++	return ret;
++}
++#endif
 +
 diff --git a/arch/x86/kernel/cpu/bugs.c b/arch/x86/kernel/cpu/bugs.c
 index 939401b5d2ef04d3cda281ed432f91af9029b63b..ef41ec2cb5d55349d47a88ee89fb0296adb89e98 100644
@@ -635,8 +652,21 @@ index b08017683920f026a2985df73130e0cb2194fc94..ce467bc3383c99c617a112f1b2ebe966
 +		goto out_unlock;
 +	}
 +
+diff --git a/arch/x86/kvm/svm/avic.c b/arch/x86/kvm/svm/avic.c
+index 9e1fccb39eab6070a231b31973872dde9f16ce83..744a72d11ed95ca3f83dde27c2cfaeb27d31c9fa 100644
+--- a/arch/x86/kvm/svm/avic.c
++++ b/arch/x86/kvm/svm/avic.c
+@@ -170,8 +169,0 @@ static void avic_deactivate_vmcb(struct vcpu_svm *svm)
+-	/*
+-	 * If running nested and the guest uses its own MSR bitmap, there
+-	 * is no need to update L0's msr bitmap
+-	 */
+-	if (is_guest_mode(&svm->vcpu) &&
+-	    vmcb12_is_intercept(&svm->nested.ctl, INTERCEPT_MSR_PROT))
+-		return;
+-
 diff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c
-index 83062c98308f27e362c19d79f36a2d8d5904f177..f84640e7e6811c381b133fd749e9603adbe6e564 100644
+index 83062c98308f27e362c19d79f36a2d8d5904f177..8804686fe1805c78292bc12c1745cfa758f4692d 100644
 --- a/arch/x86/kvm/svm/svm.c
 +++ b/arch/x86/kvm/svm/svm.c
 @@ -30,0 +31,3 @@
@@ -692,6 +722,19 @@ index 83062c98308f27e362c19d79f36a2d8d5904f177..f84640e7e6811c381b133fd749e9603a
 +	 * to acquire a new ASID, preventing a latent ASID collision.
 +	 */
 +	sd->asid_generation++;
+@@ -4357,0 +4406,12 @@ static __no_kcsan fastpath_t svm_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
++	/*
++	 * A vCPU may have had AVIC inhibited while running L2 before this
++	 * livepatch was activated, leaving L0's x2APIC MSR bitmap permissive.
++	 * Repair the cached bitmap before any subsequent VMRUN of L1 or L2.
++	 * Expand kvm_vcpu_apicv_active() with static_key_enabled() because a
++	 * livepatch replacement cannot carry a module-owned jump-label site.
++	 */
++	if (!((!static_key_enabled(&kvm_has_noapic_vcpu) || vcpu->arch.apic) &&
++	      vcpu->arch.apic->apicv_active) &&
++	    !svm->x2avic_msrs_intercepted)
++		svm_set_x2apic_msr_interception(svm, true);
++
 diff --git a/arch/x86/kvm/vmx/nested.c b/arch/x86/kvm/vmx/nested.c
 index 1a7a12af4a3a847d0472012f808d99ee8c9d626a..40078d5e6b29173f71f13edca5e53337ba18f514 100644
 --- a/arch/x86/kvm/vmx/nested.c
@@ -884,6 +927,13 @@ index 9c0f263e2cd2884248f11b1965e3f6eb2477f236..d1a51865fc2a54e2ddfeee3ad3175e20
 +	return refcount_inc_not_zero(&idev->refcnt);
 +}
 +
+diff --git a/include/linux/netfilter/nf_conntrack_sip.h b/include/linux/netfilter/nf_conntrack_sip.h
+index dbc614dfe0d5652f4de9594a3327c9bfabfc4eed..aafa0c04f917ebec565be614e226aaeee96934c4 100644
+--- a/include/linux/netfilter/nf_conntrack_sip.h
++++ b/include/linux/netfilter/nf_conntrack_sip.h
+@@ -118 +118 @@ struct nf_nat_sip_hooks {
+-			   unsigned int protoff, s16 off);
++			   unsigned int protoff, s32 off);
 diff --git a/include/linux/netfilter/nfnetlink.h b/include/linux/netfilter/nfnetlink.h
 index e9a9ab34a7ccc35db2b355cdd281d40935d1f044..5c80b94467a15a9902bfdbc9d4dbebb197781117 100644
 --- a/include/linux/netfilter/nfnetlink.h
@@ -900,10 +950,10 @@ index 5321585c778fcc1fef0e0420cb481786c02a7aac..bd6ac060450cb637c561643d549882ca
 +void		rpc_hold_client(struct rpc_clnt *);
 diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..3dc4540e91cd10ee39139d2a64954e49eed1174f
+index 0000000000000000000000000000000000000000..a5760415b4bc8f9fe59f2d9099e8bbed335d0815
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch.h
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,114 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
 +#define _LINUX_VPSADMINOS_LIVEPATCH_H
@@ -942,6 +992,29 @@ index 0000000000000000000000000000000000000000..3dc4540e91cd10ee39139d2a64954e49
 +
 +#ifdef CONFIG_LIVEPATCH
 +void vpsadminos_pipapo_livepatch_cleanup(void);
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_X86_64)
++struct rhashtable_iter;
++
++int vpsadminos_livepatch_text_poke_cmpxchg64(void *addr, u64 old, u64 new);
++int vpsadminos_rhashtable_walk_start_check(struct rhashtable_iter *iter);
++int vpsadminos_rhashtable_livepatch_pre_patch(void);
++void vpsadminos_rhashtable_livepatch_post_patch(void);
++void vpsadminos_rhashtable_livepatch_post_unpatch(void);
++#else
++static inline int vpsadminos_rhashtable_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_rhashtable_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_rhashtable_livepatch_post_unpatch(void)
++{
++}
 +#endif
 +
 +#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_X86) && \
@@ -1005,6 +1078,20 @@ index 363dd63babe72f67f2b494bcf7fc0fd5153c6f3a..4af28eecb8067d41a16e2cbffc7e71a9
 +	return refcount_inc_not_zero(&idev->refcnt);
 +}
 +
+diff --git a/include/net/neighbour.h b/include/net/neighbour.h
+index cb5f835a5d61b4f883282c647d37abb3c134d3c0..0272d0f0e89d6b59ed74d7a94d2290ddc2afb498 100644
+--- a/include/net/neighbour.h
++++ b/include/net/neighbour.h
+@@ -479 +479,6 @@ static inline int neigh_hh_bridge(struct hh_cache *hh, struct sk_buff *skb)
+-	unsigned int seq, hh_alen;
++	unsigned int seq, hh_alen = HH_DATA_ALIGN(ETH_HLEN);
++	int err;
++
++	err = skb_cow_head(skb, hh_alen);
++	if (err)
++		return err;
+@@ -483 +487,0 @@ static inline int neigh_hh_bridge(struct hh_cache *hh, struct sk_buff *skb)
+-		hh_alen = HH_DATA_ALIGN(ETH_HLEN);
 diff --git a/include/net/net_namespace.h b/include/net/net_namespace.h
 index 7ee37be62005852df283fdc315b7e5ea40db93c4..637db952987961fc1f796f99be404946b319128c 100644
 --- a/include/net/net_namespace.h
@@ -1027,7 +1114,7 @@ index 3978c3174cdbe0c2329fe4dde28342e619c96d8b..9d080ec1382d6b35be77f8a733f99862
 +#endif
 +
 diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
-index 517710c89fa50516212244a78f7a24c5c50d7b59..4ef21237c69a90d73d476fa749baff4a6874dfac 100644
+index 517710c89fa50516212244a78f7a24c5c50d7b59..85bb2b31e96e112bb92a776bb10b7a88933bd80f 100644
 --- a/kernel/bpf/core.c
 +++ b/kernel/bpf/core.c
 @@ -40,0 +41,4 @@
@@ -1040,7 +1127,7 @@ index 517710c89fa50516212244a78f7a24c5c50d7b59..4ef21237c69a90d73d476fa749baff4a
 +#include <asm/tlbflush.h>
 +#endif
 +
-@@ -894,0 +903,157 @@ void bpf_jit_fill_hole_with_zero(void *area, unsigned int size)
+@@ -894,0 +903,165 @@ void bpf_jit_fill_hole_with_zero(void *area, unsigned int size)
 +#if defined(CONFIG_X86) && defined(CONFIG_BPF_JIT)
 +void vpsadminos_bpf_jit_ibpb(void);
 +#else
@@ -1118,16 +1205,22 @@ index 517710c89fa50516212244a78f7a24c5c50d7b59..4ef21237c69a90d73d476fa749baff4a
 +	if (ret)
 +		return ret;
 +
-+	ret = vpsadminos_xfrm_livepatch_pre_patch();
++	ret = vpsadminos_rhashtable_livepatch_pre_patch();
 +	if (ret)
 +		goto restore_saferet;
++
++	ret = vpsadminos_xfrm_livepatch_pre_patch();
++	if (ret)
++		goto restore_rhashtable;
 +
 +	ret = vpsadminos_sunrpc_livepatch_pre_patch();
 +	if (ret)
-+		goto restore_saferet;
++		goto restore_rhashtable;
 +
 +	return 0;
 +
++restore_rhashtable:
++	vpsadminos_rhashtable_livepatch_post_unpatch();
 +restore_saferet:
 +	vpsadminos_saferet_livepatch_post_unpatch();
 +	return ret;
@@ -1137,6 +1230,7 @@ index 517710c89fa50516212244a78f7a24c5c50d7b59..4ef21237c69a90d73d476fa749baff4a
 +{
 +	(void)obj;
 +	vpsadminos_saferet_livepatch_post_patch();
++	vpsadminos_rhashtable_livepatch_post_patch();
 +	vpsadminos_pipapo_livepatch_post_patch();
 +	vpsadminos_nfqueue_livepatch_post_patch();
 +	vpsadminos_sunrpc_livepatch_post_patch();
@@ -1158,6 +1252,7 @@ index 517710c89fa50516212244a78f7a24c5c50d7b59..4ef21237c69a90d73d476fa749baff4a
 +	vpsadminos_sunrpc_livepatch_post_unpatch();
 +	vpsadminos_nfqueue_livepatch_post_unpatch();
 +	vpsadminos_pipapo_livepatch_post_unpatch();
++	vpsadminos_rhashtable_livepatch_post_unpatch();
 +	vpsadminos_saferet_livepatch_post_unpatch();
 +}
 +
@@ -1194,11 +1289,11 @@ index 517710c89fa50516212244a78f7a24c5c50d7b59..4ef21237c69a90d73d476fa749baff4a
 +__section(".kpatch.system_states") __used
 +__aligned(__alignof__(struct klp_state)) = {
 +	.id = 0x25f744ffa0c8e799UL,
-+	.version = 1,
++	.version = 2,
 +};
 +#endif
 +
-@@ -983,0 +1149 @@ void *bpf_prog_pack_alloc(u32 size, bpf_jit_fill_hole_t bpf_fill_ill_insns)
+@@ -983,0 +1157 @@ void *bpf_prog_pack_alloc(u32 size, bpf_jit_fill_hole_t bpf_fill_ill_insns)
 +	vpsadminos_bpf_jit_ibpb();
 diff --git a/kernel/events/core.c b/kernel/events/core.c
 index 9099c0cc933be2221b9103036518f84ce1ffe395..6fdae4f923f3e333135849df4775178aff6fd7de 100644
@@ -1263,6 +1358,233 @@ index 4f5abcf777a7c6ac0ce402c4b4b6599d595a533a..e9048e5731dadfc70a2b5321b62860d2
 +	 * path of lock_task_sighand().
 +	 */
 +	smp_store_release(&tsk->sighand, NULL);
+diff --git a/kernel/livepatch/Makefile b/kernel/livepatch/Makefile
+index cf03d4bdfc663f97078aaf09b69427b22538c7c4..0eedad5e9dcc40f12f117a4035f3d3ef9c5ff5f5 100644
+--- a/kernel/livepatch/Makefile
++++ b/kernel/livepatch/Makefile
+@@ -4,0 +5 @@ livepatch-objs := core.o patch.o shadow.o state.o transition.o
++livepatch-$(CONFIG_X86_64) += vpsadminos_rhashtable.o
+diff --git a/kernel/livepatch/vpsadminos_rhashtable.c b/kernel/livepatch/vpsadminos_rhashtable.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..18c3041b860c2ef96d028b579da5d312b09a8f9d
+--- /dev/null
++++ b/kernel/livepatch/vpsadminos_rhashtable.c
+@@ -0,0 +1,215 @@
++// SPDX-License-Identifier: GPL-2.0-only
++#include <linux/kernel.h>
++#include <linux/livepatch.h>
++#include <linux/memory.h>
++#include <linux/rcupdate.h>
++#include <linux/rhashtable.h>
++#include <linux/string.h>
++#include <linux/vpsadminos-livepatch.h>
++
++#include <asm/text-patching.h>
++
++#define VPSADMINOS_RHASHTABLE_STATE_ID		0x8173f7e2ce67e6caUL
++#define VPSADMINOS_RHASHTABLE_STATE_VERSION	1
++
++union vpsadminos_rhashtable_block {
++	u64 word;
++	u8 text[sizeof(u64)];
++};
++
++static const union vpsadminos_rhashtable_block
++vpsadminos_rhashtable_boot_entry = {
++	.text = { 0x55, 0x48, 0x89, 0xe5, 0x41, 0x56, 0x41, 0x55 },
++};
++
++struct vpsadminos_rhashtable_transition {
++	u64 original;
++	u64 patched;
++};
++
++static struct klp_state vpsadminos_rhashtable_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_RHASHTABLE_STATE_ID,
++	.version = VPSADMINOS_RHASHTABLE_STATE_VERSION,
++};
++
++static struct vpsadminos_rhashtable_transition
++vpsadminos_rhashtable_transition;
++static struct vpsadminos_rhashtable_transition
++*vpsadminos_rhashtable_predecessor;
++static u64 vpsadminos_rhashtable_previous;
++static bool vpsadminos_rhashtable_text_patched;
++
++noinline int
++vpsadminos_rhashtable_walk_start_check(struct rhashtable_iter *iter)
++	__acquires(RCU)
++{
++	struct rhashtable *ht = iter->ht;
++	bool rhlist = ht->rhlist;
++
++	rcu_read_lock();
++
++	spin_lock(&ht->lock);
++	if (iter->walker.tbl)
++		list_del(&iter->walker.list);
++	spin_unlock(&ht->lock);
++
++	if (iter->end_of_table)
++		return 0;
++	if (!iter->walker.tbl) {
++		iter->walker.tbl = rht_dereference_rcu(ht->tbl, ht);
++		iter->slot = 0;
++		iter->skip = 0;
++		iter->p = NULL;
++		return -EAGAIN;
++	}
++
++	if (iter->p && !rhlist) {
++		struct rhash_head *p;
++		int skip = 0;
++
++		rht_for_each_rcu(p, iter->walker.tbl, iter->slot) {
++			skip++;
++			if (p == iter->p) {
++				iter->skip = skip;
++				goto found;
++			}
++		}
++		iter->p = NULL;
++	} else if (iter->p && rhlist) {
++		struct rhash_head *p;
++		struct rhlist_head *list;
++		int skip = 0;
++
++		rht_for_each_rcu(p, iter->walker.tbl, iter->slot) {
++			for (list = container_of(p, struct rhlist_head, rhead);
++			     list;
++			     list = rcu_dereference(list->next)) {
++				skip++;
++				if (list == iter->list) {
++					iter->p = p;
++					iter->skip = skip;
++					goto found;
++				}
++			}
++		}
++		iter->p = NULL;
++	}
++found:
++	return 0;
++}
++
++static int vpsadminos_rhashtable_make_jump(u8 *text, void *target)
++{
++	void *site = rhashtable_walk_start_check;
++	union text_poke_insn insn;
++	s64 displacement = (s64)(unsigned long)target -
++			   ((s64)(unsigned long)site + JMP32_INSN_SIZE);
++
++	if (displacement != (s64)(s32)displacement)
++		return -ERANGE;
++
++	__text_gen_insn(&insn, JMP32_INSN_OPCODE, site, target,
++			JMP32_INSN_SIZE);
++	memcpy(text, insn.text, JMP32_INSN_SIZE);
++	return 0;
++}
++
++int vpsadminos_rhashtable_livepatch_pre_patch(void)
++{
++	struct vpsadminos_rhashtable_transition *prev_transition = NULL;
++	struct klp_state *prev_state;
++	union vpsadminos_rhashtable_block expected;
++	union vpsadminos_rhashtable_block patched;
++	void *site = rhashtable_walk_start_check;
++	void *target = vpsadminos_rhashtable_walk_start_check;
++	int ret;
++
++	if (vpsadminos_rhashtable_text_patched)
++		return -EBUSY;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_RHASHTABLE_STATE_ID);
++	if (prev_state) {
++		if (prev_state->version != VPSADMINOS_RHASHTABLE_STATE_VERSION) {
++			pr_err("livepatch rhashtable predecessor state version %u is incompatible\n",
++			       prev_state->version);
++			return -EINVAL;
++		}
++		prev_transition = READ_ONCE(prev_state->data);
++	}
++
++	if (prev_transition) {
++		expected.word = READ_ONCE(prev_transition->patched);
++		vpsadminos_rhashtable_transition.original =
++			READ_ONCE(prev_transition->original);
++	} else {
++		expected = vpsadminos_rhashtable_boot_entry;
++		vpsadminos_rhashtable_transition.original = expected.word;
++	}
++
++	memset(patched.text, 0x90, sizeof(patched.text));
++	ret = vpsadminos_rhashtable_make_jump(patched.text, target);
++	if (ret)
++		return ret;
++
++	vpsadminos_rhashtable_previous = expected.word;
++	vpsadminos_rhashtable_transition.patched = patched.word;
++	vpsadminos_rhashtable_predecessor = prev_transition;
++
++	ret = vpsadminos_livepatch_text_poke_cmpxchg64(site, expected.word, patched.word);
++	if (ret) {
++		pr_err("livepatch rhashtable entry text does not match 6.12.95\n");
++		return ret;
++	}
++	vpsadminos_rhashtable_text_patched = true;
++
++	return 0;
++}
++
++void vpsadminos_rhashtable_livepatch_post_patch(void)
++{
++	struct klp_state *prev_state;
++
++	if (!vpsadminos_rhashtable_text_patched)
++		return;
++
++	WRITE_ONCE(vpsadminos_rhashtable_state.data,
++		   &vpsadminos_rhashtable_transition);
++	/* No new entry can reach predecessor text after the installed jump. */
++	synchronize_rcu_tasks();
++	prev_state = klp_get_prev_state(VPSADMINOS_RHASHTABLE_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == vpsadminos_rhashtable_predecessor)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++void vpsadminos_rhashtable_livepatch_post_unpatch(void)
++{
++	u64 patched;
++	u64 restore;
++	bool committed;
++	void *site = rhashtable_walk_start_check;
++	int ret;
++
++	committed = READ_ONCE(vpsadminos_rhashtable_state.data) ==
++		    &vpsadminos_rhashtable_transition;
++	if (!vpsadminos_rhashtable_text_patched)
++		return;
++
++	if (committed)
++		restore = vpsadminos_rhashtable_transition.original;
++	else
++		restore = vpsadminos_rhashtable_previous;
++
++	patched = vpsadminos_rhashtable_transition.patched;
++	ret = vpsadminos_livepatch_text_poke_cmpxchg64(site, patched, restore);
++	if (ret)
++		panic("livepatch rhashtable cannot safely restore entry text");
++
++	/* Drain callers redirected before the restoration completed. */
++	synchronize_rcu_tasks();
++	vpsadminos_rhashtable_text_patched = false;
++	vpsadminos_rhashtable_predecessor = NULL;
++	WRITE_ONCE(vpsadminos_rhashtable_state.data, NULL);
++}
 diff --git a/kernel/signal.c b/kernel/signal.c
 index b832158a9c46084bc3734151138afb7e9a7a702c..e6e812f8b80ffc79c293df43c0569943596c1430 100644
 --- a/kernel/signal.c
@@ -1474,6 +1796,12 @@ index d44641108ba81f5809d5874f49a3fc6feee61b37..0c65b15813437e2e6dc68e749bc41696
 @@ -1043,2 +1100,0 @@ static void posix_cpu_timer_rearm(struct k_itimer *timer)
 -out:
 -	rcu_read_unlock();
+diff --git a/lib/rhashtable.c b/lib/rhashtable.c
+index 0e9a1d4cf89be0cd67b3da4173be2c5ea039c33d..16d2ce87c22e246e976cc9bef31d62d3ecc8b4fc 100644
+--- a/lib/rhashtable.c
++++ b/lib/rhashtable.c
+@@ -744,0 +745 @@ int rhashtable_walk_start_check(struct rhashtable_iter *iter)
++		iter->p = NULL;
 diff --git a/mm/vmalloc.c b/mm/vmalloc.c
 index 1d2262fb541850e0a9613a95bfde293adcae5a1e..d4a42980b4d028a5ffda2c6cb3edfff5503abdc7 100644
 --- a/mm/vmalloc.c
@@ -1488,6 +1816,23 @@ index 6ffc81eedf0748a6a3cc8b8484d16537ef979ebd..eee6ceb7cddab030edd2376c40a6eeeb
 +	timer_shutdown_sync(&br->hello_timer);
 +	timer_shutdown_sync(&br->topology_change_timer);
 +	timer_shutdown_sync(&br->tcn_timer);
+diff --git a/net/bridge/br_multicast.c b/net/bridge/br_multicast.c
+index 3194344529a54972300bb576603c3243116b5d55..d43b39ed61c760ed94bd2d6e43875ec5b02ae895 100644
+--- a/net/bridge/br_multicast.c
++++ b/net/bridge/br_multicast.c
+@@ -3687,0 +3688 @@ br_multicast_leave_group(struct net_bridge_mcast *brmctx,
++			break;
+diff --git a/net/bridge/br_netfilter_hooks.c b/net/bridge/br_netfilter_hooks.c
+index 5ad3f3ef4ca75f7d9f755546f5083be2f0908ed0..c550907b92dd484f2afa450de162be55ace87498 100644
+--- a/net/bridge/br_netfilter_hooks.c
++++ b/net/bridge/br_netfilter_hooks.c
+@@ -299 +299,5 @@ int br_nf_pre_routing_finish_bridge(struct net *net, struct sock *sk, struct sk_
+-			neigh_hh_bridge(&neigh->hh, skb);
++			if (neigh_hh_bridge(&neigh->hh, skb)) {
++				neigh_release(neigh);
++				goto free_skb;
++			}
++
 diff --git a/net/bridge/br_stp.c b/net/bridge/br_stp.c
 index 7d27b2e6038fb7bec698fd8c056f93ebdc761540..4cfebf5fcdf54db2ec9876ce196a9ff1b8cde0cb 100644
 --- a/net/bridge/br_stp.c
@@ -2081,6 +2426,20 @@ index f5bde4f13958e13495f96ee9500e30a731d83f05..070160e45426d0a5bd4e4a7e98184fef
 +
 +		rcu_read_unlock();
 +	}
+diff --git a/net/netfilter/nf_conntrack_sip.c b/net/netfilter/nf_conntrack_sip.c
+index ec31611b7a290bf486f9a139c4eb39c9b8b47e55..eda963c8e2ef03321ce0b479530351fd2c17e2e2 100644
+--- a/net/netfilter/nf_conntrack_sip.c
++++ b/net/netfilter/nf_conntrack_sip.c
+@@ -1630 +1630 @@ static int sip_help_tcp(struct sk_buff *skb, unsigned int protoff,
+-	s16 diff, tdiff = 0;
++	s32 diff, tdiff = 0;
+diff --git a/net/netfilter/nf_nat_sip.c b/net/netfilter/nf_nat_sip.c
+index 00838c0cc5bb28264fccf87f83aa969775b0d2cb..68deacfc8ca486b7a229bcc89a85474dd46debb7 100644
+--- a/net/netfilter/nf_nat_sip.c
++++ b/net/netfilter/nf_nat_sip.c
+@@ -307 +307 @@ static void nf_nat_sip_seq_adjust(struct sk_buff *skb, unsigned int protoff,
+-				  s16 off)
++				  s32 off)
 diff --git a/net/netfilter/nf_queue.c b/net/netfilter/nf_queue.c
 index dd416c8532c551c28cbcc99093f114c2e4167c77..0c0a1f20e853f987d7994dc6c6981af42643dea3 100644
 --- a/net/netfilter/nf_queue.c
@@ -2210,7 +2569,7 @@ index dd416c8532c551c28cbcc99093f114c2e4167c77..0c0a1f20e853f987d7994dc6c6981af4
 @@ -111,0 +224 @@ bool nf_queue_entry_get_refs(struct nf_queue_entry *entry)
 +#endif
 diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
-index 838c9f49e4e01a9745227c26e94caf375e3829f7..c38f52b3eba90e7b25fdcf23ca97dabdc3809dab 100644
+index 838c9f49e4e01a9745227c26e94caf375e3829f7..7638c59e67889578b3f8b215f6f28e6151cfeb29 100644
 --- a/net/netfilter/nf_tables_api.c
 +++ b/net/netfilter/nf_tables_api.c
 @@ -18,0 +19,4 @@
@@ -2218,7 +2577,27 @@ index 838c9f49e4e01a9745227c26e94caf375e3829f7..c38f52b3eba90e7b25fdcf23ca97dabd
 +#include <linux/livepatch.h>
 +#include <linux/vpsadminos-livepatch.h>
 +#endif
-@@ -11124,0 +11129,166 @@ static const struct nfnetlink_subsystem nf_tables_subsys = {
+@@ -7754 +7757,0 @@ struct nft_object *nft_obj_lookup(const struct net *net,
+-	struct nft_object_hash_key k = { .table = table };
+@@ -7756 +7758,0 @@ struct nft_object *nft_obj_lookup(const struct net *net,
+-	struct rhlist_head *tmp, *list;
+@@ -7760 +7761,0 @@ struct nft_object *nft_obj_lookup(const struct net *net,
+-	k.name = search;
+@@ -7766,6 +7767,3 @@ struct nft_object *nft_obj_lookup(const struct net *net,
+-	list = rhltable_lookup(&nft_objname_ht, &k, nft_objname_ht_params);
+-	if (!list)
+-		goto out;
+-
+-	rhl_for_each_entry_rcu(obj, tmp, list, rhlhead) {
+-		if (objtype == obj->ops->type->type &&
++	list_for_each_entry_rcu(obj, &table->objects, list) {
++		if (!strcmp(obj->key.name, search) &&
++		    objtype == obj->ops->type->type &&
+@@ -8243 +8240,0 @@ nf_tables_getobj_single(u32 portid, const struct nfnl_info *info,
+-	const struct nft_table *table;
+@@ -8244,0 +8242 @@ nf_tables_getobj_single(u32 portid, const struct nfnl_info *info,
++	struct nft_table *table;
+@@ -11124,0 +11123,166 @@ static const struct nfnetlink_subsystem nf_tables_subsys = {
 +#ifdef CONFIG_LIVEPATCH
 +struct vpsadminos_nftables_pre_patch_callback {
 +	int (*fn)(struct klp_object *obj);
@@ -2385,7 +2764,7 @@ index 838c9f49e4e01a9745227c26e94caf375e3829f7..c38f52b3eba90e7b25fdcf23ca97dabd
 +};
 +#endif
 +
-@@ -11718,0 +11889,4 @@ static int nft_rcv_nl_event(struct notifier_block *this, unsigned long event,
+@@ -11718,0 +11883,4 @@ static int nft_rcv_nl_event(struct notifier_block *this, unsigned long event,
 +#ifdef CONFIG_LIVEPATCH
 +	vpsadminos_nftables_livepatch_notifier_frame();
 +#endif
@@ -2884,6 +3263,103 @@ index 562c860cca577afed24361d38bc18215553cee95..c5900752522652e58c553d5f81f92ae4
 +	 * was dropped above.  Do not re-add a fanout hook to a dead device.
 +	 */
 +	if (was_running && READ_ONCE(po->ifindex) != -1)
+diff --git a/net/sctp/associola.c b/net/sctp/associola.c
+index 0b0794f164cf2e05db01fcffaec94c1a8546273a..44f06c5f1f2560d82a8e741d02a351917b0d15ce 100644
+--- a/net/sctp/associola.c
++++ b/net/sctp/associola.c
+@@ -616,0 +617,3 @@ struct sctp_transport *sctp_assoc_add_peer(struct sctp_association *asoc,
++	if (asoc->peer.transport_count == U16_MAX)
++		return NULL;
++
+diff --git a/net/sctp/diag.c b/net/sctp/diag.c
+index ff4f8a679ffcb4f3fa9f7ef1233c43e1ea6aa2e1..1491b9c4a38b444493be679cf58d4b5359bff975 100644
+--- a/net/sctp/diag.c
++++ b/net/sctp/diag.c
+@@ -99,0 +100,16 @@ static int inet_diag_msg_sctpladdrs_fill(struct sk_buff *skb,
++static int sctp_diag_peer_count(struct sctp_association *asoc, size_t *count)
++{
++	struct sctp_transport *transport;
++	size_t n = 0;
++
++	list_for_each_entry(transport, &asoc->peer.transport_addr_list,
++			    transports) {
++		if (n == INT_MAX / sizeof(struct sockaddr_storage))
++			return -EOVERFLOW;
++		n++;
++	}
++
++	*count = n;
++	return 0;
++}
++
+@@ -101 +117,2 @@ static int inet_diag_msg_sctpaddrs_fill(struct sk_buff *skb,
+-					struct sctp_association *asoc)
++					struct sctp_association *asoc,
++					size_t addrcnt)
+@@ -108,2 +125 @@ static int inet_diag_msg_sctpaddrs_fill(struct sk_buff *skb,
+-	attr = nla_reserve(skb, INET_DIAG_PEERS,
+-			   addrlen * asoc->peer.transport_count);
++	attr = nla_reserve(skb, INET_DIAG_PEERS, addrlen * addrcnt);
+@@ -115,0 +132,2 @@ static int inet_diag_msg_sctpaddrs_fill(struct sk_buff *skb,
++		if (!addrcnt)
++			break;
+@@ -119,0 +138 @@ static int inet_diag_msg_sctpaddrs_fill(struct sk_buff *skb,
++		addrcnt--;
+@@ -139,0 +159 @@ static int inet_sctp_diag_fill(struct sock *sk, struct sctp_association *asoc,
++	size_t peer_count = 0;
+@@ -141,0 +162,3 @@ static int inet_sctp_diag_fill(struct sock *sk, struct sctp_association *asoc,
++	if (asoc && sctp_diag_peer_count(asoc, &peer_count))
++		return -EMSGSIZE;
++
+@@ -213 +236 @@ static int inet_sctp_diag_fill(struct sock *sk, struct sctp_association *asoc,
+-	if (asoc && inet_diag_msg_sctpaddrs_fill(skb, asoc))
++	if (asoc && inet_diag_msg_sctpaddrs_fill(skb, asoc, peer_count))
+@@ -237,0 +261 @@ static size_t inet_assoc_attr_size(struct sock *sk,
++	size_t peer_count;
+@@ -238,0 +263,4 @@ static size_t inet_assoc_attr_size(struct sock *sk,
++	size_t size;
++
++	if (sctp_diag_peer_count(asoc, &peer_count))
++		return 0;
+@@ -244,7 +272,20 @@ static size_t inet_assoc_attr_size(struct sock *sk,
+-	return	  nla_total_size(sizeof(struct sctp_info))
+-		+ nla_total_size(addrlen * asoc->peer.transport_count)
+-		+ nla_total_size(addrlen * addrcnt)
+-		+ nla_total_size(sizeof(struct inet_diag_msg))
+-		+ inet_diag_msg_attrs_size()
+-		+ nla_total_size(sizeof(struct inet_diag_meminfo))
+-		+ 64;
++	size = nla_total_size(sizeof(struct sctp_info));
++	if (check_add_overflow(size,
++			       (size_t)nla_total_size(addrlen * peer_count),
++			       &size) ||
++	    check_add_overflow(size,
++			       (size_t)nla_total_size(addrlen * addrcnt),
++			       &size) ||
++	    check_add_overflow(size,
++			       (size_t)nla_total_size(sizeof(struct inet_diag_msg)),
++			       &size) ||
++	    check_add_overflow(size, inet_diag_msg_attrs_size(), &size) ||
++	    check_add_overflow(size,
++			       (size_t)nla_total_size(sizeof(struct inet_diag_meminfo)),
++			       &size) ||
++	    check_add_overflow(size, (size_t)64, &size))
++		return 0;
++	if (size > INT_MAX - NLMSG_HDRLEN - (NLMSG_ALIGNTO - 1))
++		return 0;
++
++	return size;
+@@ -260,0 +302 @@ static int sctp_sock_dump_one(struct sctp_endpoint *ep, struct sctp_transport *t
++	size_t attr_size;
+@@ -274 +316,7 @@ static int sctp_sock_dump_one(struct sctp_endpoint *ep, struct sctp_transport *t
+-	rep = nlmsg_new(inet_assoc_attr_size(sk, assoc), GFP_KERNEL);
++	attr_size = inet_assoc_attr_size(sk, assoc);
++	if (!attr_size) {
++		err = -EMSGSIZE;
++		goto out_unlock;
++	}
++
++	rep = nlmsg_new(attr_size, GFP_KERNEL);
 diff --git a/net/sctp/protocol.c b/net/sctp/protocol.c
 index 6ea15361088bcf9ed5bed9026a1372f8b4e33080..0b4f60fdc0ddbaf5204f972285a9e72bf6238514 100644
 --- a/net/sctp/protocol.c
@@ -2916,10 +3392,18 @@ index 6ea15361088bcf9ed5bed9026a1372f8b4e33080..0b4f60fdc0ddbaf5204f972285a9e72b
 @@ -1476,0 +1480 @@ static void __net_exit sctp_ctrlsock_exit(struct net *net)
 +	net->sctp.ctl_sock = NULL;
 diff --git a/net/sctp/sm_make_chunk.c b/net/sctp/sm_make_chunk.c
-index 96ca400120e608156c7ca30068d0bab134d553a4..36f060d3a23279fe8b0a589dd3822aa907b06c08 100644
+index 96ca400120e608156c7ca30068d0bab134d553a4..fe9b6cf02920b4458b01c4bf5477d482ac80621a 100644
 --- a/net/sctp/sm_make_chunk.c
 +++ b/net/sctp/sm_make_chunk.c
-@@ -3167,0 +3168,6 @@ static __be16 sctp_process_asconf_param(struct sctp_association *asoc,
+@@ -2189,0 +2190 @@ static enum sctp_ierror sctp_verify_param(struct net *net,
++		break;
+@@ -2190,0 +2192,5 @@ static enum sctp_ierror sctp_verify_param(struct net *net,
++		if (ntohs(param.p->length) != sizeof(*param.aind)) {
++			sctp_process_inv_paramlength(asoc, param.p,
++						     chunk, err_chunk);
++			retval = SCTP_IERROR_ABORT;
++		}
+@@ -3167,0 +3174,6 @@ static __be16 sctp_process_asconf_param(struct sctp_association *asoc,
 +		/* Don't free asconf->transport; a later wildcard DEL-IP
 +		 * parameter reuses it.
 +		 */

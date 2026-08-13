@@ -7,12 +7,17 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/mutex.h>
+#include <linux/rhashtable.h>
 #include <linux/sched.h>
 #include <linux/skbuff.h>
 #include <linux/smp.h>
 #include <linux/wait.h>
 
+#include <net/sctp/structs.h>
+
 #include <asm/processor.h>
+
+#include "svm.h"
 
 #include "livepatch_test_probe.h"
 
@@ -25,6 +30,7 @@ static atomic_t shadow_failures_injected = ATOMIC_INIT(0);
 
 static unsigned long probe_address;
 static unsigned long probe_arg0;
+static unsigned long probe_arg1;
 static unsigned long probe_arg2;
 static atomic64_t probe_hits = ATOMIC64_INIT(0);
 static cpumask_t probe_cpus;
@@ -32,6 +38,7 @@ static bool probe_hold;
 static bool probe_held;
 static bool probe_spin_hold;
 static bool probe_clone_arg2;
+static bool probe_capture_args;
 static struct sk_buff *probe_arg2_clone;
 static atomic_t probe_redirect_active = ATOMIC_INIT(0);
 static struct task_struct *probe_resume_task;
@@ -47,6 +54,17 @@ static DEFINE_MUTEX(probe_mutex);
 static bool probe_registered;
 static bool probe2_registered;
 static bool probe3_registered;
+
+static bool svm_x2apic_inject;
+static unsigned long svm_x2avic_enabled_address;
+static struct vcpu_svm *svm_x2apic_test_vcpu;
+static bool svm_x2avic_original;
+static bool svm_x2avic_original_valid;
+static bool svm_x2apic_require_nested;
+static atomic_t svm_x2apic_injections = ATOMIC_INIT(0);
+
+static unsigned long sctp_asoc_address;
+static unsigned int rhashtable_restart_passes;
 
 unsigned long livepatch_test_probe_marker;
 unsigned long livepatch_test_probe_resume;
@@ -112,6 +130,81 @@ static void livepatch_test_record_probe_hit(void)
 
 NOKPROBE_SYMBOL(livepatch_test_record_probe_hit);
 
+/*
+ * These are the x2APIC MSRs which svm_set_x2apic_msr_interception() tracks
+ * in this exact kernel.  The test injects the same permissive bitmap state
+ * left by the vulnerable nested-AVIC transition, and then checks that the
+ * vCPU-entry repair restored every tracked read/write intercept.
+ */
+static const u16 livepatch_test_x2apic_msrs[] = {
+	0x802, 0x803, 0x808, 0x809, 0x80a, 0x80b, 0x80d, 0x80e,
+	0x80f, 0x810, 0x818, 0x820, 0x828, 0x830, 0x831, 0x834,
+	0x835, 0x836, 0x837, 0x838, 0x839, 0x83e,
+};
+
+static u32 livepatch_test_msrpm_offset(u32 msr)
+{
+	return (msr / 4) / 4;
+}
+
+static bool livepatch_test_x2apic_intercepted(const u32 *msrpm, u32 msr)
+{
+	u32 value = READ_ONCE(msrpm[livepatch_test_msrpm_offset(msr)]);
+	u8 read_bit = 2 * (msr & 0x0f);
+	u8 write_bit = read_bit + 1;
+
+	return value & BIT(read_bit) && value & BIT(write_bit);
+}
+
+static void livepatch_test_make_x2apic_msr_permissive(u32 *msrpm, u32 msr)
+{
+	u32 offset = livepatch_test_msrpm_offset(msr);
+	u8 read_bit = 2 * (msr & 0x0f);
+	u8 write_bit = read_bit + 1;
+	u32 value = READ_ONCE(msrpm[offset]);
+
+	value &= ~BIT(read_bit);
+	value &= ~BIT(write_bit);
+	WRITE_ONCE(msrpm[offset], value);
+}
+
+static void livepatch_test_inject_svm_x2apic(struct pt_regs *regs)
+{
+	struct vcpu_svm *svm;
+	bool *x2avic_enabled;
+	unsigned int i;
+
+	if (!READ_ONCE(svm_x2apic_inject) ||
+	    !READ_ONCE(svm_x2avic_enabled_address))
+		return;
+
+	svm = (struct vcpu_svm *)regs_get_kernel_argument(regs, 0);
+	if (!svm || !svm->msrpm ||
+	    (READ_ONCE(svm_x2apic_require_nested) &&
+	     !is_guest_mode(&svm->vcpu)))
+		return;
+
+	x2avic_enabled = (bool *)READ_ONCE(svm_x2avic_enabled_address);
+	if (!READ_ONCE(svm_x2avic_original_valid)) {
+		WRITE_ONCE(svm_x2avic_original, READ_ONCE(*x2avic_enabled));
+		WRITE_ONCE(svm_x2avic_original_valid, true);
+	}
+	WRITE_ONCE(*x2avic_enabled, true);
+
+	for (i = 0; i < ARRAY_SIZE(livepatch_test_x2apic_msrs); i++) {
+		u32 msr = livepatch_test_x2apic_msrs[i];
+
+		livepatch_test_make_x2apic_msr_permissive(svm->msrpm, msr);
+	}
+
+	WRITE_ONCE(svm->x2avic_msrs_intercepted, false);
+	WRITE_ONCE(svm_x2apic_test_vcpu, svm);
+	WRITE_ONCE(svm_x2apic_inject, false);
+	atomic_inc(&svm_x2apic_injections);
+}
+
+NOKPROBE_SYMBOL(livepatch_test_inject_svm_x2apic);
+
 void notrace livepatch_test_wait_for_release(void)
 {
 	WRITE_ONCE(probe_held, true);
@@ -138,10 +231,16 @@ static int livepatch_test_probe_pre(struct kprobe *probe,
 		wake_up_all(&probe_waitq);
 		return 0;
 	}
+	livepatch_test_inject_svm_x2apic(regs);
 	if (READ_ONCE(probe_hold) &&
 	    atomic_cmpxchg(&probe_redirect_active, 0, 1))
 		return 0;
 	livepatch_test_record_probe_hit();
+	if (READ_ONCE(probe_capture_args)) {
+		WRITE_ONCE(probe_arg0, regs_get_kernel_argument(regs, 0));
+		WRITE_ONCE(probe_arg1, regs_get_kernel_argument(regs, 1));
+		WRITE_ONCE(probe_arg2, regs_get_kernel_argument(regs, 2));
+	}
 	if (!READ_ONCE(probe_hold))
 		return 0;
 	WRITE_ONCE(probe_arg0, regs_get_kernel_argument(regs, 0));
@@ -369,6 +468,7 @@ static int livepatch_test_set_probe_address(const char *value,
 
 	WRITE_ONCE(probe_address, 0);
 	WRITE_ONCE(probe_arg0, 0);
+	WRITE_ONCE(probe_arg1, 0);
 	WRITE_ONCE(probe_arg2, 0);
 	WRITE_ONCE(probe_hold, false);
 	wake_up_all(&probe_waitq);
@@ -434,6 +534,17 @@ static int livepatch_test_get_probe_arg0(char *buffer,
 
 static const struct kernel_param_ops probe_arg0_ops = {
 	.get = livepatch_test_get_probe_arg0,
+};
+
+static int livepatch_test_get_probe_arg1(char *buffer,
+					 const struct kernel_param *param)
+{
+	(void)param;
+	return sysfs_emit(buffer, "%#lx\n", READ_ONCE(probe_arg1));
+}
+
+static const struct kernel_param_ops probe_arg1_ops = {
+	.get = livepatch_test_get_probe_arg1,
 };
 
 static int livepatch_test_get_probe_arg2(char *buffer,
@@ -698,6 +809,210 @@ static const struct kernel_param_ops shadow_injected_ops = {
 	.get = livepatch_test_get_shadow_injected,
 };
 
+static int
+livepatch_test_set_svm_x2apic_inject(const char *value,
+				     const struct kernel_param *param)
+{
+	bool inject;
+	int ret;
+
+	(void)param;
+	ret = kstrtobool(value, &inject);
+	if (ret)
+		return ret;
+	if (inject) {
+		if (!READ_ONCE(svm_x2avic_enabled_address))
+			return -EINVAL;
+	}
+	WRITE_ONCE(svm_x2apic_inject, inject);
+	return 0;
+}
+
+static int
+livepatch_test_get_svm_x2apic_inject(char *buffer,
+				     const struct kernel_param *param)
+{
+	(void)param;
+	return sysfs_emit(buffer, "%c\n",
+			 READ_ONCE(svm_x2apic_inject) ? 'Y' : 'N');
+}
+
+static const struct kernel_param_ops svm_x2apic_inject_ops = {
+	.set = livepatch_test_set_svm_x2apic_inject,
+	.get = livepatch_test_get_svm_x2apic_inject,
+};
+
+static int
+livepatch_test_get_svm_x2apic_injections(char *buffer,
+					 const struct kernel_param *param)
+{
+	(void)param;
+	return sysfs_emit(buffer, "%d\n",
+			 atomic_read(&svm_x2apic_injections));
+}
+
+static const struct kernel_param_ops svm_x2apic_injections_ops = {
+	.get = livepatch_test_get_svm_x2apic_injections,
+};
+
+static int
+livepatch_test_get_svm_x2apic_state(char *buffer,
+				    const struct kernel_param *param)
+{
+	struct vcpu_svm *svm = READ_ONCE(svm_x2apic_test_vcpu);
+	unsigned int intercepted = 0;
+	unsigned int i;
+
+	(void)param;
+	if (!svm)
+		return sysfs_emit(buffer, "none\n");
+
+	for (i = 0; i < ARRAY_SIZE(livepatch_test_x2apic_msrs); i++)
+		intercepted += livepatch_test_x2apic_intercepted(svm->msrpm,
+						livepatch_test_x2apic_msrs[i]);
+
+	if (!READ_ONCE(svm->x2avic_msrs_intercepted) && !intercepted)
+		return sysfs_emit(buffer, "permissive\n");
+	if (READ_ONCE(svm->x2avic_msrs_intercepted) &&
+	    intercepted == ARRAY_SIZE(livepatch_test_x2apic_msrs))
+		return sysfs_emit(buffer, "intercepted\n");
+	return sysfs_emit(buffer, "mixed:%u/%zu:%u\n", intercepted,
+			 ARRAY_SIZE(livepatch_test_x2apic_msrs),
+			 READ_ONCE(svm->x2avic_msrs_intercepted));
+}
+
+static const struct kernel_param_ops svm_x2apic_state_ops = {
+	.get = livepatch_test_get_svm_x2apic_state,
+};
+
+static int
+livepatch_test_set_svm_x2apic_restore(const char *value,
+				      const struct kernel_param *param)
+{
+	bool restore;
+	int ret;
+
+	(void)param;
+	ret = kstrtobool(value, &restore);
+	if (ret)
+		return ret;
+	if (!restore)
+		return 0;
+
+	WRITE_ONCE(svm_x2apic_inject, false);
+	WRITE_ONCE(svm_x2apic_test_vcpu, NULL);
+	if (READ_ONCE(svm_x2avic_original_valid) &&
+	    READ_ONCE(svm_x2avic_enabled_address))
+		WRITE_ONCE(*(bool *)READ_ONCE(svm_x2avic_enabled_address),
+			   READ_ONCE(svm_x2avic_original));
+	WRITE_ONCE(svm_x2avic_original_valid, false);
+	atomic_set(&svm_x2apic_injections, 0);
+	return 0;
+}
+
+static const struct kernel_param_ops svm_x2apic_restore_ops = {
+	.set = livepatch_test_set_svm_x2apic_restore,
+};
+
+static int
+livepatch_test_set_sctp_transport_count(const char *value,
+					const struct kernel_param *param)
+{
+	struct sctp_association *asoc;
+	unsigned int count;
+	int ret;
+
+	(void)param;
+	ret = kstrtouint(value, 0, &count);
+	if (ret)
+		return ret;
+	if (count > U16_MAX)
+		return -ERANGE;
+	asoc = (struct sctp_association *)READ_ONCE(sctp_asoc_address);
+	if (!asoc)
+		return -ENODEV;
+	WRITE_ONCE(asoc->peer.transport_count, count);
+	return 0;
+}
+
+static int
+livepatch_test_get_sctp_transport_count(char *buffer,
+					const struct kernel_param *param)
+{
+	struct sctp_association *asoc;
+
+	(void)param;
+	asoc = (struct sctp_association *)READ_ONCE(sctp_asoc_address);
+	if (!asoc)
+		return sysfs_emit(buffer, "none\n");
+	return sysfs_emit(buffer, "%u\n",
+			 READ_ONCE(asoc->peer.transport_count));
+}
+
+static const struct kernel_param_ops sctp_transport_count_ops = {
+	.set = livepatch_test_set_sctp_transport_count,
+	.get = livepatch_test_get_sctp_transport_count,
+};
+
+static int
+livepatch_test_set_rhashtable_restart(const char *value,
+				      const struct kernel_param *param)
+{
+	struct rhashtable_params params = {
+		.head_offset = 0,
+		.key_offset = sizeof(struct rhash_head),
+		.key_len = sizeof(u32),
+	};
+	struct rhashtable_iter iter;
+	struct rhashtable table;
+	bool run;
+	int ret;
+
+	(void)param;
+	ret = kstrtobool(value, &run);
+	if (ret || !run)
+		return ret;
+
+	ret = rhashtable_init(&table, &params);
+	if (ret)
+		return ret;
+	rhashtable_walk_enter(&table, &iter);
+
+	spin_lock(&table.lock);
+	list_del(&iter.walker.list);
+	iter.walker.tbl = NULL;
+	iter.p = (struct rhash_head *)ERR_PTR(-EUCLEAN);
+	spin_unlock(&table.lock);
+
+	ret = rhashtable_walk_start_check(&iter);
+	if (ret == -EAGAIN && !iter.p) {
+		rhashtable_restart_passes++;
+		ret = 0;
+	} else if (!ret) {
+		ret = -EUCLEAN;
+	}
+	rhashtable_walk_stop(&iter);
+	rhashtable_walk_exit(&iter);
+	rhashtable_destroy(&table);
+	return ret;
+}
+
+static int livepatch_test_get_restart_passes(char *buffer,
+					     const struct kernel_param *param)
+{
+	(void)param;
+	return sysfs_emit(buffer, "%u\n",
+			 READ_ONCE(rhashtable_restart_passes));
+}
+
+static const struct kernel_param_ops rhashtable_restart_ops = {
+	.set = livepatch_test_set_rhashtable_restart,
+};
+
+static const struct kernel_param_ops rhashtable_restart_passes_ops = {
+	.get = livepatch_test_get_restart_passes,
+};
+
 module_param(shadow_failures, int, 0600);
 MODULE_PARM_DESC(shadow_failures,
 		 "Number of upcoming klp_shadow_alloc() calls to fail");
@@ -712,6 +1027,10 @@ MODULE_PARM_DESC(probe_hits, "Entries observed at probe_address");
 module_param_cb(probe_arg0, &probe_arg0_ops, NULL, 0400);
 MODULE_PARM_DESC(probe_arg0,
 		 "First argument observed at the held probe_address entry");
+
+module_param_cb(probe_arg1, &probe_arg1_ops, NULL, 0400);
+MODULE_PARM_DESC(probe_arg1,
+		 "Second argument observed at probe_address when capture is enabled");
 
 module_param_cb(probe_arg2, &probe_arg2_ops, NULL, 0400);
 MODULE_PARM_DESC(probe_arg2,
@@ -776,9 +1095,54 @@ module_param(probe_spin_hold, bool, 0600);
 MODULE_PARM_DESC(probe_spin_hold,
 		 "Hold the probed instruction in its non-sleeping kprobe handler");
 
+module_param(probe_capture_args, bool, 0600);
+MODULE_PARM_DESC(probe_capture_args,
+		 "Capture the first three arguments without holding the probed task");
+
 module_param_cb(shadow_failures_injected, &shadow_injected_ops, NULL, 0400);
 MODULE_PARM_DESC(shadow_failures_injected,
 		 "klp_shadow_alloc() failures injected");
+
+module_param(svm_x2avic_enabled_address, ulong, 0600);
+MODULE_PARM_DESC(svm_x2avic_enabled_address,
+		 "Exact kvm_amd x2avic_enabled address used by the SVM state test");
+
+module_param(svm_x2apic_require_nested, bool, 0600);
+MODULE_PARM_DESC(svm_x2apic_require_nested,
+		 "Inject only while the probed vCPU is running L2");
+
+module_param_cb(svm_x2apic_inject, &svm_x2apic_inject_ops, NULL, 0600);
+MODULE_PARM_DESC(svm_x2apic_inject,
+		 "Inject one permissive nested-SVM x2APIC MSR bitmap");
+
+module_param_cb(svm_x2apic_injections, &svm_x2apic_injections_ops, NULL, 0400);
+MODULE_PARM_DESC(svm_x2apic_injections,
+		 "Permissive nested-SVM x2APIC bitmap states injected");
+
+module_param_cb(svm_x2apic_state, &svm_x2apic_state_ops, NULL, 0400);
+MODULE_PARM_DESC(svm_x2apic_state,
+		 "Saved nested-SVM x2APIC bitmap state");
+
+module_param_cb(svm_x2apic_restore, &svm_x2apic_restore_ops, NULL, 0200);
+MODULE_PARM_DESC(svm_x2apic_restore,
+		 "Restore the original host x2AVIC test state and forget the vCPU");
+
+module_param(sctp_asoc_address, ulong, 0600);
+MODULE_PARM_DESC(sctp_asoc_address,
+		 "Exact live SCTP association address used by the count-wrap test");
+
+module_param_cb(sctp_transport_count, &sctp_transport_count_ops, NULL, 0600);
+MODULE_PARM_DESC(sctp_transport_count,
+		 "Read or set the test association's legacy peer transport count");
+
+module_param_cb(rhashtable_restart, &rhashtable_restart_ops, NULL, 0200);
+MODULE_PARM_DESC(rhashtable_restart,
+		 "Exercise the stale-pointer table-restart branch once");
+
+module_param_cb(rhashtable_restart_passes,
+		&rhashtable_restart_passes_ops, NULL, 0400);
+MODULE_PARM_DESC(rhashtable_restart_passes,
+		 "Successful stale-pointer table-restart checks");
 
 static int __init livepatch_test_probe_init(void)
 {

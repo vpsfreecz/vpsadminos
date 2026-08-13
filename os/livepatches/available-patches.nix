@@ -15,7 +15,7 @@ let
         "bp-6.12.95-uname"
       ];
       filterFn = availableFor "6.12.95";
-      version = 4;
+      version = 5;
       # kpatch-build groups these .ko targets into one modpost pass. Include
       # direct module dependencies so modpost sees their exported symbols.
       targets = [
@@ -26,6 +26,7 @@ let
         "net/llc/llc.ko"
         "net/802/stp.ko"
         "net/bridge/bridge.ko"
+        "net/bridge/br_netfilter.ko"
         "net/netfilter/nfnetlink.ko"
         "net/netfilter/ipset/ip_set.ko"
         "net/netfilter/ipset/ip_set_hash_ip.ko"
@@ -42,8 +43,12 @@ let
         "net/netfilter/ipset/ip_set_hash_netportnet.ko"
         "lib/libcrc32c.ko"
         "net/ipv4/netfilter/nf_defrag_ipv4.ko"
+        "net/ipv4/inet_diag.ko"
         "net/ipv6/netfilter/nf_defrag_ipv6.ko"
         "net/netfilter/nf_conntrack.ko"
+        "net/netfilter/nf_nat.ko"
+        "net/netfilter/nf_conntrack_sip.ko"
+        "net/netfilter/nf_nat_sip.ko"
         "net/netfilter/ipvs/ip_vs.ko"
         "net/netfilter/nf_tables.ko"
         "net/netfilter/nfnetlink_queue.ko"
@@ -53,6 +58,7 @@ let
         "net/ipv6/ip6_udp_tunnel.ko"
         "net/packet/af_packet.ko"
         "net/sctp/sctp.ko"
+        "net/sctp/sctp_diag.ko"
         "fs/ceph/ceph.ko"
         "net/ceph/libceph.ko"
         "crypto/sha1_generic.ko"
