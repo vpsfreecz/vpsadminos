@@ -34,6 +34,8 @@ nav:
     - 'Binary cache': 'os/binary-cache.md'
     - Installation: 'os/installation.md'
     - Updates: 'os/updates.md'
+    - Kernel livepatches:
+        - 'Linux 6.12.95': 'os/livepatches/6.12.95.md'
     - Deployment: 'os/deployment.md'
     - Runlevels: 'os/runlevels.md'
     - 'Kernel parameters': 'os/kernel-parameters.md'

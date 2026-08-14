@@ -22,3 +22,9 @@ You can also build the tool from a checkout:
 ```bash
 make vpsadminos-rebuild
 ```
+
+## Kernel livepatch coverage
+
+Livepatch availability and vulnerability coverage are specific to the boot
+kernel. See [Linux 6.12.95 livepatch coverage](livepatches/6.12.95.md) for the
+currently maintained livepatch line.
