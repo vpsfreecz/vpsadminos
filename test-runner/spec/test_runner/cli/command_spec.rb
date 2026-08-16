@@ -9,7 +9,7 @@ RSpec.describe TestRunner::Cli::Command do
     list = instance_double(TestRunner::TestScriptList)
 
     allow(TestRunner::TestScriptList).to receive(:new).and_return(list)
-    allow(list).to receive(:filter) { |&block| scripts.select(&block) }
+    allow(list).to receive(:matching).and_return(scripts)
   end
 
   let(:opts) do
@@ -166,13 +166,9 @@ RSpec.describe TestRunner::Cli::Command do
       labels: { 'tier' => '2' },
       tags: ['slow']
     )
-    allow(matching).to receive(:path_matches?).with('suite/*').and_return(true)
-    allow(nonmatching).to receive(:path_matches?).with('suite/*').and_return(true)
     list = instance_double(TestRunner::TestScriptList)
     allow(TestRunner::TestScriptList).to receive(:new).and_return(list)
-    allow(list).to receive(:filter) do |&block|
-      [matching, nonmatching].select(&block)
-    end
+    allow(list).to receive(:matching).with('suite/*').and_return([matching, nonmatching])
 
     filtered = described_class.new({}, opts.merge('label' => ['tier=1'], 'tag' => ['smoke']), []).send(
       :select_test_scripts,
@@ -249,13 +245,9 @@ RSpec.describe TestRunner::Cli::Command do
       labels: { 'runtime' => 'long' },
       tags: %w[ci manual]
     )
-    allow(matching).to receive(:path_matches?).with('suite/*').and_return(true)
-    allow(nonmatching).to receive(:path_matches?).with('suite/*').and_return(true)
     list = instance_double(TestRunner::TestScriptList)
     allow(TestRunner::TestScriptList).to receive(:new).and_return(list)
-    allow(list).to receive(:filter) do |&block|
-      [matching, nonmatching].select(&block)
-    end
+    allow(list).to receive(:matching).with('suite/*').and_return([matching, nonmatching])
 
     filtered = described_class.new(
       {},

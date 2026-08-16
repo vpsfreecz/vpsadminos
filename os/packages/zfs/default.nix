@@ -22,7 +22,7 @@
   gawk,
   gnugrep,
   gnused,
-  systemd,
+  eudev,
   smartmontools,
   sysstat,
   sudo,
@@ -140,9 +140,19 @@ let
                     substituteInPlace ./etc/systemd/system/zfs-share.service.in \
                       --replace "/bin/rm " "${coreutils}/bin/rm "
 
-                    [ -f ./cmd/vdev_id/vdev_id ] && \
-                    substituteInPlace ./cmd/vdev_id/vdev_id \
-                      --replace "PATH=/bin:/sbin:/usr/bin:/usr/sbin" \
+                    vdev_id=
+                    for candidate in ./udev/vdev_id ./cmd/vdev_id/vdev_id; do
+                      if [ -f "$candidate" ]; then
+                        vdev_id=$candidate
+                        break
+                      fi
+                    done
+                    if [ -z "$vdev_id" ]; then
+                      echo "OpenZFS vdev_id helper not found" >&2
+                      exit 1
+                    fi
+                    substituteInPlace "$vdev_id" \
+                      --replace-fail "PATH=/bin:/sbin:/usr/bin:/usr/sbin" \
                       "PATH=${
                         makeBinPath [
                           coreutils
@@ -172,8 +182,16 @@ let
             libtirpc
             python3
             curl
+            eudev
           ]
           ++ optional buildUser openssl;
+
+        postConfigure = optionalString buildUser ''
+          if ! grep -q '^#define HAVE_LIBUDEV 1$' zfs_config.h; then
+            echo "ZFS userspace requires libudev support" >&2
+            exit 1
+          fi
+        '';
 
         # for zdb to get the rpath to libgcc_s, needed for pthread_cancel to work
         NIX_CFLAGS_LINK = "-lgcc_s";
