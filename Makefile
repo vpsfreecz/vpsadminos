@@ -1,6 +1,7 @@
 VERSION := $(shell cat .version)
 GEM_VERSION := $(VERSION).0
 RELEASE_DATE := $(shell date +%Y-%m-%d)
+DEV_TEST ?= kernel/sched-proxy-exec-lock-badneighbor
 
 build:
 	$(MAKE) -C os build
@@ -22,6 +23,45 @@ build-qemu-proactive-swap:
 
 qemu-proactive-swap:
 	$(MAKE) -C os qemu-proactive-swap
+
+kernel-dev-build:
+	./tools/vpsadminos-kernel-dev-build build
+
+kernel-dev-env:
+	./tools/vpsadminos-kernel-dev-build print-env
+
+zfs-dev-build:
+	./tools/vpsadminos-zfs-dev-build build
+
+zfs-dev-env:
+	./tools/vpsadminos-zfs-dev-build print-env
+
+kernel-zfs-dev-build:
+	./tools/vpsadminos-kernel-zfs-dev-run build-stages
+
+test-json-build:
+	./tools/vpsadminos-test-json-offload build-json $(DEV_TEST)
+
+test-json-offload:
+	./tools/vpsadminos-test-json-offload run $(DEV_TEST)
+
+test-json-offload-status:
+	./tools/vpsadminos-test-json-offload status $(DEV_TEST)
+
+test-json-offload-watch:
+	./tools/vpsadminos-test-json-offload watch $(DEV_TEST)
+
+test-json-offload-collect:
+	./tools/vpsadminos-test-json-offload collect $(DEV_TEST)
+
+test-json-offload-summary:
+	./tools/vpsadminos-test-json-offload summary $(DEV_TEST)
+
+kernel-zfs-dev-test:
+	./tools/vpsadminos-kernel-zfs-dev-run run $(DEV_TEST)
+
+kernel-zfs-dev-test-watch:
+	./tools/vpsadminos-kernel-zfs-dev-run run-watch $(DEV_TEST)
 
 gems: osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs osctl-oomd svctl test-runner osvm osctl-env-exec
 	nixfmt os/packages/*/gemset.nix
@@ -152,4 +192,8 @@ migration:
 .PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-exporter osctl-oomd osup svctl test-runner osvm osctl-env-exec
 .PHONY: commit-gems build-commit-gems amend-gems build-amend-gems
 .PHONY: build-qemu-script qemu-script
+.PHONY: kernel-dev-build kernel-dev-env zfs-dev-build zfs-dev-env kernel-zfs-dev-build
+.PHONY: test-json-build test-json-offload test-json-offload-status test-json-offload-watch
+.PHONY: test-json-offload-collect test-json-offload-summary
+.PHONY: kernel-zfs-dev-test kernel-zfs-dev-test-watch
 .PHONY: ruby-version version migration
