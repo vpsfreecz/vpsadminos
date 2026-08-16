@@ -1003,7 +1003,7 @@ in
       environment.etc = {
         "zfs/zed.d/zed.rc".text = zedConf;
         "zfs/zed.d/zed-functions.sh".source = "${packages.zfsUser}/etc/zfs/zed.d/zed-functions.sh";
-        "zfs/zpool.d".source = "${packages.zfsUser}/etc/zfs/zpool.d/";
+        "zfs/zpool.d".source = "${packages.zfsUser}/libexec/zfs/zpool.d/";
       }
       // makeZedlets;
 
