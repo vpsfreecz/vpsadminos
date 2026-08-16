@@ -1,0 +1,386 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path=$(readlink -f "$0")
+repo_root=$(readlink -f "$(dirname "$script_path")/..")
+state_base=${XDG_STATE_HOME:-$HOME/.local/state}/vpsadminos
+
+usage() {
+  cat <<'EOF'
+Usage: tools/vpsadminos-kernel-dev-build [build|print-env]
+
+Build and stage a vpsAdminOS kernel from a persistent local Kbuild tree.
+
+Environment:
+  VPSADMINOS_KERNEL_DEV_NAME       State name, default: basename of repo root
+  VPSADMINOS_KERNEL_SRC            Editable Linux worktree, default: ../linux
+  VPSADMINOS_OS_ROOT               vpsAdminOS checkout, default: this repo
+  VPSADMINOS_NIXPKGS               nixpkgs path; resolved from flake by default
+  VPSADMINOS_KERNEL_CONFIG_MODULE  OS module used to resolve the kernel config,
+                                   default: os/configs/kernel-dev-qemu.nix
+                                   when present, otherwise os/configs/qemu.nix
+  VPSADMINOS_KERNEL_CONFIG         Explicit .config path, skips config eval
+  VPSADMINOS_KERNEL_DEV_ROOT       State root, default:
+                                   $XDG_STATE_HOME/vpsadminos/kernel-dev/$name
+  VPSADMINOS_KERNEL_DEV_JOBS       make -j value, default: nproc
+  VPSADMINOS_KERNEL_DEV_MODULES    auto, always, or skip. default: always
+  VPSADMINOS_KERNEL_DEV_DEV        auto, always, or skip. default: always
+  VPSADMINOS_KERNEL_DEV_ALLOW_CHANGED_VMLINUX_REUSE
+                                   1 allows skip-mode reuse even when the new
+                                   vmlinux differs from the staged dev input.
+                                   default: 0
+  VPSADMINOS_NIX                   nix executable, default: command -v nix
+  VPSADMINOS_KERNEL_DEV_APPLY_PACKAGE_PATCHES
+                                   1 applies patches from the evaluated
+                                   vpsAdminOS kernel package to the prepared
+                                   source. default: 1
+  VPSADMINOS_KERNEL_DEV_BRIDGE_PATCH
+                                   Deprecated alias for the option above.
+
+After a successful build, print-env emits variables consumed by
+os/lib/dev/local-kernel-package.nix.
+EOF
+}
+
+log() {
+  printf '[vpsadminos-kernel-dev] %s\n' "$*" >&2
+}
+
+die() {
+  log "ERROR: $*"
+  exit 1
+}
+
+write_patch_records() {
+  local path=$1
+  printf 'name\tstatus\tpatch\n' >"$path"
+  for record in "${applied_patch_records[@]}"; do
+    printf '%s\n' "$record" >>"$path"
+  done
+}
+
+abs_path() {
+  local path=$1
+  if [[ -e "$path" ]]; then
+    readlink -f "$path"
+  else
+    mkdir -p "$(dirname "$path")"
+    printf '%s/%s\n' "$(readlink -f "$(dirname "$path")")" "$(basename "$path")"
+  fi
+}
+
+cmd=${1:-build}
+case "$cmd" in
+  build|print-env) ;;
+  -h|--help|help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+name=${VPSADMINOS_KERNEL_DEV_NAME:-$(basename "$repo_root")}
+src=$(abs_path "${VPSADMINOS_KERNEL_SRC:-$repo_root/../linux}")
+os_root=$(abs_path "${VPSADMINOS_OS_ROOT:-$repo_root}")
+root=$(abs_path "${VPSADMINOS_KERNEL_DEV_ROOT:-$state_base/kernel-dev/$name}")
+prepared_src=${VPSADMINOS_KERNEL_PREPARED_SRC:-$root/source}
+build_dir=${VPSADMINOS_KERNEL_BUILD_DIR:-$root/build}
+stage_dir=${VPSADMINOS_KERNEL_STAGE_DIR:-$root/stage}
+default_config_module=$os_root/os/configs/kernel-dev-qemu.nix
+if [[ ! -f "$default_config_module" ]]; then
+  default_config_module=$os_root/os/configs/qemu.nix
+fi
+config_module=$(abs_path "${VPSADMINOS_KERNEL_CONFIG_MODULE:-$default_config_module}")
+nixpkgs=${VPSADMINOS_NIXPKGS:-}
+jobs=${VPSADMINOS_KERNEL_DEV_JOBS:-$(nproc)}
+modules_mode=${VPSADMINOS_KERNEL_DEV_MODULES:-always}
+dev_mode=${VPSADMINOS_KERNEL_DEV_DEV:-always}
+allow_changed_vmlinux_reuse=${VPSADMINOS_KERNEL_DEV_ALLOW_CHANGED_VMLINUX_REUSE:-0}
+apply_package_patches=${VPSADMINOS_KERNEL_DEV_APPLY_PACKAGE_PATCHES:-${VPSADMINOS_KERNEL_DEV_BRIDGE_PATCH:-1}}
+nix_bin=${VPSADMINOS_NIX:-}
+if [[ -z "$nix_bin" ]]; then
+  if command -v nix >/dev/null 2>&1; then
+    nix_bin=$(command -v nix)
+  else
+    die "nix executable not found; set VPSADMINOS_NIX"
+  fi
+fi
+
+if [[ "$cmd" == print-env ]]; then
+  meta="$stage_dir/meta.env"
+  [[ -f "$meta" ]] || die "missing $meta; run build first"
+  # shellcheck disable=SC1090
+  source "$meta"
+  cat <<EOF
+export VPSADMINOS_LOCAL_KERNEL_STAGE=$stage_dir
+export VPSADMINOS_LOCAL_KERNEL_VERSION=$version
+export VPSADMINOS_LOCAL_KERNEL_MODDIR_VERSION=$modDirVersion
+EOF
+  exit 0
+fi
+
+[[ -d "$src" ]] || die "Linux source not found: $src"
+[[ -d "$os_root" ]] || die "vpsAdminOS root not found: $os_root"
+[[ "$modules_mode" == auto || "$modules_mode" == always || "$modules_mode" == skip ]] \
+  || die "VPSADMINOS_KERNEL_DEV_MODULES must be auto, always, or skip"
+[[ "$dev_mode" == auto || "$dev_mode" == always || "$dev_mode" == skip ]] \
+  || die "VPSADMINOS_KERNEL_DEV_DEV must be auto, always, or skip"
+[[ "$allow_changed_vmlinux_reuse" == 0 || "$allow_changed_vmlinux_reuse" == 1 ]] \
+  || die "VPSADMINOS_KERNEL_DEV_ALLOW_CHANGED_VMLINUX_REUSE must be 0 or 1"
+[[ "$apply_package_patches" == 0 || "$apply_package_patches" == 1 ]] \
+  || die "VPSADMINOS_KERNEL_DEV_APPLY_PACKAGE_PATCHES must be 0 or 1"
+
+if [[ -z "$nixpkgs" ]]; then
+  log "resolving nixpkgs from $os_root flake"
+  nixpkgs=$("$nix_bin" eval --raw "$os_root#nixpkgsPath")
+fi
+nixpkgs=$(abs_path "$nixpkgs")
+
+if [[ -z "${VPSADMINOS_LINUX_SNAPSHOT:-}" ]]; then
+  export VPSADMINOS_LINUX_SNAPSHOT="$src"
+fi
+
+config_path=${VPSADMINOS_KERNEL_CONFIG:-}
+if [[ -z "$config_path" ]]; then
+  log "resolving kernel config through $config_module"
+  config_path=$(
+    "$nix_bin" build --no-link --print-out-paths --impure --expr \
+      "let os = import $os_root/os/default.nix { pkgs = $nixpkgs; modules = [ $config_module ]; }; in os.config.boot.kernelPackage.configfile"
+  )
+fi
+config_path=$(abs_path "$config_path")
+[[ -f "$config_path" ]] || die "kernel config not found: $config_path"
+
+kernel_version=$(
+  "$nix_bin" eval --raw --impure --expr \
+    "let os = import $os_root/os/default.nix { pkgs = $nixpkgs; modules = [ $config_module ]; }; in os.config.boot.kernelPackage.version"
+)
+expected_moddir=$(
+  "$nix_bin" eval --raw --impure --expr \
+    "let os = import $os_root/os/default.nix { pkgs = $nixpkgs; modules = [ $config_module ]; }; in os.config.boot.kernelPackage.modDirVersion"
+)
+kernel_patch_lines=""
+if [[ "$apply_package_patches" == 1 ]]; then
+  kernel_patch_lines=$(
+    "$nix_bin" eval --raw --impure --expr \
+      "let os = import $os_root/os/default.nix { pkgs = $nixpkgs; modules = [ $config_module ]; }; patches = os.config.boot.kernelPackage.kernelPatches or []; patchLine = p: (p.name or \"unnamed\") + \"\t\" + (toString p.patch); in builtins.concatStringsSep \"\n\" (map patchLine patches)"
+  )
+fi
+
+mkdir -p "$root" "$prepared_src" "$build_dir"
+
+log "syncing source"
+rsync -a --delete \
+  --exclude=.git \
+  --exclude=.gitignore \
+  --exclude=.tmp_versions \
+  "$src"/ "$prepared_src"/
+
+applied_patch_records=()
+if [[ "$apply_package_patches" == 1 && -n "$kernel_patch_lines" ]]; then
+  while IFS=$'\t' read -r patch_name patch_path; do
+    [[ -n "${patch_name:-}" && -n "${patch_path:-}" ]] || continue
+    [[ -f "$patch_path" ]] || die "kernel package patch not found: $patch_path"
+
+    if patch -d "$prepared_src" -p1 --dry-run -s <"$patch_path" >/dev/null; then
+      log "applying kernel package patch $patch_name"
+      patch -d "$prepared_src" -p1 -s <"$patch_path"
+      applied_patch_records+=("${patch_name}"$'\t'"applied"$'\t'"${patch_path}")
+    elif patch -d "$prepared_src" -p1 -R --dry-run -s <"$patch_path" >/dev/null; then
+      log "kernel package patch $patch_name is already present in prepared source"
+      applied_patch_records+=("${patch_name}"$'\t'"already-present"$'\t'"${patch_path}")
+    else
+      die "kernel package patch $patch_name does not apply cleanly: $patch_path"
+    fi
+  done <<<"$kernel_patch_lines"
+fi
+
+if [[ ! -f "$build_dir/.config" ]] || ! cmp -s "$config_path" "$build_dir/.config"; then
+  log "installing kernel config into build dir"
+  cp "$config_path" "$build_dir/.config"
+fi
+
+make_base=(
+  make
+  -C "$prepared_src"
+  O="$build_dir"
+  KBUILD_BUILD_VERSION=1-vpsAdminOS
+)
+
+previous_stage_vmlinux=
+if [[ -f "$stage_dir/dev-input/vmlinux" ]]; then
+  previous_stage_vmlinux=$stage_dir/dev-input/vmlinux
+fi
+
+force_module_relink() {
+  log "vmlinux changed since previous stage; forcing module relink without cleaning objects"
+  find "$build_dir" -type f \
+    \( \
+      -name '*.ko' -o \
+      -name '*.mod' -o \
+      -name '*.mod.c' -o \
+      -name '*.mod.o' -o \
+      -name '.*.ko.cmd' -o \
+      -name '.*.mod.cmd' -o \
+      -name '.*.mod.o.cmd' \
+    \) -delete
+  rm -rf "$build_dir/.tmp_versions"
+}
+
+log "preparing Kbuild output"
+"${make_base[@]}" olddefconfig prepare
+
+actual_moddir=$(<"$build_dir/include/config/kernel.release")
+if [[ "$actual_moddir" != "$expected_moddir" ]]; then
+  die "kernel.release is $actual_moddir, expected $expected_moddir. The prepared source probably still exposes SCM localversion state."
+fi
+
+build_targets=(bzImage vmlinux)
+case "$modules_mode" in
+  always|auto)
+    build_targets+=(modules)
+    log "building bzImage, vmlinux, and modules with -j$jobs"
+    ;;
+  skip)
+    log "building bzImage and vmlinux with -j$jobs; reusing staged modules"
+    ;;
+esac
+"${make_base[@]}" -j"$jobs" "${build_targets[@]}"
+
+if [[ "$modules_mode" != skip && -n "$previous_stage_vmlinux" ]]; then
+  if ! cmp -s "$previous_stage_vmlinux" "$build_dir/vmlinux"; then
+    force_module_relink
+    "${make_base[@]}" -j"$jobs" modules
+  fi
+fi
+
+if [[ "$modules_mode" == skip || "$dev_mode" == skip ]]; then
+  [[ -d "$stage_dir" ]] || die "reuse requested but stage does not exist: $stage_dir"
+  [[ -f "$stage_dir/applied-kernel-patches.tsv" ]] \
+    || die "reuse requested but previous stage has no applied-kernel-patches.tsv; refresh modules/dev input"
+
+  patch_records_check=$(mktemp "$root/applied-kernel-patches.current.XXXXXX")
+  write_patch_records "$patch_records_check"
+  if ! cmp -s "$patch_records_check" "$stage_dir/applied-kernel-patches.tsv"; then
+    rm -f "$patch_records_check"
+    die "reuse requested but evaluated kernel package patches changed; refresh modules/dev input"
+  fi
+  rm -f "$patch_records_check"
+
+  [[ -f "$stage_dir/dev-input/config" ]] \
+    || die "reuse requested but previous stage has no dev-input/config"
+  [[ -f "$stage_dir/dev-input/Module.symvers" ]] \
+    || die "reuse requested but previous stage has no dev-input/Module.symvers"
+  [[ -f "$stage_dir/dev-input/vmlinux" ]] \
+    || die "reuse requested but previous stage has no dev-input/vmlinux"
+
+  if ! cmp -s "$stage_dir/dev-input/config" "$build_dir/.config"; then
+    die "reuse requested but kernel config changed; refresh modules/dev input"
+  fi
+
+  if ! cmp -s "$stage_dir/dev-input/Module.symvers" "$build_dir/Module.symvers"; then
+    die "reuse requested but Module.symvers changed; refresh modules/dev input"
+  fi
+
+  if ! cmp -s "$stage_dir/dev-input/vmlinux" "$build_dir/vmlinux"; then
+    if [[ "$allow_changed_vmlinux_reuse" == 1 ]]; then
+      log "WARNING: vmlinux changed but skip-mode reuse was explicitly allowed"
+    else
+      die "reuse requested but vmlinux changed; refresh modules/dev input or set VPSADMINOS_KERNEL_DEV_ALLOW_CHANGED_VMLINUX_REUSE=1"
+    fi
+  fi
+fi
+
+tmp_stage=$(mktemp -d "$root/stage.tmp.XXXXXX")
+cleanup() {
+  rm -rf "$tmp_stage"
+}
+trap cleanup EXIT
+
+mkdir -p "$tmp_stage/out"
+cp "$build_dir/arch/x86/boot/bzImage" "$tmp_stage/out/bzImage"
+cp "$build_dir/System.map" "$tmp_stage/out/System.map"
+
+install_modules=0
+case "$modules_mode" in
+  always|auto) install_modules=1 ;;
+  skip) install_modules=0 ;;
+esac
+
+if [[ "$install_modules" == 1 ]]; then
+  log "installing modules into staged out"
+  "${make_base[@]}" modules_install \
+    INSTALL_MOD_PATH="$tmp_stage/out" \
+    INSTALL_MOD_STRIP=1
+else
+  log "reusing previously staged modules"
+  [[ -d "$stage_dir/out/lib/modules/$actual_moddir" ]] \
+    || die "module reuse requested but $stage_dir/out/lib/modules/$actual_moddir is missing"
+  mkdir -p "$tmp_stage/out/lib"
+  rsync -a "$stage_dir/out/lib/modules" "$tmp_stage/out/lib/"
+fi
+
+rm -f "$tmp_stage/out/lib/modules/$actual_moddir/build" \
+      "$tmp_stage/out/lib/modules/$actual_moddir/source"
+
+update_dev=0
+case "$dev_mode" in
+  always|auto) update_dev=1 ;;
+  skip) update_dev=0 ;;
+esac
+
+if [[ "$update_dev" == 1 ]]; then
+  log "refreshing staged dev input"
+  mkdir -p "$tmp_stage/dev-input/source"
+  rsync -a --delete \
+    --exclude=.git \
+    --exclude=.tmp_versions \
+    "$prepared_src"/ "$tmp_stage/dev-input/source"/
+  cp "$build_dir/vmlinux" "$tmp_stage/dev-input/vmlinux"
+  cp "$build_dir/.config" "$tmp_stage/dev-input/config"
+  cp "$build_dir/Module.symvers" "$tmp_stage/dev-input/Module.symvers"
+else
+  log "reusing previously staged dev input"
+  [[ -d "$stage_dir/dev-input" ]] \
+    || die "dev reuse requested but $stage_dir/dev-input is missing"
+  rsync -a "$stage_dir/dev-input" "$tmp_stage/"
+fi
+
+cat >"$tmp_stage/dev-input/meta.nix" <<EOF
+{
+  version = "$kernel_version";
+  modDirVersion = "$actual_moddir";
+  appliedKernelPatchCount = ${#applied_patch_records[@]};
+}
+EOF
+cp "$tmp_stage/dev-input/config" "$tmp_stage/config"
+cp "$tmp_stage/dev-input/meta.nix" "$tmp_stage/meta.nix"
+write_patch_records "$tmp_stage/applied-kernel-patches.tsv"
+
+git_head=$(git -C "$src" rev-parse HEAD 2>/dev/null || true)
+git_status=$(git -C "$src" status --short 2>/dev/null | wc -l | tr -d ' ' || true)
+cat >"$tmp_stage/meta.env" <<EOF
+version=$kernel_version
+modDirVersion=$actual_moddir
+source=$src
+preparedSource=$prepared_src
+build=$build_dir
+config=$config_path
+gitHead=$git_head
+gitStatusLines=$git_status
+appliedKernelPatchCount=${#applied_patch_records[@]}
+builtAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+
+rm -rf "$stage_dir.previous"
+if [[ -d "$stage_dir" ]]; then
+  mv "$stage_dir" "$stage_dir.previous"
+fi
+mv "$tmp_stage" "$stage_dir"
+trap - EXIT
+
+log "staged local kernel at $stage_dir"
+"$0" print-env
