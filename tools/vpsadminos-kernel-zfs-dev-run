@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path=$(readlink -f "$0")
+repo_root=$(readlink -f "$(dirname "$script_path")/..")
+
+usage() {
+  cat <<'EOF'
+Usage: tools/vpsadminos-kernel-zfs-dev-run <command> [test-path]
+
+High-level development loop for local Linux + OpenZFS iteration:
+
+  build-stages  Build and stage the local kernel and ZFS modules
+  build-json    Build stages, then build a focused test JSON
+  run           Build stages, build/copy/launch/wait/collect remote lanes
+  run-watch     Build stages, launch remote lanes, watch, then collect
+  copy|launch|status|watch|wait|collect|summary|classify
+                Forward to tools/vpsadminos-test-json-offload
+
+Environment is passed through to the lower-level tools. Important variables:
+
+  VPSADMINOS_KERNEL_SRC          Linux worktree
+  VPSADMINOS_ZFS_SRC             ZFS worktree
+  VPSADMINOS_KERNEL_DEV_ROOT     Persistent kernel state root
+  VPSADMINOS_ZFS_DEV_ROOT        Persistent ZFS state root
+  VPSADMINOS_KERNEL_CONFIG_MODULE
+                                  Kernel config module. Defaults to
+                                  proxy-exec-qemu.nix for proxy-exec tests
+                                  and kernel-dev-qemu.nix otherwise.
+  VPSADMINOS_TEST_CONFIG_MODULE   Test evaluation module. Defaults to
+                                  local-dev-qemu.nix for kernel-dev-qemu.nix
+                                  and to the kernel config module otherwise.
+  VPSADMINOS_KERNEL_DEV_MODULES  always, auto, or skip; default is safe refresh
+  VPSADMINOS_KERNEL_DEV_DEV      always, auto, or skip; default is safe refresh
+  VPSADMINOS_ZFS_DEV_KERNEL      always or skip; default is safe refresh
+  VPSADMINOS_DEV_RUN_ZFS         always or skip; default: always
+  VPSADMINOS_TEST_OFFLOAD_HOST   Remote KVM host for timing-sensitive lanes
+
+Use skip modes only after proving modules, exported symbols, and external
+module inputs are unchanged for the current edit.
+EOF
+}
+
+log() {
+  printf '[vpsadminos-kernel-zfs-dev-run] %s\n' "$*" >&2
+}
+
+die() {
+  log "ERROR: $*"
+  exit 1
+}
+
+build_stages() {
+  if [[ -z "${VPSADMINOS_KERNEL_CONFIG_MODULE:-}" ]]; then
+    case "$test_path" in
+      kernel/sched-proxy-exec*)
+        export VPSADMINOS_KERNEL_CONFIG_MODULE="$repo_root/os/configs/proxy-exec-qemu.nix"
+        ;;
+      *)
+        export VPSADMINOS_KERNEL_CONFIG_MODULE="$repo_root/os/configs/kernel-dev-qemu.nix"
+        ;;
+    esac
+  fi
+  if [[ -z "${VPSADMINOS_CONFIG:-}" ]]; then
+    if [[ -n "${VPSADMINOS_TEST_CONFIG_MODULE:-}" ]]; then
+      export VPSADMINOS_CONFIG="$VPSADMINOS_TEST_CONFIG_MODULE"
+    elif [[ "$VPSADMINOS_KERNEL_CONFIG_MODULE" == "$repo_root/os/configs/kernel-dev-qemu.nix" ]]; then
+      export VPSADMINOS_CONFIG="$repo_root/os/configs/local-dev-qemu.nix"
+    else
+      export VPSADMINOS_CONFIG="$VPSADMINOS_KERNEL_CONFIG_MODULE"
+    fi
+  fi
+
+  log "building/staging local kernel"
+  "$repo_root/tools/vpsadminos-kernel-dev-build" build
+  # shellcheck disable=SC1090
+  eval "$("$repo_root/tools/vpsadminos-kernel-dev-build" print-env)"
+  export VPSADMINOS_LOCAL_KERNEL_STAGE
+  export VPSADMINOS_LOCAL_KERNEL_VERSION
+  export VPSADMINOS_LOCAL_KERNEL_MODDIR_VERSION
+
+  case "${VPSADMINOS_DEV_RUN_ZFS:-always}" in
+    always)
+      log "building/staging local ZFS against staged kernel"
+      "$repo_root/tools/vpsadminos-zfs-dev-build" build
+      # shellcheck disable=SC1090
+      eval "$("$repo_root/tools/vpsadminos-zfs-dev-build" print-env)"
+      export VPSADMINOS_LOCAL_ZFS_STAGE
+      export VPSADMINOS_LOCAL_ZFS_VERSION
+      export VPSADMINOS_LOCAL_ZFS_KERNEL_MODDIR_VERSION
+      ;;
+    skip)
+      log "skipping ZFS stage by request"
+      ;;
+    *)
+      die "VPSADMINOS_DEV_RUN_ZFS must be always or skip"
+      ;;
+  esac
+}
+
+cmd=${1:-run}
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
+case "$cmd" in
+  build-stages|build-json|run|run-watch|copy|launch|status|watch|wait|collect|summary|classify|-h|--help|help) ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$cmd" == "-h" || "$cmd" == "--help" || "$cmd" == "help" ]]; then
+  usage
+  exit 0
+fi
+
+test_path=${1:-${VPSADMINOS_TEST_PATH:-kernel/sched-proxy-exec-lock-badneighbor}}
+
+case "$cmd" in
+  build-stages)
+    build_stages
+    ;;
+  build-json)
+    build_stages
+    exec "$repo_root/tools/vpsadminos-test-json-offload" build-json "$test_path"
+    ;;
+  run)
+    build_stages
+    exec "$repo_root/tools/vpsadminos-test-json-offload" run "$test_path"
+    ;;
+  run-watch)
+    build_stages
+    exec "$repo_root/tools/vpsadminos-test-json-offload" run-watch "$test_path"
+    ;;
+  copy|launch|status|watch|wait|collect|summary|classify)
+    exec "$repo_root/tools/vpsadminos-test-json-offload" "$cmd" "$test_path"
+    ;;
+esac

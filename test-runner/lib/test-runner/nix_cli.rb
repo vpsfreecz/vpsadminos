@@ -1,3 +1,4 @@
+require 'json'
 require 'open3'
 
 module TestRunner
@@ -29,8 +30,8 @@ module TestRunner
       capture_output(*eval_cmd(mode: 'testsMetaOne', test_path: path))
     end
 
-    def build_test_json(path, out_link)
-      run!(*build_cmd(mode: 'testJson', test_path: path, out_link: out_link))
+    def build_test_json(path, out_link, test_args: {})
+      run!(*build_cmd(mode: 'testJson', test_path: path, test_args:, out_link: out_link))
     end
 
     protected
@@ -50,17 +51,18 @@ module TestRunner
       )
     end
 
-    def build_cmd(mode:, test_path:, out_link:)
+    def build_cmd(mode:, test_path:, test_args:, out_link:)
       base_cmd(
         'nix-build',
         '--out-link',
         out_link,
         mode:,
-        test_path:
+        test_path:,
+        test_args:
       )
     end
 
-    def base_cmd(*cmd, mode:, test_path: nil)
+    def base_cmd(*cmd, mode:, test_path: nil, test_args: nil)
       ret = [
         *cmd,
         helper_file,
@@ -77,6 +79,7 @@ module TestRunner
 
       ret += ['--arg', 'testConfigPath', test_config_path] if test_config_path
       ret += ['--argstr', 'testPath', test_path] if test_path
+      ret += ['--argstr', 'testArgsJson', JSON.generate(test_args)] unless test_args.nil?
       ret
     end
 

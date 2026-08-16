@@ -53,11 +53,13 @@ RSpec.describe TestRunner::NixCli do
   it 'builds test json commands' do
     cli = described_class.new
     allow(cli).to receive(:run!).and_return(nil)
+    test_args = { 'distributions' => %w[debian-stable alpine-latest] }
 
-    cli.build_test_json('suite/example', '/tmp/out')
+    cli.build_test_json('suite/example', '/tmp/out', test_args:)
 
     expect(cli).to have_received(:run!) do |*args|
       expect(args).to include('nix-build', '--out-link', '/tmp/out', 'testJson', 'suite/example')
+      expect(args).to include('--argstr', 'testArgsJson', JSON.generate(test_args))
     end
   end
 

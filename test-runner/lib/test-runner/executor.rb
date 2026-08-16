@@ -189,6 +189,7 @@ module TestRunner
         begin
           mark_test_running(i, test)
           result = run_test_with_retries(i, test, scripts)
+          stop_work! if opts[:stop_on_failure] && result.unexpected_result?
         ensure
           release_test_resources(resources)
           mark_test_finished(test, result)

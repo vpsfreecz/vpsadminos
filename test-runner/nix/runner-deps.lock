@@ -1,0 +1,44 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    base64 (0.3.0)
+    coderay (1.1.3)
+    diff-lcs (1.6.2)
+    fiddle (1.1.8)
+    gli (2.22.2)
+      ostruct
+    io-console (0.8.2)
+    logger (1.7.0)
+    method_source (1.1.0)
+    ostruct (0.6.3)
+    pry (0.16.0)
+      coderay (~> 1.1)
+      method_source (~> 1.0)
+      reline (>= 0.6.0)
+    rainbow (3.1.1)
+    reline (0.6.3)
+      io-console (~> 0.5)
+    require_all (2.0.0)
+    rspec-expectations (3.13.5)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-support (3.13.7)
+    syslog (0.4.0)
+      logger
+
+PLATFORMS
+  x86_64-linux
+
+DEPENDENCIES
+  base64
+  fiddle
+  gli (~> 2.22.0)
+  logger
+  pry (~> 0.16.0)
+  rainbow (~> 3.1.1)
+  require_all (~> 2.0.0)
+  rspec-expectations (~> 3.13)
+  syslog
+
+BUNDLED WITH
+   2.7.2
