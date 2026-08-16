@@ -335,7 +335,7 @@ import ../../make-test.nix (
       zfs_runfile_common = "#{zfs_root}/share/zfs/runfiles/common.run"
       zfs_runfile_linux = "#{zfs_root}/share/zfs/runfiles/linux.run"
       zfs_suite_dir = "#{zfs_root}/share/zfs/zfs-tests"
-      zpool_script_dir = "#{zfs_root}/libexec/zfs/zpool.d"
+      zpool_script_dir = "/etc/zfs/zpool.d"
 
       machine.all_succeed(
         "test -f #{script_common}",
@@ -440,7 +440,7 @@ import ../../make-test.nix (
         "/dev/disk/by-path",
         "/dev"
       ].join(":")
-      zts_env = "SYSTEMDIR=/var/tmp/zfs-constrained-path.XXXXXX LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZTS_REPORT=#{zfs_test_report} ZPOOL_IMPORT_PATH=#{zpool_import_path} ZPOOL_SCRIPT_DIR=#{zpool_script_dir} ZPOOL_SCRIPTS_PATH=#{zpool_script_dir}"
+      zts_env = "SYSTEMDIR=/var/tmp/zfs-constrained-path.XXXXXX LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZTS_REPORT=#{zfs_test_report} ZPOOL_IMPORT_PATH=#{zpool_import_path}"
       state_dir = File.dirname(machine.send(:console_log_path))
       host_live_root = File.join(state_dir, "shared-dir", "zfs-full-suite")
       host_live_log = File.join(host_live_root, "zfs-tests-#{profile}.log")
