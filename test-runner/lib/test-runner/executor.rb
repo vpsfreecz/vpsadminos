@@ -182,6 +182,7 @@ module TestRunner
         begin
           mark_test_running(i, test)
           result = run_test_with_retries(i, test, scripts)
+          stop_work! if opts[:stop_on_failure] && result.unexpected_result?
         ensure
           release_test_resources(resources)
           mark_test_finished(test, result)
@@ -520,21 +521,16 @@ module TestRunner
       if result.kernel_failure?
         log("#{prefix} Test '#{test.path}' stopped after #{secs} seconds due to a guest kernel failure, " \
             "see #{result.state_dir}")
-        stop_work! if opts[:stop_on_failure]
       elsif result.expected_result?
         if result.successful?
           log("#{prefix} Test '#{test.path}' successful in #{secs} seconds")
         else
           log("#{prefix} Test '#{test.path}' failed as expected in #{secs} seconds")
         end
-      else # unexpected result
-        if result.successful?
-          log("#{prefix} Test '#{test.path}' unexpectedly succeeded in #{secs} seconds, see #{result.state_dir}")
-        else
-          log("#{prefix} Test '#{test.path}' failed after #{secs} seconds, see #{result.state_dir}")
-        end
-
-        stop_work! if opts[:stop_on_failure]
+      elsif result.successful? # unexpected success
+        log("#{prefix} Test '#{test.path}' unexpectedly succeeded in #{secs} seconds, see #{result.state_dir}")
+      else # unexpected failure
+        log("#{prefix} Test '#{test.path}' failed after #{secs} seconds, see #{result.state_dir}")
       end
 
       result
@@ -652,14 +648,10 @@ module TestRunner
               else
                 log("#{prefix} Script '#{test_script.path}' failed as expected in #{secs} seconds")
               end
-            else # unexpected result
-              if script_result.successful?
-                log("#{prefix} Script '#{test_script.path}' unexpectedly succeeded in #{secs} seconds")
-              else
-                log("#{prefix} Script '#{test_script.path}' failed after #{secs} seconds")
-              end
-
-              stop_work! if opts[:stop_on_failure]
+            elsif script_result.successful? # unexpected success
+              log("#{prefix} Script '#{test_script.path}' unexpectedly succeeded in #{secs} seconds")
+            else # unexpected failure
+              log("#{prefix} Script '#{test_script.path}' failed after #{secs} seconds")
             end
           when 'example'
             status =
