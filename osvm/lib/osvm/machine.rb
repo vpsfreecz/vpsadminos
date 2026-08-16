@@ -332,7 +332,15 @@ module OsVm
 
       log.stop
       begin
-        execute(poweroff_command)
+        shutdown_shell = current_shell
+        shutdown_shell = shell_instances.find(&:up?) unless shutdown_shell.up?
+        shutdown_shell ||= current_shell
+
+        if shutdown_shell == current_shell
+          execute(poweroff_command)
+        else
+          shutdown_shell.execute(poweroff_command)
+        end
       rescue MachineShellClosed
         # The shell logs the failed command.
       end

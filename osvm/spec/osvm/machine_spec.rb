@@ -252,6 +252,22 @@ RSpec.describe OsVm::Machine do
     end
   end
 
+  it 'uses an available alternate shell to stop when the current shell is down' do
+    with_tmpdir do |dir|
+      config = build_machine_config('testShells' => 2, 'shells' => ['zfs-run'])
+      machine = build_machine(dir:, config:)
+      current_shell, alternate_shell = machine.send(:shell_instances)
+      machine.instance_variable_set(:@qemu_reaper, instance_double(Thread, join: true))
+      allow(current_shell).to receive(:up?).and_return(false)
+      allow(alternate_shell).to receive_messages(up?: true, execute: [0, ''])
+      allow(machine).to receive(:execute)
+
+      expect(machine.stop(timeout: 3)).to eq(machine)
+      expect(alternate_shell).to have_received(:execute).with('poweroff -f').once
+      expect(machine).not_to have_received(:execute)
+    end
+  end
+
   it 'keeps the exact reaper when an immediate exit clears published state' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)
