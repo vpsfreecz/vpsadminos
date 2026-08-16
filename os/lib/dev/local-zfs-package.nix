@@ -133,5 +133,14 @@ pkgs.runCommand "zfs-${kind}-${zfsVersion}-local-dev${nameSuffix}"
         echo "staged ZFS zed has no libudev support" >&2
         exit 1
       fi
+
+      # libzfs loads curl with dlopen(), so autoPatchelf cannot discover it.
+      # Keep the dynamic dependency in the adapted package's runtime closure.
+      libzfs=$(find "$out/lib" -maxdepth 1 -type f -name 'libzfs.so.*' -print -quit)
+      if [ -z "$libzfs" ]; then
+        echo "staged ZFS package has no versioned libzfs shared object" >&2
+        exit 1
+      fi
+      patchelf --add-rpath "${lib.makeLibraryPath [ pkgs.curl ]}" "$libzfs"
     fi
   ''
