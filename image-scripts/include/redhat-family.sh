@@ -32,8 +32,10 @@ function bootstrap {
 	for rpm in $RELEASE; do
 		nrpm=$(( $nrpm + 1 ))
 		echo "Downloading #${nrpm} $rpm"
-		curl -o $DOWNLOAD/release${nrpm}.rpm $rpm || fail "unable to download $rpm"
-		rpm --root $INSTALL --nodeps -ivh $DOWNLOAD/release${nrpm}.rpm \
+		curl --fail --location --show-error \
+			-o "$DOWNLOAD/release${nrpm}.rpm" "$rpm" \
+			|| fail "unable to download $rpm"
+		rpm --root "$INSTALL" --nodeps -ivh "$DOWNLOAD/release${nrpm}.rpm" \
 			|| fail "unable to install $rpm"
 	done
 
