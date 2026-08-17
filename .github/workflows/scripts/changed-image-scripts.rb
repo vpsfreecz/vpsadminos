@@ -56,6 +56,7 @@ changed_files = run!('git', 'diff', '--name-only', diff_base, head).split("\n")
 
 img_root = 'image-scripts/images'
 include_root = 'image-scripts/include'
+builder_root = 'image-scripts/builders'
 nixos_dir = 'os/lib/nixos-container'
 all_images = Dir.entries(img_root).reject { |v| %w[. ..].include?(v) }
 test_images = []
@@ -64,6 +65,18 @@ def abstract_image?(img_root, image)
   dir = File.join(img_root, image)
 
   !File.symlink?(dir) && File.exist?(File.join(dir, 'abstract'))
+end
+
+def image_builder(img_root, image)
+  config = File.join(img_root, image, 'config.sh')
+  return unless File.file?(config)
+
+  File.foreach(config) do |line|
+    match = line.match(/\A\s*BUILDER=(?:"([^"]+)"|'([^']+)'|([^\s#]+))/)
+    return match.captures.compact.first if match
+  end
+
+  nil
 end
 
 warn 'Changed files:'
@@ -103,6 +116,21 @@ changed_images.each do |image|
     end
   elsif all_images.include?(image)
     test_images << image
+  end
+end
+
+# Detect changes in image-scripts/builders
+changed_builders = changed_files.filter_map do |path|
+  next unless path.start_with?("#{builder_root}/")
+
+  path.delete_prefix("#{builder_root}/").split('/').first
+end.uniq
+
+if changed_builders.any?
+  all_images.each do |image|
+    next if abstract_image?(img_root, image)
+
+    test_images << image if changed_builders.include?(image_builder(img_root, image))
   end
 end
 
