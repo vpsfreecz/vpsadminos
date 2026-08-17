@@ -4,7 +4,15 @@
 
 set -e
 
-guix pull -C "$IMAGEDIR/channels.scm"
+for attempt in 1 2 3; do
+	if guix pull -C "$IMAGEDIR/channels.scm"; then
+		break
+	elif [ "$attempt" -eq 3 ]; then
+		exit 1
+	fi
+
+	sleep 30
+done
 hash guix
 
 guix system init --verbosity=3 -L "$IMAGEDIR" "$IMAGEDIR"/system.scm "$INSTALL"
