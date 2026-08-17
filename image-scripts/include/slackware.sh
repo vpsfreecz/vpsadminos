@@ -99,10 +99,47 @@ zlib
 
 require_cmd curl
 
+download_file() {
+	local url="$1"
+	local destination="$2"
+	local temporary="$destination.part.$$"
+
+	if ! mkdir -p "$(dirname "$destination")" ; then
+		warn "Unable to create directory for '$destination'"
+		return 1
+	fi
+
+	if ! curl \
+		--fail \
+		--location \
+		--silent \
+		--show-error \
+		--retry 5 \
+		--retry-all-errors \
+		--connect-timeout 30 \
+		--output "$temporary" \
+		"$url"
+	then
+		warn "Unable to download '$url'"
+		rm -f "$temporary"
+		return 1
+	fi
+
+	if ! mv "$temporary" "$destination" ; then
+		warn "Unable to move '$temporary' to '$destination'"
+		rm -f "$temporary"
+		return 1
+	fi
+}
+
 download_index() {
-	mkdir -p "$LOCAL_REPO"
-	curl -sSL -o "$LOCAL_REPO/FILELIST.txt" $BASEURL/slackware64-$RELVER/FILELIST.TXT
-	curl -sSL -o "$LOCAL_REPO/CHECKSUMS.md5" $BASEURL/slackware64-$RELVER/CHECKSUMS.md5
+	mkdir -p "$LOCAL_REPO" || return 1
+	download_file \
+		"$BASEURL/slackware64-$RELVER/FILELIST.TXT" \
+		"$LOCAL_REPO/FILELIST.txt" || return 1
+	download_file \
+		"$BASEURL/slackware64-$RELVER/CHECKSUMS.md5" \
+		"$LOCAL_REPO/CHECKSUMS.md5"
 }
 
 download_pkg() {
@@ -128,8 +165,9 @@ download_pkg() {
 		exit 1
 	fi
 
-	mkdir -p "$LOCAL_REPO/$(dirname $path)"
-	curl -sSL -o "$LOCAL_REPO/$path" $BASEURL/slackware64-$RELVER/$path
+	download_file \
+		"$BASEURL/slackware64-$RELVER/$path" \
+		"$LOCAL_REPO/$path" || exit 1
 
 	if ! (cd "$LOCAL_REPO" ; grep "$path$" CHECKSUMS.md5 | md5sum -c > /dev/null)
 	then
@@ -176,7 +214,7 @@ slackware-bootstrap() {
 
 	# Download all packages
 	export BASEURL LOCAL_REPO PKGLIST RELVER
-	export -f download_pkg_to_list download_pkg
+	export -f download_file download_pkg_to_list download_pkg warn
 
 	touch "$PKGLIST"
 
