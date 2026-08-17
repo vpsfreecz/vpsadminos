@@ -79,6 +79,7 @@ function build_image {
 		image_usage
 		exit 1
 	fi
+	local build_status=0
 
 	DIRNAME=
 	PARAMETERS=
@@ -111,6 +112,8 @@ function build_image {
 	. "$BASEDIR/include/common.sh"
 	set-initcmd /sbin/init
 	. "$BASEDIR/images/$DIRNAME/build.sh"
+	build_status=$?
+	[ "$build_status" -ne 0 ] && return "$build_status"
 
 	write_image_config
 }
