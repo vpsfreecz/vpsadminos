@@ -81,3 +81,29 @@ mkdir -p \
   /var/tmp/portage
 EOF
 }
+
+# Temporary workaround for Gentoo stage3 archives that include rust-bin as an
+# unneeded build dependency. Remove this helper and its musl call sites once
+# refreshed musl stage3 archives no longer ship dev-lang/rust-bin.
+configure-gentoo-remove-rust() {
+	configure-append <<'EOF'
+rust_installed=
+for pkg in /var/db/pkg/dev-lang/rust-bin-* ; do
+  if [ -d "$pkg" ] ; then
+    rust_installed=1
+    break
+  fi
+done
+
+if [ -n "$rust_installed" ] ; then
+  emerge --depclean --with-bdeps=n dev-lang/rust-bin || exit $?
+fi
+
+for path in /var/db/pkg/dev-lang/rust-bin-* /opt/rust-bin-* ; do
+  if [ -e "$path" ] ; then
+    echo "Unable to remove unneeded dev-lang/rust-bin files: $path" >&2
+    exit 1
+  fi
+done
+EOF
+}

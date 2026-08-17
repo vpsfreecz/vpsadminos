@@ -22,5 +22,6 @@ pf:12345:powerwait:/sbin/halt
 END
 EOF
 
+configure-gentoo-remove-rust
 configure-gentoo-end
 run-configure
