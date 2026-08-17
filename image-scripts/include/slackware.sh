@@ -3,7 +3,6 @@ LOCAL_REPO="$DOWNLOAD/repo"
 LOCAL_ROOT="$DOWNLOAD/root"
 PACKAGE_LOOKUP="$LOCAL_REPO/packages.tsv"
 INSTALLPKG=
-PKGLIST="$DOWNLOAD/pkglist.txt"
 PKGS="
 aaa_base
 aaa_glibc-solibs
@@ -98,7 +97,7 @@ xz
 zlib
 "
 
-require_cmd awk curl md5sum
+require_cmd awk curl md5sum nproc tar xargs
 
 download_file() {
 	local url="$1"
@@ -279,66 +278,59 @@ download_pkg() {
 }
 
 setup_pkgtools() {
-	mkdir -p "$LOCAL_ROOT"
+	mkdir -p "$LOCAL_ROOT" || return 1
 
-	local pkg="`download_pkg pkgtools`"
-	[ "$?" != "0" ] && exit 1
+	local pkg
 
-	tar -xJf "$pkg" -C "$LOCAL_ROOT"
+	pkg=$(download_pkg pkgtools) || return $?
+
+	tar -xJf "$pkg" -C "$LOCAL_ROOT" || return $?
 	INSTALLPKG="$LOCAL_ROOT/sbin/installpkg"
 }
 
+prefetch_pkg() {
+	download_pkg "$1" > /dev/null
+}
+
 install_pkg() {
-	local pkg=`download_pkg $1`
-	[ "$?" != "0" ] && exit 1
+	local requested="$1"
+	local pkg
 
-	$INSTALLPKG --terse --root "$INSTALL" $pkg
-}
-
-download_pkg_to_list() {
-	local pkg="`download_pkg $1`"
-	[ "$?" != "0" ] && exit 1
-
-	flock "$PKGLIST" bash -c "echo $pkg >> \"$PKGLIST\""
-}
-
-install_pkg_from_list() {
-	$INSTALLPKG --terse --root "$INSTALL" $1
+	pkg=$(download_pkg "$requested") || return $?
+	"$INSTALLPKG" --terse --root "$INSTALL" "$pkg"
 }
 
 slackware-bootstrap() {
-	download_index || exit 1
-	build_package_lookup || exit 1
+	download_index || fail "Unable to download Slackware repository indexes"
+	build_package_lookup || fail "Unable to index Slackware package metadata"
 
 	# Install pkgtools outside the rootfs
-	setup_pkgtools || exit 1
+	setup_pkgtools || fail "Unable to set up Slackware package tools"
 
 	# Download all packages
-	export BASEURL LOCAL_REPO PACKAGE_LOOKUP PKGLIST RELVER
+	export BASEURL LOCAL_REPO PACKAGE_LOOKUP RELVER
 	export -f \
 		download_file \
 		download_pkg \
-		download_pkg_to_list \
+		prefetch_pkg \
 		resolve_pkg \
 		validate_pkg \
 		warn
 
-	touch "$PKGLIST"
+	if ! printf '%s\n' $PKGS \
+		| xargs -r -n 1 -P "$(nproc)" bash -c 'prefetch_pkg "$1"' _
+	then
+		fail "Unable to download Slackware packages"
+	fi
 
+	# Install all packages in the declared order
 	for pkg in $PKGS ; do
-		echo $pkg
-	done | xargs -n 1 -P $(nproc) -I {} bash -c 'download_pkg_to_list "$@"' _ {}
-
-	# Install all packages in the rootfs
-	for pkg in $(cat "$PKGLIST") ; do
 		echo "Installing $pkg"
-		install_pkg_from_list $pkg
-
-		if [ "$?" != "0" ] ; then
-			warn "Unable to install '$pkg'"
-			exit 1
-		fi
+		install_pkg "$pkg" || fail "Unable to install '$pkg'"
 	done
 
-	cp "$IMAGEDIR"/cgroups.sh "$INSTALL"/etc/rc.d/rc.vpsadminos.cgroups
+	cp \
+		"$IMAGEDIR/cgroups.sh" \
+		"$INSTALL/etc/rc.d/rc.vpsadminos.cgroups" \
+		|| fail "Unable to install Slackware cgroup setup"
 }
