@@ -26,15 +26,25 @@ function mount-chroot {
 }
 
 function umount-chroot {
-	umount -R "$1/dev"
-	umount "$1/sys"
-	umount "$1/proc"
+	local status=0
+
+	umount -R "$1/dev" || status=$?
+	umount "$1/sys" || status=$?
+	umount "$1/proc" || status=$?
+
+	return "$status"
 }
 
 function do-chroot {
-	mount-chroot "$1"
-	chroot "$1" "$2"
-	umount-chroot "$1"
+	local chroot_status=0
+	local cleanup_status=0
+
+	mount-chroot "$1" || return $?
+	chroot "$1" "$2" || chroot_status=$?
+	umount-chroot "$1" || cleanup_status=$?
+
+	[ "$chroot_status" -ne 0 ] && return "$chroot_status"
+	return "$cleanup_status"
 }
 
 function configure-shebang {
@@ -68,10 +78,25 @@ EOF
 }
 
 function run-configure {
-	[ ! -f $CONFIGURE ] && touch $CONFIGURE
-	chmod +x $CONFIGURE
-		do-chroot "$INSTALL" /tmp/configure.sh
-	rm -f $CONFIGURE
+	local configure_status=0
+	local cleanup_status=0
+
+	if [ ! -f "$CONFIGURE" ] ; then
+		touch "$CONFIGURE" || configure_status=$?
+	fi
+
+	if [ "$configure_status" -eq 0 ] ; then
+		chmod +x "$CONFIGURE" || configure_status=$?
+	fi
+
+	if [ "$configure_status" -eq 0 ] ; then
+		do-chroot "$INSTALL" /tmp/configure.sh || configure_status=$?
+	fi
+
+	rm -f "$CONFIGURE" || cleanup_status=$?
+
+	[ "$configure_status" -ne 0 ] && return "$configure_status"
+	return "$cleanup_status"
 }
 
 function set-initcmd {
@@ -83,4 +108,3 @@ function set-initcmd {
 		shift
 	done
 }
-
