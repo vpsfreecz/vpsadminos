@@ -33,6 +33,7 @@ configure-append <<EOF
 set -ex
 EOF
 configure-common
+configure-slackpkg
 configure-append <<EOF
 export USER=root
 export HOME=/root
@@ -49,8 +50,8 @@ echo nameserver 8.8.8.8 > /etc/resolv.conf
 sed -i -r 's/^# (https:\/\/mirrors.slackware.com\/slackware\/slackware64-$RELVER\/)$/\1/' /etc/slackpkg/mirrors
 slackpkg -batch=on -default_answer=y update gpg
 slackpkg -batch=on -default_answer=y update
-slackpkg -batch=on -default_answer=y upgrade slackpkg
-slackpkg -batch=on -default_answer=y upgrade aaa_glibc-solibs
+slackpkg_allow_no_updates upgrade slackpkg
+slackpkg_allow_no_updates upgrade aaa_glibc-solibs
 
 # Use new configuration files, O as overwrite
 echo O | slackpkg -batch=on new-config
@@ -59,7 +60,7 @@ echo O | slackpkg -batch=on new-config
 sed -i -r 's/^# (https:\/\/mirrors.slackware.com\/slackware\/slackware64-$RELVER\/)$/\1/' /etc/slackpkg/mirrors
 
 slackpkg -batch=on -default_answer=y update
-slackpkg -batch=on -default_answer=y upgrade-all
+slackpkg_allow_no_updates upgrade-all
 
 # Use new configuration files, O as overwrite
 echo O | slackpkg -batch=on new-config

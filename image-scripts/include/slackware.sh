@@ -300,6 +300,27 @@ install_pkg() {
 	"$INSTALLPKG" --terse --root "$INSTALL" "$pkg"
 }
 
+configure-slackpkg() {
+	configure-append <<'EOF'
+slackpkg_allow_no_updates() {
+  local status
+
+  if slackpkg -batch=on -default_answer=y "$@" ; then
+    return 0
+  else
+    status=$?
+  fi
+
+  # slackpkg exits with status 20 when no package matches an upgrade.
+  if [ "$status" -eq 20 ] ; then
+    return 0
+  fi
+
+  return "$status"
+}
+EOF
+}
+
 slackware-bootstrap() {
 	download_index || fail "Unable to download Slackware repository indexes"
 	build_package_lookup || fail "Unable to index Slackware package metadata"
