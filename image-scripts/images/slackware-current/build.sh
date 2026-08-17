@@ -29,10 +29,12 @@ SLACKWARE_POWER_PACKAGE_AFTER_NETWORK_SCRIPTS=nut
 
 slackware-bootstrap
 
+configure-shebang '#!/bin/bash'
+configure-append <<EOF
+set -ex
+EOF
 configure-common
 configure-append <<EOF
-set -x
-
 export USER=root
 export HOME=/root
 
@@ -156,3 +158,8 @@ usermod -L root
 echo > /etc/resolv.conf
 EOF
 run-configure
+configure_status=$?
+if [ "$configure_status" -ne 0 ] ; then
+	warn "Unable to configure Slackware $RELVER"
+	exit "$configure_status"
+fi
