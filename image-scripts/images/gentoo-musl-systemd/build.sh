@@ -23,5 +23,6 @@ echo > /etc/machine-id
 EOF
 
 configure-systemd-console-getty
+configure-gentoo-remove-rust
 configure-gentoo-end
 run-configure
