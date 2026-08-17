@@ -57,6 +57,7 @@ changed_files = run!('git', 'diff', '--name-only', diff_base, head).split("\n")
 img_root = 'image-scripts/images'
 include_root = 'image-scripts/include'
 builder_root = 'image-scripts/builders'
+bin_root = 'image-scripts/bin'
 nixos_dir = 'os/lib/nixos-container'
 all_images = Dir.entries(img_root).reject { |v| %w[. ..].include?(v) }
 test_images = []
@@ -141,10 +142,18 @@ if changed_files.any? { |v| v.start_with?("#{nixos_dir}/") }
   end
 end
 
-# Detect changes in image-scripts/include
+# Detect shared runner and common helper changes
 includes_modified = changed_files.select { |v| v.start_with?("#{include_root}/") }
+shared_runtime_modified = changed_files.any? do |path|
+  path.start_with?("#{bin_root}/") || path == "#{include_root}/common.sh"
+end
 
-if includes_modified.any?
+if shared_runtime_modified
+  all_images.each do |image|
+    test_images << image unless abstract_image?(img_root, image)
+  end
+elsif includes_modified.any?
+  # Detect changes in distribution-specific includes.
   Dir.glob("#{img_root}/*/*.sh").each do |script|
     File.open(script) do |f|
       f.each_line do |line|
