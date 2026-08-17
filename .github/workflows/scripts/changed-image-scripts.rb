@@ -60,6 +60,12 @@ nixos_dir = 'os/lib/nixos-container'
 all_images = Dir.entries(img_root).reject { |v| %w[. ..].include?(v) }
 test_images = []
 
+def abstract_image?(img_root, image)
+  dir = File.join(img_root, image)
+
+  !File.symlink?(dir) && File.exist?(File.join(dir, 'abstract'))
+end
+
 warn 'Changed files:'
 changed_files.each do |v|
   warn "- #{v}"
@@ -84,10 +90,15 @@ changed_images =
 changed_images.each do |image|
   dir = File.join(img_root, image)
 
-  if Dir.exist?(dir) && File.exist?(File.join(dir, 'abstract'))
+  if abstract_image?(img_root, image)
+    abstract_path = File.realpath(dir)
+
     all_images.each do |other_image|
-      test_images << other_image if File.readlink(File.join(img_root, other_image)).strip == image
-    rescue Errno::EINVAL
+      other_dir = File.join(img_root, other_image)
+      next unless File.symlink?(other_dir)
+
+      test_images << other_image if File.realpath(other_dir) == abstract_path
+    rescue Errno::ENOENT
       next
     end
   elsif all_images.include?(image)
