@@ -128,7 +128,7 @@ touch /run/vpsadminos/network
          ;; dhcp provisions 'networking and it is useful for development setup.
          ;; Maybe in the future we could handle it by 'vpsadminos-networking
          ;; and to run dhcp only when there is an actual interface.
-         (service dhcp-client-service-type)
+         (service dhcpcd-service-type)
 
          (modify-services %base-services
            (delete console-font-service-type)
