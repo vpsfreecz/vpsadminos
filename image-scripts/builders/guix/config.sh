@@ -1,0 +1,2 @@
+DISTNAME=guix
+RELVER=latest

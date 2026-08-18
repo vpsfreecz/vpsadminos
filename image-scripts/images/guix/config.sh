@@ -1,2 +1,2 @@
-BUILDER=debian-guix
+BUILDER=guix
 RELVER=$(date +%Y%m%d)
