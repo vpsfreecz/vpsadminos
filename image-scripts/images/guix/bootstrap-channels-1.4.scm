@@ -1,5 +1,3 @@
-(use-modules (guix channels))
-
 ;; Last authenticated revision before (guix ui) started requiring Guile's
 ;; 'spawn' binding. Its self-build uses a new enough Guile for the rolling pull.
 (list (channel
