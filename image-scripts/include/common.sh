@@ -18,11 +18,51 @@ function fail {
 }
 
 function mount-chroot {
-	mkdir -p "$1/proc" "$1/sys" "$1/dev"
-	mount -t proc proc "$1/proc"
-	mount -t sysfs sys "$1/sys"
-	mount --rbind /dev "$1/dev"
-	mount --make-rslave "$1/dev"
+	local status=0
+	local proc_mounted=0
+	local sys_mounted=0
+	local dev_mounted=0
+	local dev_detached=0
+
+	mkdir -p "$1/proc" "$1/sys" "$1/dev" || return $?
+
+	mount -t proc proc "$1/proc" || status=$?
+	if [ "$status" -eq 0 ] ; then
+		proc_mounted=1
+		mount -t sysfs sys "$1/sys" || status=$?
+	fi
+	if [ "$status" -eq 0 ] ; then
+		sys_mounted=1
+		mount --rbind /dev "$1/dev" || status=$?
+	fi
+	if [ "$status" -eq 0 ] ; then
+		dev_mounted=1
+		mount --make-rslave "$1/dev" || status=$?
+	fi
+
+	if [ "$status" -ne 0 ] ; then
+		if [ "$dev_mounted" -eq 1 ] ; then
+			# If make-rslave failed, recursive unmounts could propagate through
+			# the still-shared bind back to /dev. Make the clone private before
+			# detaching it. If that also fails, namespace teardown is safer than
+			# attempting an unprotected recursive unmount.
+			if mount --make-rprivate "$1/dev" ; then
+				dev_detached=1
+			fi
+			if [ "$dev_detached" -eq 1 ] ; then
+				umount -R "$1/dev" || true
+			fi
+		fi
+		if [ "$sys_mounted" -eq 1 ] ; then
+			umount "$1/sys" || true
+		fi
+		if [ "$proc_mounted" -eq 1 ] ; then
+			umount "$1/proc" || true
+		fi
+		return "$status"
+	fi
+
+	return 0
 }
 
 function umount-chroot {

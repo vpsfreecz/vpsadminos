@@ -26,11 +26,21 @@ do_bootstrap() ( # new subshell
 )
 
 function bootstrap {
-	mount-chroot "$INSTALL"
+	local bootstrap_status=0
+	local cleanup_status=0
+
+	mount-chroot "$INSTALL" || exit $?
 	do_bootstrap
-	rc=$?
-	umount-chroot "$INSTALL"
-	[ "$rc" != 0 ] && fail "bootstrap failed"
+	bootstrap_status=$?
+	umount-chroot "$INSTALL" || cleanup_status=$?
+
+	if [ "$bootstrap_status" -ne 0 ] ; then
+		exit "$bootstrap_status"
+	fi
+	if [ "$cleanup_status" -ne 0 ] ; then
+		exit "$cleanup_status"
+	fi
+	return 0
 }
 
 function configure-opensuse {
