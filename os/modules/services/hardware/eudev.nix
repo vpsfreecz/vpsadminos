@@ -117,7 +117,6 @@ in
         description = ''
           List of packages containing udev rules.
         '';
-        apply = map getBin;
       };
 
       path = mkOption {
