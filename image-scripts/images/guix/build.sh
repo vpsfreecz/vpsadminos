@@ -35,28 +35,46 @@ set -e
 		return 0
 	}
 
+	pull_guix() {
+		local channels="$1"
+		local attempt guix_pull_status
+
+		for attempt in 1 2 3; do
+			set +e
+			guix pull -C "$channels" 2>&1 \
+				| tee "$guix_pull_output"
+			guix_pull_status=${PIPESTATUS[0]}
+			set -e
+
+			if [ "$guix_pull_status" -eq 0 ]; then
+				return 0
+			fi
+
+			dump_guix_build_logs || true
+
+			if [ "$attempt" -eq 3 ]; then
+				return "$guix_pull_status"
+			fi
+
+			sleep 30
+		done
+	}
+
 	guix_pull_output=$(mktemp /tmp/guix-pull.XXXXXXXXXX)
 	trap 'rm -f -- "$guix_pull_output"' EXIT
 
-	for attempt in 1 2 3; do
-		set +e
-		guix pull -C "$IMAGEDIR/channels.scm" 2>&1 \
-			| tee "$guix_pull_output"
-		guix_pull_status=${PIPESTATUS[0]}
-		set -e
+	case "$(guix --version | head -n 1)" in
+	*" 1.4.0")
+		# Guix 1.4 builds channels with Guile older than 3.0.9, which cannot
+		# compile current Guix code using 'spawn'. This authenticated bridge
+		# updates the build Guile before the rolling pull. Remove it when the
+		# Debian builder moves beyond Guix 1.4.
+		pull_guix "$IMAGEDIR/bootstrap-channels-1.4.scm"
+		hash guix
+		;;
+	esac
 
-		if [ "$guix_pull_status" -eq 0 ]; then
-			exit 0
-		fi
-
-		dump_guix_build_logs || true
-
-		if [ "$attempt" -eq 3 ]; then
-			exit "$guix_pull_status"
-		fi
-
-		sleep 30
-	done
+	pull_guix "$IMAGEDIR/channels.scm"
 )
 hash guix
 
