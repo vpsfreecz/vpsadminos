@@ -11,12 +11,14 @@ on:
   push:
     paths:
       - .github/workflows/image-scripts.yml
+      - .github/workflows/scripts/changed-image-scripts.rb
       - .github/workflows/scripts/test-image-script-common.sh
       - image-scripts/**
       - os/lib/nixos-container/**
   pull_request:
     paths:
       - .github/workflows/image-scripts.yml
+      - .github/workflows/scripts/changed-image-scripts.rb
       - .github/workflows/scripts/test-image-script-common.sh
       - image-scripts/**
       - os/lib/nixos-container/**
