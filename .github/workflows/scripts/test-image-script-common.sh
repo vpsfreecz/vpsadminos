@@ -176,10 +176,17 @@ INCLUDE="$repo_root/image-scripts/include"
 # shellcheck source=image-scripts/include/opensuse.sh
 . "$repo_root/image-scripts/include/opensuse.sh"
 
-mock_bootstrap_status=0
-do_bootstrap() {
-	echo bootstrap-called
-	return "$mock_bootstrap_status"
+mock_zypper_status=0
+zypper() {
+	echo zypper-called
+
+	if [ "$mock_zypper_status" -ne 0 ] ; then
+		local status="$mock_zypper_status"
+		mock_zypper_status=0
+		return "$status"
+	fi
+
+	return 0
 }
 
 mount_failure=1
@@ -199,20 +206,20 @@ fi
 
 mount_failure=0
 mount_call=0
-mock_bootstrap_status=48
+mock_zypper_status=48
 mock_umount_status=71
 
 set +e
-(bootstrap) >/dev/null
+output=$(bootstrap)
 status=$?
 set -e
 
-if [ "$status" -ne 48 ] ; then
+if [ "$status" -ne 48 ] || [ "$output" != zypper-called ] ; then
 	echo "OpenSUSE bootstrap did not prefer its primary failure" >&2
 	exit 1
 fi
 
-mock_bootstrap_status=0
+mock_zypper_status=0
 
 set +e
 (bootstrap) >/dev/null
@@ -223,6 +230,59 @@ if [ "$status" -ne 71 ] ; then
 	echo "OpenSUSE bootstrap ignored a cleanup failure" >&2
 	exit 1
 fi
+
+namespace_fixture=$(mktemp -d /tmp/vpsadminos-image-namespace.XXXXXXXX)
+namespace_record="$namespace_fixture/unshare.args"
+
+command cat > "$namespace_fixture/unshare" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$@" > "$VPSADMINOS_IMAGE_NAMESPACE_RECORD"
+exit 47
+EOF
+command chmod +x "$namespace_fixture/unshare"
+
+set +e
+PATH="$namespace_fixture:$PATH" \
+	VPSADMINOS_IMAGE_NAMESPACE_RECORD="$namespace_record" \
+	"$repo_root/image-scripts/bin/runner" image build >/dev/null 2>&1
+status=$?
+set -e
+
+expected_namespace_args=$(cat <<EOF
+--mount
+--propagation
+private
+--
+env
+VPSADMINOS_IMAGE_MOUNT_NAMESPACE=1
+$repo_root/image-scripts/bin/runner
+image
+build
+EOF
+)
+
+if [ "$status" -ne 47 ] \
+		|| [ "$(command cat "$namespace_record")" != "$expected_namespace_args" ] ; then
+	echo "image runner did not enter a private mount namespace" >&2
+	exit 1
+fi
+
+command rm -f "$namespace_record"
+
+set +e
+PATH="$namespace_fixture:$PATH" \
+	VPSADMINOS_IMAGE_NAMESPACE_RECORD="$namespace_record" \
+	VPSADMINOS_IMAGE_MOUNT_NAMESPACE=1 \
+	"$repo_root/image-scripts/bin/runner" image build >/dev/null 2>&1
+status=$?
+set -e
+
+if [ "$status" -ne 1 ] || [ -e "$namespace_record" ] ; then
+	echo "image runner recursively entered its mount namespace" >&2
+	exit 1
+fi
+
+find "$namespace_fixture" -depth -delete
 
 fixture=$(mktemp -d /tmp/vpsadminos-arch-bootstrap.XXXXXXXX)
 command mkdir -p \
@@ -268,7 +328,7 @@ fi
 
 if command -v unshare >/dev/null \
 		&& unshare --user --map-root-user --mount true 2>/dev/null ; then
-	unshare --user --map-root-user --mount --propagation private bash -eu <<'EOF'
+unshare --user --map-root-user --mount --propagation private bash -eu <<'EOF'
 root=$(mktemp -d /tmp/vpsadminos-mount-propagation.XXXXXXXX)
 
 cleanup() {
@@ -293,4 +353,15 @@ umount -R "$root/clone"
 
 mountpoint -q "$root/source/child"
 EOF
+
+	namespace_mount=$(mktemp -d /tmp/vpsadminos-mount-namespace.XXXXXXXX)
+	unshare --user --map-root-user --mount --propagation private \
+		mount -t tmpfs tmpfs "$namespace_mount"
+
+	if mountpoint -q "$namespace_mount" ; then
+		echo "mount escaped the disposable namespace" >&2
+		exit 1
+	fi
+
+	rmdir "$namespace_mount"
 fi
