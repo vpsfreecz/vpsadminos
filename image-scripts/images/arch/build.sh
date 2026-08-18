@@ -67,7 +67,7 @@ gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
 EOF
 
 	chmod +x "$BOOTSTRAP/$SETUP"
-	do-chroot "$BOOTSTRAP" "$SETUP"
+	do-chroot "$BOOTSTRAP" "$SETUP" || exit $?
 
 	# Replace bootstrap with the base system
 	mv "$BOOTSTRAP"/mnt/* "$INSTALL/"

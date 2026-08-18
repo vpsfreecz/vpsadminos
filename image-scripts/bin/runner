@@ -54,6 +54,20 @@ function image_usage {
 	echo "  $0 image build <build-id> <work-dir> <install-dir> <image-name>"
 }
 
+function enter_image_mount_namespace {
+	[ "${VPSADMINOS_IMAGE_MOUNT_NAMESPACE-}" == 1 ] && return 0
+
+	if ! command -v unshare >/dev/null ; then
+		echo "unshare not found in PATH" >&2
+		exit 1
+	fi
+
+	# Keep chroot mounts out of the reusable builder namespace. This also
+	# contains any bind mount that cannot be detached safely after a failure.
+	exec unshare --mount --propagation private -- \
+		env VPSADMINOS_IMAGE_MOUNT_NAMESPACE=1 "$0" "$@"
+}
+
 function do_image {
 	if [ $# -lt 1 ] ; then
 		image_usage
@@ -139,6 +153,7 @@ function main {
 		builder)
 			do_builder $@ ;;
 		image)
+			enter_image_mount_namespace "$command" "$@"
 			do_image $@ ;;
 		*)
 			usage
