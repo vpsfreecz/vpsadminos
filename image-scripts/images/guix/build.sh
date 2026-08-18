@@ -63,7 +63,7 @@ set -e
 	guix_pull_output=$(mktemp /tmp/guix-pull.XXXXXXXXXX)
 	trap 'rm -f -- "$guix_pull_output"' EXIT
 
-	case "$(guix --version | head -n 1)" in
+	case "$(guix --version | sed -n '1p')" in
 	*" 1.4.0")
 		# Guix 1.4 builds channels with Guile older than 3.0.9, which cannot
 		# compile current Guix code using 'spawn'. This authenticated bridge
