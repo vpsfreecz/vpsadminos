@@ -1,3 +1,4 @@
+require 'open3'
 require 'libosctl/exporter/base'
 
 module OsCtl::Lib
@@ -120,7 +121,7 @@ module OsCtl::Lib
 
     def dump_stream(name, dataset, snap, from_snap = nil)
       compression = get_compression(dataset)
-      status = nil
+      statuses = nil
 
       cmd = if from_snap
               "#{zfs_send} -I @#{from_snap} #{dataset}@#{snap}"
@@ -129,45 +130,56 @@ module OsCtl::Lib
             end
 
       tar.add_file(dump_file_name(compression, name), FILE_MODE) do |tf|
-        IO.popen("exec #{cmd}") do |io|
-          process_stream(compression, io, tf)
-        end
-
-        status = $?
+        statuses = process_stream(compression, cmd, tf)
       end
 
-      raise "zfs send failed with exit status #{status.exitstatus}" if status.exitstatus != 0
+      check_stream_statuses(compression, statuses)
     end
 
-    def process_stream(compression, stream, tf)
-      case compression
-      when :gzip
-        gz = Zlib::GzipWriter.new(tf)
-        attempts = 0
-
-        until stream.eof?
-          data = stream.read(BLOCK_SIZE)
-
-          begin
-            gz.write(data)
-            attempts = 0
-          rescue Zlib::BufError
-            attempts += 1
-            raise if attempts > 5
-
-            sleep(0.1)
-            retry
-          end
+    def process_stream(compression, command, tf)
+      pipeline =
+        case compression
+        when :gzip
+          ["exec #{command}", resolve_command(gzip_command)]
+        when :off
+          ["exec #{command}"]
+        else
+          raise "unexpected compression type '#{compression}'"
         end
 
-        gz.close
+      statuses = nil
 
-      when :off
-        tf.write(stream.read(BLOCK_SIZE)) until stream.eof?
-
-      else
-        raise "unexpected compression type '#{compression}'"
+      Open3.pipeline_r(*pipeline) do |stream, wait_threads|
+        IO.copy_stream(stream, tf)
+        statuses = wait_threads.map(&:value)
       end
+
+      statuses
+    end
+
+    def gzip_command
+      ['gzip', '-c']
+    end
+
+    def resolve_command(command)
+      [find_executable!(command.fetch(0)), *command.drop(1)]
+    end
+
+    def check_stream_statuses(compression, statuses)
+      processes = [['zfs send', statuses.fetch(0)]]
+      processes << ['gzip', statuses.fetch(1)] if compression == :gzip
+
+      failures = processes.filter_map do |name, status|
+        next if status.success?
+
+        if status.exited?
+          "#{name} failed with exit status #{status.exitstatus}"
+        else
+          "#{name} was terminated by signal #{status.termsig}"
+        end
+      end
+
+      raise failures.join('; ') unless failures.empty?
     end
 
     def get_compression(dataset)

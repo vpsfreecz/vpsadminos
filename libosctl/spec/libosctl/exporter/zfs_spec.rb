@@ -124,13 +124,13 @@ RSpec.describe OsCtl::Lib::Exporter::Zfs do
     )
   end
 
-  it 'raises when the send subprocess exits non-zero' do
+  it 'raises when the send subprocess in a gzip pipeline exits non-zero' do
     send_script = write_executable(tmpdir, 'fake-send', <<~SH)
       printf 'stream-data'
       exit 23
     SH
 
-    exporter = described_class.new(container, StringIO.new, compression: :off, compressed_send: false)
+    exporter = described_class.new(container, StringIO.new, compression: :gzip, compressed_send: false)
 
     allow(exporter).to receive_messages(snapshot_name: 'base-snap', zfs_send: send_script)
     stub_zfs(exporter, destroyed: [])
@@ -138,6 +138,53 @@ RSpec.describe OsCtl::Lib::Exporter::Zfs do
     expect do
       exporter.dump_rootfs { exporter.dump_base }
     end.to raise_error(RuntimeError, /zfs send failed with exit status 23/)
+  end
+
+  it 'raises when the gzip subprocess exits non-zero' do
+    send_script = write_executable(tmpdir, 'fake-send', <<~SH)
+      printf 'stream-data'
+    SH
+    gzip_script = write_executable(tmpdir, 'fake-gzip', <<~SH)
+      cat
+      exit 29
+    SH
+
+    exporter = described_class.new(container, StringIO.new, compression: :gzip, compressed_send: false)
+
+    allow(exporter).to receive_messages(
+      snapshot_name: 'base-snap',
+      zfs_send: send_script,
+      gzip_command: ['fake-gzip']
+    )
+    allow(exporter).to receive(:find_executable!).with('fake-gzip').and_return(gzip_script)
+    stub_zfs(exporter, destroyed: [])
+
+    expect do
+      exporter.dump_rootfs { exporter.dump_base }
+    end.to raise_error(RuntimeError, /gzip failed with exit status 29/)
+  end
+
+  it 'does not start the send subprocess when gzip is unavailable' do
+    started = File.join(tmpdir, 'send-started')
+    send_script = write_executable(tmpdir, 'fake-send', <<~SH)
+      touch #{started}
+    SH
+
+    exporter = described_class.new(container, StringIO.new, compression: :gzip, compressed_send: false)
+
+    allow(exporter).to receive_messages(
+      snapshot_name: 'base-snap',
+      zfs_send: send_script,
+      gzip_command: ['missing-gzip']
+    )
+    allow(exporter).to receive(:find_executable!).with('missing-gzip').and_raise(Errno::ENOENT)
+    stub_zfs(exporter, destroyed: [])
+
+    expect do
+      exporter.dump_rootfs { exporter.dump_base }
+    end.to raise_error(Errno::ENOENT)
+
+    expect(File).not_to exist(started)
   end
 
   it 'destroys created snapshots even when dumping fails' do
@@ -169,6 +216,37 @@ RSpec.describe OsCtl::Lib::Exporter::Zfs do
 
     expect(entries).to include('rootfs/base.dat.gz', 'rootfs/data/base.dat.gz')
     expect(entries).not_to include('rootfs/base.dat', 'rootfs/data/base.dat')
+  end
+
+  it 'writes complete gzip streams when SIGCHLD is delivered as the producer exits' do
+    stream_size = 1024 * 1024
+    send_script = write_executable(tmpdir, 'fake-send', <<~SH)
+      head -c #{stream_size} /dev/zero
+    SH
+    stop_signaling = false
+    signaler = Thread.new do
+      until stop_signaling
+        Process.kill('CHLD', Process.pid)
+        Thread.pass
+      end
+    end
+    archives = []
+
+    begin
+      3.times do
+        entries, = dump_base_archive(send_script, compression: :gzip, compressed_send: false)
+        archives << entries
+      end
+    ensure
+      stop_signaling = true
+      signaler.join
+    end
+
+    expected_stream = "\0".b * stream_size
+    archives.each do |entries|
+      expect(gunzip(entries.fetch('rootfs/base.dat.gz'))).to eq(expected_stream)
+      expect(gunzip(entries.fetch('rootfs/data/base.dat.gz'))).to eq(expected_stream)
+    end
   end
 
   it 'writes uncompressed base streams when compression is forced off' do

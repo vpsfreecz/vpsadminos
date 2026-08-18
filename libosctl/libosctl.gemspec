@@ -27,6 +27,7 @@ Gem::Specification.new do |s|
   s.license     = 'MIT'
 
   s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
+  s.requirements << 'GNU gzip in PATH for gzip-compressed ZFS exports'
 
   s.add_dependency 'fiddle'
   s.add_dependency 'logger'
