@@ -59,6 +59,7 @@ include_root = 'image-scripts/include'
 builder_root = 'image-scripts/builders'
 bin_root = 'image-scripts/bin'
 nixos_dir = 'os/lib/nixos-container'
+detector_file = '.github/workflows/scripts/changed-image-scripts.rb'
 all_images = Dir.entries(img_root).reject { |v| %w[. ..].include?(v) }
 test_images = []
 
@@ -145,7 +146,7 @@ end
 # Detect shared runner and common helper changes
 includes_modified = changed_files.select { |v| v.start_with?("#{include_root}/") }
 shared_runtime_modified = changed_files.any? do |path|
-  path.start_with?("#{bin_root}/") || path == "#{include_root}/common.sh"
+  path.start_with?("#{bin_root}/") || path == "#{include_root}/common.sh" || path == detector_file
 end
 
 if shared_runtime_modified
