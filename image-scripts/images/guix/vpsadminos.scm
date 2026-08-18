@@ -9,16 +9,29 @@
   #:use-module (gnu)
   #:use-module (gnu packages)
   #:use-module (gnu packages bash)
+  #:use-module (gnu packages nss)
+  #:use-module (gnu packages ssh)
+  #:use-module (gnu services)
   #:use-module (gnu services networking)
   #:use-module (gnu services shepherd)
+  #:use-module (gnu services ssh)
+  #:use-module (gnu system)
   #:use-module (guix build-system trivial)
   #:use-module (guix gexp)
   #:use-module (guix packages)
   #:use-module (srfi srfi-1)
-  #:export (%ct-bootloader
+  #:export (ct-essential-services
+            %ct-bootloader
             %ct-dummy-kernel
             %ct-file-systems
+            %ct-operating-system-base
             %ct-services))
+
+(define (ct-essential-services operating-system)
+  (modify-services
+      (operating-system-default-essential-services operating-system)
+    (delete firmware-service-type)
+    (delete (service-kind %linux-bare-metal-service))))
 
 ;;; The bootloader is not required.  This is running inside a container, and the
 ;;; start menu is populated by parsing /var/guix/profiles.  However bootloader
@@ -129,3 +142,34 @@ touch /run/vpsadminos/network
                               (udev-configuration
                                (inherit config)
                                (rules '()))))))
+
+;; Guix evaluates the service fields lazily, after it has finished loading the
+;; system configuration from a temporary anonymous module.  Construct the
+;; record here so that all delayed code belongs to this retained named module.
+(define %ct-operating-system-base
+  (operating-system
+    ;; operating-system requires a host name.  system.scm provides the
+    ;; user-visible value when it inherits this platform base.
+    (host-name "localhost")
+    (firmware '())
+    (initrd-modules '())
+    ;; The kernel is not used (this is a container), but needs to be specified
+    (kernel %ct-dummy-kernel)
+
+    (packages (cons* nss-certs
+                     %base-packages))
+
+    (essential-services
+     (ct-essential-services this-operating-system))
+
+    (bootloader %ct-bootloader)
+
+    (file-systems %ct-file-systems)
+
+    (services
+     (cons (service openssh-service-type
+                    (openssh-configuration
+                     (openssh openssh-sans-x)
+                     (permit-root-login #t)
+                     (password-authentication? #t)))
+           %ct-services))))

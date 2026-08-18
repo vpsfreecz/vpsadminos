@@ -1,37 +1,21 @@
-;; Load vpsAdminOS-specific configuration from /etc/config/vpsadminos.scm
-(add-to-load-path "/etc/config")
-(use-modules (vpsadminos))
+;; Image builds provide the current configuration with -L.  Installed systems
+;; use /etc/config, but it can contain an older module in the builder image.
+(eval-when (expand load eval)
+  (unless (search-path %load-path "vpsadminos.scm")
+    (add-to-load-path "/etc/config")))
 
-;; System configuration
-(use-modules (gnu))
-(use-package-modules linux nss ssh)
-(use-service-modules ssh)
+;; Current Guix discards this anonymous configuration module before it forces
+;; operating-system service fields.  Resolve the platform base from the
+;; retained named module at run time, then inherit it to keep user configuration
+;; in this file.
+(let ((platform-system
+       (module-ref (resolve-interface '(vpsadminos))
+                   '%ct-operating-system-base)))
+  (operating-system
+    (inherit platform-system)
 
-(operating-system
-  (host-name "guix")
-  ;; Servers usually use UTC regardless of the location.
-  (timezone "Etc/UTC")
-  (locale "en_US.utf8")
-  (firmware '())
-  (initrd-modules '())
-  ;; The kernel is not used (this is a container), but needs to be specified
-  (kernel %ct-dummy-kernel)
-
-  (packages (cons* nss-certs
-                   %base-packages))
-
-  (essential-services (modify-services
-                          (operating-system-default-essential-services this-operating-system)
-                        (delete firmware-service-type)
-                        (delete (service-kind %linux-bare-metal-service))))
-
-  (bootloader %ct-bootloader)
-
-  (file-systems %ct-file-systems)
-
-  (services (cons* (service openssh-service-type
-                            (openssh-configuration
-                             (openssh openssh-sans-x)
-                             (permit-root-login #t)
-                             (password-authentication? #t)))
-                   %ct-services)))
+    ;; User configuration
+    (host-name "guix")
+    ;; Servers usually use UTC regardless of the location.
+    (timezone "Etc/UTC")
+    (locale "en_US.utf8")))
