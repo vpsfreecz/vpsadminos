@@ -21,7 +21,7 @@ function has_not_nameserver {
 	fi
 }
 
-if [ "$DISTNAME" == "nixos" ] || [ "$DISTNAME" == "guix" ] ; then
+if [ "$DISTNAME" == "nixos" ] ; then
 	# DNS resolvers on NixOS cannot be changed from the outside using osctl
 	exit 0
 fi

@@ -125,10 +125,15 @@ touch /run/vpsadminos/network
                    (tty "console")))
          (simple-service 'vpsadminos-networking
                          shepherd-root-service-type (list vpsadminos-networking))
-         ;; dhcp provisions 'networking and it is useful for development setup.
-         ;; Maybe in the future we could handle it by 'vpsadminos-networking
-         ;; and to run dhcp only when there is an actual interface.
-         (service dhcpcd-service-type)
+         ;; DHCP provisions 'networking and it is useful for development setup.
+         ;; Keep the resolver hook disabled: osctld owns /etc/resolv.conf and
+         ;; dhcpcd would otherwise replace it after the container starts.
+         ;; Maybe in the future we could handle 'networking through
+         ;; 'vpsadminos-networking and run DHCP only when there is an actual
+         ;; interface.
+         (service dhcpcd-service-type
+                  (dhcpcd-configuration
+                   (no-hook '("resolv.conf"))))
 
          (modify-services %base-services
            (delete console-font-service-type)
