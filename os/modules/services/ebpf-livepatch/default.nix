@@ -94,28 +94,22 @@ let
         exit "$status"
       fi
 
-      # Remove only links that have a same-named replacement. Pins with no
-      # replacement keep protecting the running kernel until service stop/reboot.
-      for new_pin in "$new_dir"/*; do
-        [ -e "$new_pin" ] || continue
-        pin_name="$(${pkgs.coreutils}/bin/basename "$new_pin")"
-
-        for dir in "$generations_dir"/*; do
-          [ -d "$dir" ] || continue
-          [ "$dir" = "$new_dir" ] && continue
-
-          if [ -e "$dir/$pin_name" ] && ! ${pkgs.coreutils}/bin/rm -f "$dir/$pin_name"; then
-            echo "ebpf-livepatch: unable to remove stale pin $dir/$pin_name" >&2
-          fi
-        done
-      done
-
       for dir in "$generations_dir"/*; do
         [ -d "$dir" ] || continue
         [ "$dir" = "$new_dir" ] && continue
+
+        for old_pin in "$dir"/*; do
+          [ -e "$old_pin" ] || continue
+          if ! ${pkgs.coreutils}/bin/rm -f "$old_pin"; then
+            echo "ebpf-livepatch: unable to remove stale pin $old_pin" >&2
+          fi
+        done
+
         if ${pkgs.coreutils}/bin/rmdir "$dir" 2>/dev/null; then
           old_generation="$(${pkgs.coreutils}/bin/basename "$dir")"
           ${pkgs.coreutils}/bin/rm -f "$state_dir/$old_generation.attached-at"
+        else
+          echo "ebpf-livepatch: unable to remove stale generation $dir" >&2
         fi
       done
     ) 9>"$state_dir/lock"

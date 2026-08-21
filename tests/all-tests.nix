@@ -128,6 +128,7 @@ let
         "driver/rspec"
         "driver/vpsadminos"
         "ebpf-livepatch"
+        "ebpf-livepatch-lifecycle"
         "firewall/conntrack"
         {
           template = "image-scripts/test";
