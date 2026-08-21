@@ -145,7 +145,8 @@ in
                 machine.succeeds(
                   "status=0; " \
                     "osctl ct exec #{testct} awk 'BEGIN { s=\"xxxxxxxxxxxxxxxxxxxxxxxx\"; while (1) s=s s s }' || status=$?; " \
-                    'test "$status" -eq 137 || { echo "unexpected osctl status: $status" >&2; exit 1; }'
+                    'test "$status" -eq 137 || { echo "unexpected osctl status: $status" >&2; exit 1; }',
+                  timeout: 60
                 )
               end
 
