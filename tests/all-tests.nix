@@ -174,6 +174,7 @@ let
           "kernel/memory-view/cgroups-v2"
           "kernel/misc"
           "kernel/namespaces"
+          "kernel/netns-preinit-fault"
           "kernel/tracing-tools"
           "kernel/sched-proxy-exec-lock-badneighbor"
           "kernel/syslogns"
