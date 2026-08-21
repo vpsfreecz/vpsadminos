@@ -240,6 +240,12 @@ import ../make-test.nix (
                 ptrace_mm_guard = { };
               };
             };
+            cifsAtUpperBoundEval = evalModule {
+              kernelVersion = "6.12.92";
+              programs = {
+                cifs_spnego_guard = { };
+              };
+            };
             invalidProgramOptionsEval = evalModule {
               kernelVersion = currentKernelVersion;
               programs = {
@@ -327,6 +333,8 @@ import ../make-test.nix (
                 currentAvailable.programAvailableForKernel currentKernelVersion "cifs_spnego_guard";
               beforePtraceUntil = (availableFor "6.12.88").programNames "6.12.88";
               atPtraceUntil = (availableFor "6.12.89").programNames "6.12.89";
+              beforeCifsUntil = (availableFor "6.12.91").programNames "6.12.91";
+              atCifsUntil = (availableFor "6.12.92").programNames "6.12.92";
             };
 
             module = {
@@ -344,6 +352,7 @@ import ../make-test.nix (
               unknownFailures = failedMessages unknownEval;
               outOfRangeFailures = failedMessages outOfRangeEval;
               atUpperBoundFailures = failedMessages atUpperBoundEval;
+              cifsAtUpperBoundFailures = failedMessages cifsAtUpperBoundEval;
               invalidProgramOptionsAccepted = invalidProgramOptionsResult.success;
               autoLoadService =
                 let
@@ -483,11 +492,24 @@ import ../make-test.nix (
           )
         end
 
-        it 'includes cifs_spnego_guard for current eligible kernels' do
+        it 'includes cifs_spnego_guard through kernel 6.12.91' do
           defaults = @facts.fetch('defaults')
 
-          expect(defaults.fetch('currentHasCifsSpnego')).to be(true)
-          expect(defaults.fetch('current')).to include('cifs_spnego_guard')
+          expect(defaults.fetch('beforeCifsUntil')).to include('cifs_spnego_guard')
+        end
+
+        it 'excludes cifs_spnego_guard at kernel 6.12.92' do
+          defaults = @facts.fetch('defaults')
+
+          expect(defaults.fetch('atCifsUntil')).not_to include('cifs_spnego_guard')
+        end
+
+        it 'matches cifs_spnego_guard default to current kernel eligibility' do
+          defaults = @facts.fetch('defaults')
+
+          expect(defaults.fetch('current').include?('cifs_spnego_guard')).to eq(
+            defaults.fetch('currentHasCifsSpnego')
+          )
         end
 
         it 'does not include disabled programs by default' do
@@ -587,6 +609,15 @@ import ../make-test.nix (
           expect(messages.first).to include('ptrace_mm_guard')
           expect(messages.first).to include('kernel >= 5.7 (inclusive)')
           expect(messages.first).to include('and < 6.12.89 (exclusive)')
+        end
+
+        it 'rejects cifs_spnego_guard at its exclusive upper bound' do
+          messages = @facts.fetch('module').fetch('cifsAtUpperBoundFailures')
+
+          expect(messages.length).to eq(1)
+          expect(messages.first).to include('not available for kernel 6.12.92')
+          expect(messages.first).to include('cifs_spnego_guard')
+          expect(messages.first).to include('and < 6.12.92 (exclusive)')
         end
       end
     '';
