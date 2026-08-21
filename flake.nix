@@ -139,11 +139,13 @@
           };
         in
         framework;
-      kernelDevToplevelModule =
+      kernelCacheToplevelModule =
         { config, ... }:
         {
           system.systemBuilderCommands = ''
             ln -sf ${config.boot.kernelPackage.dev} $out/kernel-dev
+            ln -sf ${config.boot.kernelForBuiltinsConfig.dev} \
+              $out/kernel-for-builtins-config-dev
           '';
         };
 
@@ -318,13 +320,13 @@
 
           qemuSystem = mkQemuSystem [ ];
           proactiveSwapQemuSystem = mkQemuSystem [ ./os/configs/proactive-swap-qemu.nix ];
-          ciQemuSystem = mkQemuSystem [ kernelDevToplevelModule ];
+          ciQemuSystem = mkQemuSystem [ kernelCacheToplevelModule ];
 
           kernelCiQemuSystems = builtins.listToAttrs (
             map (kernelVersion: {
               name = ciKernelOutputName kernelVersion;
               value = mkQemuSystem [
-                kernelDevToplevelModule
+                kernelCacheToplevelModule
                 {
                   boot.kernelVersion = kernelVersion;
                 }
