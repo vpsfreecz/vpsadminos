@@ -158,7 +158,7 @@ import ../../make-test.nix (
 
       def self.iptables_command(command)
         "set -e; " \
-        "iptables=$(command -v iptables-legacy); " \
+        "iptables=$(command -v iptables-nft); " \
         "test -n \"$iptables\"; " \
         "export XTABLES_LOCKFILE=/tmp/module-autoload-xtables.lock; " \
         "#{command}"
