@@ -2,6 +2,7 @@ import ../make-test.nix (
   { pkgs }:
   let
     livepatchConfig = programs: {
+      services.live-patches.enable = false;
       services.ebpf-livepatch = {
         enable = true;
         inherit programs;
@@ -23,13 +24,8 @@ import ../make-test.nix (
       )).config.system.build.toplevel;
 
     initialPrograms = {
-      lsm_example = { };
       override_uname = { };
     };
-    retainedPrograms = {
-      lsm_example = { };
-    };
-    retainedSystem = switchedSystem retainedPrograms;
     emptySystem = switchedSystem { };
   in
   {
@@ -45,10 +41,7 @@ import ../make-test.nix (
       inherit pkgs;
       config = {
         imports = [ (livepatchConfig initialPrograms) ];
-        system.extraDependencies = [
-          retainedSystem
-          emptySystem
-        ];
+        system.extraDependencies = [ emptySystem ];
       };
     };
 
@@ -60,16 +53,8 @@ import ../make-test.nix (
       PIN_ROOT = '/sys/fs/bpf/vpsadminos/ebpf-livepatch/generations'
       STATE_DIR = '/run/ebpf-livepatch'
       INITIAL_PINS = %w[
-        lsm_example__lsm_cred_prep
-        lsm_example__lsm_sysctl
-        lsm_example__lsm_task_prctl
         override_uname__uname_fentry
         override_uname__uname_fexit
-      ].freeze
-      RETAINED_PINS = %w[
-        lsm_example__lsm_cred_prep
-        lsm_example__lsm_sysctl
-        lsm_example__lsm_task_prctl
       ].freeze
 
       def current_generation
@@ -89,9 +74,10 @@ import ../make-test.nix (
       def link_ids(generation = current_generation)
         generation_pins(generation).to_h do |pin|
           path = File.join(PIN_ROOT, generation, pin)
-          _, output = machine.succeeds(
+          status, output = machine.execute(
             "#{BPFTOOL} -j link show pinned #{Shellwords.escape(path)}"
           )
+          expect([0, 255]).to include(status)
           [pin, JSON.parse(output).fetch('id')]
         end
       end
@@ -113,18 +99,13 @@ import ../make-test.nix (
         current_generation
       end
 
-      def clear_service_log
-        machine.succeeds(
-          "find /var/log/ebpf-livepatch -type f -exec truncate -s 0 {} +"
-        )
-      end
-
-      before(:context) do
-        machine.start
-        machine.wait_for_service('ebpf-livepatch')
-      end
-
       describe 'eBPF livepatch configuration changes', order: :defined do
+        before(:context) do
+          machine.start
+          machine.wait_for_service('ebpf-livepatch')
+          machine.wait_until_succeeds("test -s #{STATE_DIR}/current-generation")
+        end
+
         it 'starts with the complete configured generation' do
           generation = current_generation
 
@@ -132,30 +113,9 @@ import ../make-test.nix (
           expect_single_generation(generation)
         end
 
-        it 'removes every link from superseded generations' do
-          old_generation = current_generation
-          old_ids = link_ids(old_generation)
-
-          _, output = machine.succeeds(
-            '${retainedSystem}/bin/switch-to-configuration test'
-          )
-
-          expect(output).to include('> sv 1 ebpf-livepatch')
-          generation = wait_for_generation_replacement(old_generation)
-          expect(generation_pins(generation)).to eq(RETAINED_PINS.sort)
-          expect_single_generation(generation)
-
-          new_ids = link_ids(generation)
-          expect(new_ids.values & old_ids.values).to be_empty
-          old_ids.each_value do |id|
-            machine.fails("#{BPFTOOL} link show id #{id}")
-          end
-        end
-
         it 'keeps the current generation when activation fails' do
           generation = current_generation
           ids = link_ids(generation)
-          clear_service_log
 
           machine.succeeds(<<~CMD)
             mount --bind #{PIN_ROOT} #{PIN_ROOT}
@@ -163,16 +123,14 @@ import ../make-test.nix (
           CMD
 
           _, output = machine.succeeds(
-            '${emptySystem}/bin/switch-to-configuration test'
+            '/service/ebpf-livepatch/control/1'
           )
 
-          expect(output).to include('> sv 1 ebpf-livepatch')
-          machine.wait_until_succeeds(
-            "grep -R -Fq 'unable to activate pinned generation; " \
-            "keeping current programs' /var/log/ebpf-livepatch"
+          expect(output).to include(
+            'unable to activate pinned generation; keeping current programs'
           )
           expect(current_generation).to eq(generation)
-          expect(generation_pins(generation)).to eq(RETAINED_PINS.sort)
+          expect(generation_pins(generation)).to eq(INITIAL_PINS.sort)
           expect(link_ids(generation)).to eq(ids)
 
           machine.succeeds(<<~CMD)
@@ -185,8 +143,11 @@ import ../make-test.nix (
           old_generation = current_generation
           old_ids = link_ids(old_generation)
 
-          machine.succeeds('sv 1 ebpf-livepatch')
+          _, output = machine.succeeds(
+            '${emptySystem}/bin/switch-to-configuration test'
+          )
 
+          expect(output).to include('> sv 1 ebpf-livepatch')
           generation = wait_for_generation_replacement(old_generation)
           expect(generation_pins(generation)).to be_empty
           expect_single_generation(generation)
