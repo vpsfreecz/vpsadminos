@@ -1,4 +1,4 @@
-{
+args@{
   config,
   lib,
   pkgs,
@@ -10,11 +10,17 @@ let
   cfg = config.services.ebpf-livepatch;
   kernel = config.boot.kernelPackage;
   kernelVersion = config.boot.kernelVersion;
+  ebpfLivepatchPrograms = args.ebpfLivepatchPrograms or null;
 
   ebpfDir = ../../../livepatches/ebpf;
-  available = import (ebpfDir + /available.nix) {
-    inherit lib kernelVersion;
-  };
+  available = import (ebpfDir + /available.nix) (
+    {
+      inherit lib kernelVersion;
+    }
+    // optionalAttrs (ebpfLivepatchPrograms != null) {
+      programs = ebpfLivepatchPrograms;
+    }
+  );
 
   programsEnabled = available.programs';
 
@@ -25,7 +31,9 @@ let
   unknownProgramNames = filter (name: !(hasAttr name available.programsByName)) requestedProgramNames;
   unavailableProgramNames = filter (
     name:
-    hasAttr name available.programsByName && !(available.programAvailableForKernel kernelVersion name)
+    hasAttr name available.programsByName
+    && available.programHasValidKernelRanges available.programsByName.${name}
+    && !(available.programAvailableForKernel kernelVersion name)
   ) requestedProgramNames;
   invalidProgramBpfNames = filter (
     name:
@@ -37,14 +45,20 @@ let
     hasAttr name available.programsByName
     && !(available.programHasValidLinkFields available.programsByName.${name})
   ) requestedProgramNames;
+  invalidRegistryKernelRanges = map (program: program.name) (
+    filter (program: !(available.programHasValidKernelRanges program)) available.allPrograms
+  );
 
   programKernelRange =
-    program:
-    "kernel >= ${program.sinceKernel} (inclusive)"
-    + optionalString (program ? untilKernel) " and < ${program.untilKernel} (exclusive)";
+    range:
+    "kernel >= ${range.sinceKernel} (inclusive)"
+    + optionalString (range ? untilKernel) " and < ${range.untilKernel} (exclusive)";
+
+  programKernelRanges =
+    program: concatStringsSep " or " (map programKernelRange program.kernelRanges);
 
   unavailableProgramDescription =
-    name: "${name} (${programKernelRange available.programsByName.${name}})";
+    name: "${name} (${programKernelRanges available.programsByName.${name}})";
 
   selectedPrograms = builtins.listToAttrs (
     map (name: {
@@ -170,18 +184,19 @@ let
     name:
     let
       program = available.programsByName.${name};
+      range = available.programKernelRangeForVersion kernelVersion program;
     in
     {
       inherit name;
       description = program.description;
-      sinceKernel = program.sinceKernel;
-      untilKernel = program.untilKernel or null;
+      sinceKernel = range.sinceKernel;
+      untilKernel = range.untilKernel or null;
       bpfPrograms = program.bpfPrograms;
       linkFields = available.programLinkFields program;
       revision = config.system.vpsadminos.revision;
       digest = builtins.hashFile "sha256" (ebpfDir + "/programs/${name}.bpf.c");
     }
-  ) (filter (name: hasAttr name available.programsByName) requestedProgramNames);
+  ) (filter (name: available.programAvailableForKernel kernelVersion name) requestedProgramNames);
 in
 {
   options = {
@@ -211,10 +226,11 @@ in
           eBPF programs to load, keyed by program name.
 
           Defaults to the complete list from available.nix filtered
-          by kernel version requirements. In the program registry, sinceKernel
-          is an inclusive lower bound and untilKernel is an exclusive upper
-          bound when set. Programs can be selected only when the current
-          boot.kernelVersion is within those bounds.
+          by kernel version requirements. A registry entry can define one or
+          more kernelRanges. In each range, sinceKernel is an inclusive lower
+          bound and untilKernel is an exclusive upper bound when set. A program
+          can be selected when the current boot.kernelVersion matches one of
+          its ranges.
         '';
       };
 
@@ -233,6 +249,15 @@ in
   config = mkIf cfg.enable (mkMerge [
     {
       assertions = [
+        {
+          assertion = invalidRegistryKernelRanges == [ ];
+          message =
+            "eBPF livepatch registry contains program(s) with invalid kernel ranges: "
+            + concatStringsSep ", " invalidRegistryKernelRanges
+            + ". kernelRanges must be a non-empty, ordered list of non-overlapping ranges. "
+            + "Each range accepts only sinceKernel and untilKernel, requires a numeric "
+            + "sinceKernel, and can set a later numeric untilKernel.";
+        }
         {
           assertion = unknownProgramNames == [ ];
           message =

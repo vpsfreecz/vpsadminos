@@ -105,12 +105,11 @@ import ../make-test.nix (
               {
                 name = program.name or null;
                 description = program.description or null;
-                sinceKernel = program.sinceKernel or null;
-                untilKernel = program.untilKernel or null;
+                kernelRanges = program.kernelRanges or [ ];
                 enable = program.enable or null;
                 hasName = program ? name;
                 hasDescription = program ? description;
-                hasSinceKernel = program ? sinceKernel;
+                hasKernelRanges = program ? kernelRanges;
                 hasEnable = program ? enable;
                 hasBpfPrograms = program ? bpfPrograms;
                 hasLinkFields = program ? linkFields;
@@ -132,22 +131,29 @@ import ../make-test.nix (
                   && builtins.pathExists (
                     repo + ("/os/livepatches/ebpf/programs/" + program.name + ".bpf.c")
                   );
-                untilAfterSince =
-                  !(program ? untilKernel)
-                  || builtins.compareVersions program.untilKernel program.sinceKernel > 0;
+                kernelRangesValid = currentAvailable.programHasValidKernelRanges program;
               };
 
             evalModule =
               {
                 kernelVersion,
                 programs ? null,
+                registryPrograms ? null,
                 enable ? true,
                 autoLoad ? false,
               }:
               lib.evalModules {
                 specialArgs = { inherit pkgs; };
                 modules = [
-                  (repo + "/os/modules/services/ebpf-livepatch/default.nix")
+                  (
+                    moduleArgs:
+                    import (repo + "/os/modules/services/ebpf-livepatch/default.nix") (
+                      moduleArgs
+                      // lib.optionalAttrs (registryPrograms != null) {
+                        ebpfLivepatchPrograms = registryPrograms;
+                      }
+                    )
+                  )
                   (
                     { lib, ... }:
                     {
@@ -257,6 +263,55 @@ import ../make-test.nix (
             invalidProgramOptionsResult = builtins.tryEval (
               builtins.deepSeq invalidProgramOptionsEval.config.services.ebpf-livepatch.programs true
             );
+            syntheticProgram = {
+              name = "synthetic";
+              description = "Synthetic test program";
+              kernelRanges = [
+                {
+                  sinceKernel = "5.7";
+                  untilKernel = "6.0";
+                }
+                {
+                  sinceKernel = "6.18.3";
+                  untilKernel = "6.18.7";
+                }
+              ];
+              enable = true;
+            };
+            syntheticRegistryProgram = syntheticProgram // {
+              name = "lsm_example";
+              description = "Synthetic multi-range registry program";
+              bpfPrograms = [
+                "lsm_cred_prep"
+                "lsm_task_prctl"
+                "lsm_sysctl"
+              ];
+              linkFields = [
+                "lsm_cred_prep"
+                "lsm_task_prctl"
+                "lsm_sysctl"
+              ];
+            };
+            invalidRegistryEval = evalModule {
+              kernelVersion = currentKernelVersion;
+              registryPrograms = [
+                (
+                  syntheticRegistryProgram
+                  // {
+                    kernelRanges = [
+                      {
+                        sinceKernel = "5.7";
+                        untillKernel = "6.0";
+                      }
+                    ];
+                  }
+                )
+              ];
+            };
+            secondRangeEval = evalModule {
+              kernelVersion = "6.18.6";
+              registryPrograms = [ syntheticRegistryProgram ];
+            };
           in
           {
             inherit currentKernelVersion;
@@ -276,50 +331,104 @@ import ../make-test.nix (
                 startsWithDigit = currentAvailable.validLinkField "1abc";
                 dotted = currentAvailable.validLinkField "abc.def";
               };
+              kernelRangeValidation = {
+                valid = currentAvailable.programHasValidKernelRanges syntheticProgram;
+                empty = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [ ];
+                };
+                missingSince = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [
+                    { untilKernel = "6.12.10"; }
+                  ];
+                };
+                unknownAttribute = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [
+                    {
+                      sinceKernel = "5.7";
+                      untillKernel = "6.12.10";
+                    }
+                  ];
+                };
+                nonNumeric = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [
+                    { sinceKernel = "six.eighteen"; }
+                  ];
+                };
+                whitespace = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [
+                    { sinceKernel = " 6.18"; }
+                  ];
+                };
+                reversed = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [
+                    {
+                      sinceKernel = "6.12.10";
+                      untilKernel = "6.12.10";
+                    }
+                  ];
+                };
+                unsorted = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [
+                    {
+                      sinceKernel = "6.18";
+                      untilKernel = "6.18.10";
+                    }
+                    {
+                      sinceKernel = "6.12";
+                      untilKernel = "6.12.10";
+                    }
+                  ];
+                };
+                overlapping = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [
+                    {
+                      sinceKernel = "6.12";
+                      untilKernel = "6.12.10";
+                    }
+                    {
+                      sinceKernel = "6.12.9";
+                      untilKernel = "6.12.20";
+                    }
+                  ];
+                };
+                adjacent = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [
+                    {
+                      sinceKernel = "6.12";
+                      untilKernel = "6.12.10";
+                    }
+                    {
+                      sinceKernel = "6.12.10";
+                      untilKernel = "6.12.20";
+                    }
+                  ];
+                };
+                unboundedBeforeLast = currentAvailable.programHasValidKernelRanges {
+                  kernelRanges = [
+                    { sinceKernel = "6.12"; }
+                    { sinceKernel = "6.18"; }
+                  ];
+                };
+              };
             };
 
             synthetic = {
-              belowSince = currentAvailable.programMatchesKernel "5.6" {
-                name = "synthetic";
-                description = "Synthetic test program";
-                sinceKernel = "5.7";
-                untilKernel = "6.0";
-                enable = true;
-              };
-              atSince = currentAvailable.programMatchesKernel "5.7" {
-                name = "synthetic";
-                description = "Synthetic test program";
-                sinceKernel = "5.7";
-                untilKernel = "6.0";
-                enable = true;
-              };
-              atUntil = currentAvailable.programMatchesKernel "6.0" {
-                name = "synthetic";
-                description = "Synthetic test program";
-                sinceKernel = "5.7";
-                untilKernel = "6.0";
-                enable = true;
-              };
-              aboveUntil = currentAvailable.programMatchesKernel "6.1" {
-                name = "synthetic";
-                description = "Synthetic test program";
-                sinceKernel = "5.7";
-                untilKernel = "6.0";
-                enable = true;
-              };
-              patchBeforeUntil = currentAvailable.programMatchesKernel "6.12.87" {
-                name = "synthetic";
-                description = "Synthetic test program";
+              belowSince = currentAvailable.programMatchesKernel "5.6" syntheticProgram;
+              atSince = currentAvailable.programMatchesKernel "5.7" syntheticProgram;
+              atUntil = currentAvailable.programMatchesKernel "6.0" syntheticProgram;
+              inGap = currentAvailable.programMatchesKernel "6.12.95" syntheticProgram;
+              belowSecondSince = currentAvailable.programMatchesKernel "6.18.2" syntheticProgram;
+              atSecondSince = currentAvailable.programMatchesKernel "6.18.3" syntheticProgram;
+              beforeSecondUntil = currentAvailable.programMatchesKernel "6.18.6" syntheticProgram;
+              atSecondUntil = currentAvailable.programMatchesKernel "6.18.7" syntheticProgram;
+              secondRange = currentAvailable.programKernelRangeForVersion "6.18.6" syntheticProgram;
+              patchBeforeUntil = currentAvailable.kernelRangeMatches "6.12.87" {
                 sinceKernel = "6.12.0";
                 untilKernel = "6.12.88";
-                enable = true;
               };
-              patchAtUntil = currentAvailable.programMatchesKernel "6.12.88" {
-                name = "synthetic";
-                description = "Synthetic test program";
+              patchAtUntil = currentAvailable.kernelRangeMatches "6.12.88" {
                 sinceKernel = "6.12.0";
                 untilKernel = "6.12.88";
-                enable = true;
               };
             };
 
@@ -353,7 +462,11 @@ import ../make-test.nix (
               outOfRangeFailures = failedMessages outOfRangeEval;
               atUpperBoundFailures = failedMessages atUpperBoundEval;
               cifsAtUpperBoundFailures = failedMessages cifsAtUpperBoundEval;
+              invalidRegistryFailures = failedMessages invalidRegistryEval;
               invalidProgramOptionsAccepted = invalidProgramOptionsResult.success;
+              secondRangeMonitorConfig = builtins.fromJSON (
+                builtins.unsafeDiscardStringContext secondRangeEval.config.environment.etc."vpsadminos/ebpf-livepatch-monitor.json".text
+              );
               autoLoadService =
                 let
                   service = serviceEval.config.runit.services.ebpf-livepatch;
@@ -390,7 +503,7 @@ import ../make-test.nix (
           @facts.fetch('registry').fetch('programs').each do |program|
             expect(program.fetch('hasName')).to be(true)
             expect(program.fetch('hasDescription')).to be(true)
-            expect(program.fetch('hasSinceKernel')).to be(true)
+            expect(program.fetch('hasKernelRanges')).to be(true)
             expect(program.fetch('hasEnable')).to be(true)
             expect(program.fetch('hasBpfPrograms')).to be(true)
             expect(program.fetch('hasLinkFields')).to be(true)
@@ -429,10 +542,26 @@ import ../make-test.nix (
           expect(validation.fetch('dotted')).to be(false)
         end
 
-        it 'defines untilKernel after sinceKernel' do
+        it 'defines valid kernel ranges' do
           @facts.fetch('registry').fetch('programs').each do |program|
-            expect(program.fetch('untilAfterSince')).to be(true)
+            expect(program.fetch('kernelRangesValid')).to be(true)
           end
+        end
+
+        it 'rejects empty, malformed, unsorted, and overlapping kernel ranges' do
+          validation = @facts.fetch('registry').fetch('kernelRangeValidation')
+
+          expect(validation.fetch('valid')).to be(true)
+          expect(validation.fetch('empty')).to be(false)
+          expect(validation.fetch('missingSince')).to be(false)
+          expect(validation.fetch('unknownAttribute')).to be(false)
+          expect(validation.fetch('nonNumeric')).to be(false)
+          expect(validation.fetch('whitespace')).to be(false)
+          expect(validation.fetch('reversed')).to be(false)
+          expect(validation.fetch('unsorted')).to be(false)
+          expect(validation.fetch('overlapping')).to be(false)
+          expect(validation.fetch('adjacent')).to be(true)
+          expect(validation.fetch('unboundedBeforeLast')).to be(false)
         end
 
         it 'has a BPF source file for every program' do
@@ -455,8 +584,23 @@ import ../make-test.nix (
           expect(@facts.fetch('synthetic').fetch('atUntil')).to be(false)
         end
 
-        it 'excludes kernels above untilKernel' do
-          expect(@facts.fetch('synthetic').fetch('aboveUntil')).to be(false)
+        it 'excludes kernels between ranges' do
+          synthetic = @facts.fetch('synthetic')
+
+          expect(synthetic.fetch('inGap')).to be(false)
+          expect(synthetic.fetch('belowSecondSince')).to be(false)
+        end
+
+        it 'matches a second kernel range with the same boundary semantics' do
+          synthetic = @facts.fetch('synthetic')
+
+          expect(synthetic.fetch('atSecondSince')).to be(true)
+          expect(synthetic.fetch('beforeSecondUntil')).to be(true)
+          expect(synthetic.fetch('atSecondUntil')).to be(false)
+          expect(synthetic.fetch('secondRange')).to eq(
+            'sinceKernel' => '6.18.3',
+            'untilKernel' => '6.18.7'
+          )
         end
 
         it 'supports patch versions in untilKernel' do
@@ -521,13 +665,15 @@ import ../make-test.nix (
       end
 
       describe 'service module options' do
-        it 'documents an inclusive lower and exclusive upper kernel bound' do
+        it 'documents multiple ranges with inclusive lower and exclusive upper bounds' do
           description = @facts.fetch('module').fetch('optionDescription').gsub(/\s+/, ' ')
 
+          expect(description).to include('one or more kernelRanges')
           expect(description).to include('sinceKernel')
           expect(description).to include('sinceKernel is an inclusive lower bound')
           expect(description).to include('untilKernel')
           expect(description).to include('untilKernel is an exclusive upper bound')
+          expect(description).to include('matches one of its ranges')
         end
 
         it 'documents BPF program name requirements in assertions' do
@@ -558,11 +704,23 @@ import ../make-test.nix (
 
           expect(config.fetch('bpftool')).to end_with('/bin/bpftool')
           expect(program.fetch('name')).to eq('lsm_example')
+          expect(program.fetch('sinceKernel')).to eq('5.7')
+          expect(program.fetch('untilKernel')).to be_nil
           expect(program.fetch('bpfPrograms')).to eq(
             %w[lsm_cred_prep lsm_task_prctl lsm_sysctl]
           )
           expect(program.fetch('revision')).to eq('test-vpsadminos-revision')
           expect(program.fetch('digest')).to match(/\A[0-9a-f]{64}\z/)
+        end
+
+        it 'exports the matching range for monitoring metadata' do
+          config = @facts.fetch('module').fetch('secondRangeMonitorConfig')
+          program = config.fetch('programs').first
+
+          expect(config.fetch('kernelVersion')).to eq('6.18.6')
+          expect(program.fetch('name')).to eq('lsm_example')
+          expect(program.fetch('sinceKernel')).to eq('6.18.3')
+          expect(program.fetch('untilKernel')).to eq('6.18.7')
         end
 
         it 'reloads the autoload service using a pinned generation handoff' do
@@ -590,6 +748,15 @@ import ../make-test.nix (
           expect(messages.length).to eq(1)
           expect(messages.first).to include('unknown eBPF livepatch program')
           expect(messages.first).to include('missing_program')
+        end
+
+        it 'rejects invalid registry ranges even when defaults omit the program' do
+          messages = @facts.fetch('module').fetch('invalidRegistryFailures')
+
+          expect(messages.length).to eq(1)
+          expect(messages.first).to include('registry contains program(s)')
+          expect(messages.first).to include('lsm_example')
+          expect(messages.first).to include('accepts only sinceKernel and untilKernel')
         end
 
         it 'rejects out-of-range manual programs' do

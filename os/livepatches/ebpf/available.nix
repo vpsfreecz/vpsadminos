@@ -7,15 +7,18 @@
 {
   lib,
   kernelVersion,
+  programs ? null,
 }:
 with lib;
 
 let
-  allPrograms = [
+  defaultPrograms = [
     {
       name = "override_uname";
       description = "Override uname(2) syscall to report spoofed kernel identity";
-      sinceKernel = "5.4";
+      kernelRanges = [
+        { sinceKernel = "5.4"; }
+      ];
       # Kernel-visible BPF object names reported by bpftool.
       bpfPrograms = [
         "uname_fentry"
@@ -30,7 +33,9 @@ let
     {
       name = "lsm_example";
       description = "Demonstrate eBPF LSM hooks on task_prctl and sysctl";
-      sinceKernel = "5.7";
+      kernelRanges = [
+        { sinceKernel = "5.7"; }
+      ];
       bpfPrograms = [
         "lsm_cred_prep"
         "lsm_task_prctl"
@@ -48,8 +53,12 @@ let
     {
       name = "ptrace_mm_guard";
       description = "Deny ptrace access to mm-less tasks without init-ns CAP_SYS_PTRACE";
-      sinceKernel = "5.7";
-      untilKernel = "6.12.89";
+      kernelRanges = [
+        {
+          sinceKernel = "5.7";
+          untilKernel = "6.12.89";
+        }
+      ];
       bpfPrograms = [ "ptrace_mm_guard" ];
       linkFields = [ "ptrace_mm_guard" ];
       enable = true;
@@ -57,13 +66,19 @@ let
     {
       name = "cifs_spnego_guard";
       description = "Deny userspace-created cifs.spnego keys outside CIFS private upcalls";
-      sinceKernel = "5.7";
-      untilKernel = "6.12.92";
+      kernelRanges = [
+        {
+          sinceKernel = "5.7";
+          untilKernel = "6.12.92";
+        }
+      ];
       bpfPrograms = [ "cifs_spnego" ];
       linkFields = [ "cifs_spnego" ];
       enable = true;
     }
   ];
+
+  allPrograms = if programs == null then defaultPrograms else programs;
 
   allProgramNames = map (p: p.name) allPrograms;
 
@@ -75,6 +90,56 @@ let
   );
 
   versionBefore = kernelVer: untilKernel: builtins.compareVersions kernelVer untilKernel < 0;
+
+  validKernelVersion =
+    version: builtins.isString version && builtins.match "[0-9]+(\\.[0-9]+)*" version != null;
+
+  kernelRangeIsValid =
+    range:
+    builtins.isAttrs range
+    && all (
+      name:
+      elem name [
+        "sinceKernel"
+        "untilKernel"
+      ]
+    ) (attrNames range)
+    && range ? sinceKernel
+    && validKernelVersion range.sinceKernel
+    && (
+      !(range ? untilKernel)
+      || (
+        validKernelVersion range.untilKernel
+        && builtins.compareVersions range.untilKernel range.sinceKernel > 0
+      )
+    );
+
+  kernelRangesDoNotOverlap =
+    ranges:
+    all (
+      pair:
+      pair.fst ? untilKernel && builtins.compareVersions pair.fst.untilKernel pair.snd.sinceKernel <= 0
+    ) (zipLists ranges (drop 1 ranges));
+
+  programHasValidKernelRanges =
+    program:
+    program ? kernelRanges
+    && builtins.isList program.kernelRanges
+    && program.kernelRanges != [ ]
+    && all kernelRangeIsValid program.kernelRanges
+    && kernelRangesDoNotOverlap program.kernelRanges;
+
+  kernelRangeMatches =
+    kernelVer: range:
+    versionAtLeast kernelVer range.sinceKernel
+    && (!(range ? untilKernel) || versionBefore kernelVer range.untilKernel);
+
+  programKernelRangeForVersion =
+    kernelVer: program:
+    if programHasValidKernelRanges program then
+      findFirst (kernelRangeMatches kernelVer) null program.kernelRanges
+    else
+      null;
 
   # BPF_OBJ_NAME_LEN is 16 including the trailing NUL. The kernel accepts
   # only isalnum(), '_' and '.' in bpf_obj_name_cpy().
@@ -104,10 +169,7 @@ let
     && programLinkFields program != [ ]
     && all validLinkField (programLinkFields program);
 
-  programMatchesKernel =
-    kernelVer: program:
-    versionAtLeast kernelVer program.sinceKernel
-    && (!(program ? untilKernel) || versionBefore kernelVer program.untilKernel);
+  programMatchesKernel = kernelVer: program: programKernelRangeForVersion kernelVer program != null;
 
   programAvailableForKernel =
     kernelVer: name:
@@ -137,13 +199,17 @@ in
     programMatchesKernel
     programAvailableForKernel
     programHasValidBpfPrograms
+    programHasValidKernelRanges
     programHasValidLinkFields
+    programKernelRangeForVersion
     programLinkFields
     programsForVersion
     programNames
     programsAttrset
     validLinkField
     validBpfName
+    kernelRangeIsValid
+    kernelRangeMatches
     ;
   enabledPrograms = enabledPrograms kernelVersion;
   programNames' = programNames kernelVersion;
