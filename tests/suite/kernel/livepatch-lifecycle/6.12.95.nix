@@ -36,15 +36,15 @@ in
   # and remain checksummed to ensure that the intended shipped bytes are used.
   predecessors = {
     amd = mkPredecessor {
-      osRevision = "02dfcc956bff56a2fb3dbce734dba259b9dfb123";
-      version = 4;
-      sha256 = "faa3d5a4d7e8db0d97eeb362e9e7e7400139e575c58a56f92573bd7a88c0c811";
+      osRevision = "1895bbcdd21d0c71e6e7ee442739c4b5190ce5e7";
+      version = 5;
+      sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
     };
 
     intel = mkPredecessor {
-      osRevision = "02dfcc956bff56a2fb3dbce734dba259b9dfb123";
-      version = 4;
-      sha256 = "faa3d5a4d7e8db0d97eeb362e9e7e7400139e575c58a56f92573bd7a88c0c811";
+      osRevision = "1895bbcdd21d0c71e6e7ee442739c4b5190ce5e7";
+      version = 5;
+      sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
     };
   };
 }

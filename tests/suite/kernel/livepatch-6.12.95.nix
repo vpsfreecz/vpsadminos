@@ -1,28 +1,28 @@
 let
   correctedModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_MODULE";
   releasedV1ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V1_MODULE";
-  releasedV4ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V4_MODULE";
+  releasedV5ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE";
   predecessorModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE";
   exampleFilter = builtins.getEnv "VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER";
 in
 assert correctedModuleEnv != "";
 assert releasedV1ModuleEnv != "";
-assert releasedV4ModuleEnv != "";
+assert releasedV5ModuleEnv != "";
 assert predecessorModuleEnv != "";
 import ../../make-test.nix (
   { pkgs }:
   let
     correctedModule = builtins.storePath correctedModuleEnv;
     releasedV1Module = builtins.storePath releasedV1ModuleEnv;
-    releasedV4Module = builtins.storePath releasedV4ModuleEnv;
+    releasedV5Module = builtins.storePath releasedV5ModuleEnv;
     predecessorModule = builtins.storePath predecessorModuleEnv;
     correctedSha256 = builtins.hashFile "sha256" correctedModule;
     releasedV1Sha256 = builtins.hashFile "sha256" releasedV1Module;
-    releasedV4Sha256 = builtins.hashFile "sha256" releasedV4Module;
+    releasedV5Sha256 = builtins.hashFile "sha256" releasedV5Module;
     predecessorSha256 = builtins.hashFile "sha256" predecessorModule;
     expectedCorrectedSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_SHA256";
     expectedReleasedV1Sha256 = "a3f79b223f1ad1eba764ed10e687b5800aea28b42eb1cc9fffb95f43d6260a30";
-    expectedReleasedV4Sha256 = "faa3d5a4d7e8db0d97eeb362e9e7e7400139e575c58a56f92573bd7a88c0c811";
+    expectedReleasedV5Sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
     expectedPredecessorSha256 = "70f22f6f2a1a5b0eaf57d09fdd8e988561adbea6c77fb59dcdf89b2415a9f79e";
 
     perfTransition = pkgs.stdenv.mkDerivation {
@@ -408,7 +408,7 @@ import ../../make-test.nix (
         environment.etc = {
           "livepatch-test/corrected.ko".source = correctedModule;
           "livepatch-test/released-v1.ko".source = releasedV1Module;
-          "livepatch-test/released-v4.ko".source = releasedV4Module;
+          "livepatch-test/released-v5.ko".source = releasedV5Module;
           "livepatch-test/predecessor.ko".source = predecessorModule;
           "livepatch-test/perf-transition".source = "${perfTransition}/bin/perf_transition";
           "livepatch-test/cbpf-churn".source = "${cbpfChurn}/bin/cbpf_churn";
@@ -430,7 +430,7 @@ import ../../make-test.nix (
   in
   assert correctedSha256 == expectedCorrectedSha256;
   assert releasedV1Sha256 == expectedReleasedV1Sha256;
-  assert releasedV4Sha256 == expectedReleasedV4Sha256;
+  assert releasedV5Sha256 == expectedReleasedV5Sha256;
   assert predecessorSha256 == expectedPredecessorSha256;
   {
     name = "kernel-livepatch-6.12.95";
@@ -463,7 +463,7 @@ import ../../make-test.nix (
 
       CORRECTED_MODULE = "/etc/livepatch-test/corrected.ko"
       RELEASED_V1_MODULE = "/etc/livepatch-test/released-v1.ko"
-      RELEASED_V4_MODULE = "/etc/livepatch-test/released-v4.ko"
+      RELEASED_V5_MODULE = "/etc/livepatch-test/released-v5.ko"
       PREDECESSOR_MODULE = "/etc/livepatch-test/predecessor.ko"
       PERF_TRANSITION = "/etc/livepatch-test/perf-transition"
       CBPF_CHURN = "/etc/livepatch-test/cbpf-churn"
@@ -479,13 +479,13 @@ import ../../make-test.nix (
       PERNET_HOLD_MODULE = "/etc/livepatch-test/pernet-hold.ko"
       PROBE_MODULE = "/etc/livepatch-test/probe.ko"
       PROBE_PARAMETERS = "/sys/module/livepatch_test_probe/parameters"
-      CORRECTED_NAME = "livepatch_5"
+      CORRECTED_NAME = "livepatch_6"
       RELEASED_V1_NAME = "livepatch_1"
-      RELEASED_V4_NAME = "livepatch_4"
+      RELEASED_V5_NAME = "livepatch_5"
       PREDECESSOR_NAME = "livepatch_predecessor_1"
       CORRECTED_SHA256 = ${builtins.toJSON expectedCorrectedSha256}
       RELEASED_V1_SHA256 = ${builtins.toJSON expectedReleasedV1Sha256}
-      RELEASED_V4_SHA256 = ${builtins.toJSON expectedReleasedV4Sha256}
+      RELEASED_V5_SHA256 = ${builtins.toJSON expectedReleasedV5Sha256}
       PREDECESSOR_SHA256 = ${builtins.toJSON expectedPredecessorSha256}
       # Exact GCC 15.2 disassembly places the fuse_copy_finish() call in the
       # inlined fuse_ref_page() at this offset in the boot, predecessor, and
@@ -550,6 +550,7 @@ import ../../make-test.nix (
       SUNRPC_STATE = "/run/livepatch-sunrpc"
       NFT_BATCH_STATE = "/run/livepatch-nft-batch"
       V5_STATE = "/run/livepatch-v5"
+      V6_STATE = "/run/livepatch-v6"
       IPSET_HASH_OBJECTS = %w[
         ip_set_hash_ip
         ip_set_hash_ipmac
@@ -586,10 +587,12 @@ import ../../make-test.nix (
           nf_conntrack_sip
           nf_nat_sip
           sctp_diag
+          vxlan
         ] + IPSET_HASH_OBJECTS
       ).freeze
       LATE_TARGET_DEPENDENTS = %w[
         nf_conntrack_bridge
+        ip_vs_pe_sip
         vsock_loopback
       ].freeze
       V2_REPLACEMENT_FUNCTIONS = %w[
@@ -1056,8 +1059,23 @@ import ../../make-test.nix (
         )
 
         machine.execute(
+          "if test -d #{V6_STATE}; then " \
+          "touch #{V6_STATE}/sctp.send #{V6_STATE}/sctp.release " \
+          ">/dev/null 2>&1 || true; " \
+          "if test -s #{V6_STATE}/sctp.pid; then " \
+          "pid=$(cat #{V6_STATE}/sctp.pid); " \
+          "kill \"$pid\" >/dev/null 2>&1 || true; " \
+          "fi; fi; " \
+          "nft delete table inet klp_sctp_v6 >/dev/null 2>&1 || true; " \
+          "ip link del klp_vxlan_v6 >/dev/null 2>&1 || true; " \
+          "sh -c 'echo 0 > #{PROBE_PARAMETERS}/sctp_asoc_address' " \
+          ">/dev/null 2>&1 || true; " \
+          "rm -rf #{V6_STATE}"
+        )
+
+        machine.execute(
           "for name in #{CORRECTED_NAME} #{RELEASED_V1_NAME} " \
-          "#{RELEASED_V4_NAME} #{PREDECESSOR_NAME}; do " \
+          "#{RELEASED_V5_NAME} #{PREDECESSOR_NAME}; do " \
           "dir=/sys/kernel/livepatch/$name; " \
           "if test -e \"$dir/enabled\"; then " \
           "echo 0 > \"$dir/enabled\" 2>/dev/null || true; " \
@@ -1095,7 +1113,7 @@ import ../../make-test.nix (
           "for module in fuse nfsv4 nf_tables nfnetlink_queue nft_queue " \
           "#{IPSET_HASH_OBJECTS.join(' ')} ip_vs bridge " \
           "nf_conntrack_bridge br_netfilter nf_conntrack_sip " \
-          "nf_nat_sip sctp_diag vsock_loopback xfrm_user; do " \
+          "nf_nat_sip sctp_diag vxlan vsock_loopback xfrm_user; do " \
           "modprobe \"$module\" >/dev/null 2>&1 || true; " \
           "done"
         )
@@ -1274,8 +1292,16 @@ import ../../make-test.nix (
           "pid=$(cat \"$pidfile\"); " \
           "kill -KILL -- \"-$pid\" >/dev/null 2>&1 || true; " \
           "done; " \
+          "if mountpoint -q #{NFS_STATE}/mnt; then " \
+          "attempt=0; " \
+          "while mountpoint -q #{NFS_STATE}/mnt && " \
+          "test $attempt -lt 300; do " \
+          "umount #{NFS_STATE}/mnt >/dev/null 2>&1 && break; " \
+          "attempt=$((attempt + 1)); sleep 0.1; " \
+          "done; " \
           "mountpoint -q #{NFS_STATE}/mnt && " \
           "umount -l #{NFS_STATE}/mnt >/dev/null 2>&1 || true; " \
+          "fi; " \
           "rm -rf #{NFS_STATE}; " \
           "rm -f /tmp/klp-nfs-lock"
         )
@@ -1285,9 +1311,15 @@ import ../../make-test.nix (
         cleanup_nfs_workload(machine)
         machine.all_succeed(
           "mkdir -p #{NFS_STATE}/mnt",
-          "touch /tmp/klp-nfs-lock",
           "mount -t nfs -o vers=4.2,proto=tcp,nosharecache " \
           "127.0.0.1:/ #{NFS_STATE}/mnt"
+        )
+        # A freshly started NFSv4 server can still be in its recovery grace
+        # period after the export is mountable. Probe the exact client-side
+        # open path before applying the shorter per-holder readiness bound.
+        machine.succeeds(
+          "touch #{NFS_STATE}/mnt/klp-nfs-lock",
+          timeout: 180
         )
       end
 
@@ -1308,7 +1340,11 @@ import ../../make-test.nix (
 
       def self.wait_for_nfs_lock(machine, state)
         machine.wait_until_succeeds(
-          "test -e #{state}/acquired",
+          "if test -e #{state}/acquired; then exit 0; fi; " \
+          "pid=$(cat #{state}/pid); " \
+          "printf 'NFS lock holder has not acquired the lock: ' >&2; " \
+          "ps -o pid,ppid,stat,wchan:32,args -g \"$pid\" >&2 || true; " \
+          "cat #{state}/output.log >&2 || true; false",
           timeout: 60
         )
       end
@@ -1962,7 +1998,7 @@ import ../../make-test.nix (
             "test \"$(sha256sum #{RELEASED_V1_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V1_SHA256}"
           )
           machine.succeeds(
-            "test \"$(sha256sum #{RELEASED_V4_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V4_SHA256}"
+            "test \"$(sha256sum #{RELEASED_V5_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V5_SHA256}"
           )
           machine.succeeds(
             "test \"$(sha256sum #{PREDECESSOR_MODULE} | cut -d' ' -f1)\" = #{PREDECESSOR_SHA256}"
@@ -1975,13 +2011,13 @@ import ../../make-test.nix (
           machine.all_succeed(
             "mkdir -p /lib/modules",
             "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
-            "/lib/modules/6.12.95.4",
-            "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
             "/lib/modules/6.12.95.5",
+            "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
+            "/lib/modules/6.12.95.6",
           )
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
-          machine.fails("test -d /sys/module/#{RELEASED_V4_NAME}")
+          machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
 
           machine.all_succeed(
@@ -2036,7 +2072,7 @@ import ../../make-test.nix (
           end
         end
 
-        it "retains released v4 after failure, replaces it with v5, and exercises KVM" do
+        it "retains released v5 after failure, replaces it with v6, and exercises KVM" do
           machine.succeeds("test \"$(uname -r)\" = 6.12.95")
           machine.succeeds("modprobe -r kvm_amd")
           machine.all_succeed(
@@ -2048,9 +2084,9 @@ import ../../make-test.nix (
             "/sys/devices/system/cpu/vulnerabilities/spec_rstack_overflow",
             "test ! -d /sys/module/kvm_amd",
           )
-          machine.succeeds("insmod #{RELEASED_V4_MODULE}")
-          wait_for_patch(machine, RELEASED_V4_NAME, 1)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.4")
+          machine.succeeds("insmod #{RELEASED_V5_MODULE}")
+          wait_for_patch(machine, RELEASED_V5_NAME, 1)
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.5")
           machine.fails("test -d /sys/module/kvm_amd")
 
           hold = "/sys/module/livepatch_test_pernet_hold/parameters/hold"
@@ -2060,17 +2096,17 @@ import ../../make-test.nix (
           status, output = machine.execute("insmod #{CORRECTED_MODULE}")
           expect(status).not_to eq(0), output
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
-          wait_for_patch(machine, RELEASED_V4_NAME, 1)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.4")
+          wait_for_patch(machine, RELEASED_V5_NAME, 1)
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.5")
           machine.succeeds("sh -c 'echo 0 > #{hold}'")
           machine.wait_until_succeeds("test \"$(cat #{held})\" = N")
 
           machine.succeeds("insmod #{CORRECTED_MODULE}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
-          wait_for_patch(machine, RELEASED_V4_NAME, 0)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.5")
-          machine.succeeds("rmmod #{RELEASED_V4_NAME}")
-          machine.fails("test -d /sys/module/#{RELEASED_V4_NAME}")
+          wait_for_patch(machine, RELEASED_V5_NAME, 0)
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.6")
+          machine.succeeds("rmmod #{RELEASED_V5_NAME}")
+          machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
 
           machine.all_succeed("modprobe nf_conntrack", "modprobe ceph")
           %w[vmlinux nf_conntrack sctp ceph libceph].each do |object|
@@ -2096,14 +2132,14 @@ import ../../make-test.nix (
 
           downgrade_log_start =
             machine.succeeds("dmesg | wc -l")[1].to_i + 1
-          status, output = machine.execute("insmod #{RELEASED_V4_MODULE}")
+          status, output = machine.execute("insmod #{RELEASED_V5_MODULE}")
           expect(status).not_to eq(0), output
-          machine.fails("test -d /sys/module/#{RELEASED_V4_NAME}")
+          machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.5")
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.6")
           machine.succeeds(
             "dmesg | tail -n +#{downgrade_log_start} | grep -F " \
-            "'Livepatch patch (#{RELEASED_V4_NAME}) is not compatible with the already installed livepatches.'"
+            "'Livepatch patch (#{RELEASED_V5_NAME}) is not compatible with the already installed livepatches.'"
           )
 
           disable_patch(machine, CORRECTED_NAME)
@@ -2436,6 +2472,144 @@ import ../../make-test.nix (
           )
           machine.wait_until_succeeds(
             "! kill -0 \"$(cat #{V5_STATE}/sctp.pid)\" 2>/dev/null",
+            timeout: 60
+          )
+
+          clear_probe(machine)
+          disable_patch(machine, CORRECTED_NAME)
+          remove_module(machine, CORRECTED_NAME)
+        end
+
+        it "cancels a legacy VXLAN ageing timer when deleting a down device" do
+          machine.succeeds("modprobe vxlan")
+          machine.succeeds(
+            "ip link add klp_vxlan_v6 type vxlan id 606 " \
+            "local 127.0.0.1 dstport 4789 ageing 300"
+          )
+          set_probe(machine, "vxlan_changelink", "vxlan")
+          machine.succeeds(
+            "sh -c 'echo 1 > " \
+            "#{PROBE_PARAMETERS}/probe_capture_vxlan_age_timer'"
+          )
+          machine.succeeds(
+            "ip link set klp_vxlan_v6 type vxlan ageing 301"
+          )
+          machine.succeeds(
+            "sh -c 'echo 0 > " \
+            "#{PROBE_PARAMETERS}/probe_capture_vxlan_age_timer'"
+          )
+          machine.all_succeed(
+            "test \"$(cat /sys/class/net/klp_vxlan_v6/operstate)\" = down",
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0",
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_arg0)\" != 0",
+          )
+          timer = machine.succeeds(
+            "cat #{PROBE_PARAMETERS}/probe_arg0"
+          )[1].strip
+          clear_probe(machine)
+          machine.succeeds(
+            "sh -c 'echo #{timer} > #{PROBE_PARAMETERS}/probe_match_arg0'"
+          )
+          set_probe2(machine, "mod_timer")
+          machine.succeeds(
+            "ip link set klp_vxlan_v6 type vxlan ageing 302"
+          )
+          machine.all_succeed(
+            "test \"$(cat #{PROBE_PARAMETERS}/probe2_hits)\" -gt 0",
+            "test \"$(cat #{PROBE_PARAMETERS}/probe2_match_hits)\" -gt 0",
+          )
+          clear_probe2(machine)
+          set_probe2(machine, "timer_delete_sync")
+
+          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          wait_for_patch(machine, CORRECTED_NAME, 1)
+          wait_for_object(machine, CORRECTED_NAME, "vxlan", 1)
+          set_probe(machine, "vxlan_uninit", CORRECTED_NAME)
+          machine.succeeds("ip link del klp_vxlan_v6")
+          machine.all_succeed(
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0",
+            "test \"$(cat #{PROBE_PARAMETERS}/probe2_hits)\" -gt 0",
+            "test \"$(cat #{PROBE_PARAMETERS}/probe2_match_hits)\" -gt 0",
+          )
+
+          clear_probe2(machine)
+          clear_probe(machine)
+          machine.succeeds(
+            "sh -c 'echo 0 > #{PROBE_PARAMETERS}/probe_match_arg0'"
+          )
+          disable_patch(machine, CORRECTED_NAME)
+          remove_module(machine, CORRECTED_NAME)
+        end
+
+        it "repairs a preactivation SCTP transmitted-list mismatch" do
+          machine.all_succeed(
+            "mkdir -p #{V6_STATE}",
+            "rm -f #{V6_STATE}/sctp.*",
+            "#{V2_RUNTIME} sctp-transmitted-hold " \
+            "#{V6_STATE}/sctp.ready #{V6_STATE}/sctp.send " \
+            "#{V6_STATE}/sctp.sent #{V6_STATE}/sctp.release " \
+            "#{V6_STATE}/sctp.ports >#{V6_STATE}/sctp.log 2>&1 & " \
+            "echo $! > #{V6_STATE}/sctp.pid",
+          )
+          machine.wait_until_succeeds(
+            "test -e #{V6_STATE}/sctp.ready && " \
+            "test -s #{V6_STATE}/sctp.ports",
+            timeout: 60
+          )
+          machine.succeeds(
+            "set -- $(cat #{V6_STATE}/sctp.ports); " \
+            "nft add table inet klp_sctp_v6; " \
+            "nft 'add chain inet klp_sctp_v6 output " \
+            "{ type filter hook output priority raw; policy accept; }'; " \
+            "nft add rule inet klp_sctp_v6 output meta l4proto sctp drop; " \
+            "touch #{V6_STATE}/sctp.send"
+          )
+          machine.wait_until_succeeds(
+            "test -e #{V6_STATE}/sctp.sent",
+            timeout: 30
+          )
+
+          set_probe(machine, "inet_sctp_diag_fill.isra.0", "sctp_diag")
+          machine.succeeds(
+            "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_capture_args'"
+          )
+          machine.succeeds(
+            "set -- $(cat #{V6_STATE}/sctp.ports); " \
+            "ss -S -a \"sport = :$1\" >/dev/null"
+          )
+          machine.wait_until_succeeds(
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0 && " \
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_arg1)\" != 0",
+            timeout: 30
+          )
+          asoc = machine.succeeds(
+            "cat #{PROBE_PARAMETERS}/probe_arg1"
+          )[1].strip
+          before = probe_value(machine, "sctp_mismatch_injections")
+          machine.all_succeed(
+            "sh -c 'echo 0 > #{PROBE_PARAMETERS}/probe_capture_args'",
+            "sh -c 'echo #{asoc} > #{PROBE_PARAMETERS}/sctp_asoc_address'",
+            "sh -c 'echo 1 > " \
+            "#{PROBE_PARAMETERS}/sctp_mismatch_transmitted'",
+            "test \"$(cat #{PROBE_PARAMETERS}/sctp_mismatch_injections)\" " \
+            "= #{before + 1}",
+          )
+          clear_probe(machine)
+
+          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          wait_for_patch(machine, CORRECTED_NAME, 1)
+          set_probe(machine, "sctp_check_transmitted", CORRECTED_NAME)
+          machine.succeeds("nft delete table inet klp_sctp_v6")
+          machine.wait_until_succeeds(
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0",
+            timeout: 60
+          )
+          machine.all_succeed(
+            "sh -c 'echo 0 > #{PROBE_PARAMETERS}/sctp_asoc_address'",
+            "touch #{V6_STATE}/sctp.release",
+          )
+          machine.wait_until_succeeds(
+            "! kill -0 \"$(cat #{V6_STATE}/sctp.pid)\" 2>/dev/null",
             timeout: 60
           )
 
@@ -3675,7 +3849,10 @@ import ../../make-test.nix (
           machine.succeeds("insmod #{CORRECTED_MODULE}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
           set_probe(machine, "ip_vs_bypass_xmit", CORRECTED_NAME)
-          set_probe2(machine, "ip_vs_leave", "ip_vs")
+          # The parsed-header prerequisite replaces ip_vs_leave itself.  Probe
+          # the livepatch implementation: its redirected original entry is an
+          # active ftrace site and therefore unavailable to kprobes.
+          set_probe2(machine, "ip_vs_leave", CORRECTED_NAME)
 
           machine.all_succeed(
             "ip rule show | " \
@@ -4031,6 +4208,91 @@ import ../../make-test.nix (
           remove_module(machine, RELEASED_V1_NAME)
           remove_module(machine, PREDECESSOR_NAME)
           cleanup_fuse_workloads(machine)
+        end
+
+        # A legacy FREE_STATEID has no safe pointer from which to release its
+        # producer-held nfs_client reference. Exercise all target-module
+        # unload/reload transitions before deliberately creating that bounded
+        # activation-time leak.
+        it "fails legacy NFS FREE_STATEID callbacks closed and drains owned work" do
+          prepare_nfs_workload(machine)
+          legacy = start_nfs_lock_holder(machine, "free-stateid-legacy")
+          wait_for_nfs_lock(machine, legacy)
+
+          set_probe(machine, "nfsd4_free_stateid", "nfsd")
+          machine.succeeds(
+            "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_hold'; " \
+            "touch #{legacy}/release"
+          )
+          machine.wait_until_succeeds(
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_held)\" = Y",
+            timeout: 30
+          )
+
+          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          machine.wait_until_succeeds(
+            "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled)\" = 1",
+            timeout: 30
+          )
+          set_probe2(
+            machine,
+            "nfs41_free_stateid_done",
+            CORRECTED_NAME
+          )
+          machine.succeeds(
+            "sh -c 'echo 0 > #{PROBE_PARAMETERS}/probe_hold'"
+          )
+          wait_for_patch(machine, CORRECTED_NAME, 1)
+          machine.wait_until_succeeds(
+            "test \"$(cat #{PROBE_PARAMETERS}/probe2_hits)\" -gt 0",
+            timeout: 60
+          )
+          clear_probe2(machine)
+          clear_probe(machine)
+
+          owned = start_nfs_lock_holder(machine, "free-stateid-owned")
+          wait_for_nfs_lock(machine, owned)
+          set_probe(
+            machine,
+            "nfs41_free_stateid_release",
+            CORRECTED_NAME
+          )
+          machine.succeeds(
+            "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_hold'; " \
+            "touch #{owned}/release"
+          )
+          machine.wait_until_succeeds(
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_held)\" = Y",
+            timeout: 60
+          )
+
+          machine.succeeds(
+            "mkdir -p #{V6_STATE}; " \
+            "(echo 0 > #{patch_dir(CORRECTED_NAME)}/enabled; " \
+            "printf '%s\\n' \"$?\" > #{V6_STATE}/nfs-disable.status) " \
+            ">#{V6_STATE}/nfs-disable.log 2>&1 & " \
+            "echo $! > #{V6_STATE}/nfs-disable.pid"
+          )
+          machine.succeeds(
+            "sleep 1; kill -0 \"$(cat #{V6_STATE}/nfs-disable.pid)\"; " \
+            "test -d #{patch_dir(CORRECTED_NAME)}"
+          )
+          machine.succeeds(
+            "sh -c 'echo 0 > #{PROBE_PARAMETERS}/probe_hold'"
+          )
+          machine.wait_until_succeeds(
+            "test -s #{V6_STATE}/nfs-disable.status && " \
+            "! kill -0 \"$(cat #{V6_STATE}/nfs-disable.pid)\" 2>/dev/null",
+            timeout: 60
+          )
+          machine.succeeds(
+            "test \"$(cat #{V6_STATE}/nfs-disable.status)\" = 0"
+          )
+          wait_for_patch(machine, CORRECTED_NAME, 0)
+
+          clear_probe(machine)
+          remove_module(machine, CORRECTED_NAME)
+          cleanup_nfs_workload(machine)
         end
 
         it "keeps transition workloads and the kernel healthy" do

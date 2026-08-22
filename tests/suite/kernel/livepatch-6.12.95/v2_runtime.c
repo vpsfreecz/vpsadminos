@@ -51,6 +51,29 @@ static void wait_for_file(const char *path)
 	}
 }
 
+static void write_sctp_ports(const char *path, in_port_t client,
+			     in_port_t server)
+{
+	char buffer[64];
+	int length;
+	int fd;
+
+	length = snprintf(buffer, sizeof(buffer), "%u %u\n",
+			  ntohs(client), ntohs(server));
+	if (length < 0 || (size_t)length >= sizeof(buffer)) {
+		errno = EOVERFLOW;
+		fail("format SCTP ports");
+	}
+
+	fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	if (fd < 0)
+		fail("open SCTP ports file");
+	if (write(fd, buffer, length) != length)
+		fail("write SCTP ports file");
+	if (close(fd))
+		fail("close SCTP ports file");
+}
+
 static void exercise_cpu_timer(void)
 {
 	struct sigevent event = {
@@ -246,6 +269,82 @@ static void hold_sctp_association(const char *ready, const char *release)
 	close(server_fd);
 }
 
+static void hold_sctp_transmitted_chunk(const char *ready, const char *send_file,
+					const char *sent, const char *release,
+					const char *ports)
+{
+	struct sockaddr_in server = {
+		.sin_family = AF_INET,
+		.sin_addr.s_addr = htonl(INADDR_LOOPBACK),
+	};
+	struct sockaddr_in server_extra = {
+		.sin_family = AF_INET,
+	};
+	struct sockaddr_in client = {
+		.sin_family = AF_INET,
+		.sin_addr.s_addr = htonl(INADDR_LOOPBACK),
+	};
+	struct sockaddr_in client_extra = {
+		.sin_family = AF_INET,
+	};
+	static const char payload[] = "livepatch-v6-sctp-transmitted-chunk";
+	socklen_t address_len = sizeof(server);
+	int accepted;
+	int client_fd;
+	int server_fd;
+
+	if (inet_pton(AF_INET, "127.0.0.2", &server_extra.sin_addr) != 1)
+		fail("inet_pton SCTP extra server address");
+	if (inet_pton(AF_INET, "127.0.0.3", &client_extra.sin_addr) != 1)
+		fail("inet_pton SCTP extra client address");
+
+	server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);
+	if (server_fd < 0)
+		fail("socket(SCTP transmitted server)");
+	if (bind(server_fd, (struct sockaddr *)&server, sizeof(server)))
+		fail("bind(SCTP transmitted server)");
+	if (getsockname(server_fd, (struct sockaddr *)&server, &address_len))
+		fail("getsockname(SCTP transmitted server)");
+	server_extra.sin_port = server.sin_port;
+	if (sctp_bindx(server_fd, (struct sockaddr *)&server_extra, 1,
+		       SCTP_BINDX_ADD_ADDR))
+		fail("sctp_bindx(SCTP transmitted server)");
+	if (listen(server_fd, 1))
+		fail("listen(SCTP transmitted server)");
+
+	client_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);
+	if (client_fd < 0)
+		fail("socket(SCTP transmitted client)");
+	if (bind(client_fd, (struct sockaddr *)&client, sizeof(client)))
+		fail("bind(SCTP transmitted client)");
+	address_len = sizeof(client);
+	if (getsockname(client_fd, (struct sockaddr *)&client, &address_len))
+		fail("getsockname(SCTP transmitted client)");
+	client_extra.sin_port = client.sin_port;
+	if (sctp_bindx(client_fd, (struct sockaddr *)&client_extra, 1,
+		       SCTP_BINDX_ADD_ADDR))
+		fail("sctp_bindx(SCTP transmitted client)");
+	if (connect(client_fd, (struct sockaddr *)&server, sizeof(server)))
+		fail("connect(SCTP transmitted)");
+	accepted = accept(server_fd, NULL, NULL);
+	if (accepted < 0)
+		fail("accept(SCTP transmitted)");
+
+	write_sctp_ports(ports, client.sin_port, server.sin_port);
+	write_ready(ready);
+	wait_for_file(send_file);
+	if (send(client_fd, payload, sizeof(payload), 0) != sizeof(payload))
+		fail("send(SCTP transmitted client payload)");
+	if (send(accepted, payload, sizeof(payload), 0) != sizeof(payload))
+		fail("send(SCTP transmitted server payload)");
+	write_ready(sent);
+	wait_for_file(release);
+
+	close(accepted);
+	close(client_fd);
+	close(server_fd);
+}
+
 static uint32_t sctp_crc32c(const void *data, size_t length)
 {
 	const unsigned char *bytes = data;
@@ -415,6 +514,9 @@ int main(int argc, char **argv)
 		exercise_sctp_asconf();
 	else if (!strcmp(argv[1], "sctp-hold") && argc == 4)
 		hold_sctp_association(argv[2], argv[3]);
+	else if (!strcmp(argv[1], "sctp-transmitted-hold") && argc == 7)
+		hold_sctp_transmitted_chunk(argv[2], argv[3], argv[4],
+					    argv[5], argv[6]);
 	else if (!strcmp(argv[1], "sctp-malformed-adaptation") && argc == 2)
 		exercise_sctp_malformed_adaptation();
 	else {

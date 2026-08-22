@@ -14,6 +14,8 @@
 #include <linux/wait.h>
 
 #include <net/sctp/structs.h>
+#include <net/sock.h>
+#include <net/vxlan.h>
 
 #include <asm/processor.h>
 
@@ -39,6 +41,7 @@ static bool probe_held;
 static bool probe_spin_hold;
 static bool probe_clone_arg2;
 static bool probe_capture_args;
+static bool probe_capture_vxlan_age_timer;
 static struct sk_buff *probe_arg2_clone;
 static atomic_t probe_redirect_active = ATOMIC_INIT(0);
 static struct task_struct *probe_resume_task;
@@ -64,6 +67,7 @@ static bool svm_x2apic_require_nested;
 static atomic_t svm_x2apic_injections = ATOMIC_INIT(0);
 
 static unsigned long sctp_asoc_address;
+static atomic_t sctp_mismatch_injections = ATOMIC_INIT(0);
 static unsigned int rhashtable_restart_passes;
 
 unsigned long livepatch_test_probe_marker;
@@ -221,8 +225,10 @@ NOKPROBE_SYMBOL(livepatch_test_hold_trampoline);
 static int livepatch_test_probe_pre(struct kprobe *probe,
 				    struct pt_regs *regs)
 {
+	struct net_device *dev;
 	struct sk_buff *clone;
 	struct sk_buff *old;
+	struct vxlan_dev *vxlan;
 
 	(void)probe;
 
@@ -236,7 +242,14 @@ static int livepatch_test_probe_pre(struct kprobe *probe,
 	    atomic_cmpxchg(&probe_redirect_active, 0, 1))
 		return 0;
 	livepatch_test_record_probe_hit();
-	if (READ_ONCE(probe_capture_args)) {
+	if (READ_ONCE(probe_capture_vxlan_age_timer)) {
+		dev = (struct net_device *)regs_get_kernel_argument(regs, 0);
+		if (dev) {
+			vxlan = netdev_priv(dev);
+			cmpxchg(&probe_arg0, 0,
+				(unsigned long)&vxlan->age_timer);
+		}
+	} else if (READ_ONCE(probe_capture_args)) {
 		WRITE_ONCE(probe_arg0, regs_get_kernel_argument(regs, 0));
 		WRITE_ONCE(probe_arg1, regs_get_kernel_argument(regs, 1));
 		WRITE_ONCE(probe_arg2, regs_get_kernel_argument(regs, 2));
@@ -470,6 +483,7 @@ static int livepatch_test_set_probe_address(const char *value,
 	WRITE_ONCE(probe_arg0, 0);
 	WRITE_ONCE(probe_arg1, 0);
 	WRITE_ONCE(probe_arg2, 0);
+	WRITE_ONCE(probe_capture_vxlan_age_timer, false);
 	WRITE_ONCE(probe_hold, false);
 	wake_up_all(&probe_waitq);
 	WRITE_ONCE(probe_held, false);
@@ -955,6 +969,82 @@ static const struct kernel_param_ops sctp_transport_count_ops = {
 };
 
 static int
+livepatch_test_set_sctp_mismatch_transmitted(const char *value,
+					     const struct kernel_param *param)
+{
+	struct sctp_transport *alternate = NULL;
+	struct sctp_transport *owner = NULL;
+	struct sctp_transport *transport;
+	struct sctp_association *asoc;
+	struct sctp_chunk *chunk;
+	bool inject;
+	int ret;
+
+	(void)param;
+	ret = kstrtobool(value, &inject);
+	if (ret || !inject)
+		return ret;
+
+	asoc = (struct sctp_association *)READ_ONCE(sctp_asoc_address);
+	if (!asoc || !asoc->base.sk)
+		return -ENODEV;
+
+	lock_sock(asoc->base.sk);
+	list_for_each_entry(transport, &asoc->peer.transport_addr_list,
+			    transports) {
+		if (!list_empty(&transport->transmitted))
+			owner = transport;
+	}
+	if (!owner) {
+		ret = -ENOENT;
+		goto out_release;
+	}
+	list_for_each_entry(transport, &asoc->peer.transport_addr_list,
+			    transports) {
+		if (transport != owner) {
+			alternate = transport;
+			break;
+		}
+	}
+	if (!alternate) {
+		ret = -ENXIO;
+		goto out_release;
+	}
+
+	chunk = list_first_entry(&owner->transmitted, struct sctp_chunk,
+				 transmitted_list);
+	if (chunk->transport != owner) {
+		ret = -EUCLEAN;
+		goto out_release;
+	}
+
+	WRITE_ONCE(chunk->transport, alternate);
+	atomic_inc(&sctp_mismatch_injections);
+	ret = 0;
+
+out_release:
+	release_sock(asoc->base.sk);
+	return ret;
+}
+
+static int
+livepatch_test_get_sctp_mismatch_injections(char *buffer,
+					    const struct kernel_param *param)
+{
+	(void)param;
+	return sysfs_emit(buffer, "%d\n",
+			  atomic_read(&sctp_mismatch_injections));
+}
+
+static const struct kernel_param_ops sctp_mismatch_transmitted_ops = {
+	.set = livepatch_test_set_sctp_mismatch_transmitted,
+};
+
+static const struct kernel_param_ops sctp_mismatch_injections_ops = {
+	.get = livepatch_test_get_sctp_mismatch_injections,
+};
+
+static int
 livepatch_test_set_rhashtable_restart(const char *value,
 				      const struct kernel_param *param)
 {
@@ -1099,6 +1189,10 @@ module_param(probe_capture_args, bool, 0600);
 MODULE_PARM_DESC(probe_capture_args,
 		 "Capture the first three arguments without holding the probed task");
 
+module_param(probe_capture_vxlan_age_timer, bool, 0600);
+MODULE_PARM_DESC(probe_capture_vxlan_age_timer,
+		 "Capture the probed VXLAN device's exact ageing-timer address once");
+
 module_param_cb(shadow_failures_injected, &shadow_injected_ops, NULL, 0400);
 MODULE_PARM_DESC(shadow_failures_injected,
 		 "klp_shadow_alloc() failures injected");
@@ -1134,6 +1228,16 @@ MODULE_PARM_DESC(sctp_asoc_address,
 module_param_cb(sctp_transport_count, &sctp_transport_count_ops, NULL, 0600);
 MODULE_PARM_DESC(sctp_transport_count,
 		 "Read or set the test association's legacy peer transport count");
+
+module_param_cb(sctp_mismatch_transmitted,
+		&sctp_mismatch_transmitted_ops, NULL, 0200);
+MODULE_PARM_DESC(sctp_mismatch_transmitted,
+		 "Move one real transmitted chunk onto a different live transport pointer");
+
+module_param_cb(sctp_mismatch_injections,
+		&sctp_mismatch_injections_ops, NULL, 0400);
+MODULE_PARM_DESC(sctp_mismatch_injections,
+		 "Real SCTP transmitted chunks given a mismatched transport pointer");
 
 module_param_cb(rhashtable_restart, &rhashtable_restart_ops, NULL, 0200);
 MODULE_PARM_DESC(rhashtable_restart,

@@ -15,7 +15,7 @@ let
         "bp-6.12.95-uname"
       ];
       filterFn = availableFor "6.12.95";
-      version = 5;
+      version = 6;
       # kpatch-build groups these .ko targets into one modpost pass. Include
       # direct module dependencies so modpost sees their exported symbols.
       targets = [
@@ -56,6 +56,7 @@ let
         "drivers/net/ppp/ppp_generic.ko"
         "net/ipv4/udp_tunnel.ko"
         "net/ipv6/ip6_udp_tunnel.ko"
+        "drivers/net/vxlan/vxlan.ko"
         "net/packet/af_packet.ko"
         "net/sctp/sctp.ko"
         "net/sctp/sctp_diag.ko"
