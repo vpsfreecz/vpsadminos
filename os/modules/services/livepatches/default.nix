@@ -17,6 +17,10 @@ let
   };
   availablePatchesList = availablePatches.patchList;
   availablePatchTargets = availablePatches.patchTargets;
+  transitionGuards = availablePatches.transitionGuards;
+  transitionGuard =
+    assert length transitionGuards <= 1;
+    if transitionGuards == [ ] then null else head transitionGuards;
   patchVersion = availablePatches.patchVersion;
 
   buildEnable = (patchVersion > 0) && cfg.enable;
@@ -28,6 +32,32 @@ let
   patchModuleName = "livepatch_${toString patchVersion}";
   installModDir = "lib/modules/${kernel.modDirVersion}/extra";
   installModPath = "${installModDir}/${patchModuleName}.ko";
+  guardModuleName = if transitionGuard == null then null else transitionGuard.moduleName;
+  guardInstallModPath =
+    if transitionGuard == null then null else "${installModDir}/${guardModuleName}.ko";
+
+  buildKpatchCommand =
+    {
+      moduleName,
+      buildPatches,
+      targets,
+      nonReplace ? false,
+    }:
+    let
+      command =
+        "$kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src "
+        + "-n ${escapeShellArg moduleName} "
+        + optionalString nonReplace "-R "
+        + concatMapStrings (target: "-t ${escapeShellArg target} ") targets
+        + concatMapStringsSep " " (name: "$src/${name}.patch") buildPatches;
+    in
+    ''
+      echo ${command}
+      if ! ${command}; then
+        cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log
+        exit 1
+      fi
+    '';
 
   buildLivePatch =
     {
@@ -101,6 +131,14 @@ let
         cp -r ${kernel.dev}/. ./src/
         ln -snf ${kernel.configfile.outPath} ./src/.config
 
+        # A vmlinux-only guard build does not prepare module link inputs, so
+        # seed the exact production-generated files used while linking the
+        # generated livepatch module.
+        cp ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build/Module.symvers \
+          ./src/Module.symvers
+        cp ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build/scripts/module.lds \
+          ./src/scripts/module.lds
+
         echo patchShebangs src/scripts
         patchShebangs src/scripts > /dev/null
 
@@ -125,29 +163,22 @@ let
         #endif
         LIVEPATCH_HEADER_END
 
-                # command preview:
-                echo kpatch-build -n ${patchModuleName} ''
-      + concatMapStrings (target: "-t ${escapeShellArg target} ") availablePatchTargets
-      + concatMapStringsSep " " (name: "${name}.patch") availablePatchesList
-      + ''
-        ; # we dont get a newline between this and the next line; wtf
-                # actual command
-                #export ARCH_KCFLAGS="-gz=none"
-                if ! $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
-      + concatMapStrings (target: "-t ${escapeShellArg target} ") availablePatchTargets
-      + concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList
-      + ''
-        ; then
-          cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log
-          exit 1
-        fi
-      '';
+      ''
+      + optionalString (transitionGuard != null) (buildKpatchCommand transitionGuard)
+      + buildKpatchCommand {
+        moduleName = patchModuleName;
+        buildPatches = availablePatchesList;
+        targets = availablePatchTargets;
+      };
 
       nativeBuildInputs = kernel.nativeBuildInputs;
 
       installPhase = ''
         mkdir -p $out/${installModDir};
         cp ${patchModuleName}.ko $out/${installModPath} || (ls -lah && exit 1)
+      ''
+      + optionalString (transitionGuard != null) ''
+        cp ${guardModuleName}.ko $out/${guardInstallModPath} || (ls -lah && exit 1)
       '';
     };
 
@@ -156,7 +187,11 @@ let
   };
 
   moduleLoadGen =
-    { moduleName, installModPath }:
+    {
+      moduleName,
+      installModPath,
+      recordApplied ? true,
+    }:
     let
       modDetectDir = "/sys/kernel/livepatch/${moduleName}";
     in
@@ -167,12 +202,42 @@ let
           echo live-patches: loading and applying ${moduleName} FAILED
         fi
       fi
+    ''
+    + optionalString recordApplied ''
       if [ -f ${modDetectDir}/enabled ] && [ "$(cat ${modDetectDir}/enabled 2>/dev/null)" = "1" ]; then
         mkdir -p /run/vpsadminos/livepatches
         if [ ! -e /run/vpsadminos/livepatches/${moduleName}.applied-at ]; then
           date --utc +%Y-%m-%dT%H:%M:%SZ \
             > /run/vpsadminos/livepatches/${moduleName}.applied-at
         fi
+      fi
+    '';
+
+  moduleWaitGen =
+    {
+      moduleName,
+      timeoutSeconds ? 900,
+    }:
+    let
+      modDetectDir = "/sys/kernel/livepatch/${moduleName}";
+    in
+    ''
+      retries=${toString (timeoutSeconds + 1)}
+      while [ -d ${modDetectDir} ] && \
+        [ "$(cat ${modDetectDir}/transition 2>/dev/null)" = "1" ] && \
+        [ "$retries" -gt 0 ]; do
+        if [ "$((retries % 30))" -eq 0 ]; then
+          echo live-patches: waiting for ${moduleName} transition, "$retries" seconds remain
+        fi
+        retries=$((retries - 1))
+        sleep 1
+      done
+
+      if [ ! -d ${modDetectDir} ] || \
+        [ "$(cat ${modDetectDir}/enabled 2>/dev/null)" != "1" ] || \
+        [ "$(cat ${modDetectDir}/transition 2>/dev/null)" != "0" ]; then
+        echo live-patches: ${moduleName} transition FAILED
+        exit 1
       fi
     '';
 
@@ -264,10 +329,48 @@ let
     mkdir -p /lib/modules
     ln -snf /run/current-system/kernel-modules/lib/modules/${kernel.modDirVersion} /lib/modules/${kernel.modDirVersion}.${patchName}
   ''
+  + optionalString (transitionGuard != null) ''
+    if [ ! -d /sys/kernel/livepatch/${patchModuleName} ]; then
+      ${moduleLoadGen {
+        installModPath = "$livepatch/${guardInstallModPath}";
+        moduleName = guardModuleName;
+        recordApplied = false;
+      }}
+      if [ "$(cat /sys/kernel/livepatch/${guardModuleName}/enabled 2>/dev/null)" != "1" ]; then
+        echo 1 > /sys/kernel/livepatch/${guardModuleName}/enabled 2>/dev/null || {
+          echo live-patches: enabling ${guardModuleName} FAILED
+          exit 1
+        }
+      fi
+      ${moduleWaitGen { moduleName = guardModuleName; }}
+    fi
+  ''
   + moduleLoadGen {
     installModPath = "$livepatch/${installModPath}";
     moduleName = patchModuleName;
+    recordApplied = transitionGuard == null;
   }
+  + optionalString (transitionGuard != null) ''
+    ${moduleWaitGen { moduleName = patchModuleName; }}
+    mkdir -p /run/vpsadminos/livepatches
+    if [ ! -e /run/vpsadminos/livepatches/${patchModuleName}.applied-at ]; then
+      date --utc +%Y-%m-%dT%H:%M:%SZ \
+        > /run/vpsadminos/livepatches/${patchModuleName}.applied-at
+    fi
+    retries=151
+    while [ -d /sys/module/${guardModuleName} ] && [ "$retries" -gt 0 ]; do
+      rmmod ${guardModuleName} 2>/dev/null || true
+      retries=$((retries - 1))
+      if [ -d /sys/module/${guardModuleName} ]; then
+        sleep 0.2
+      fi
+    done
+    if [ -d /sys/module/${guardModuleName} ]; then
+      echo live-patches: unloading absorbed ${guardModuleName} FAILED
+      exit 1
+    fi
+    rm -f /run/vpsadminos/livepatches/${guardModuleName}.applied-at
+  ''
   + "";
 
   moduleUnloadContent = ''
@@ -275,17 +378,26 @@ let
     # Patches built with build-kpatch
   ''
   + moduleUnloadGen { moduleName = patchModuleName; }
+  + optionalString (transitionGuard != null) (moduleUnloadGen {
+    moduleName = guardModuleName;
+  })
   + "\n";
 
   moduleListContent = ''
     livepatch=$(cat /etc/livepatch-store-path)
   ''
+  + optionalString (transitionGuard != null) (moduleListGen {
+    moduleName = guardModuleName;
+  })
   + moduleListGen { moduleName = patchModuleName; }
   + "\n";
 
   moduleStatusContent = ''
     livepatch=$(cat /etc/livepatch-store-path)
   ''
+  + optionalString (transitionGuard != null) (moduleListGen {
+    moduleName = guardModuleName;
+  })
   + moduleStatusGen { moduleName = patchModuleName; }
   + "\n";
 
@@ -348,6 +460,7 @@ in
         kernelVersion = config.boot.kernelVersion;
         module = patchModuleName;
         inherit patchVersion;
+        transitionGuard = guardModuleName;
         patches = map (patch: {
           inherit (patch) name;
           version = availablePatches.getPatchVersion patch;

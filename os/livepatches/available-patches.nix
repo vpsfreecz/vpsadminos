@@ -14,8 +14,14 @@ let
         "bp-6.12.95-cumulative"
         "bp-6.12.95-uname"
       ];
+      transitionGuard = {
+        moduleName = "livepatch_transition_guard";
+        buildPatches = [ "bp-6.12.95-transition-guard" ];
+        targets = [ "vmlinux" ];
+        nonReplace = true;
+      };
       filterFn = availableFor "6.12.95";
-      version = 6;
+      version = 7;
       # kpatch-build groups these .ko targets into one modpost pass. Include
       # direct module dependencies so modpost sees their exported symbols.
       targets = [
@@ -107,11 +113,17 @@ let
     concatMap (patch: patch.buildPatches or [ patch.name ]) (filterPatches kernelVersion);
   patchTargetsForVersion =
     kernelVersion: unique (concatMap (patch: patch.targets or [ ]) (filterPatches kernelVersion));
+  transitionGuardsForVersion =
+    kernelVersion:
+    concatMap (patch: optional (patch ? transitionGuard) patch.transitionGuard) (
+      filterPatches kernelVersion
+    );
 in
 {
   getPatchVersion = getPatchVersion;
   patchList = patchListForVersion version;
   patchTargets = patchTargetsForVersion version;
+  transitionGuards = transitionGuardsForVersion version;
   patchVersion = filterPatchesVersionsSum version;
   filteredPatches = filterPatches version;
   allPatches = availablePatches;

@@ -16,6 +16,11 @@ import ../../make-template.nix (
         };
         candidateVersion = patches.patchVersion;
         candidateName = "livepatch_${toString candidateVersion}";
+        transitionGuards = patches.transitionGuards;
+        transitionGuard =
+          assert builtins.length transitionGuards <= 1;
+          if transitionGuards == [ ] then null else builtins.head transitionGuards;
+        transitionGuardName = if transitionGuard == null then null else transitionGuard.moduleName;
         predecessors = line.predecessors or { };
 
         kvmSmoke = pkgs.stdenv.mkDerivation {
@@ -78,6 +83,7 @@ import ../../make-template.nix (
             BOOT_VERSION = ${builtins.toJSON kernelVersion}
             CANDIDATE_VERSION = ${toString candidateVersion}
             CANDIDATE_NAME = ${builtins.toJSON candidateName}
+            TRANSITION_GUARD_NAME = ${builtins.toJSON transitionGuardName}
             EXPECTED_VENDOR = ${builtins.toJSON expectedVendor}
             KVM_MODULE = ${builtins.toJSON kvmModule}
             KVM_SMOKE = "/etc/livepatch-lifecycle/kvm-smoke"
@@ -125,11 +131,32 @@ import ../../make-template.nix (
               machine.succeeds("test \"$(uname -r)\" = #{release}")
             end
 
-            def candidate_module(machine)
+            def packaged_module(machine, name)
               store = machine.succeeds("cat /etc/livepatch-store-path")[1].strip
-              path = "#{store}/lib/modules/#{BOOT_VERSION}/extra/#{CANDIDATE_NAME}.ko"
+              path = "#{store}/lib/modules/#{BOOT_VERSION}/extra/#{name}.ko"
               machine.succeeds("test -f #{path}")
               path
+            end
+
+            def load_candidate(machine)
+              machine.succeeds("live-patches load", timeout: 960)
+              wait_for_patch(machine, CANDIDATE_NAME)
+
+              return if TRANSITION_GUARD_NAME.nil?
+
+              machine.fails("test -d /sys/module/#{TRANSITION_GUARD_NAME}")
+              machine.fails("test -d #{patch_dir(TRANSITION_GUARD_NAME)}")
+            end
+
+            def unload_candidate(machine)
+              machine.succeeds("live-patches unload", timeout: 960)
+              machine.fails("test -d /sys/module/#{CANDIDATE_NAME}")
+              machine.fails("test -d #{patch_dir(CANDIDATE_NAME)}")
+
+              return if TRANSITION_GUARD_NAME.nil?
+
+              machine.fails("test -d /sys/module/#{TRANSITION_GUARD_NAME}")
+              machine.fails("test -d #{patch_dir(TRANSITION_GUARD_NAME)}")
             end
 
             def enable_patch(machine, module_path, name)
@@ -181,7 +208,7 @@ import ../../make-template.nix (
             end
             machine.fails("test -d /sys/module/#{KVM_MODULE}")
 
-            candidate = candidate_module(machine)
+            candidate = packaged_module(machine, CANDIDATE_NAME)
             machine.all_succeed(
               "test \"$(modinfo -F name #{candidate})\" = #{CANDIDATE_NAME}",
               "modinfo -F vermagic #{candidate} | grep -q '^#{BOOT_VERSION} '",
@@ -189,13 +216,26 @@ import ../../make-template.nix (
               "ln -snf /run/current-system/kernel-modules/lib/modules/#{BOOT_VERSION} " \
               "/lib/modules/#{module_release(CANDIDATE_VERSION)}",
             )
+            unless TRANSITION_GUARD_NAME.nil?
+              transition_guard = packaged_module(machine, TRANSITION_GUARD_NAME)
+              machine.all_succeed(
+                "test \"$(modinfo -F name #{transition_guard})\" = #{TRANSITION_GUARD_NAME}",
+                "modinfo -F vermagic #{transition_guard} | grep -q '^#{BOOT_VERSION} '",
+              )
+
+              # The prerequisite is itself a non-replacing livepatch and must
+              # not change the public kernel version when loaded alone.
+              enable_patch(machine, transition_guard, TRANSITION_GUARD_NAME)
+              assert_release(machine, BOOT_VERSION)
+              disable_and_remove_patch(machine, TRANSITION_GUARD_NAME)
+            end
             dmesg_start = machine.succeeds("dmesg | wc -l")[1].to_i + 1
 
-            # Direct load and clean removal.
-            enable_patch(machine, candidate, CANDIDATE_NAME)
+            # Direct production-loader bootstrap and clean removal.
+            load_candidate(machine)
             assert_release(machine, module_release(CANDIDATE_VERSION))
             assert_kernel_healthy(machine, dmesg_start)
-            disable_and_remove_patch(machine, CANDIDATE_NAME)
+            unload_candidate(machine)
             assert_release(machine, BOOT_VERSION)
             assert_kernel_healthy(machine, dmesg_start)
 
@@ -211,7 +251,7 @@ import ../../make-template.nix (
               # Compatible cumulative replacement.
               enable_patch(machine, PREDECESSOR_MODULE, PREDECESSOR_NAME)
               assert_release(machine, module_release(PREDECESSOR_VERSION))
-              enable_patch(machine, candidate, CANDIDATE_NAME)
+              load_candidate(machine)
               wait_for_inactive_patch(machine, PREDECESSOR_NAME)
               assert_release(machine, module_release(CANDIDATE_VERSION))
               assert_kernel_healthy(machine, dmesg_start)
@@ -228,7 +268,7 @@ import ../../make-template.nix (
               assert_release(machine, module_release(CANDIDATE_VERSION))
               assert_kernel_healthy(machine, dmesg_start)
 
-              disable_and_remove_patch(machine, CANDIDATE_NAME)
+              unload_candidate(machine)
               assert_release(machine, BOOT_VERSION)
               assert_kernel_healthy(machine, dmesg_start)
             end

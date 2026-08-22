@@ -2047,6 +2047,131 @@ index cf03d4bdfc663f97078aaf09b69427b22538c7c4..0eedad5e9dcc40f12f117a4035f3d3ef
 +++ b/kernel/livepatch/Makefile
 @@ -4,0 +5 @@ livepatch-objs := core.o patch.o shadow.o state.o transition.o
 +livepatch-$(CONFIG_X86_64) += vpsadminos_rhashtable.o
+diff --git a/kernel/livepatch/transition.c b/kernel/livepatch/transition.c
+index ba069459c1017b815101cc3aeb186d9407f7bd10..3f8b4e068cfd8082cc232191b88ca2fd27c3bc9b 100644
+--- a/kernel/livepatch/transition.c
++++ b/kernel/livepatch/transition.c
+@@ -10,0 +11,2 @@
++#include <linux/overflow.h>
++#include <linux/slab.h>
+@@ -23,0 +26,2 @@ static DEFINE_PER_CPU(unsigned long[MAX_STACK_ENTRIES], klp_stack_entries);
++#define KLP_TASK_BATCH_SIZE 256
++
+@@ -316,0 +321,2 @@ static bool klp_try_switch_task(struct task_struct *task)
++	unsigned long flags;
++	unsigned int state;
+@@ -335 +341 @@ static bool klp_try_switch_task(struct task_struct *task)
+-	if (task == current)
++	if (task == current) {
+@@ -337,2 +343,41 @@ static bool klp_try_switch_task(struct task_struct *task)
+-	else
+-		ret = task_call_func(task, klp_check_and_switch_task, &old_name);
++	} else {
++		/*
++		 * task_call_func() can hold the task's rq lock while invoking its
++		 * callback.  A cumulative livepatch stack check is not a lightweight
++		 * callback: it compares every saved frame against every transition
++		 * function.  Pin sleeping tasks with pi_lock instead and leave any
++		 * active task for one of the normal self-transition paths.
++		 */
++		raw_spin_lock_irqsave(&task->pi_lock, flags);
++
++		state = READ_ONCE(task->__state);
++		if (state == TASK_RUNNING || state == TASK_WAKING) {
++			ret = -EBUSY;
++			goto unlock;
++		}
++
++		/* Pair the scheduler state and on_rq observations. */
++		smp_rmb();
++		if (READ_ONCE(task->on_rq)) {
++			ret = -EBUSY;
++			goto unlock;
++		}
++
++#ifdef CONFIG_SMP
++		/*
++		 * A sleeping task can still be finishing __schedule().  Acquire
++		 * from finish_task() before inspecting its stack, but never wait
++		 * for it while holding scheduler state locks.
++		 */
++		smp_rmb();
++		/* Pairs with finish_task()'s smp_store_release(). */
++		if (smp_load_acquire(&task->on_cpu)) {
++			ret = -EBUSY;
++			goto unlock;
++		}
++#endif
++
++		ret = klp_check_and_switch_task(task, &old_name);
++unlock:
++		raw_spin_unlock_irqrestore(&task->pi_lock, flags);
++	}
+@@ -377,2 +422,2 @@ void __klp_sched_try_switch(void)
+-	 * klp_try_switch_task().  Thanks to task_call_func() they won't be
+-	 * able to switch this task while it's running.
++	 * klp_try_switch_task().  Its non-current path leaves runnable and
++	 * on-CPU tasks pending, so they cannot switch this task while it runs.
+@@ -454,0 +500 @@ void klp_try_complete_transition(void)
++	struct task_struct **tasks = NULL;
+@@ -455,0 +502 @@ void klp_try_complete_transition(void)
++	size_t capacity = 0, nr_tasks = 0, slack, i;
+@@ -468,0 +516,5 @@ void klp_try_complete_transition(void)
++	/*
++	 * Keep tasklist_lock coverage to pointer collection.  Stack walking and
++	 * cumulative function comparison can be expensive on large systems and
++	 * must remain preemptible and outside this global lock.
++	 */
+@@ -471,2 +523 @@ void klp_try_complete_transition(void)
+-		if (!klp_try_switch_task(task))
+-			complete = false;
++		capacity++;
+@@ -474,0 +526,43 @@ void klp_try_complete_transition(void)
++	if (capacity) {
++		/*
++		 * Leave room for forks between the count and fill passes.  Requiring
++		 * an exact task count here can starve completion under continuous
++		 * process churn, especially if this worker is preempted after dropping
++		 * tasklist_lock.  The bound remains conservative: an unexpectedly
++		 * larger burst still overflows the snapshot and forces a later retry.
++		 */
++		slack = max_t(size_t, KLP_TASK_BATCH_SIZE, capacity / 8);
++		if (check_add_overflow(capacity, slack, &capacity)) {
++			complete = false;
++			goto idle_tasks;
++		}
++
++		tasks = kvmalloc_array(capacity, sizeof(*tasks), GFP_KERNEL);
++		if (!tasks) {
++			complete = false;
++			goto idle_tasks;
++		}
++
++		read_lock(&tasklist_lock);
++		for_each_process_thread(g, task) {
++			/* A larger-than-anticipated fork burst forces a later retry. */
++			if (nr_tasks == capacity) {
++				complete = false;
++				break;
++			}
++			get_task_struct(task);
++			tasks[nr_tasks++] = task;
++		}
++		read_unlock(&tasklist_lock);
++
++		for (i = 0; i < nr_tasks; i++) {
++			if (!klp_try_switch_task(tasks[i]))
++				complete = false;
++			put_task_struct(tasks[i]);
++
++			if ((i + 1) % KLP_TASK_BATCH_SIZE == 0)
++				cond_resched();
++		}
++		kvfree(tasks);
++	}
++
+@@ -477,0 +572 @@ void klp_try_complete_transition(void)
++idle_tasks:
 diff --git a/kernel/livepatch/vpsadminos_rhashtable.c b/kernel/livepatch/vpsadminos_rhashtable.c
 new file mode 100644
 index 0000000000000000000000000000000000000000..18c3041b860c2ef96d028b579da5d312b09a8f9d

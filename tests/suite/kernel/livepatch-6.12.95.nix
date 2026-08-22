@@ -1,11 +1,13 @@
 let
   correctedModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_MODULE";
+  transitionGuardModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_TRANSITION_GUARD_MODULE";
   releasedV1ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V1_MODULE";
   releasedV5ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE";
   predecessorModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE";
   exampleFilter = builtins.getEnv "VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER";
 in
 assert correctedModuleEnv != "";
+assert transitionGuardModuleEnv != "";
 assert releasedV1ModuleEnv != "";
 assert releasedV5ModuleEnv != "";
 assert predecessorModuleEnv != "";
@@ -13,14 +15,17 @@ import ../../make-test.nix (
   { pkgs }:
   let
     correctedModule = builtins.storePath correctedModuleEnv;
+    transitionGuardModule = builtins.storePath transitionGuardModuleEnv;
     releasedV1Module = builtins.storePath releasedV1ModuleEnv;
     releasedV5Module = builtins.storePath releasedV5ModuleEnv;
     predecessorModule = builtins.storePath predecessorModuleEnv;
     correctedSha256 = builtins.hashFile "sha256" correctedModule;
+    transitionGuardSha256 = builtins.hashFile "sha256" transitionGuardModule;
     releasedV1Sha256 = builtins.hashFile "sha256" releasedV1Module;
     releasedV5Sha256 = builtins.hashFile "sha256" releasedV5Module;
     predecessorSha256 = builtins.hashFile "sha256" predecessorModule;
     expectedCorrectedSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_SHA256";
+    expectedTransitionGuardSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_TRANSITION_GUARD_SHA256";
     expectedReleasedV1Sha256 = "a3f79b223f1ad1eba764ed10e687b5800aea28b42eb1cc9fffb95f43d6260a30";
     expectedReleasedV5Sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
     expectedPredecessorSha256 = "70f22f6f2a1a5b0eaf57d09fdd8e988561adbea6c77fb59dcdf89b2415a9f79e";
@@ -407,6 +412,7 @@ import ../../make-test.nix (
 
         environment.etc = {
           "livepatch-test/corrected.ko".source = correctedModule;
+          "livepatch-test/transition-guard.ko".source = transitionGuardModule;
           "livepatch-test/released-v1.ko".source = releasedV1Module;
           "livepatch-test/released-v5.ko".source = releasedV5Module;
           "livepatch-test/predecessor.ko".source = predecessorModule;
@@ -429,6 +435,7 @@ import ../../make-test.nix (
       };
   in
   assert correctedSha256 == expectedCorrectedSha256;
+  assert transitionGuardSha256 == expectedTransitionGuardSha256;
   assert releasedV1Sha256 == expectedReleasedV1Sha256;
   assert releasedV5Sha256 == expectedReleasedV5Sha256;
   assert predecessorSha256 == expectedPredecessorSha256;
@@ -462,6 +469,7 @@ import ../../make-test.nix (
       end
 
       CORRECTED_MODULE = "/etc/livepatch-test/corrected.ko"
+      TRANSITION_GUARD_MODULE = "/etc/livepatch-test/transition-guard.ko"
       RELEASED_V1_MODULE = "/etc/livepatch-test/released-v1.ko"
       RELEASED_V5_MODULE = "/etc/livepatch-test/released-v5.ko"
       PREDECESSOR_MODULE = "/etc/livepatch-test/predecessor.ko"
@@ -479,11 +487,13 @@ import ../../make-test.nix (
       PERNET_HOLD_MODULE = "/etc/livepatch-test/pernet-hold.ko"
       PROBE_MODULE = "/etc/livepatch-test/probe.ko"
       PROBE_PARAMETERS = "/sys/module/livepatch_test_probe/parameters"
-      CORRECTED_NAME = "livepatch_6"
+      CORRECTED_NAME = "livepatch_7"
+      TRANSITION_GUARD_NAME = "livepatch_transition_guard"
       RELEASED_V1_NAME = "livepatch_1"
       RELEASED_V5_NAME = "livepatch_5"
       PREDECESSOR_NAME = "livepatch_predecessor_1"
       CORRECTED_SHA256 = ${builtins.toJSON expectedCorrectedSha256}
+      TRANSITION_GUARD_SHA256 = ${builtins.toJSON expectedTransitionGuardSha256}
       RELEASED_V1_SHA256 = ${builtins.toJSON expectedReleasedV1Sha256}
       RELEASED_V5_SHA256 = ${builtins.toJSON expectedReleasedV5Sha256}
       PREDECESSOR_SHA256 = ${builtins.toJSON expectedPredecessorSha256}
@@ -662,6 +672,30 @@ import ../../make-test.nix (
           )
           raise
         end
+      end
+
+      def self.ensure_transition_guard(machine)
+        guard_dir = patch_dir(TRANSITION_GUARD_NAME)
+
+        if machine.execute("test -d /sys/module/#{TRANSITION_GUARD_NAME}")[0] == 0 &&
+           machine.execute("test -d #{guard_dir}")[0] != 0
+          machine.succeeds("rmmod #{TRANSITION_GUARD_NAME}")
+        end
+
+        unless machine.execute("test -d /sys/module/#{TRANSITION_GUARD_NAME}")[0] == 0
+          machine.succeeds("insmod #{TRANSITION_GUARD_MODULE}")
+        end
+
+        unless machine.execute("test \"$(cat #{guard_dir}/enabled 2>/dev/null)\" = 1")[0] == 0
+          machine.succeeds("sh -c 'echo 1 > #{guard_dir}/enabled'")
+        end
+
+        wait_for_patch(machine, TRANSITION_GUARD_NAME, 1)
+      end
+
+      def self.load_corrected(machine)
+        ensure_transition_guard(machine)
+        machine.succeeds("insmod #{CORRECTED_MODULE}")
       end
 
       def self.wait_for_object(machine, patch, object, patched)
@@ -1075,7 +1109,8 @@ import ../../make-test.nix (
 
         machine.execute(
           "for name in #{CORRECTED_NAME} #{RELEASED_V1_NAME} " \
-          "#{RELEASED_V5_NAME} #{PREDECESSOR_NAME}; do " \
+          "#{RELEASED_V5_NAME} #{PREDECESSOR_NAME} " \
+          "#{TRANSITION_GUARD_NAME}; do " \
           "dir=/sys/kernel/livepatch/$name; " \
           "if test -e \"$dir/enabled\"; then " \
           "echo 0 > \"$dir/enabled\" 2>/dev/null || true; " \
@@ -1995,6 +2030,9 @@ import ../../make-test.nix (
             "test \"$(sha256sum #{CORRECTED_MODULE} | cut -d' ' -f1)\" = #{CORRECTED_SHA256}"
           )
           machine.succeeds(
+            "test \"$(sha256sum #{TRANSITION_GUARD_MODULE} | cut -d' ' -f1)\" = #{TRANSITION_GUARD_SHA256}"
+          )
+          machine.succeeds(
             "test \"$(sha256sum #{RELEASED_V1_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V1_SHA256}"
           )
           machine.succeeds(
@@ -2013,9 +2051,10 @@ import ../../make-test.nix (
             "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
             "/lib/modules/6.12.95.5",
             "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
-            "/lib/modules/6.12.95.6",
+            "/lib/modules/6.12.95.7",
           )
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
+          machine.fails("test -d /sys/module/#{TRANSITION_GUARD_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
@@ -2072,7 +2111,7 @@ import ../../make-test.nix (
           end
         end
 
-        it "retains released v5 after failure, replaces it with v6, and exercises KVM" do
+        it "retains v5 after failure, bootstraps v7, and exercises KVM" do
           machine.succeeds("test \"$(uname -r)\" = 6.12.95")
           machine.succeeds("modprobe -r kvm_amd")
           machine.all_succeed(
@@ -2093,6 +2132,7 @@ import ../../make-test.nix (
           held = "/sys/module/livepatch_test_pernet_hold/parameters/held"
           machine.succeeds("sh -c 'echo 1 > #{hold}'")
           machine.wait_until_succeeds("test \"$(cat #{held})\" = Y")
+          ensure_transition_guard(machine)
           status, output = machine.execute("insmod #{CORRECTED_MODULE}")
           expect(status).not_to eq(0), output
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
@@ -2101,12 +2141,14 @@ import ../../make-test.nix (
           machine.succeeds("sh -c 'echo 0 > #{hold}'")
           machine.wait_until_succeeds("test \"$(cat #{held})\" = N")
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           wait_for_patch(machine, RELEASED_V5_NAME, 0)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.6")
+          wait_for_patch(machine, TRANSITION_GUARD_NAME, 0)
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.7")
           machine.succeeds("rmmod #{RELEASED_V5_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
+          remove_module(machine, TRANSITION_GUARD_NAME)
 
           machine.all_succeed("modprobe nf_conntrack", "modprobe ceph")
           %w[vmlinux nf_conntrack sctp ceph libceph].each do |object|
@@ -2136,7 +2178,7 @@ import ../../make-test.nix (
           expect(status).not_to eq(0), output
           machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.6")
+          machine.succeeds("test \"$(uname -r)\" = 6.12.95.7")
           machine.succeeds(
             "dmesg | tail -n +#{downgrade_log_start} | grep -F " \
             "'Livepatch patch (#{RELEASED_V5_NAME}) is not compatible with the already installed livepatches.'"
@@ -2188,7 +2230,7 @@ import ../../make-test.nix (
 
           # The state above predates activation. The first L2 run after v5
           # activation must repair it at svm_vcpu_run() entry.
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           machine.succeeds("touch #{V5_STATE}/svm.release1")
           machine.wait_until_succeeds(
@@ -2237,7 +2279,7 @@ import ../../make-test.nix (
         end
 
         it "exercises all five direct v5 fix paths" do
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           set_probe(machine, "br_nf_pre_routing_finish_bridge", CORRECTED_NAME)
@@ -2404,7 +2446,7 @@ import ../../make-test.nix (
             "nft 'list counter inet klp_obj_pre_b shared' | grep -F 'packets 2 bytes 20'",
           )
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           set_probe(machine, "nft_obj_lookup", CORRECTED_NAME)
           machine.all_succeed(
@@ -2459,7 +2501,7 @@ import ../../make-test.nix (
           )
           clear_probe(machine)
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           set_probe(machine, "inet_sctp_diag_fill.isra.0", CORRECTED_NAME)
           machine.succeeds("ss -S -a >/dev/null")
@@ -2521,7 +2563,7 @@ import ../../make-test.nix (
           clear_probe2(machine)
           set_probe2(machine, "timer_delete_sync")
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           wait_for_object(machine, CORRECTED_NAME, "vxlan", 1)
           set_probe(machine, "vxlan_uninit", CORRECTED_NAME)
@@ -2596,7 +2638,7 @@ import ../../make-test.nix (
           )
           clear_probe(machine)
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           set_probe(machine, "sctp_check_transmitted", CORRECTED_NAME)
           machine.succeeds("nft delete table inet klp_sctp_v6")
@@ -2654,6 +2696,7 @@ import ../../make-test.nix (
           machine.wait_until_succeeds("test \"$(cat #{held})\" = Y")
 
           failure_log_start = machine.succeeds("dmesg | wc -l")[1].to_i + 1
+          ensure_transition_guard(machine)
           status, output = machine.execute("insmod #{CORRECTED_MODULE}")
           expect(status).not_to eq(0), output
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
@@ -2684,6 +2727,7 @@ import ../../make-test.nix (
 
             failure_log_start =
               machine.succeeds("dmesg | wc -l")[1].to_i + 1
+            ensure_transition_guard(machine)
             status, output = machine.execute("insmod #{CORRECTED_MODULE}")
             expect(status).not_to eq(0), output
             machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
@@ -2701,7 +2745,7 @@ import ../../make-test.nix (
           end
 
           # Prove that neither failure retained gate or registry state.
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           assert_sunrpc_gate_sites(machine, false)
           disable_patch(machine, CORRECTED_NAME)
@@ -2739,6 +2783,7 @@ import ../../make-test.nix (
 
           failure_log_start =
             machine.succeeds("dmesg | wc -l")[1].to_i + 1
+          ensure_transition_guard(machine)
           status, output = machine.execute("insmod #{CORRECTED_MODULE}")
           expect(status).not_to eq(0), output
           expect(output).to include("Device or resource busy")
@@ -2762,7 +2807,7 @@ import ../../make-test.nix (
 
           # A clean retry after the old frame exits must be able to allocate
           # and retire a fresh first-generation registry.
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           assert_sunrpc_gate_sites(machine, false)
           disable_patch(machine, CORRECTED_NAME)
@@ -2797,6 +2842,7 @@ import ../../make-test.nix (
           held = "/sys/module/livepatch_test_pernet_hold/parameters/held"
           machine.succeeds("sh -c 'echo 1 > #{hold}'")
           machine.wait_until_succeeds("test \"$(cat #{held})\" = Y")
+          ensure_transition_guard(machine)
           status, output = machine.execute("insmod #{CORRECTED_MODULE}")
           expect(status).not_to eq(0), output
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
@@ -2891,7 +2937,7 @@ import ../../make-test.nix (
           )
           clear_probe2(machine)
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           machine.wait_until_succeeds(
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled)\" = 1 && " \
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/transition)\" = 1",
@@ -2999,13 +3045,13 @@ import ../../make-test.nix (
         end
 
         it "flushes every online CPU after the function transition" do
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           disable_patch(machine, CORRECTED_NAME)
           remove_module(machine, CORRECTED_NAME)
 
           set_probe(machine, "do_flush_tlb_all")
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           online_cpus = machine.succeeds("getconf _NPROCESSORS_ONLN")[1].to_i
@@ -3021,7 +3067,7 @@ import ../../make-test.nix (
           machine.succeeds("sysctl -qw net.core.bpf_jit_enable=1")
           start_bpf_churn(machine)
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           set_probe(machine, "vpsadminos_bpf_jit_ibpb", CORRECTED_NAME)
           machine.wait_until_succeeds(
@@ -3038,7 +3084,7 @@ import ../../make-test.nix (
 
         it "fails a pipapo clone cleanly when its shadow cannot be allocated" do
           machine.execute("nft delete table inet klp_pipapo >/dev/null 2>&1 || true")
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           machine.all_succeed(
             "nft add table inet klp_pipapo",
@@ -3105,7 +3151,7 @@ import ../../make-test.nix (
             timeout: 30
           )
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           machine.wait_until_succeeds(
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled)\" = 1 && " \
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/transition)\" = 1",
@@ -3186,7 +3232,7 @@ import ../../make-test.nix (
 
         it "holds an ipset dump across activation and list-array growth" do
           prepare_held_ipset_dump(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           grow_ipset_list_across_dump_release(machine)
 
@@ -3210,7 +3256,7 @@ import ../../make-test.nix (
             timeout: 30
           )
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           machine.succeeds(
             "ipset destroy klp_gc > /run/klp-gc-destroy.log 2>&1 & " \
@@ -3240,7 +3286,7 @@ import ../../make-test.nix (
 
         it "hardens a legacy TCP sysctl table and wrapped socket" do
           prepare_legacy_tcp_socket(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           set_offset_probe(
             machine,
@@ -3272,7 +3318,7 @@ import ../../make-test.nix (
 
         it "completes fixed-buffer vsock sends across activation" do
           start_vsock_workload(machine, 9005)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           set_probe(machine, "__skb_zcopy_downgrade_managed")
@@ -3306,7 +3352,7 @@ import ../../make-test.nix (
 
         it "retires populated XFRM input caches before lookup and deletion" do
           prepare_xfrm_workload(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           set_probe(
@@ -3350,7 +3396,7 @@ import ../../make-test.nix (
             timeout: 30
           )
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           machine.wait_until_succeeds(
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled)\" = 1 && " \
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/transition)\" = 1",
@@ -3388,7 +3434,7 @@ import ../../make-test.nix (
             timeout: 30
           )
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           set_probe2(
             machine,
@@ -3454,7 +3500,7 @@ import ../../make-test.nix (
             timeout: 30
           )
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           machine.wait_until_succeeds(
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled)\" = 1 && " \
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/transition)\" = 1",
@@ -3489,7 +3535,7 @@ import ../../make-test.nix (
 
         it "pins and drains a SUNRPC TLS client across clean removal" do
           cleanup_sunrpc_workload(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           set_probe(
@@ -3547,7 +3593,7 @@ import ../../make-test.nix (
 
         it "gives a SUNRPC removal callback sole ownership before worker claim" do
           cleanup_sunrpc_workload(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           race_state = "#{SUNRPC_STATE}/spin-coordinator"
 
@@ -3728,7 +3774,7 @@ import ../../make-test.nix (
 
         it "fails SUNRPC TLS shadow allocation closed and reaches no-agent TLS" do
           cleanup_sunrpc_workload(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           set_probe(
@@ -3778,7 +3824,7 @@ import ../../make-test.nix (
 
         it "tears down populated IPv4 and IPv6 multicast state safely" do
           prepare_multicast_workload(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           set_probe(machine, "igmp_ifc_start_timer", CORRECTED_NAME)
@@ -3810,7 +3856,7 @@ import ../../make-test.nix (
 
         it "drains down-bridge STP timers on root and nonroot paths" do
           prepare_bridge_workload(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           set_probe(
@@ -3846,7 +3892,7 @@ import ../../make-test.nix (
 
         it "transmits the IPVS fwmark cache-bypass path without a destination" do
           prepare_ipvs_workload(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           set_probe(machine, "ip_vs_bypass_xmit", CORRECTED_NAME)
           # The parsed-header prerequisite replaces ip_vs_leave itself.  Probe
@@ -3894,7 +3940,7 @@ import ../../make-test.nix (
 
         it "fragments oversized IPv6 bridge traffic after checksum handling" do
           prepare_fragment_workload(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           set_probe2(machine, "skb_checksum_help")
           set_probe3(machine, "pskb_expand_head")
@@ -4010,7 +4056,7 @@ import ../../make-test.nix (
 
         it "drains held IPv4, IPv6, and GSO bridge NFQUEUE entries" do
           prepare_nfqueue_workload(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           machine.succeeds("ip link set klp_nfq_br down")
@@ -4023,7 +4069,7 @@ import ../../make-test.nix (
         end
 
         it "drops a queued bridge packet when its shadow allocation fails" do
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           exercise_nfqueue_shadow_failure(machine)
           disable_patch(machine, CORRECTED_NAME)
@@ -4031,7 +4077,7 @@ import ../../make-test.nix (
         end
 
         it "contains and exercises the v2 replacement functions" do
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
           V2_REPLACEMENT_FUNCTIONS.each do |function|
@@ -4073,7 +4119,7 @@ import ../../make-test.nix (
             machine.fails("test -d /sys/module/#{object}")
           end
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           ALWAYS_LOADED_TARGET_OBJECTS.each do |object|
             wait_for_object(machine, CORRECTED_NAME, object, 1)
@@ -4113,7 +4159,7 @@ import ../../make-test.nix (
           machine.succeeds("sysctl -w net.ipv4.tcp_reordering=3")
 
           prepare_transition_state(machine)
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           wait_for_patch(machine, CORRECTED_NAME, 1)
           consume_transition_state(machine)
 
@@ -4165,7 +4211,7 @@ import ../../make-test.nix (
             timeout: 30
           )
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           machine.wait_until_succeeds(
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled)\" = 1 && " \
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/transition)\" = 1",
@@ -4229,7 +4275,7 @@ import ../../make-test.nix (
             timeout: 30
           )
 
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          load_corrected(machine)
           machine.wait_until_succeeds(
             "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled)\" = 1",
             timeout: 30
