@@ -99,7 +99,7 @@ module OsCtld
           pool: ct.pool.name,
           id: ct.id,
           timeout: opts[:stop_timeout],
-          method: opts[:stop_method],
+          method: opts[:stop_method] || 'shutdown_or_kill',
           message: opts[:message],
           lifecycle_source: 'restart',
           lifecycle_intent_id: intent_id,

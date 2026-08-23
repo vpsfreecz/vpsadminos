@@ -43,6 +43,9 @@ RSpec.describe 'container lifecycle commands' do
   before do
     allow(OsCtl::Lib::Logger).to receive(:log)
     allow(build_history).to receive(:log)
+    stub_const('OsCtld::Daemon', Class.new do
+      def self.get; end
+    end)
     daemon = Class.new do
       def with_lifecycle_admission(**)
         yield
@@ -959,6 +962,44 @@ RSpec.describe 'container lifecycle commands' do
       ).and_return(status: true, output: nil)
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
+    end
+
+    it 'uses the default stop method when an internal restart omits it' do
+      stop_class = stub_const('OsCtld::Commands::Container::Stop', Class.new)
+      request = OsCtld::Container::Lifecycle::Request.new(
+        action: :stop,
+        effect_id: 'intent-1'
+      )
+      lifecycle = double(request_restart: request)
+      ct = Struct.new(:id, :pool, :lifecycle) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new('ct1', Struct.new(:name).new('tank'), lifecycle)
+      command = described_class.new(
+        {
+          reboot: false,
+          wait: 'infinity',
+          lifecycle_source: 'runtime-network-recovery',
+          lifecycle_recovery: true
+        },
+        {}
+      )
+      stop_result = { status: false, message: 'stop failed' }
+      allow(command).to receive(:call_cmd!).and_return(stop_result)
+
+      expect(command.execute(ct)).to eq(stop_result)
+      expect(command).to have_received(:call_cmd!).with(
+        stop_class,
+        pool: 'tank',
+        id: 'ct1',
+        timeout: nil,
+        method: 'shutdown_or_kill',
+        message: nil,
+        lifecycle_source: 'restart',
+        lifecycle_intent_id: 'intent-1',
+        lifecycle_recovery: true
+      )
     end
 
     it 'does not reverse a stop committed before network recovery gets the lock' do
