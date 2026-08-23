@@ -578,6 +578,10 @@ import ../../make-test.nix (
           _, nodectld_pid = machine.succeeds(
             'cat /service/nodectld/supervise/pid'
           )
+          _, nodectld_runsv_pid = machine.succeeds(
+            "ps -o ppid= -p #{Shellwords.escape(nodectld_pid.strip)} | " \
+              "tr -d ' '"
+          )
           machine.succeeds(
             'truncate -s 0 ${nodectldStateDir}/events && ' \
               'rm -f ${nodectldStateDir}/paused '
@@ -606,15 +610,21 @@ import ../../make-test.nix (
             'test -e /run/osctl/nodectld-upgrade-pause.json',
             'test -e ${nodectldStateDir}/paused',
             "test -e /etc/runit/services/nodectld/down",
-            "kill -KILL \"$(ps -o ppid= -p #{Shellwords.escape(nodectld_pid.strip)} | tr -d ' ')\"",
+            "kill -KILL #{Shellwords.escape(nodectld_runsv_pid.strip)}",
             'sleep 1',
             "kill -0 #{Shellwords.escape(nodectld_pid.strip)}",
             'test -S ${nodectldSocket}'
           )
-          machine.fails('sv check nodectld')
-          machine.succeeds(
-            "test \"$(cat /service/nodectld/supervise/pid)\" != " \
-              "#{Shellwords.escape(nodectld_pid.strip)}"
+          machine.wait_until_fails(
+            "kill -0 #{Shellwords.escape(nodectld_runsv_pid.strip)} " \
+              '2>/dev/null',
+            timeout: 30
+          )
+          machine.wait_until_succeeds(
+            "sv check nodectld && " \
+              "test \"$(cat /service/nodectld/supervise/pid)\" != " \
+              "#{Shellwords.escape(nodectld_pid.strip)}",
+            timeout: 30
           )
           machine.succeeds(
             "touch #{handoff_block}/release #{stopping_block}/release"
