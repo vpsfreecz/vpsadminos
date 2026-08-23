@@ -7,7 +7,7 @@ index 4ef21237c69a90d73d476fa749baff4a6874dfac..995168be4b01979208d0668939a204a1
 +#include <linux/vpsadminos-livepatch.h>
 +#include <linux/utsname.h>
 +#include <linux/vpsadminos-livepatch-build.h>
-@@ -922 +924,49 @@
+@@ -922 +924,63 @@
 -static void vpsadminos_pipapo_livepatch_post_patch(void)
 +#define VPSADMINOS_UTS_RELEASE_STATE_ID	0x008aa4605ec26339UL
 +#define VPSADMINOS_UTS_RELEASE_STATE_ACTIVE	((void *)1UL)
@@ -16,6 +16,20 @@ index 4ef21237c69a90d73d476fa749baff4a6874dfac..995168be4b01979208d0668939a204a1
 +__section(".kpatch.system_states") __used
 +__aligned(__alignof__(struct klp_state)) = {
 +	.id = VPSADMINOS_UTS_RELEASE_STATE_ID,
++	.version = 1,
++};
++
++/*
++ * The corrected transition core is part of every cumulative successor.
++ * A replacing predecessor which lacks this state must be rejected before it
++ * can synthesize fall-through entries for the corrected core functions.
++ */
++#define VPSADMINOS_TRANSITION_CORE_STATE_ID	0x37412083df994573UL
++
++static struct klp_state vpsadminos_transition_core_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_TRANSITION_CORE_STATE_ID,
 +	.version = 1,
 +};
 +
@@ -58,11 +72,11 @@ index 4ef21237c69a90d73d476fa749baff4a6874dfac..995168be4b01979208d0668939a204a1
 +}
 +
 +static void vpsadminos_pipapo_livepatch_post_patch(void)
-@@ -1004 +1054,2 @@
+@@ -1004 +1068,2 @@
 -	vpsadminos_livepatch_flush_tlb_all();
 +	vpsadminos_livepatch_flush_tlb_all();
 +	vpsadminos_livepatch_set_uname();
-@@ -1020 +1071,2 @@
+@@ -1020 +1085,2 @@
 -	vpsadminos_saferet_livepatch_post_unpatch();
 +	vpsadminos_saferet_livepatch_post_unpatch();
 +	vpsadminos_livepatch_restore_uname();
