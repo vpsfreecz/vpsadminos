@@ -21,6 +21,10 @@ import ../../make-template.nix (
           assert builtins.length transitionGuards <= 1;
           if transitionGuards == [ ] then null else builtins.head transitionGuards;
         transitionGuardName = if transitionGuard == null then null else transitionGuard.moduleName;
+        transitionBootstrap =
+          if transitionGuard == null then null else transitionGuard.bootstrap or null;
+        transitionBootstrapName =
+          if transitionBootstrap == null then null else transitionBootstrap.moduleName;
         predecessors = line.predecessors or { };
 
         kvmSmoke = pkgs.stdenv.mkDerivation {
@@ -84,6 +88,7 @@ import ../../make-template.nix (
             CANDIDATE_VERSION = ${toString candidateVersion}
             CANDIDATE_NAME = ${builtins.toJSON candidateName}
             TRANSITION_GUARD_NAME = ${builtins.toJSON transitionGuardName}
+            TRANSITION_BOOTSTRAP_NAME = ${builtins.toJSON transitionBootstrapName}
             EXPECTED_VENDOR = ${builtins.toJSON expectedVendor}
             KVM_MODULE = ${builtins.toJSON kvmModule}
             KVM_SMOKE = "/etc/livepatch-lifecycle/kvm-smoke"
@@ -146,6 +151,7 @@ import ../../make-template.nix (
 
               machine.fails("test -d /sys/module/#{TRANSITION_GUARD_NAME}")
               machine.fails("test -d #{patch_dir(TRANSITION_GUARD_NAME)}")
+              machine.fails("test -d /sys/module/#{TRANSITION_BOOTSTRAP_NAME}")
             end
 
             def unload_candidate(machine)
@@ -158,6 +164,7 @@ import ../../make-template.nix (
 
               machine.fails("test -d /sys/module/#{TRANSITION_GUARD_NAME}")
               machine.fails("test -d #{patch_dir(TRANSITION_GUARD_NAME)}")
+              machine.fails("test -d /sys/module/#{TRANSITION_BOOTSTRAP_NAME}")
 
               output = machine.succeeds("dmesg | tail -n +#{dmesg_start}")[1]
               markers = [
@@ -174,6 +181,21 @@ import ../../make-template.nix (
             def enable_patch(machine, module_path, name)
               machine.succeeds("insmod #{module_path}", timeout: 60)
               wait_for_patch(machine, name)
+            end
+
+            def enable_transition_guard(machine, module_path)
+              bootstrap = packaged_module(machine, TRANSITION_BOOTSTRAP_NAME)
+              machine.succeeds("insmod #{bootstrap}", timeout: 60)
+              machine.succeeds("insmod #{module_path}", timeout: 60)
+              dir = patch_dir(TRANSITION_GUARD_NAME)
+              if machine.execute("test \"$(cat #{dir}/transition 2>/dev/null)\" = 1")[0] == 0
+                machine.succeeds(
+                  "sh -c 'echo 1 > /sys/module/#{TRANSITION_BOOTSTRAP_NAME}/" \
+                  "parameters/kick_idle'"
+                )
+              end
+              wait_for_patch(machine, TRANSITION_GUARD_NAME)
+              machine.succeeds("rmmod #{TRANSITION_BOOTSTRAP_NAME}")
             end
 
             def disable_and_remove_patch(machine, name)
@@ -230,14 +252,17 @@ import ../../make-template.nix (
             )
             unless TRANSITION_GUARD_NAME.nil?
               transition_guard = packaged_module(machine, TRANSITION_GUARD_NAME)
+              transition_bootstrap = packaged_module(machine, TRANSITION_BOOTSTRAP_NAME)
               machine.all_succeed(
                 "test \"$(modinfo -F name #{transition_guard})\" = #{TRANSITION_GUARD_NAME}",
                 "modinfo -F vermagic #{transition_guard} | grep -q '^#{BOOT_VERSION} '",
+                "test \"$(modinfo -F name #{transition_bootstrap})\" = #{TRANSITION_BOOTSTRAP_NAME}",
+                "modinfo -F vermagic #{transition_bootstrap} | grep -q '^#{BOOT_VERSION} '",
               )
 
               # The prerequisite is itself a non-replacing livepatch and must
               # not change the public kernel version when loaded alone.
-              enable_patch(machine, transition_guard, TRANSITION_GUARD_NAME)
+              enable_transition_guard(machine, transition_guard)
               assert_release(machine, BOOT_VERSION)
               disable_and_remove_patch(machine, TRANSITION_GUARD_NAME)
             end

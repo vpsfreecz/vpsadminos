@@ -1,6 +1,7 @@
 let
   correctedModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_MODULE";
   transitionGuardModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_TRANSITION_GUARD_MODULE";
+  transitionBootstrapModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_TRANSITION_BOOTSTRAP_MODULE";
   releasedV1ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V1_MODULE";
   releasedV5ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE";
   predecessorModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE";
@@ -9,6 +10,7 @@ let
 in
 assert correctedModuleEnv != "";
 assert transitionGuardModuleEnv != "";
+assert transitionBootstrapModuleEnv != "";
 assert releasedV1ModuleEnv != "";
 assert releasedV5ModuleEnv != "";
 assert predecessorModuleEnv != "";
@@ -17,16 +19,20 @@ import ../../make-test.nix (
   let
     correctedModule = builtins.storePath correctedModuleEnv;
     transitionGuardModule = builtins.storePath transitionGuardModuleEnv;
+    transitionBootstrapModule = builtins.storePath transitionBootstrapModuleEnv;
     releasedV1Module = builtins.storePath releasedV1ModuleEnv;
     releasedV5Module = builtins.storePath releasedV5ModuleEnv;
     predecessorModule = builtins.storePath predecessorModuleEnv;
     correctedSha256 = builtins.hashFile "sha256" correctedModule;
     transitionGuardSha256 = builtins.hashFile "sha256" transitionGuardModule;
+    transitionBootstrapSha256 = builtins.hashFile "sha256" transitionBootstrapModule;
     releasedV1Sha256 = builtins.hashFile "sha256" releasedV1Module;
     releasedV5Sha256 = builtins.hashFile "sha256" releasedV5Module;
     predecessorSha256 = builtins.hashFile "sha256" predecessorModule;
     expectedCorrectedSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_SHA256";
     expectedTransitionGuardSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_TRANSITION_GUARD_SHA256";
+    expectedTransitionBootstrapSha256 =
+      builtins.getEnv "VPSADMINOS_LIVEPATCH_TRANSITION_BOOTSTRAP_SHA256";
     expectedReleasedV1Sha256 = "a3f79b223f1ad1eba764ed10e687b5800aea28b42eb1cc9fffb95f43d6260a30";
     expectedReleasedV5Sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
     expectedPredecessorSha256 = "70f22f6f2a1a5b0eaf57d09fdd8e988561adbea6c77fb59dcdf89b2415a9f79e";
@@ -438,6 +444,7 @@ import ../../make-test.nix (
         environment.etc = {
           "livepatch-test/corrected.ko".source = correctedModule;
           "livepatch-test/transition-guard.ko".source = transitionGuardModule;
+          "livepatch-test/transition-bootstrap.ko".source = transitionBootstrapModule;
           "livepatch-test/task-fleet".source = "${taskFleet}/bin/task_fleet";
           "livepatch-test/released-v1.ko".source = releasedV1Module;
           "livepatch-test/released-v5.ko".source = releasedV5Module;
@@ -462,6 +469,7 @@ import ../../make-test.nix (
   in
   assert correctedSha256 == expectedCorrectedSha256;
   assert transitionGuardSha256 == expectedTransitionGuardSha256;
+  assert transitionBootstrapSha256 == expectedTransitionBootstrapSha256;
   assert releasedV1Sha256 == expectedReleasedV1Sha256;
   assert releasedV5Sha256 == expectedReleasedV5Sha256;
   assert predecessorSha256 == expectedPredecessorSha256;
@@ -496,6 +504,7 @@ import ../../make-test.nix (
 
       CORRECTED_MODULE = "/etc/livepatch-test/corrected.ko"
       TRANSITION_GUARD_MODULE = "/etc/livepatch-test/transition-guard.ko"
+      TRANSITION_BOOTSTRAP_MODULE = "/etc/livepatch-test/transition-bootstrap.ko"
       TASK_FLEET = "/etc/livepatch-test/task-fleet"
       TASK_FLEET_STATE = "/run/livepatch-task-fleet"
       SCALE_VALIDATION = ${if scaleValidation then "true" else "false"}
@@ -518,6 +527,7 @@ import ../../make-test.nix (
       PROBE_PARAMETERS = "/sys/module/livepatch_test_probe/parameters"
       CORRECTED_NAME = "livepatch_7"
       TRANSITION_GUARD_NAME = "livepatch_transition_guard"
+      TRANSITION_BOOTSTRAP_NAME = "livepatch_transition_bootstrap"
       RELEASED_V1_NAME = "livepatch_1"
       RELEASED_V5_NAME = "livepatch_5"
       PREDECESSOR_NAME = "livepatch_predecessor_1"
@@ -712,6 +722,9 @@ import ../../make-test.nix (
         end
 
         unless machine.execute("test -d /sys/module/#{TRANSITION_GUARD_NAME}")[0] == 0
+          unless machine.execute("test -d /sys/module/#{TRANSITION_BOOTSTRAP_NAME}")[0] == 0
+            machine.succeeds("insmod #{TRANSITION_BOOTSTRAP_MODULE}")
+          end
           machine.succeeds("insmod #{TRANSITION_GUARD_MODULE}")
         end
 
@@ -719,7 +732,17 @@ import ../../make-test.nix (
           machine.succeeds("sh -c 'echo 1 > #{guard_dir}/enabled'")
         end
 
+        if machine.execute("test \"$(cat #{guard_dir}/transition 2>/dev/null)\" = 1")[0] == 0
+          machine.succeeds(
+            "sh -c 'echo 1 > /sys/module/#{TRANSITION_BOOTSTRAP_NAME}/" \
+            "parameters/kick_idle'"
+          )
+        end
+
         wait_for_patch(machine, TRANSITION_GUARD_NAME, 1, timeout: timeout)
+        if machine.execute("test -d /sys/module/#{TRANSITION_BOOTSTRAP_NAME}")[0] == 0
+          machine.succeeds("rmmod #{TRANSITION_BOOTSTRAP_NAME}")
+        end
       end
 
       def self.load_corrected(machine, timeout: 180)
@@ -1222,6 +1245,7 @@ import ../../make-test.nix (
           "rmmod \"$name\" >/dev/null 2>&1 || true; " \
           "done"
         )
+        machine.execute("rmmod #{TRANSITION_BOOTSTRAP_NAME} >/dev/null 2>&1 || true")
 
         machine.execute(
           "nft delete table inet klp_obj_pre_a >/dev/null 2>&1 || true; " \
