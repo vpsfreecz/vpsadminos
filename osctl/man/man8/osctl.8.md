@@ -3370,10 +3370,12 @@ register hooks during boot or service start.
 
 ## DAEMON SCRIPT HOOKS
 `pre-stop`
-  `pre-stop` is run after `osctld` enters the stopping state, but before it
-  stops accepting management clients. The hook is a blocking restart barrier.
-  A non-zero exit status aborts restart preparation and osctld runs its
-  `post-resume` hooks before reopening lifecycle admission.
+  `pre-stop` is run after `osctld` enters restart draining and closes lifecycle
+  admission. Management clients remain available, and osctld waits for active
+  lifecycle work only after the hook succeeds. The hook is a blocking restart
+  barrier and receives `OSCTL_DAEMON_STATE=stopping`. A non-zero exit status
+  aborts restart preparation and osctld runs its `post-resume` hooks before
+  reopening lifecycle admission.
 
 `post-resume`
   `post-resume` is run before lifecycle admission reopens after startup or a
