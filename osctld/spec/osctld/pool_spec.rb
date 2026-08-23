@@ -10,6 +10,7 @@ require 'osctld/utils/switch_user'
 require 'osctld/container'
 require 'osctld/container/builder'
 require 'osctld/container/lifecycle'
+require 'osctld/net_interface/base'
 require 'osctld/monitor'
 require 'osctld/monitor/master'
 require 'osctld/pool'
@@ -81,6 +82,10 @@ RSpec.describe OsCtld::Pool do
         residuals: []
       )
       allow(lifecycle).to receive(:adopt_legacy)
+      netif = instance_double(
+        OsCtld::NetInterface::Base,
+        observe_runtime: nil
+      )
       ct = instance_double(
         OsCtld::Container,
         get_run_conf: run_conf,
@@ -89,6 +94,7 @@ RSpec.describe OsCtld::Pool do
         ensure_run_conf: run_conf,
         lifecycle:,
         run_conf:,
+        netifs: [netif],
         ident: 'tank:ct1'
       )
       builder = instance_double(
@@ -114,6 +120,7 @@ RSpec.describe OsCtld::Pool do
 
       expect(loaded).to equal(ct)
       expect(ct).to have_received(:current_state_observation)
+      expect(netif).to have_received(:observe_runtime)
       expect(run_conf.init_pid).to eq(4321)
       expect(lifecycle).to have_received(:adopt_legacy).with(
         run_conf,

@@ -85,6 +85,17 @@ RSpec.describe OsCtld::NetInterface::Veth do
     expect(veth.veth).to eq('vethX')
   end
 
+  it 'observes a runtime discovered after interface setup' do
+    veth.create(name: 'eth0', hwaddr: nil)
+    veth.setup
+    expect(veth.veth).to be_nil
+
+    ct.running = true
+    veth.observe_runtime
+
+    expect(veth.veth).to eq('vethX')
+  end
+
   it 'reports a missing required host veth for controlled recovery' do
     ct.running = true
     veth.create(name: 'eth0', hwaddr: nil, enable: true)

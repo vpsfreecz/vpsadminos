@@ -750,6 +750,7 @@ module OsCtld
       runtime_observation = ct.current_state_observation
       runtime_state = runtime_observation.state
       live = runtime_live_state?(runtime_state)
+      ct.netifs.each(&:observe_runtime)
       ct.ensure_run_conf if live
 
       lifecycle = ct.lifecycle

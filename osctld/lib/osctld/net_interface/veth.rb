@@ -140,10 +140,17 @@ module OsCtld
         File.symlink(hook_src, symlink)
       end
 
+      observe_runtime
+    end
+
+    def observe_runtime
       return unless %i[running frozen].include?(ct.fresh_state)
 
       @veth = fetch_veth_name
-      return if host_link_exists?(@veth)
+      if host_link_exists?(@veth)
+        @runtime_health_error = nil
+        return
+      end
 
       @runtime_health_error = "host veth #{@veth.inspect} does not exist"
       log(:warn, ct, @runtime_health_error)

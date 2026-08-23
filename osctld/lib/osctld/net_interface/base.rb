@@ -98,6 +98,10 @@ module OsCtld
     # Initialize the interface on creation / osctld restart
     def setup; end
 
+    # Observe host-side runtime state after the container's authoritative LXC
+    # state has been inventoried.
+    def observe_runtime; end
+
     # Reconcile host-side runtime state after osctld starts.
     def reconcile_runtime(legacy_runtime: false)
       raise NotImplementedError
