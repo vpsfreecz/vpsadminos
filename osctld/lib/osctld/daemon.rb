@@ -757,7 +757,7 @@ module OsCtld
           eligible_phase = if blocked_only
                              @phase == :blocked
                            else
-                             %i[starting blocked ready].include?(@phase)
+                             %i[starting blocked].include?(@phase)
                            end
           eligible_phase && !@stopping
         end
@@ -776,7 +776,7 @@ module OsCtld
           phase_eligible = if blocked_only
                              @phase == :blocked
                            else
-                             %i[starting blocked ready].include?(@phase)
+                             %i[starting blocked].include?(@phase)
                            end
           phase_eligible &&= !@stopping
           if phase_eligible \

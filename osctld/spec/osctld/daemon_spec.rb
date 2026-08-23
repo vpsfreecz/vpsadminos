@@ -602,6 +602,30 @@ RSpec.describe OsCtld::Daemon do
       expect(pool).to have_received(:autostart).once
     end
 
+    it 'does not withdraw established readiness for ordinary lifecycle work' do
+      daemon = described_class.allocate
+      daemon.instance_variable_set(:@initialized, true)
+      daemon.instance_variable_set(:@phase, :ready)
+      daemon.instance_variable_set(:@lifecycle_admission, true)
+      daemon.instance_variable_set(:@lifecycle_admission_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      daemon.instance_variable_set(:@stopping, false)
+      daemon.instance_variable_set(:@recovery_failures, {})
+      daemon.instance_variable_set(:@orphans, [])
+      daemon.instance_variable_set(:@resume_hooks_complete, true)
+
+      allow(daemon).to receive(:lifecycle_restart_blockers).and_return(
+        [[nil, { type: 'daemon_lifecycle_task' }]]
+      )
+
+      expect(daemon.send(:complete_readiness_safely)).to be(false)
+
+      expect(daemon.phase).to eq(:ready)
+      expect(daemon.lifecycle_admission?).to be(true)
+      expect(daemon).not_to have_received(:lifecycle_restart_blockers)
+    end
+
     it 'lets a drain win while slow ready-service activation is in progress' do
       daemon = described_class.allocate
       restart = Struct.new(:drain_timeout, :cleanup_timeout).new(0, 0)
