@@ -696,14 +696,18 @@ RSpec.describe OsCtld::Container do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
         allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
-          Struct.new(:state).new(:running)
+          Struct.new(:state, :init_pid).new(:running, 4321)
         )
 
-        expect(ct.fresh_state).to eq(:running)
+        observation = ct.fresh_state_observation
+        expect(observation.state).to eq(:running)
+        expect(observation.init_pid).to eq(4321)
         expect(OsCtld::ContainerControl::Commands::State).to have_received(:run!).once
 
         ct.state = :stopped
-        expect(ct.fresh_state).to eq(:stopped)
+        observation = ct.fresh_state_observation
+        expect(observation.state).to eq(:stopped)
+        expect(observation.init_pid).to be_nil
         expect(OsCtld::ContainerControl::Commands::State).to have_received(:run!).once
       end
     end

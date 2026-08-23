@@ -743,7 +743,8 @@ module OsCtld
       ct.reconfigure
       DB::Containers.add(ct)
 
-      runtime_state = ct.fresh_state
+      runtime_observation = ct.fresh_state_observation
+      runtime_state = runtime_observation.state
       live = runtime_live_state?(runtime_state)
       ct.ensure_run_conf if live
 
@@ -751,6 +752,9 @@ module OsCtld
       if lifecycle.active_run_id \
           && (!ct.run_conf || ct.run_conf.run_id != lifecycle.active_run_id)
         ct.load_lifecycle_run_conf(lifecycle.active_run_id)
+      end
+      if live && runtime_observation.init_pid && ct.run_conf
+        ct.run_conf.init_pid = runtime_observation.init_pid
       end
       if ct.run_conf && lifecycle.active_run_id.nil?
         lifecycle.adopt_legacy(

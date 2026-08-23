@@ -16,6 +16,7 @@ module OsCtld
     include Utils::SwitchUser
 
     MAP_MODES = %w[native zfs].freeze
+    StateObservation = Struct.new(:id, :state, :init_pid)
 
     DEFAULT_START_TIMEOUT = 120
     DEFAULT_STOP_TIMEOUT = 300
@@ -421,22 +422,42 @@ module OsCtld
       end
     end
 
+    # Fetch current container state and init PID by forking into it
+    # @return [#state, #init_pid]
+    def current_state_observation
+      observation = ContainerControl::Commands::State.run!(self)
+      self.state = observation.state
+      observation
+    rescue ContainerControl::Error
+      self.state = :error
+      StateObservation.new(id, :error, nil)
+    end
+
     # Fetch current container state by forking into it
     # @return [Symbol]
     def current_state
-      self.state = ContainerControl::Commands::State.run!(self).state
-    rescue ContainerControl::Error
-      self.state = :error
+      current_state_observation.state
+    end
+
+    # Fetch current state and init PID if state is not known, otherwise return
+    # the known observation.
+    # @return [#state, #init_pid]
+    def fresh_state_observation
+      if state == :unknown
+        current_state_observation
+      else
+        StateObservation.new(
+          id,
+          state,
+          init_pid
+        )
+      end
     end
 
     # Fetch current state if the state is not known, otherwise return the known state
     # @return [Symbol]
     def fresh_state
-      if state == :unknown
-        current_state
-      else
-        state
-      end
+      fresh_state_observation.state
     end
 
     def running?
