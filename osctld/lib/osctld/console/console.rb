@@ -15,18 +15,59 @@ module OsCtld
     CONNECT_RETRY_ERRORS = [Errno::ENOENT, Errno::ECONNREFUSED].freeze
     CONNECT_RETRY_INTERVAL = 0.2
 
+    def initialize(*)
+      super
+      @connect_mutex = Mutex.new
+    end
+
     def open
       # Does nothing for tty0, it is opened automatically on ct start
     end
 
-    def connect(pid, socket, run_conf, effect_id: nil, intent_id: nil)
+    def connect(
+      pid,
+      socket,
+      run_conf,
+      effect_id: nil,
+      intent_id: nil,
+      retry_timeout: nil
+    )
+      @connect_mutex.synchronize do
+        do_connect(
+          pid,
+          socket,
+          run_conf,
+          effect_id:,
+          intent_id:,
+          retry_timeout:
+        )
+      end
+    end
+
+    protected
+
+    def do_connect(
+      pid,
+      socket,
+      run_conf,
+      effect_id:,
+      intent_id:,
+      retry_timeout:
+    )
       ensure_connection_current!(run_conf, effect_id:, intent_id:)
       wrapper = ProcessIdentity.capture(pid) if pid
+      retry_deadline = monotonic_now + retry_timeout if retry_timeout
 
       begin
         c = UNIXSocket.new(socket)
-      rescue *CONNECT_RETRY_ERRORS
-        raise if Daemon.get.stopping?
+      rescue *CONNECT_RETRY_ERRORS => e
+        daemon = Daemon.get
+        raise if daemon.stopping? || daemon.draining?
+
+        if retry_deadline && monotonic_now >= retry_deadline
+          raise e.class,
+                "console socket did not become available within #{retry_timeout}s"
+        end
 
         ensure_connection_current!(run_conf, effect_id:, intent_id:)
         if wrapper && !wrapper.alive?
@@ -34,7 +75,9 @@ module OsCtld
           raise 'container wrapper exited before the console became available'
         end
 
-        sleep(CONNECT_RETRY_INTERVAL)
+        sleep(
+          retry_deadline ? [CONNECT_RETRY_INTERVAL, retry_deadline - monotonic_now].min : CONNECT_RETRY_INTERVAL
+        )
         retry
       end
 
@@ -61,8 +104,6 @@ module OsCtld
       end
     end
 
-    protected
-
     def ensure_connection_current!(run_conf, effect_id:, intent_id:)
       return if connection_current?(run_conf, effect_id:, intent_id:)
 
@@ -82,6 +123,10 @@ module OsCtld
       end
 
       intent_id.nil? || lifecycle.current_intent_id == intent_id
+    end
+
+    def monotonic_now
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
 
     def on_close(run_conf)

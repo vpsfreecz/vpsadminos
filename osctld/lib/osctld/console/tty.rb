@@ -174,7 +174,9 @@ module OsCtld
       in_r.close
       out_w.close
 
-      process_id = ct.lifecycle.register_attachment(run_id, pid:)
+      process_id = Daemon.get.with_lifecycle_admission do
+        ct.lifecycle.register_attachment(run_id, pid:)
+      end
       unless process_id
         gate_w.close
         wait_tty_pid(pid)

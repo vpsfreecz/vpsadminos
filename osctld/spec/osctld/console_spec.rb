@@ -12,6 +12,10 @@ RSpec.describe OsCtld::Console do
     container_class = Class.new do
       attr_reader :ct, :connect_calls, :client_calls, :close_calls
 
+      class << self
+        attr_accessor :connect_handler
+      end
+
       def initialize(ct)
         @ct = ct
         @connect_calls = []
@@ -19,8 +23,9 @@ RSpec.describe OsCtld::Console do
         @close_calls = 0
       end
 
-      def connect_tty0(pid, socket, run_conf)
-        @connect_calls << [pid, socket, run_conf]
+      def connect_tty0(pid, socket, run_conf, **opts)
+        self.class.connect_handler&.call(self, pid, socket, run_conf, opts)
+        @connect_calls << [pid, socket, run_conf, opts]
       end
 
       def add_client(n, io)
@@ -78,10 +83,31 @@ RSpec.describe OsCtld::Console do
 
       container = described_class.container(ct)
       expect(container.connect_calls).to eq([
-                                              [101, File.join(tmpdir, 'ct1', 'tty0.sock'), run_conf],
-                                              [nil, File.join(tmpdir, 'ct1', 'tty0.sock'), run_conf]
+                                              [101, File.join(tmpdir, 'ct1', 'tty0.sock'), run_conf, {}],
+                                              [
+                                                nil,
+                                                File.join(tmpdir, 'ct1', 'tty0.sock'),
+                                                run_conf,
+                                                { retry_timeout: 5 }
+                                              ]
                                             ])
       expect(container.client_calls).to eq([[2, io]])
+    end
+  end
+
+  it 'degrades a stale tty0 socket without blocking pool import' do
+    with_tmpdir do |tmpdir|
+      pool = Struct.new(:name, :console_dir, keyword_init: true).new(name: 'tank', console_dir: tmpdir)
+      ct = Struct.new(:id, :pool, keyword_init: true).new(id: 'ct1', pool:)
+      run_conf = instance_double(OsCtld::Container::RunConfiguration)
+
+      FileUtils.mkdir_p(File.dirname(described_class.socket_path(ct)))
+      File.write(described_class.socket_path(ct), '')
+      OsCtld::Console::Container.connect_handler = lambda do |_console, *|
+        raise Errno::ECONNREFUSED
+      end
+
+      expect(described_class.reconnect_tty0(ct, run_conf)).to be(false)
     end
   end
 
@@ -99,5 +125,37 @@ RSpec.describe OsCtld::Console do
     expect(second.close_calls).to eq(0)
     expect(described_class.container(ct2)).to equal(second)
     expect(described_class.container(ct1)).not_to equal(first)
+  end
+
+  it 'does not serialize connections for unrelated containers' do
+    pool = Struct.new(:name, :console_dir, keyword_init: true).new(
+      name: 'tank',
+      console_dir: '/tmp/console'
+    )
+    ct1 = Struct.new(:id, :pool, keyword_init: true).new(id: 'ct1', pool:)
+    ct2 = Struct.new(:id, :pool, keyword_init: true).new(id: 'ct2', pool:)
+    run_conf = instance_double(OsCtld::Container::RunConfiguration)
+    entered = Queue.new
+    release = Queue.new
+    OsCtld::Console::Container.connect_handler = lambda do |console, *|
+      next unless console.ct.id == 'ct1'
+
+      entered << true
+      release.pop
+    end
+
+    first = Thread.new do
+      described_class.connect_tty0(ct1, nil, run_conf)
+    end
+    entered.pop
+    second = Thread.new do
+      described_class.connect_tty0(ct2, nil, run_conf)
+    end
+
+    expect(second.join(1)).to equal(second)
+  ensure
+    release << true if release
+    first&.join
+    second&.join
   end
 end

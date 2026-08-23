@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'osctld/console'
+require 'osctld/utils/switch_user'
 require 'osctld/console/console'
 require 'osctld/container'
 require 'osctld/container/lifecycle'
@@ -29,6 +30,7 @@ RSpec.describe OsCtld::Console::Console do
   let(:daemon) do
     Class.new do
       def stopping? = false
+      def draining? = false
     end.new
   end
 
@@ -74,6 +76,21 @@ RSpec.describe OsCtld::Console::Console do
       console.connect(123, '/tmp/tty0.sock', run_conf)
     end.to raise_error(RuntimeError, /wrapper exited/)
     expect(lifecycle).to have_received(:observe_wrapper_gone).with(run_id)
+  end
+
+  it 'bounds retries when adopting an existing console' do
+    console = described_class.new(ct, 0)
+    allow(console).to receive(:monotonic_now).and_return(10.0, 10.0)
+    allow(UNIXSocket).to receive(:new).and_raise(Errno::ECONNREFUSED)
+
+    expect do
+      console.connect(
+        nil,
+        '/tmp/tty0.sock',
+        run_conf,
+        retry_timeout: 0
+      )
+    end.to raise_error(Errno::ECONNREFUSED, /within 0s/)
   end
 
   it 'rejects a console connection after a newer generation takes the slot' do

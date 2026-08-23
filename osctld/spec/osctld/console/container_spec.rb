@@ -13,6 +13,10 @@ RSpec.describe OsCtld::Console::Container do
     console_class = Class.new do
       attr_reader :ct, :n, :clients, :connect_calls, :start_calls, :close_calls
 
+      class << self
+        attr_accessor :close_handler
+      end
+
       def initialize(ct, n)
         @ct = ct
         @n = n
@@ -35,6 +39,7 @@ RSpec.describe OsCtld::Console::Container do
       end
 
       def close
+        self.class.close_handler&.call(self)
         @close_calls += 1
       end
     end
@@ -92,5 +97,38 @@ RSpec.describe OsCtld::Console::Container do
 
     expect(tty0.close_calls).to eq(1)
     expect(tty1.close_calls).to eq(1)
+  end
+
+  it 'tombstones the container before racing client attachment can create a TTY' do
+    container = described_class.new(ct)
+    tty0 = container.tty(0)
+    close_entered = Queue.new
+    close_release = Queue.new
+    OsCtld::Console::Console.close_handler = lambda do |_tty|
+      close_entered << true
+      close_release.pop
+    end
+
+    close_thread = Thread.new { container.close_all }
+    close_entered.pop
+    client_thread = Thread.new do
+      container.add_client(1, StringIO.new)
+    rescue StandardError => e
+      e
+    end
+
+    expect(client_thread.join(0.1)).to be_nil
+    close_release << true
+    close_thread.join
+    error = client_thread.value
+
+    expect(error).to be_a(RuntimeError)
+    expect(error.message).to eq('console container is closed')
+    expect(tty0.close_calls).to eq(1)
+    expect(tty_instances).to be_empty
+  ensure
+    close_release << true if close_release && close_thread&.alive?
+    close_thread&.join
+    client_thread&.join
   end
 end
