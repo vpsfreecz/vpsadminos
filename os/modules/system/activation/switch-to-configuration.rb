@@ -1396,9 +1396,11 @@ class Services
   end
 
   def restart_before_osctld
+    deferred_nodectld = deferred_nodectld_restart
+
     restart.reject do |service|
       (service.name == 'osctld' && !service.skip?) \
-        || service == deferred_nodectld_restart
+        || (deferred_nodectld && service == deferred_nodectld)
     end
   end
 

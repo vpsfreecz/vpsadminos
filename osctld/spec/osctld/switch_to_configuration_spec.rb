@@ -1246,5 +1246,19 @@ RSpec.describe OsctldRestart do
         services.restart_after_osctld(nodectld_restarted: true)
       ).to eq([other])
     end
+
+    it 'handles changed services when nodectld is unchanged' do
+      services = described_class.allocate
+      other = Class.new do
+        def name = 'other'
+
+        def skip? = false
+      end.new
+      allow(services).to receive(:restart).and_return([other])
+      allow(other).to receive(:==).and_call_original
+
+      expect(services.restart_before_osctld).to eq([other])
+      expect(other).not_to have_received(:==).with(nil)
+    end
   end
 end
