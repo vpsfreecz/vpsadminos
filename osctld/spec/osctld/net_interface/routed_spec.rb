@@ -69,7 +69,12 @@ RSpec.describe OsCtld::NetInterface::Routed do
     FileUtils.mkdir_p(File.join(root, 'hooks-src'))
     allow(routed).to receive(:ip)
     allow(routed).to receive(:ct_syscmd)
-    allow(routed).to receive_messages(host_link_exists?: true, runtime_routes: [])
+    allow(routed).to receive_messages(
+      host_link_exists?: true,
+      runtime_qdiscs: [],
+      runtime_filters: [],
+      runtime_routes: []
+    )
     allow(File).to receive(:write).and_return(1)
   end
 

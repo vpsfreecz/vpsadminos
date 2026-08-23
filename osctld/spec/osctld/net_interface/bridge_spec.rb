@@ -54,6 +54,7 @@ RSpec.describe OsCtld::NetInterface::Bridge do
     allow(OsCtld::LockRegistry).to receive(:register)
     OsCtl::Lib::Logger.setup(:none)
     allow(bridge).to receive(:ct_syscmd)
+    allow(bridge).to receive_messages(runtime_qdiscs: [], runtime_filters: [])
   end
 
   after do
