@@ -534,7 +534,9 @@ import ../../make-test.nix (
             rm -f "$0"
             EOF
             chmod 700 #{handoff_hook}
-            osctl ct start --queue #{handoff_ctid}
+            setsid osctl ct start --queue #{handoff_ctid} \
+              >#{handoff_block}/client.log 2>&1 </dev/null &
+            echo $! > #{handoff_block}/client.pid
 
             rm -rf #{stopping_block}
             install -d -m 755 #{stopping_block}
