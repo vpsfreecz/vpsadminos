@@ -1,5 +1,5 @@
 diff --git a/kernel/livepatch/transition.c b/kernel/livepatch/transition.c
-index ba069459c1017b815101cc3aeb186d9407f7bd10..8334f265165588566c176a687b69b739776018ba 100644
+index ba069459c1017b815101cc3aeb186d9407f7bd10..f03497c69830c3272fb8b2926a57208020453929 100644
 --- a/kernel/livepatch/transition.c
 +++ b/kernel/livepatch/transition.c
 @@ -10,0 +11,3 @@
@@ -116,7 +116,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..8334f265165588566c176a687b69b739
 -		if (!klp_try_switch_task(task))
 -			complete = false;
 +		capacity++;
-@@ -474,0 +564,43 @@ void klp_try_complete_transition(void)
+@@ -474,0 +564,44 @@ void klp_try_complete_transition(void)
 +	if (capacity) {
 +		/*
 +		 * Leave room for forks between the count and fill passes.  Requiring
@@ -142,11 +142,12 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..8334f265165588566c176a687b69b739
 +			/* A larger-than-anticipated fork burst forces a later retry. */
 +			if (nr_tasks == capacity) {
 +				complete = false;
-+				break;
++				goto snapshot_full;
 +			}
 +			get_task_struct(task);
 +			tasks[nr_tasks++] = task;
 +		}
++snapshot_full:
 +		read_unlock(&tasklist_lock);
 +
 +		for (i = 0; i < nr_tasks; i++) {
@@ -160,9 +161,9 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..8334f265165588566c176a687b69b739
 +		kvfree(tasks);
 +	}
 +
-@@ -477,0 +610 @@ void klp_try_complete_transition(void)
+@@ -477,0 +611 @@ void klp_try_complete_transition(void)
 +idle_tasks:
-@@ -478,0 +612,13 @@ void klp_try_complete_transition(void)
+@@ -478,0 +613,13 @@ void klp_try_complete_transition(void)
 +	for_each_online_cpu(cpu) {
 +		/*
 +		 * Execute on the idle task's own CPU so it is either current or
@@ -176,7 +177,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..8334f265165588566c176a687b69b739
 +	}
 +
 +	/* Verify every idle task after all target-CPU callbacks have returned. */
-@@ -481,7 +627 @@ void klp_try_complete_transition(void)
+@@ -481,7 +628 @@ void klp_try_complete_transition(void)
 -		if (cpu_online(cpu)) {
 -			if (!klp_try_switch_task(task)) {
 -				complete = false;
@@ -185,6 +186,6 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..8334f265165588566c176a687b69b739
 -			}
 -		} else if (task->patch_state != klp_target_state) {
 +		if (!cpu_online(cpu) && task->patch_state != klp_target_state) {
-@@ -491,0 +632,2 @@ void klp_try_complete_transition(void)
+@@ -491,0 +633,2 @@ void klp_try_complete_transition(void)
 +		if (task->patch_state != klp_target_state)
 +			complete = false;
