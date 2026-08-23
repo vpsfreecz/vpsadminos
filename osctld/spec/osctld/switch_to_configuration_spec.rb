@@ -81,13 +81,23 @@ RSpec.describe OsctldRestart do
         test_service_process_identity
       end
     end
+    default_pause_path = !opts.has_key?(:nodectld_pause_path)
     default_down_path = !opts.has_key?(:nodectld_down_path)
+    suffix = "#{Process.pid}-#{Thread.current.object_id}"
     opts = {
+      nodectld_pause_path: File.join(
+        Dir.tmpdir,
+        "osctld-switch-#{suffix}.pause"
+      ),
       nodectld_down_path: File.join(
         Dir.tmpdir,
-        "osctld-switch-#{Process.pid}-#{Thread.current.object_id}.down"
+        "osctld-switch-#{suffix}.down"
       )
     }.merge(opts)
+    if default_pause_path
+      FileUtils.rm_f(opts[:nodectld_pause_path])
+      FileUtils.rm_f("#{opts[:nodectld_pause_path]}.lock")
+    end
     FileUtils.rm_f(opts[:nodectld_down_path]) if default_down_path
     ret = klass.new(coordinator_services, dry_run: false, **opts)
     ret.test_status = status
@@ -198,6 +208,61 @@ RSpec.describe OsctldRestart do
       expect(File).not_to exist(down_path)
       expect(restart.svc_calls).to eq(
         [%w[-o nodectld], %w[-d nodectld], %w[-u nodectld]]
+      )
+    end
+  end
+
+  it 'releases only the nodectld barrier owned by the coordinator' do
+    Dir.mktmpdir do |dir|
+      pause_path = File.join(dir, 'nodectld-pause.json')
+      boot_id_path = File.join(dir, 'boot-id')
+      File.write(boot_id_path, "boot-1\n")
+      restart = coordinator(
+        status: { 'initialized' => true, 'legacy' => true },
+        nodectld_pause_path: pause_path,
+        boot_id_path:
+      )
+      File.write(
+        pause_path,
+        JSON.generate(
+          'schema' => 1,
+          'boot_id' => 'boot-1',
+          'reason' => 'future-coordinator'
+        )
+      )
+
+      expect(restart.send(
+               :release_nodectld_pause,
+               'legacy-osctld-runtime-upgrade'
+             )).to eq(:deferred)
+      expect(JSON.parse(File.read(pause_path))).to include(
+        'reason' => 'future-coordinator'
+      )
+    end
+  end
+
+  it 'does not replace new marker ownership while rearming a resume' do
+    Dir.mktmpdir do |dir|
+      pause_path = File.join(dir, 'nodectld-pause.json')
+      boot_id_path = File.join(dir, 'boot-id')
+      File.write(boot_id_path, "boot-1\n")
+      restart = coordinator(
+        status: { 'initialized' => true, 'legacy' => true },
+        nodectld_pause_path: pause_path,
+        boot_id_path:
+      )
+      File.write(
+        pause_path,
+        JSON.generate(
+          'schema' => 1,
+          'boot_id' => 'boot-1',
+          'reason' => 'future-coordinator'
+        )
+      )
+
+      expect(restart.send(:persist_nodectld_resume_retry)).to be(false)
+      expect(JSON.parse(File.read(pause_path))).to include(
+        'reason' => 'future-coordinator'
       )
     end
   end

@@ -188,6 +188,9 @@ class OsctldRestart
   PROC_DIR = '/proc'.freeze
   RUNIT_SERVICE_CGROUP_DIR = '/run/runit/cgroup.service'.freeze
   NODECTLD_PAUSE_PATH = '/run/osctl/nodectld-upgrade-pause.json'.freeze
+  # Shared with vpsAdmin's NodeCtld::DaemonRestartBarrier. Every marker writer
+  # must hold this lock so ordinary hooks cannot replace coordinator ownership.
+  NODECTLD_PAUSE_LOCK_PATH = "#{NODECTLD_PAUSE_PATH}.lock".freeze
   NODECTLD_DOWN_PATH = '/etc/runit/services/nodectld/down'.freeze
   NODECTLD_DOWN_CONTENT = "osctld-runtime-upgrade\n".freeze
   NODECTLD_PAUSE_REASONS = %w[
@@ -215,6 +218,7 @@ class OsctldRestart
     service_stop_timeout: SERVICE_STOP_TIMEOUT,
     ready_timeout: READY_TIMEOUT,
     nodectld_pause_path: NODECTLD_PAUSE_PATH,
+    nodectld_pause_lock_path: nil,
     nodectld_down_path: NODECTLD_DOWN_PATH,
     boot_id_path: BOOT_ID_PATH
   )
@@ -227,6 +231,8 @@ class OsctldRestart
     @service_stop_timeout = service_stop_timeout
     @ready_timeout = ready_timeout
     @nodectld_pause_path = nodectld_pause_path
+    @nodectld_pause_lock_path = nodectld_pause_lock_path \
+      || "#{nodectld_pause_path}.lock"
     @nodectld_down_path = nodectld_down_path
     @boot_id_path = boot_id_path
     @legacy = false
@@ -350,7 +356,7 @@ class OsctldRestart
 
   protected
 
-  attr_reader :services, :service, :target_service, :legacy_settle_timeout, :legacy_stable_window, :service_stop_timeout, :ready_timeout, :dry_run, :legacy, :legacy_nodectld_paused, :nodectld_pause_path, :nodectld_down_path, :boot_id_path
+  attr_reader :services, :service, :target_service, :legacy_settle_timeout, :legacy_stable_window, :service_stop_timeout, :ready_timeout, :dry_run, :legacy, :legacy_nodectld_paused, :nodectld_pause_path, :nodectld_pause_lock_path, :nodectld_down_path, :boot_id_path
 
   def prepare_legacy
     merge_existing_handoff
@@ -459,17 +465,14 @@ class OsctldRestart
       'service_down_created' => @legacy_nodectld_down_created,
       'service_process' => @legacy_nodectld_identity
     }
-    dir = File.dirname(nodectld_pause_path)
-    FileUtils.mkdir_p(dir)
-    tmp = "#{nodectld_pause_path}.#{$$}.new"
-    File.write(tmp, JSON.pretty_generate(cfg))
-    File.chmod(0o600, tmp)
-    File.rename(tmp, nodectld_pause_path)
-  ensure
-    File.unlink(tmp) if tmp && File.exist?(tmp)
+    with_nodectld_pause_lock { write_nodectld_pause(cfg) }
   end
 
   def persisted_nodectld_pause
+    with_nodectld_pause_lock { read_nodectld_pause }
+  end
+
+  def read_nodectld_pause
     cfg = JSON.parse(File.read(nodectld_pause_path))
     unless cfg.is_a?(Hash) && cfg['boot_id'].is_a?(String)
       raise "invalid nodectld restart barrier at #{nodectld_pause_path}"
@@ -807,7 +810,8 @@ class OsctldRestart
     # unpaused. Remove the marker, then verify the currently supervised process
     # is also unpaused. If it restarted after acknowledging the first RPC but
     # before marker removal, the verification loop resumes that new process.
-    FileUtils.rm_f(nodectld_pause_path)
+    release = release_nodectld_pause(@nodectld_pause_reason)
+    return false if release == :deferred
     return true if wait_for_nodectld_unpaused
 
     persist_nodectld_resume_retry
@@ -841,6 +845,57 @@ class OsctldRestart
       'created_at' => Time.now.to_f,
       'reason' => 'osctld-restart'
     }
+    with_nodectld_pause_lock do
+      existing = JSON.parse(File.read(nodectld_pause_path))
+      current_boot = File.read(boot_id_path).strip
+      if !existing.is_a?(Hash) || !existing['boot_id'].is_a?(String) \
+          || (existing['boot_id'] == current_boot \
+            && (existing['schema'] != 1 \
+              || existing['reason'] != 'osctld-restart'))
+        return false
+      end
+
+      write_nodectld_pause(cfg) if existing['boot_id'] != current_boot
+      true
+    rescue Errno::ENOENT
+      write_nodectld_pause(cfg)
+      true
+    rescue JSON::ParserError
+      false
+    end
+  end
+
+  def release_nodectld_pause(reason)
+    with_nodectld_pause_lock do
+      cfg = JSON.parse(File.read(nodectld_pause_path))
+      current_boot = File.read(boot_id_path).strip
+      return :deferred unless cfg.is_a?(Hash) \
+        && cfg['schema'] == 1 \
+        && cfg['boot_id'] == current_boot \
+        && cfg['reason'] == reason
+
+      File.unlink(nodectld_pause_path)
+      :released
+    rescue Errno::ENOENT
+      :absent
+    rescue JSON::ParserError
+      :deferred
+    end
+  end
+
+  def with_nodectld_pause_lock
+    FileUtils.mkdir_p(File.dirname(nodectld_pause_lock_path))
+    File.open(
+      nodectld_pause_lock_path,
+      File::RDWR | File::CREAT,
+      0o600
+    ) do |lock|
+      lock.flock(File::LOCK_EX)
+      yield
+    end
+  end
+
+  def write_nodectld_pause(cfg)
     dir = File.dirname(nodectld_pause_path)
     FileUtils.mkdir_p(dir)
     tmp = "#{nodectld_pause_path}.#{$$}.new"

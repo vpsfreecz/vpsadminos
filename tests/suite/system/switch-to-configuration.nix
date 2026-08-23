@@ -24,40 +24,68 @@ import ../../make-test.nix (
       require 'fileutils'
       require 'json'
 
+      def with_pause_lock(path)
+        FileUtils.mkdir_p(File.dirname(path))
+        File.open(path, File::RDWR | File::CREAT, 0o600) do |lock|
+          lock.flock(File::LOCK_EX)
+          yield
+        end
+      end
+
+      def marker_state(path, current_boot)
+        cfg = JSON.parse(File.read(path))
+        return :owned unless cfg.is_a?(Hash) && cfg['boot_id'].is_a?(String)
+        return :stale unless cfg['boot_id'] == current_boot
+
+        cfg['schema'] == 1 && cfg['reason'] == 'osctld-restart' \
+          ? :ordinary \
+          : :owned
+      rescue Errno::ENOENT
+        :absent
+      rescue JSON::ParserError
+        :owned
+      end
+
       command = ARGV.fetch(0)
       pause_path = '/run/osctl/nodectld-upgrade-pause.json'
+      pause_lock_path = "#{pause_path}.lock"
+      current_boot = File.read('/proc/sys/kernel/random/boot_id').strip
       tmp = nil
       begin
         if command == 'resume'
-          begin
-            cfg = JSON.parse(File.read(pause_path))
-            current_boot = File.read('/proc/sys/kernel/random/boot_id').strip
-            if cfg['schema'] == 1 \
-                && cfg['boot_id'] == current_boot \
-                && cfg['reason'] == 'legacy-osctld-runtime-upgrade'
-              exit(0)
-            end
-          rescue Errno::ENOENT
-            nil
+          state = with_pause_lock(pause_lock_path) do
+            marker_state(pause_path, current_boot)
           end
+          exit(0) if state == :owned
         end
 
         if command == 'pause'
-          cfg = {
-            'schema' => 1,
-            'boot_id' => File.read('/proc/sys/kernel/random/boot_id').strip,
-            'created_at' => Time.now.to_f,
-            'reason' => 'osctld-restart',
-          }
-          FileUtils.mkdir_p(File.dirname(pause_path))
-          tmp = "#{pause_path}.#{$$}.new"
-          File.write(tmp, JSON.pretty_generate(cfg))
-          File.chmod(0o600, tmp)
-          File.rename(tmp, pause_path)
+          with_pause_lock(pause_lock_path) do
+            state = marker_state(pause_path, current_boot)
+            if %i[absent stale].include?(state)
+              cfg = {
+                'schema' => 1,
+                'boot_id' => current_boot,
+                'created_at' => Time.now.to_f,
+                'reason' => 'osctld-restart',
+              }
+              FileUtils.mkdir_p(File.dirname(pause_path))
+              tmp = "#{pause_path}.#{$$}.new"
+              File.write(tmp, JSON.pretty_generate(cfg))
+              File.chmod(0o600, tmp)
+              File.rename(tmp, pause_path)
+            end
+          end
         end
 
         succeeded = system(${builtins.toJSON nodectldClient}, command)
-        FileUtils.rm_f(pause_path) if succeeded && command == 'resume'
+        if succeeded && command == 'resume'
+          with_pause_lock(pause_lock_path) do
+            if marker_state(pause_path, current_boot) == :ordinary
+              File.unlink(pause_path)
+            end
+          end
+        end
         exit(succeeded ? 0 : 1)
       ensure
         File.unlink(tmp) if tmp && File.exist?(tmp)
@@ -604,6 +632,9 @@ import ../../make-test.nix (
             'test ! -S /run/osctl/osctld.sock',
             'test -e /run/osctl/upgrade-handoff.yml',
             'test -e /run/osctl/nodectld-upgrade-pause.json',
+            "${pkgs.ruby}/bin/ruby -rjson -e \"abort unless " \
+              "JSON.parse(File.read('/run/osctl/nodectld-upgrade-pause.json'))" \
+              "['reason'] == 'legacy-osctld-runtime-upgrade'\"",
             'test -e ${nodectldStateDir}/paused',
             'kill -KILL "$(cat /tmp/osctld-switch.pid)"',
             'touch /run/handoff-boundary-test/release'
