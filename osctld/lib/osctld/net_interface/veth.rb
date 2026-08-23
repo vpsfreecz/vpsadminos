@@ -350,20 +350,21 @@ module OsCtld
     end
 
     def reconcile_runtime_shaper_rx(legacy_runtime: false)
-      root_cake = runtime_qdiscs(veth).detect do |qdisc|
+      root_qdisc = runtime_qdiscs(veth).detect do |qdisc|
         qdisc['root']
       end
 
       if max_rx > 0
-        if root_cake.nil? \
-            || (legacy_runtime && legacy_cake_matches?(root_cake, max_rx))
+        if root_qdisc.nil? \
+            || kernel_default_qdisc?(root_qdisc) \
+            || (legacy_runtime && legacy_cake_matches?(root_qdisc, max_rx))
           replace_cake(veth, max_rx)
-        elsif osctld_cake?(root_cake)
-          replace_cake(veth, max_rx) unless cake_matches?(root_cake, max_rx)
+        elsif osctld_cake?(root_qdisc)
+          replace_cake(veth, max_rx) unless cake_matches?(root_qdisc, max_rx)
         else
           raise 'unowned receive qdisc conflicts with configured shaping'
         end
-      elsif osctld_cake?(root_cake)
+      elsif osctld_cake?(root_qdisc)
         tc(%W[qdisc delete root dev #{veth}], valid_rcs: [2])
       end
     end
@@ -497,6 +498,11 @@ module OsCtld
 
     def osctld_cake?(qdisc)
       qdisc && qdisc['handle'] == SHAPER_QDISC_HANDLE
+    end
+
+    def kernel_default_qdisc?(qdisc)
+      qdisc && qdisc['kind'] == 'noqueue' && qdisc['root'] \
+        && qdisc['handle'] == '0:'
     end
 
     def legacy_cake?(qdisc)

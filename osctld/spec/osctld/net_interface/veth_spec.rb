@@ -162,6 +162,20 @@ RSpec.describe OsCtld::NetInterface::Veth do
     )
   end
 
+  it 'replaces the kernel default qdisc with configured receive shaping' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 0, max_rx: 100, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [{ 'kind' => 'noqueue', 'root' => true, 'handle' => '0:' }]
+    )
+
+    expect(veth.reconcile_runtime).to include(status: 'healthy')
+    expect(veth).to have_received(:syscmd).with(
+      'tc qdisc replace dev vethX root handle 50c7: cake bandwidth 100bit',
+      {}
+    )
+  end
+
   it 'claims exact legacy receive shaping only with handoff provenance' do
     veth.create(name: 'eth0', hwaddr: nil, max_tx: 0, max_rx: 100, enable: true)
     veth.instance_variable_set(:@veth, 'vethX')
