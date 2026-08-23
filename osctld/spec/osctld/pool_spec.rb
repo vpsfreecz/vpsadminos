@@ -1,6 +1,17 @@
 # frozen_string_literal: true
 
 require 'osctld/attributes'
+
+module OsCtld
+  module Utils; end unless const_defined?(:Utils)
+end
+
+require 'osctld/utils/switch_user'
+require 'osctld/container'
+require 'osctld/container/builder'
+require 'osctld/container/lifecycle'
+require 'osctld/monitor'
+require 'osctld/monitor/master'
 require 'osctld/pool'
 
 RSpec.describe OsCtld::Pool do
@@ -58,7 +69,7 @@ RSpec.describe OsCtld::Pool do
       pool = build_pool(root: dir)
       run_id = Object.new
       run_conf = Struct.new(:run_id, :init_pid).new(run_id, nil)
-      runtime_observation = OsCtld::Container::StateObservation.new(
+      runtime_observation = Struct.new(:id, :state, :init_pid).new(
         'ct1',
         :frozen,
         4321
@@ -92,7 +103,8 @@ RSpec.describe OsCtld::Pool do
       allow(pool).to receive_messages(
         load_entity: ct,
         ensure_limits: nil,
-        legacy_manager_identities: []
+        legacy_manager_identities: [],
+        log: nil
       )
       allow(OsCtld::Container::Builder).to receive(:new).and_return(builder)
       allow(containers).to receive(:add)
