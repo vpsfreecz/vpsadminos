@@ -63,10 +63,10 @@ in
       ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
 
       restart = {
-        drain_timeout = 300;
-        cleanup_timeout = 60;
-        recovery_timeout = 300;
-        hook_timeout = 30;
+        drain_timeout = mkDefault 300;
+        cleanup_timeout = mkDefault 60;
+        recovery_timeout = mkDefault 300;
+        hook_timeout = mkDefault 30;
       };
     };
 
