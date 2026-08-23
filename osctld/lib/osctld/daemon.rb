@@ -99,6 +99,7 @@ module OsCtld
       @state_mutex = Mutex.new
       @state_cv = ConditionVariable.new
       @prepare_mutex = Mutex.new
+      @stop_thread = nil
       @lifecycle_admission_mutex = Mutex.new
       @lifecycle_tasks = {}
       @pre_stop_hooks_ran = false
@@ -218,6 +219,7 @@ module OsCtld
 
       # Wait for the server to finish
       join_server
+      join_stop_thread
     end
 
     def assets
@@ -385,6 +387,7 @@ module OsCtld
         @phase = :stopping
         @lifecycle_admission = false
         @stopping = true
+        @stop_thread = Thread.current
         @state_cv.broadcast
       end
       log(:info, 'Stopping daemon after successful lifecycle drain')
@@ -705,6 +708,14 @@ module OsCtld
     end
 
     protected
+
+    # Signal handlers stop the daemon from a helper thread. Closing the public
+    # server also releases setup's server join, but setup must not return and
+    # terminate that helper before it has drained clients and callback services.
+    def join_stop_thread
+      thread = state_sync { @stop_thread }
+      thread.join if thread && thread != Thread.current
+    end
 
     def state_sync(&)
       # Allocated daemon doubles used by focused specs predate initialization.

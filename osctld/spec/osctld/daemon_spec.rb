@@ -359,6 +359,28 @@ RSpec.describe OsCtld::Daemon do
     end
   end
 
+  describe '#join_stop_thread' do
+    it 'keeps the setup thread alive until signal-driven cleanup finishes' do
+      daemon = described_class.allocate
+      release = Queue.new
+      stop_thread = Thread.new { release.pop }
+      daemon.instance_variable_set(:@stop_thread, stop_thread)
+
+      setup_thread = Thread.new { daemon.send(:join_stop_thread) }
+      setup_thread.join(0.05)
+
+      expect(setup_thread).to be_alive
+
+      release << true
+      join_thread!(setup_thread)
+      join_thread!(stop_thread)
+    ensure
+      release << true if stop_thread&.alive?
+      join_thread!(setup_thread) if setup_thread
+      join_thread!(stop_thread) if stop_thread
+    end
+  end
+
   describe '#admit_lifecycle!' do
     it 'allows admitted command continuations but rejects new work while draining' do
       daemon = described_class.allocate
