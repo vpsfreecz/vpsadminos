@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'tmpdir'
+require 'rbconfig'
 
 load File.expand_path(
   '../../../os/modules/system/activation/switch-to-configuration.rb',
@@ -31,7 +32,8 @@ RSpec.describe OsctldRestart do
       attr_accessor :test_status, :test_commands, :test_wait_service_down,
                     :test_nodectld_remote, :test_service_supervised,
                     :test_svc, :test_target_nodectld_barrier,
-                    :test_nodectld_unpaused, :test_service_process_identity
+                    :test_nodectld_unpaused, :test_service_process_identity,
+                    :test_service_cgroup_empty
       attr_reader :calls, :nodectld_calls, :svc_calls
 
       protected
@@ -80,6 +82,10 @@ RSpec.describe OsctldRestart do
       def service_process_identity(_name)
         test_service_process_identity
       end
+
+      def service_cgroup_empty?(_name)
+        test_service_cgroup_empty != false
+      end
     end
     default_pause_path = !opts.has_key?(:nodectld_pause_path)
     default_down_path = !opts.has_key?(:nodectld_down_path)
@@ -112,6 +118,7 @@ RSpec.describe OsctldRestart do
       'pid' => 123,
       'start_time_ticks' => 456
     }
+    ret.test_service_cgroup_empty = true
     ret
   end
 
@@ -314,6 +321,10 @@ RSpec.describe OsctldRestart do
       )
       retry_restart.test_service_process_identity = identities.fetch(replacement_pid)
       allow(retry_restart).to receive(:service_process_identity).and_call_original
+      allow(retry_restart).to receive(:service_cgroup_pids)
+        .with('nodectld').and_return([old_pid])
+      allow(retry_restart).to receive(:service_cgroup_empty?)
+        .with('nodectld').and_return(true)
 
       retry_restart.send(:pause_legacy_nodectld)
       old_waiter = Thread.new { Process.wait(old_pid) }
@@ -523,8 +534,10 @@ RSpec.describe OsctldRestart do
 
   it 'terminates the exact legacy nodectld left by a dead supervisor' do
     Dir.mktmpdir do |dir|
+      cgroup_dir = File.join(dir, 'cgroup.service')
       boot_id_path = File.join(dir, 'boot-id')
       File.write(boot_id_path, "boot-1\n")
+      stub_const('OsctldRestart::RUNIT_SERVICE_CGROUP_DIR', cgroup_dir)
       restart = described_class.new(
         services,
         dry_run: false,
@@ -543,10 +556,20 @@ RSpec.describe OsctldRestart do
           'start_time_ticks' => tail.split.fetch(19).to_i
         }
       )
-      waiter = Thread.new { Process.wait(pid) }
-
+      FileUtils.mkdir_p(File.join(cgroup_dir, 'nodectld'))
+      File.write(
+        File.join(cgroup_dir, 'nodectld', 'cgroup.procs'),
+        "#{pid}\n"
+      )
+      File.write(
+        File.join(cgroup_dir, 'nodectld', 'cgroup.events'),
+        "populated 0\nfrozen 0\n"
+      )
       expect(restart.send(:stop_recorded_legacy_nodectld)).to be(true)
-      waiter.join
+      stat = File.read("/proc/#{pid}/stat")
+      expect(stat[stat.rindex(')') + 2]).to eq('Z')
+      expect { Process.kill(0, pid) }.not_to raise_error
+      Process.wait(pid)
       expect { Process.kill(0, pid) }.to raise_error(Errno::ESRCH)
     ensure
       begin
@@ -555,7 +578,139 @@ RSpec.describe OsctldRestart do
       rescue Errno::ESRCH, Errno::ECHILD
         nil
       end
-      waiter&.join
+    end
+  end
+
+  it 'waits when a zombie nodectld wrapper leaves a live service child' do
+    Dir.mktmpdir do |dir|
+      cgroup_dir = File.join(dir, 'cgroup.service')
+      child_pid_path = File.join(dir, 'child-pid')
+      boot_id_path = File.join(dir, 'boot-id')
+      File.write(boot_id_path, "boot-1\n")
+      stub_const('OsctldRestart::RUNIT_SERVICE_CGROUP_DIR', cgroup_dir)
+      wrapper_pid = Process.spawn(
+        RbConfig.ruby,
+        '-e',
+        <<~RUBY,
+          child_pid = Process.spawn('sleep', '30')
+          File.write(ARGV.fetch(0), child_pid)
+          sleep 30
+        RUBY
+        child_pid_path
+      )
+      Timeout.timeout(5) do
+        sleep(0.01) until File.exist?(child_pid_path)
+      end
+      child_pid = File.read(child_pid_path).to_i
+      stat = File.read("/proc/#{wrapper_pid}/stat")
+      tail = stat[stat.rindex(')') + 2..]
+      restart = described_class.new(
+        services,
+        dry_run: false,
+        nodectld_pause_path: File.join(dir, 'pause.json'),
+        nodectld_down_path: File.join(dir, 'down'),
+        boot_id_path:,
+        service_stop_timeout: 0.4
+      )
+      restart.instance_variable_set(
+        :@legacy_nodectld_identity,
+        {
+          'pid' => wrapper_pid,
+          'start_time_ticks' => tail.split.fetch(19).to_i
+        }
+      )
+      FileUtils.mkdir_p(File.join(cgroup_dir, 'nodectld'))
+      File.write(
+        File.join(cgroup_dir, 'nodectld', 'cgroup.procs'),
+        "#{wrapper_pid}\n#{child_pid}\n"
+      )
+      File.write(
+        File.join(cgroup_dir, 'nodectld', 'cgroup.events'),
+        "populated 1\nfrozen 0\n"
+      )
+
+      expect(restart.send(:stop_recorded_legacy_nodectld)).to be(false)
+      stat = File.read("/proc/#{wrapper_pid}/stat")
+      expect(stat[stat.rindex(')') + 2]).to eq('Z')
+      expect { Process.kill(0, child_pid) }.not_to raise_error
+    ensure
+      begin
+        Process.kill('KILL', child_pid) if child_pid
+      rescue Errno::ESRCH
+        nil
+      end
+      begin
+        Process.kill('KILL', wrapper_pid) if wrapper_pid
+        Process.wait(wrapper_pid)
+      rescue Errno::ESRCH, Errno::ECHILD
+        nil
+      end
+    end
+  end
+
+  it 'does not signal a PID whose identity changed while opening its pidfd' do
+    restart = coordinator(
+      status: { 'initialized' => true, 'legacy' => true }
+    )
+    identity = { 'pid' => 123, 'start_time_ticks' => 456 }
+    fd = IO.sysopen(File::NULL)
+    allow(LinuxPidfd).to receive(:pidfd_open).with(123, 0).and_return(fd)
+    allow(LinuxPidfd).to receive(:pidfd_send_signal)
+    allow(restart).to receive(:process_stat).with(123).and_return(
+      state: 'S',
+      parent_pid: 1,
+      start_time_ticks: 789
+    )
+
+    expect(
+      restart.send(
+        :signal_process_identity,
+        identity,
+        'TERM',
+        service: 'nodectld'
+      )
+    ).to be(false)
+    expect(LinuxPidfd).not_to have_received(:pidfd_send_signal)
+  end
+
+  it 'accepts only one well-formed cgroup v2 populated state' do
+    Dir.mktmpdir do |dir|
+      cgroup = File.join(dir, 'nodectld')
+      events_path = File.join(cgroup, 'cgroup.events')
+      FileUtils.mkdir_p(cgroup)
+      stub_const('OsctldRestart::RUNIT_SERVICE_CGROUP_DIR', dir)
+      restart = described_class.new(services, dry_run: true)
+
+      File.write(events_path, "populated 0\nfrozen 0\n")
+      expect(restart.send(:service_cgroup_empty?, 'nodectld')).to be(true)
+
+      File.write(events_path, "populated 1\nfrozen 0\n")
+      expect(restart.send(:service_cgroup_empty?, 'nodectld')).to be(false)
+
+      File.write(events_path, "populated 0\npopulated 1\n")
+      expect(restart.send(:service_cgroup_empty?, 'nodectld')).to be(false)
+
+      File.write(events_path, "populated 0 extra\n")
+      expect(restart.send(:service_cgroup_empty?, 'nodectld')).to be(false)
+    end
+  end
+
+  it 'requires an explicit cgroup v1 task-list proof' do
+    Dir.mktmpdir do |dir|
+      cgroup = File.join(dir, 'nodectld')
+      tasks_path = File.join(cgroup, 'tasks')
+      FileUtils.mkdir_p(cgroup)
+      File.write(File.join(cgroup, 'cgroup.procs'), '')
+      stub_const('OsctldRestart::RUNIT_SERVICE_CGROUP_DIR', dir)
+      restart = described_class.new(services, dry_run: true)
+
+      expect(restart.send(:service_cgroup_empty?, 'nodectld')).to be(false)
+
+      File.write(tasks_path, '')
+      expect(restart.send(:service_cgroup_empty?, 'nodectld')).to be(true)
+
+      File.write(tasks_path, "123\n")
+      expect(restart.send(:service_cgroup_empty?, 'nodectld')).to be(false)
     end
   end
 

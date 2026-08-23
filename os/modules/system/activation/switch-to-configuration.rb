@@ -1,9 +1,18 @@
 #!@ruby@/bin/ruby
 require 'fileutils'
+require 'fiddle/import'
 require 'json'
 require 'open3'
 require 'socket'
 require 'timeout'
+
+module LinuxPidfd
+  extend Fiddle::Importer
+
+  dlload Fiddle.dlopen(nil)
+  extern 'int pidfd_open(int, unsigned int)'
+  extern 'int pidfd_send_signal(int, int, void *, unsigned int)'
+end
 
 class Configuration
   OUT = '@out@'.freeze
@@ -209,6 +218,7 @@ class OsctldRestart
   READY_TIMEOUT = 300
   STABLE_STATES = %w[running stopped frozen].freeze
   LEGACY_START_STATES = %w[starting aborting].freeze
+  DEAD_PROCESS_STATES = %w[Z X x].freeze
 
   def initialize(
     services,
@@ -974,18 +984,18 @@ class OsctldRestart
 
   def stop_recorded_legacy_nodectld
     identity = @legacy_nodectld_identity
-    return true unless process_identity_alive?(identity)
+    signal_process_identity(identity, 'TERM', service: 'nodectld')
+    return true if !process_identity_alive?(identity) \
+      && service_cgroup_empty?('nodectld')
 
-    Process.kill('TERM', identity.fetch('pid'))
     deadline = monotonic_now + service_stop_timeout
     loop do
-      return true unless process_identity_alive?(identity)
+      return true if !process_identity_alive?(identity) \
+        && service_cgroup_empty?('nodectld')
       return false if monotonic_now >= deadline
 
       sleep(0.2)
     end
-  rescue Errno::ESRCH
-    true
   end
 
   def service_process_identity(name)
@@ -1017,18 +1027,43 @@ class OsctldRestart
     return false unless File.basename(cmdline.fetch(0)) == 'runsv'
     return false unless File.basename(cmdline.fetch(1)) == name
 
-    cgroup_pids = File.readlines(
+    cgroup_pids = service_cgroup_pids(name)
+    return false unless cgroup_pids.include?(pid)
+
+    current_stat = process_stat(pid)
+    current_stat && current_stat.fetch(:parent_pid) == parent_pid
+  rescue Errno::ENOENT, Errno::ESRCH, IndexError
+    false
+  end
+
+  def service_cgroup_pids(name)
+    File.readlines(
       File.join(RUNIT_SERVICE_CGROUP_DIR, name, 'cgroup.procs')
     ).filter_map do |line|
       Integer(line.strip, 10)
     rescue ArgumentError
       nil
     end
-    return false unless cgroup_pids.include?(pid)
+  end
 
-    current_stat = process_stat(pid)
-    current_stat && current_stat.fetch(:parent_pid) == parent_pid
-  rescue Errno::ENOENT, Errno::ESRCH, IndexError
+  def service_cgroup_empty?(name)
+    cgroup = File.join(RUNIT_SERVICE_CGROUP_DIR, name)
+    events_path = File.join(cgroup, 'cgroup.events')
+    if File.exist?(events_path)
+      events = File.readlines(events_path).map(&:split)
+      return false unless events.all? { |fields| fields.length == 2 }
+
+      populated = events.filter_map do |key, value|
+        value if key == 'populated'
+      end
+      return populated == ['0']
+    end
+
+    tasks_path = File.join(cgroup, 'tasks')
+    return false unless File.exist?(tasks_path)
+
+    File.foreach(tasks_path).none? { |line| !line.strip.empty? }
+  rescue Errno::ENOENT, Errno::ESRCH
     false
   end
 
@@ -1041,6 +1076,7 @@ class OsctldRestart
     return if fields.length <= 19
 
     {
+      state: fields.fetch(0),
       parent_pid: Integer(fields.fetch(1), 10),
       start_time_ticks: Integer(fields.fetch(19), 10)
     }
@@ -1062,11 +1098,55 @@ class OsctldRestart
     stat = process_stat(identity.fetch('pid'))
     return false unless stat
     return false unless stat.fetch(:start_time_ticks) == identity.fetch('start_time_ticks')
+    return false if DEAD_PROCESS_STATES.include?(stat.fetch(:state))
 
     Process.kill(0, identity.fetch('pid'))
     true
   rescue Errno::ENOENT, Errno::ESRCH
     false
+  end
+
+  def signal_process_identity(identity, signal, service:)
+    pidfd = open_process_identity(identity, service:)
+    return false unless pidfd
+
+    ret = LinuxPidfd.pidfd_send_signal(
+      pidfd.fileno,
+      Signal.list.fetch(signal),
+      nil,
+      0
+    )
+    raise SystemCallError.new('pidfd_send_signal', Fiddle.last_error) if ret == -1
+
+    true
+  rescue Errno::ESRCH
+    false
+  ensure
+    pidfd&.close
+  end
+
+  def open_process_identity(identity, service:)
+    return unless valid_process_identity?(identity)
+
+    pid = identity.fetch('pid')
+    fd = LinuxPidfd.pidfd_open(pid, 0)
+    raise SystemCallError.new('pidfd_open', Fiddle.last_error) if fd == -1
+
+    pidfd = IO.for_fd(fd)
+    stat = process_stat(pid)
+    return pidfd.close unless stat
+    return pidfd.close \
+      unless stat.fetch(:start_time_ticks) == identity.fetch('start_time_ticks')
+    return pidfd.close if DEAD_PROCESS_STATES.include?(stat.fetch(:state))
+    return pidfd.close unless service_cgroup_pids(service).include?(pid)
+
+    pidfd
+  rescue Errno::ENOENT, Errno::ESRCH
+    pidfd&.close
+    nil
+  rescue StandardError
+    pidfd&.close
+    raise
   end
 
   def wait_named_service_down(name)
