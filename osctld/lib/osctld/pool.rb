@@ -876,8 +876,9 @@ module OsCtld
       DB::Containers.get.select do |ct|
         ct.pool == self && runtime_live_state?(ct.state)
       end.each do |ct|
-        results = ct.netifs.filter_map do |netif|
-          netif.reconcile_runtime if netif.respond_to?(:reconcile_runtime)
+        legacy_runtime = Daemon.get.upgrade_handoff_runtime?(ct)
+        results = ct.netifs.map do |netif|
+          netif.reconcile_runtime(legacy_runtime:)
         end
         missing = results.select { |result| result[:status] == 'missing' }
         restart_required = results.select do |result|
@@ -904,7 +905,8 @@ module OsCtld
               ct,
               key,
               recovery_details,
-              intent_id
+              intent_id,
+              legacy_runtime:
             )
           else
             log(
@@ -922,13 +924,26 @@ module OsCtld
           )
         else
           Daemon.get.clear_recovery_failure(key)
+          Daemon.get.fulfil_upgrade_handoff_runtime(ct) if legacy_runtime
         end
       end
     end
 
-    def schedule_runtime_network_recovery(ct, key, missing, intent_id)
+    def schedule_runtime_network_recovery(
+      ct,
+      key,
+      missing,
+      intent_id,
+      legacy_runtime:
+    )
       thread = Thread.new do
-        recover_runtime_network(ct, key, missing, intent_id)
+        recover_runtime_network(
+          ct,
+          key,
+          missing,
+          intent_id,
+          legacy_runtime:
+        )
       end
       ThreadReaper.add(thread, nil, group: :durable_lifecycle)
     end
@@ -937,7 +952,13 @@ module OsCtld
       %i[running frozen].include?(state.to_sym)
     end
 
-    def recover_runtime_network(ct, key, missing, intent_id)
+    def recover_runtime_network(
+      ct,
+      key,
+      missing,
+      intent_id,
+      legacy_runtime:
+    )
       ret = Commands::Container::Restart.run(
         pool: name,
         id: ct.id,
@@ -949,6 +970,7 @@ module OsCtld
       )
       if ret[:status]
         Daemon.get.clear_recovery_failure(key)
+        Daemon.get.fulfil_upgrade_handoff_runtime(ct) if legacy_runtime
       else
         Daemon.get.record_recovery_failure(
           key,

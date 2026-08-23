@@ -124,4 +124,21 @@ RSpec.describe OsCtld::NetInterface::Bridge do
 
     expect(interface).to have_received(:ct_syscmd).once
   end
+
+  it 'reattaches a healthy host veth to its configured bridge' do
+    bridge.create(name: 'eth0', hwaddr: nil, link: 'br0')
+    bridge.instance_variable_set(:@veth, 'veth0')
+    allow(bridge).to receive(:ip)
+
+    expect(bridge.reconcile_runtime).to include(status: 'healthy')
+
+    expect(bridge).to have_received(:ip).with(
+      :all,
+      %w[link set veth0 up]
+    )
+    expect(bridge).to have_received(:ip).with(
+      :all,
+      %w[link set veth0 master br0]
+    )
+  end
 end

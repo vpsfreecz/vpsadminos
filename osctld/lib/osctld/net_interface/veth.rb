@@ -1,14 +1,19 @@
+require 'json'
 require 'libosctl'
 require 'osctld/net_interface/base'
 
 module OsCtld
   class NetInterface::Veth < NetInterface::Base
+    SHAPER_QDISC_HANDLE = '50c7:'.freeze
+    SHAPER_FILTER_PREF = 10
+    SHAPER_FILTER_HANDLE = 1
+
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
     include Utils::Ip
     include Utils::SwitchUser
 
-    attr_reader :veth
+    attr_reader :veth, :runtime_health_error
 
     # Number of transmit queues
     # @return [Integer]
@@ -135,9 +140,40 @@ module OsCtld
         File.symlink(hook_src, symlink)
       end
 
-      return if ct.fresh_state != :running
+      return unless %i[running frozen].include?(ct.fresh_state)
 
       @veth = fetch_veth_name
+      return if host_link_exists?(@veth)
+
+      @runtime_health_error = "host veth #{@veth.inspect} does not exist"
+      log(:warn, ct, @runtime_health_error)
+      @veth = nil
+    end
+
+    # Reapply host-side state which can be lost independently of the
+    # container. A missing enabled veth is not repairable in place because the
+    # peer exists in the container network namespace; callers must perform a
+    # controlled generation restart.
+    def reconcile_runtime(legacy_runtime: false)
+      unless veth
+        return {
+          status: enable ? 'missing' : 'disabled_missing',
+          interface: name,
+          error: runtime_health_error || 'host veth is unavailable'
+        }
+      end
+
+      ip(:all, %W[link set #{veth} #{enable ? 'up' : 'down'}])
+      reconcile_runtime_shaper_rx(legacy_runtime:)
+      reconcile_runtime_shaper_tx(legacy_runtime:)
+      { status: 'healthy', interface: name, veth: }
+    rescue StandardError => e
+      {
+        status: 'error',
+        interface: name,
+        veth:,
+        error: "#{e.class}: #{e.message}"
+      }
     end
 
     def rename(new_name)
@@ -305,41 +341,232 @@ module OsCtld
       v
     end
 
+    def host_link_exists?(name)
+      name && File.exist?(File.join('/sys/class/net', name))
+    end
+
     def ifb_veth
       "ifb#{veth}"
     end
 
+    def reconcile_runtime_shaper_rx(legacy_runtime: false)
+      root_cake = runtime_qdiscs(veth).detect do |qdisc|
+        qdisc['root']
+      end
+
+      if max_rx > 0
+        if root_cake.nil? \
+            || (legacy_runtime && legacy_cake_matches?(root_cake, max_rx))
+          replace_cake(veth, max_rx)
+        elsif osctld_cake?(root_cake)
+          replace_cake(veth, max_rx) unless cake_matches?(root_cake, max_rx)
+        else
+          raise 'unowned receive qdisc conflicts with configured shaping'
+        end
+      elsif osctld_cake?(root_cake)
+        tc(%W[qdisc delete root dev #{veth}], valid_rcs: [2])
+      end
+    end
+
+    def reconcile_runtime_shaper_tx(legacy_runtime: false)
+      qdiscs = runtime_qdiscs(veth)
+      filters = runtime_filters(veth)
+      ifb_exists = Dir.exist?("/sys/devices/virtual/net/#{ifb_veth}")
+      ifb_qdiscs = ifb_exists ? runtime_qdiscs(ifb_veth) : []
+      owned_filters = filters.select { |filter| osctld_tx_filter?(filter) }
+      legacy_filters = if legacy_runtime && max_tx > 0
+                         filters.select do |filter|
+                           !osctld_tx_filter?(filter) \
+                             && legacy_tx_filter?(filter, qdiscs, ifb_qdiscs)
+                         end
+                       else
+                         []
+                       end
+      foreign_filters = filters - owned_filters - legacy_filters
+
+      if max_tx > 0
+        ifb_root = ifb_qdiscs.detect { |qdisc| qdisc['root'] }
+        legacy_ifb_owned = legacy_runtime \
+          && (legacy_filters.one? || owned_filters.any?) \
+          && legacy_cake_matches?(ifb_root, max_tx, besteffort: true)
+        if ifb_root \
+            && !osctld_cake?(ifb_root) \
+            && !legacy_ifb_owned
+          raise 'unowned transmit qdisc conflicts with configured shaping'
+        end
+        if legacy_filters.length > 1
+          raise 'multiple legacy transmit filters have ambiguous ownership'
+        end
+        if legacy_filters.any? && owned_filters.any?
+          raise 'owned and legacy transmit filters coexist'
+        end
+
+        conflicting = foreign_filters.any? do |filter|
+          tx_filter_action_matches?(filter)
+        end
+        if conflicting
+          raise 'unowned transmit filter conflicts with configured shaping'
+        end
+      end
+
+      if max_tx > 0
+        unless ifb_exists
+          ip(:all, %W[link add name #{ifb_veth} type ifb])
+        end
+        unless qdiscs.any? { |qdisc| qdisc['kind'] == 'ingress' }
+          tc(%W[qdisc add dev #{veth} handle ffff: ingress])
+        end
+        ifb_cake = ifb_qdiscs.detect { |qdisc| qdisc['root'] }
+        unless cake_matches?(ifb_cake, max_tx, besteffort: true)
+          replace_cake(ifb_veth, max_tx, besteffort: true)
+        end
+        ip(:all, %W[link set #{ifb_veth} up])
+        desired_filter = owned_filters.detect do |filter|
+          tx_filter_matches?(filter)
+        end
+        if desired_filter
+          owned_filters.reject { |filter| filter.equal?(desired_filter) }
+                       .each { |filter| delete_runtime_tx_filter(filter) }
+        else
+          # Deleting old entries has to happen before replace because all
+          # osctld-owned filters deliberately share the reserved identity.
+          owned_filters.each { |filter| delete_runtime_tx_filter(filter) }
+        end
+        legacy_filters.each { |filter| delete_runtime_tx_filter(filter) }
+        unless desired_filter
+          replace_runtime_tx_filter
+        end
+        return
+      end
+
+      owned_filters.each { |filter| delete_runtime_tx_filter(filter) }
+      owned_ifb = ifb_qdiscs.any? { |qdisc| osctld_cake?(qdisc) }
+      ownership_evidence = owned_filters.any? || owned_ifb
+      if ownership_evidence \
+          && foreign_filters.empty? \
+          && qdiscs.any? { |qdisc| qdisc['kind'] == 'ingress' }
+        tc(
+          %W[qdisc delete dev #{veth} handle ffff: ingress],
+          valid_rcs: [2]
+        )
+      end
+      return unless ownership_evidence && foreign_filters.empty?
+      return unless ifb_exists
+
+      ip(:all, %W[link del #{ifb_veth}], valid_rcs: [1])
+    end
+
+    def runtime_qdiscs(device)
+      JSON.parse(tc(%W[-json qdisc show dev #{device}]).output)
+    end
+
+    def runtime_filters(device)
+      JSON.parse(
+        tc(%W[-json filter show dev #{device} parent ffff:]).output
+      )
+    end
+
+    def osctld_tx_filter?(filter)
+      filter['kind'] == 'matchall' \
+        && filter['pref'].to_i == SHAPER_FILTER_PREF \
+        && filter.dig('options', 'handle').to_i == SHAPER_FILTER_HANDLE
+    end
+
+    def tx_filter_matches?(filter)
+      osctld_tx_filter?(filter) \
+        && filter['protocol'].to_s == 'all' \
+        && tx_filter_action_matches?(filter)
+    end
+
+    def tx_filter_action_matches?(filter)
+      actions = filter.dig('options', 'actions') || []
+      actions.length == 1 \
+        && actions.first['kind'] == 'mirred' \
+        && actions.first['mirred_action'] == 'redirect' \
+        && actions.first['direction'] == 'egress' \
+        && actions.first['to_dev'] == ifb_veth
+    end
+
+    def legacy_tx_filter?(filter, veth_qdiscs, ifb_qdiscs)
+      return false unless filter['kind'] == 'matchall'
+      return false unless tx_filter_action_matches?(filter)
+      return false unless veth_qdiscs.any? { |qdisc| qdisc['kind'] == 'ingress' }
+
+      ifb_qdiscs.any? { |qdisc| legacy_cake?(qdisc) }
+    end
+
+    def osctld_cake?(qdisc)
+      qdisc && qdisc['handle'] == SHAPER_QDISC_HANDLE
+    end
+
+    def legacy_cake?(qdisc)
+      qdisc && qdisc['kind'] == 'cake' && qdisc['root'] \
+        && !osctld_cake?(qdisc)
+    end
+
+    def legacy_cake_matches?(qdisc, bandwidth, besteffort: false)
+      return false unless legacy_cake?(qdisc)
+
+      cake_options_match?(qdisc, bandwidth, besteffort:)
+    end
+
+    def cake_matches?(qdisc, bandwidth, besteffort: false)
+      return false unless qdisc && qdisc['kind'] == 'cake' && qdisc['root']
+      return false unless osctld_cake?(qdisc)
+
+      cake_options_match?(qdisc, bandwidth, besteffort:)
+    end
+
+    def cake_options_match?(qdisc, bandwidth, besteffort: false)
+      expected_bandwidth = (bandwidth + 7) / 8
+      return false unless qdisc.dig('options', 'bandwidth').to_i == expected_bandwidth
+      return true unless besteffort
+
+      qdisc.dig('options', 'diffserv') == 'besteffort'
+    end
+
+    def replace_cake(device, bandwidth, besteffort: false)
+      args = %W[
+        qdisc replace dev #{device} root handle #{SHAPER_QDISC_HANDLE}
+        cake bandwidth #{bandwidth}bit
+      ]
+      args << 'besteffort' if besteffort
+      tc(args)
+    end
+
+    def replace_runtime_tx_filter
+      tc(
+        %W[
+          filter replace dev #{veth} parent ffff: protocol all
+          pref #{SHAPER_FILTER_PREF} handle #{SHAPER_FILTER_HANDLE} matchall
+          action mirred egress redirect dev #{ifb_veth}
+        ]
+      )
+    end
+
+    def delete_runtime_tx_filter(filter)
+      args = %W[filter delete dev #{veth} parent ffff:]
+      args.push('protocol', filter['protocol'].to_s) if filter['protocol']
+      args.push('pref', filter.fetch('pref').to_s)
+      handle = filter.dig('options', 'handle')
+      args.push('handle', handle.to_s, filter.fetch('kind')) if handle
+      tc(args, valid_rcs: [2])
+    end
+
     def set_shaper_rx
-      tc(%W[qdisc delete root dev #{veth}], valid_rcs: [2])
-      tc(%W[qdisc add root dev #{veth} cake bandwidth #{max_rx}bit])
+      reconcile_runtime_shaper_rx
     end
 
     def unset_shaper_rx
-      tc(%W[qdisc delete root dev #{veth}], valid_rcs: [2])
+      reconcile_runtime_shaper_rx
     end
 
     def set_shaper_tx
-      ifb_exists = Dir.exist?("/sys/devices/virtual/net/#{ifb_veth}")
-
-      unless ifb_exists
-        ip(:all, %W[link add name #{ifb_veth} type ifb])
-        tc(%W[qdisc del dev #{veth} ingress], valid_rcs: [2])
-        tc(%W[qdisc add dev #{veth} handle ffff: ingress])
-      end
-
-      tc(%W[qdisc del dev #{ifb_veth} root], valid_rcs: [2])
-      tc(%W[qdisc add dev #{ifb_veth} root cake bandwidth #{max_tx}bit besteffort])
-
-      return if ifb_exists
-
-      ip(:all, %W[link set #{ifb_veth} up])
-      tc(%W[filter add dev #{veth} parent ffff: matchall action mirred egress redirect dev #{ifb_veth}])
+      reconcile_runtime_shaper_tx
     end
 
     def unset_shaper_tx
-      tc(%W[filter delete dev #{veth} parent ffff:])
-      tc(%W[qdisc delete dev #{veth} handle ffff: ingress])
-      ip(:all, %W[link del #{ifb_veth}])
+      reconcile_runtime_shaper_tx
     end
 
     def veth_hook_dir

@@ -98,6 +98,11 @@ module OsCtld
     # Initialize the interface on creation / osctld restart
     def setup; end
 
+    # Reconcile host-side runtime state after osctld starts.
+    def reconcile_runtime(legacy_runtime: false)
+      raise NotImplementedError
+    end
+
     # Return variables for template generating LXC configuration for this
     # interface
     # @return [Hash]

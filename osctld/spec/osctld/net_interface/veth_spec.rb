@@ -38,6 +38,7 @@ RSpec.describe OsCtld::NetInterface::Veth do
     OsCtld.define_singleton_method(:hook_src) { |name| File.join(hook_root, 'hooks-src', name) }
     FileUtils.mkdir_p(File.join(root, 'hooks-src'))
     allow(veth).to receive(:syscmd)
+    allow(veth).to receive_messages(host_link_exists?: true, runtime_qdiscs: [], runtime_filters: [])
   end
 
   after do
@@ -72,6 +73,467 @@ RSpec.describe OsCtld::NetInterface::Veth do
     expect(File.symlink?(File.join(pool.hook_dir, 'veth', 'up', 'ct1.eth0'))).to be(true)
     expect(File.symlink?(File.join(pool.hook_dir, 'veth', 'down', 'ct1.eth0'))).to be(true)
     expect(veth.veth).to eq('vethX')
+  end
+
+  it 'discovers the existing host veth while the container is frozen' do
+    ct.fresh_state = :frozen
+    ct.state = :frozen
+    veth.create(name: 'eth0', hwaddr: nil)
+
+    veth.setup
+
+    expect(veth.veth).to eq('vethX')
+  end
+
+  it 'reports a missing required host veth for controlled recovery' do
+    ct.running = true
+    veth.create(name: 'eth0', hwaddr: nil, enable: true)
+    allow(veth).to receive(:host_link_exists?).and_return(false)
+
+    veth.setup
+
+    expect(veth.veth).to be_nil
+    expect(veth.reconcile_runtime).to include(
+      status: 'missing',
+      interface: 'eth0'
+    )
+  end
+
+  it 'repairs missing transmit shaping during runtime reconciliation' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 100, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+
+    expect(veth.reconcile_runtime).to include(status: 'healthy')
+
+    expect(veth).to have_received(:syscmd).with(
+      'tc filter replace dev vethX parent ffff: protocol all pref 10 handle 1 matchall action mirred egress redirect dev ifbvethX',
+      {}
+    )
+  end
+
+  it 'preserves unowned shaping when no limit is configured' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 0, max_rx: 0, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [
+        { 'kind' => 'cake', 'root' => true },
+        { 'kind' => 'ingress', 'handle' => 'ffff:' }
+      ]
+    )
+    allow(veth).to receive(:runtime_filters).with('vethX').and_return(
+      [
+        {
+          'kind' => 'matchall',
+          'protocol' => 'all',
+          'pref' => 49_152,
+          'options' => { 'actions' => [{ 'to_dev' => 'ifbvethX' }] }
+        }
+      ]
+    )
+
+    expect(veth.reconcile_runtime).to include(status: 'healthy')
+
+    expect(veth).not_to have_received(:syscmd).with(
+      'tc qdisc delete root dev vethX',
+      anything
+    )
+  end
+
+  it 'blocks configured receive shaping on a foreign root qdisc' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 0, max_rx: 100, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [{ 'kind' => 'fq_codel', 'root' => true, 'handle' => '8001:' }]
+    )
+
+    expect(veth.reconcile_runtime).to include(
+      status: 'error',
+      error: /unowned receive qdisc/
+    )
+    expect(veth).not_to have_received(:syscmd).with(
+      a_string_including('qdisc replace'),
+      anything
+    )
+  end
+
+  it 'claims exact legacy receive shaping only with handoff provenance' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 0, max_rx: 100, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    legacy = {
+      'kind' => 'cake',
+      'root' => true,
+      'handle' => '8001:',
+      'options' => { 'bandwidth' => 13 }
+    }
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return([legacy])
+
+    expect(veth.reconcile_runtime).to include(
+      status: 'error',
+      error: /unowned receive qdisc/
+    )
+    expect(veth.reconcile_runtime(legacy_runtime: true)).to include(
+      status: 'healthy'
+    )
+    expect(veth).to have_received(:syscmd).with(
+      'tc qdisc replace dev vethX root handle 50c7: cake bandwidth 100bit',
+      {}
+    ).once
+  end
+
+  it 'preserves an exact legacy-shaped foreign transmit filter without provenance' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 100, max_rx: 0, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [{ 'kind' => 'ingress', 'handle' => 'ffff:' }]
+    )
+    allow(veth).to receive(:runtime_qdiscs).with('ifbvethX').and_return(
+      [
+        {
+          'kind' => 'cake',
+          'root' => true,
+          'handle' => '50c7:',
+          'options' => { 'bandwidth' => 13, 'diffserv' => 'besteffort' }
+        }
+      ]
+    )
+    allow(veth).to receive(:runtime_filters).with('vethX').and_return(
+      [
+        {
+          'kind' => 'matchall',
+          'protocol' => 'all',
+          'pref' => 49_152,
+          'options' => {
+            'handle' => 1,
+            'actions' => [
+              {
+                'kind' => 'mirred',
+                'mirred_action' => 'redirect',
+                'direction' => 'egress',
+                'to_dev' => 'ifbvethX'
+              }
+            ]
+          }
+        }
+      ]
+    )
+
+    expect(veth.reconcile_runtime).to include(
+      status: 'error',
+      error: /unowned transmit filter/
+    )
+    expect(veth).not_to have_received(:syscmd).with(
+      a_string_matching(/tc (?:qdisc|filter) (?:delete|replace)/),
+      anything
+    )
+  end
+
+  it 'claims exact legacy transmit shaping with handoff provenance' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 100, max_rx: 0, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [{ 'kind' => 'ingress', 'handle' => 'ffff:' }]
+    )
+    allow(veth).to receive(:runtime_qdiscs).with('ifbvethX').and_return(
+      [
+        {
+          'kind' => 'cake',
+          'root' => true,
+          'handle' => '8001:',
+          'options' => { 'bandwidth' => 13, 'diffserv' => 'besteffort' }
+        }
+      ]
+    )
+    allow(veth).to receive(:runtime_filters).with('vethX').and_return(
+      [
+        {
+          'kind' => 'matchall',
+          'protocol' => 'all',
+          'pref' => 49_152,
+          'options' => {
+            'handle' => 1,
+            'actions' => [
+              {
+                'kind' => 'mirred',
+                'mirred_action' => 'redirect',
+                'direction' => 'egress',
+                'to_dev' => 'ifbvethX'
+              }
+            ]
+          }
+        }
+      ]
+    )
+
+    expect(veth.reconcile_runtime(legacy_runtime: true)).to include(
+      status: 'healthy'
+    )
+    expect(veth).to have_received(:syscmd).with(
+      'tc qdisc replace dev ifbvethX root handle 50c7: cake bandwidth 100bit besteffort',
+      {}
+    ).ordered
+    expect(veth).to have_received(:syscmd).with(
+      'tc filter delete dev vethX parent ffff: protocol all pref 49152 handle 1 matchall',
+      valid_rcs: [2]
+    ).ordered
+    expect(veth).to have_received(:syscmd).with(
+      'tc filter replace dev vethX parent ffff: protocol all pref 10 handle 1 matchall action mirred egress redirect dev ifbvethX',
+      {}
+    ).ordered
+  end
+
+  it 'does not claim a legacy-looking IFB without its redirect filter' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 100, max_rx: 0, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [{ 'kind' => 'ingress', 'handle' => 'ffff:' }]
+    )
+    allow(veth).to receive(:runtime_qdiscs).with('ifbvethX').and_return(
+      [
+        {
+          'kind' => 'cake',
+          'root' => true,
+          'handle' => '8001:',
+          'options' => { 'bandwidth' => 13, 'diffserv' => 'besteffort' }
+        }
+      ]
+    )
+    allow(veth).to receive(:runtime_filters).with('vethX').and_return([])
+
+    expect(veth.reconcile_runtime(legacy_runtime: true)).to include(
+      status: 'error',
+      error: /unowned transmit qdisc/
+    )
+    expect(veth).not_to have_received(:syscmd).with(
+      a_string_matching(/tc (?:qdisc|filter) (?:delete|replace)/),
+      anything
+    )
+  end
+
+  it 'removes stale owned shaping when no limits are configured' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 0, max_rx: 0, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [
+        { 'kind' => 'cake', 'root' => true, 'handle' => '50c7:' },
+        { 'kind' => 'ingress', 'handle' => 'ffff:' }
+      ]
+    )
+    allow(veth).to receive(:runtime_qdiscs).with('ifbvethX').and_return(
+      [{ 'kind' => 'cake', 'root' => true, 'handle' => '50c7:' }]
+    )
+    allow(veth).to receive(:runtime_filters).with('vethX').and_return(
+      [
+        {
+          'kind' => 'matchall',
+          'protocol' => 'all',
+          'pref' => 10,
+          'options' => {
+            'handle' => 1,
+            'actions' => [
+              {
+                'kind' => 'mirred',
+                'mirred_action' => 'redirect',
+                'direction' => 'egress',
+                'to_dev' => 'ifbvethX'
+              }
+            ]
+          }
+        }
+      ]
+    )
+
+    expect(veth.reconcile_runtime).to include(status: 'healthy')
+
+    expect(veth).to have_received(:syscmd).with(
+      'tc qdisc delete root dev vethX',
+      valid_rcs: [2]
+    )
+    expect(veth).to have_received(:syscmd).with(
+      'tc filter delete dev vethX parent ffff: protocol all pref 10 handle 1 matchall',
+      valid_rcs: [2]
+    )
+    expect(veth).to have_received(:syscmd).with(
+      'tc qdisc delete dev vethX handle ffff: ingress',
+      valid_rcs: [2]
+    )
+    expect(veth).to have_received(:syscmd).with(
+      'ip link del ifbvethX',
+      valid_rcs: [1]
+    )
+  end
+
+  it 'does not replace healthy shaping during runtime reconciliation' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 100, max_rx: 200, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [
+        {
+          'kind' => 'cake',
+          'root' => true,
+          'handle' => '50c7:',
+          'options' => { 'bandwidth' => 25 }
+        },
+        { 'kind' => 'ingress', 'handle' => 'ffff:' }
+      ]
+    )
+    allow(veth).to receive(:runtime_qdiscs).with('ifbvethX').and_return(
+      [
+        {
+          'kind' => 'cake',
+          'root' => true,
+          'handle' => '50c7:',
+          'options' => { 'bandwidth' => 13, 'diffserv' => 'besteffort' }
+        }
+      ]
+    )
+    allow(veth).to receive(:runtime_filters).with('vethX').and_return(
+      [
+        {
+          'kind' => 'matchall',
+          'protocol' => 'all',
+          'pref' => 10,
+          'options' => {
+            'handle' => 1,
+            'actions' => [
+              {
+                'kind' => 'mirred',
+                'mirred_action' => 'redirect',
+                'direction' => 'egress',
+                'to_dev' => 'ifbvethX'
+              }
+            ]
+          }
+        }
+      ]
+    )
+
+    expect(veth.reconcile_runtime).to include(status: 'healthy')
+
+    expect(veth).not_to have_received(:syscmd).with(
+      a_string_matching(/tc (?:qdisc|filter)/),
+      anything
+    )
+  end
+
+  it 'replaces a stale owned transmit filter without deleting the replacement' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 100, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [{ 'kind' => 'ingress', 'handle' => 'ffff:' }]
+    )
+    allow(veth).to receive(:runtime_qdiscs).with('ifbvethX').and_return(
+      [
+        {
+          'kind' => 'cake',
+          'root' => true,
+          'handle' => '50c7:',
+          'options' => { 'bandwidth' => 13, 'diffserv' => 'besteffort' }
+        }
+      ]
+    )
+    allow(veth).to receive(:runtime_filters).with('vethX').and_return(
+      [
+        {
+          'kind' => 'matchall',
+          'protocol' => 'all',
+          'pref' => 10,
+          'options' => { 'handle' => 1, 'actions' => [] }
+        }
+      ]
+    )
+
+    expect(veth.reconcile_runtime).to include(status: 'healthy')
+
+    expect(veth).to have_received(:syscmd).with(
+      'tc filter delete dev vethX parent ffff: protocol all pref 10 handle 1 matchall',
+      valid_rcs: [2]
+    ).ordered
+    expect(veth).to have_received(:syscmd).with(
+      'tc filter replace dev vethX parent ffff: protocol all pref 10 handle 1 matchall action mirred egress redirect dev ifbvethX',
+      {}
+    ).ordered
+  end
+
+  it 'removes an owned stale IFB even when its redirect filter is gone' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 0, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [{ 'kind' => 'ingress', 'handle' => 'ffff:' }]
+    )
+    allow(veth).to receive(:runtime_qdiscs).with('ifbvethX').and_return(
+      [{ 'kind' => 'cake', 'root' => true, 'handle' => '50c7:' }]
+    )
+    allow(veth).to receive(:runtime_filters).with('vethX').and_return([])
+
+    expect(veth.reconcile_runtime).to include(status: 'healthy')
+
+    expect(veth).to have_received(:syscmd).with(
+      'tc qdisc delete dev vethX handle ffff: ingress',
+      valid_rcs: [2]
+    )
+    expect(veth).to have_received(:syscmd).with(
+      'ip link del ifbvethX',
+      valid_rcs: [1]
+    )
+  end
+
+  it 'preserves foreign ingress filters while removing stale shaping' do
+    veth.create(name: 'eth0', hwaddr: nil, max_tx: 0, max_rx: 0, enable: true)
+    veth.instance_variable_set(:@veth, 'vethX')
+    allow(Dir).to receive(:exist?)
+      .with('/sys/devices/virtual/net/ifbvethX')
+      .and_return(true)
+    allow(veth).to receive(:runtime_qdiscs).with('vethX').and_return(
+      [{ 'kind' => 'ingress', 'handle' => 'ffff:' }]
+    )
+    allow(veth).to receive(:runtime_filters).with('vethX').and_return(
+      [
+        {
+          'kind' => 'matchall',
+          'pref' => 10,
+          'options' => { 'actions' => [{ 'to_dev' => 'ifbvethX' }] }
+        },
+        { 'kind' => 'bpf', 'pref' => 20 }
+      ]
+    )
+
+    expect(veth.reconcile_runtime).to include(status: 'healthy')
+
+    expect(veth).not_to have_received(:syscmd).with(
+      'tc qdisc delete dev vethX handle ffff: ingress',
+      anything
+    )
+    expect(veth).not_to have_received(:syscmd).with(
+      'ip link del ifbvethX',
+      anything
+    )
   end
 
   it 'renames hook symlinks and reports link state transitions' do

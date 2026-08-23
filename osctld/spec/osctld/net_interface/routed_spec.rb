@@ -69,6 +69,7 @@ RSpec.describe OsCtld::NetInterface::Routed do
     FileUtils.mkdir_p(File.join(root, 'hooks-src'))
     allow(routed).to receive(:ip)
     allow(routed).to receive(:ct_syscmd)
+    allow(routed).to receive_messages(host_link_exists?: true, runtime_routes: [])
     allow(File).to receive(:write).and_return(1)
   end
 
@@ -105,14 +106,9 @@ RSpec.describe OsCtld::NetInterface::Routed do
 
   it 'drops stale host veths during setup and reports distconfig readiness' do
     routed.create(name: 'eth0', hwaddr: nil)
-    cmd_result_class = Class.new do
-      def exitstatus
-        1
-      end
-    end
     allow(routed).to receive_messages(
       fetch_veth_name: 'veth0',
-      ip: instance_double(cmd_result_class, exitstatus: 1)
+      host_link_exists?: false
     )
 
     routed.setup
@@ -134,7 +130,11 @@ RSpec.describe OsCtld::NetInterface::Routed do
     routed.del_route(IPAddress.parse('2001:db8::/64'))
     routed.del_all_routes
 
-    expect(routed).to have_received(:ip).with(4, %i[route add] + ['192.0.2.0/24'] + [:dev, 'veth0']).at_least(:once)
+    expect(routed).to have_received(:ip).with(
+      4,
+      %i[route add] + ['192.0.2.0/24'] + \
+        [:protocol, 'osctld', :dev, 'veth0']
+    ).at_least(:once)
     expect(routed).to have_received(:ct_syscmd).with(
       ct,
       ['ip', '-4', 'addr', 'add', '192.0.2.10/24', 'dev', 'eth0'],
@@ -158,6 +158,301 @@ RSpec.describe OsCtld::NetInterface::Routed do
     interface.add_ip(IPAddress.parse('192.0.2.10/24'), nil)
 
     expect(interface).to have_received(:ct_syscmd).exactly(3).times
+  end
+
+  it 'repairs missing configured routes and restores reverse-path filtering' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: true)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.routes.add(IPAddress.parse('192.0.2.0/24'))
+
+    expect(routed.reconcile_runtime).to include(status: 'healthy')
+
+    expect(routed).to have_received(:ip).with(
+      4,
+      %i[route add] + ['192.0.2.0/24'] + \
+        [:protocol, 'osctld', :dev, 'veth0']
+    )
+    expect(File).to have_received(:write).with(
+      '/proc/sys/net/ipv4/conf/veth0/rp_filter',
+      '1'
+    )
+  end
+
+  it 'removes only owned routes when the interface is disabled' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: false)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.add_route(IPAddress.parse('192.0.2.0/24'))
+    allow(routed).to receive(:runtime_routes).with(4).and_return(
+      [
+        { 'dst' => '192.0.2.0/24', 'dev' => 'veth0', 'protocol' => 'osctld' },
+        { 'dst' => '198.51.100.0/24', 'dev' => 'veth0' }
+      ]
+    )
+    allow(routed).to receive(:runtime_routes).with(6).and_return(
+      [{ 'dst' => 'fe80::/64', 'dev' => 'veth0', 'protocol' => 'kernel' }]
+    )
+
+    expect(routed.reconcile_runtime).to include(status: 'healthy')
+
+    expect(routed).to have_received(:ip).with(
+      4,
+      %i[route del] + ['192.0.2.0/24'] + \
+        [:protocol, 'osctld', :dev, 'veth0']
+    )
+    expect(routed).not_to have_received(:ip).with(
+      4,
+      array_including('198.51.100.0/24')
+    )
+    expect(routed).not_to have_received(:ip).with(
+      6,
+      array_including('fe80::/64')
+    )
+  end
+
+  it 'removes a mismatched owned route when the interface is disabled' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: false)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.routes.add(
+      IPAddress.parse('2001:db8::/64'),
+      via: IPAddress.parse('fe80::1')
+    )
+    allow(routed).to receive(:runtime_routes).with(4).and_return([])
+    allow(routed).to receive(:runtime_routes).with(6).and_return(
+      [
+        {
+          'dst' => '2001:db8::/64',
+          'gateway' => 'fe80::2',
+          'dev' => 'veth0',
+          'protocol' => 'osctld'
+        },
+        {
+          'dst' => '2001:db8::/64',
+          'gateway' => 'fe80::3',
+          'dev' => 'veth0',
+          'protocol' => 'static'
+        }
+      ]
+    )
+
+    expect(routed.reconcile_runtime).to include(status: 'healthy')
+
+    expect(routed).to have_received(:ip).with(
+      6,
+      %i[route del] + ['2001:db8::/64'] + \
+        [:via, 'fe80::2', :onlink, :protocol, 'osctld', :dev, 'veth0']
+    )
+    expect(routed).not_to have_received(:ip).with(
+      6,
+      array_including('fe80::3')
+    )
+  end
+
+  it 'claims an exact legacy route without disturbing unrelated routes' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: true)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.routes.add(IPAddress.parse('192.0.2.0/24'))
+    allow(routed).to receive(:runtime_routes).with(4).and_return(
+      [
+        { 'dst' => '192.0.2.0/24', 'dev' => 'veth0', 'protocol' => 'boot' },
+        { 'dst' => '198.51.100.0/24', 'dev' => 'veth0', 'protocol' => 'static' }
+      ]
+    )
+    allow(routed).to receive(:runtime_routes).with(6).and_return([])
+
+    expect(routed.reconcile_runtime).to include(status: 'healthy')
+
+    expect(routed).to have_received(:ip).with(
+      4,
+      %i[route replace] + ['192.0.2.0/24'] + \
+        [:protocol, 'osctld', :dev, 'veth0']
+    )
+    expect(routed).not_to have_received(:ip).with(
+      4,
+      %i[route del] + ['198.51.100.0/24'] + \
+        [:protocol, 'osctld', :dev, 'veth0']
+    )
+  end
+
+  it 'blocks on an exact foreign route instead of claiming it' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: true)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.routes.add(IPAddress.parse('192.0.2.0/24'))
+    allow(routed).to receive(:runtime_routes).with(4).and_return(
+      [
+        { 'dst' => '192.0.2.0/24', 'dev' => 'veth0', 'protocol' => 'static' }
+      ]
+    )
+    allow(routed).to receive(:runtime_routes).with(6).and_return([])
+
+    expect(routed.reconcile_runtime).to include(
+      status: 'error',
+      error: include('conflicts with unowned state')
+    )
+
+    expect(routed).not_to have_received(:ip).with(
+      4,
+      %i[route add] + ['192.0.2.0/24'] + \
+        [:protocol, 'osctld', :dev, 'veth0']
+    )
+    expect(routed).not_to have_received(:ip).with(
+      4,
+      %i[route replace] + ['192.0.2.0/24'] + \
+        [:protocol, 'osctld', :dev, 'veth0']
+    )
+  end
+
+  it 'blocks on a conflicting legacy route with the same destination' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: true)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.routes.add(
+      IPAddress.parse('2001:db8::/64'),
+      via: IPAddress.parse('fe80::1')
+    )
+    allow(routed).to receive(:runtime_routes).with(4).and_return([])
+    allow(routed).to receive(:runtime_routes).with(6).and_return(
+      [
+        {
+          'dst' => '2001:db8::/64',
+          'gateway' => 'fe80::2',
+          'dev' => 'veth0',
+          'protocol' => 'boot'
+        }
+      ]
+    )
+
+    expect(routed.reconcile_runtime).to include(
+      status: 'error',
+      error: include('conflicts with unowned state')
+    )
+
+    expect(routed).not_to have_received(:ip).with(
+      6,
+      array_including(:replace, '2001:db8::/64')
+    )
+  end
+
+  it 'blocks on a foreign route beside an exact owned route' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: true)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.routes.add(IPAddress.parse('192.0.2.0/24'))
+    allow(routed).to receive(:runtime_routes).with(4).and_return(
+      [
+        {
+          'dst' => '192.0.2.0/24',
+          'dev' => 'veth0',
+          'protocol' => 'osctld'
+        },
+        {
+          'dst' => '192.0.2.0/24',
+          'gateway' => '192.0.2.1',
+          'dev' => 'veth0',
+          'protocol' => 'static'
+        }
+      ]
+    )
+    allow(routed).to receive(:runtime_routes).with(6).and_return([])
+
+    expect(routed.reconcile_runtime).to include(
+      status: 'error',
+      error: include('conflicts with unowned state')
+    )
+
+    expect(routed).not_to have_received(:ip).with(
+      4,
+      array_including(:replace, '192.0.2.0/24')
+    )
+  end
+
+  it 'blocks on a legacy route beside an exact owned route' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: true)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.routes.add(IPAddress.parse('192.0.2.0/24'))
+    allow(routed).to receive(:runtime_routes).with(4).and_return(
+      [
+        {
+          'dst' => '192.0.2.0/24',
+          'dev' => 'veth0',
+          'protocol' => 'osctld'
+        },
+        {
+          'dst' => '192.0.2.0/24',
+          'gateway' => '192.0.2.1',
+          'dev' => 'veth0',
+          'protocol' => 'boot'
+        }
+      ]
+    )
+    allow(routed).to receive(:runtime_routes).with(6).and_return([])
+
+    expect(routed.reconcile_runtime).to include(
+      status: 'error',
+      error: include('conflicts with unowned state')
+    )
+
+    expect(routed).not_to have_received(:ip).with(
+      4,
+      array_including(:replace, '192.0.2.0/24')
+    )
+  end
+
+  it 'does not replace a healthy configured route' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: true)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.routes.add(
+      IPAddress.parse('2001:db8::/64'),
+      via: IPAddress.parse('fe80::1')
+    )
+    allow(routed).to receive(:runtime_routes).with(4).and_return([])
+    allow(routed).to receive(:runtime_routes).with(6).and_return(
+      [
+        {
+          'dst' => '2001:db8::/64',
+          'gateway' => 'fe80::1',
+          'dev' => 'veth0',
+          'protocol' => 'osctld'
+        }
+      ]
+    )
+
+    expect(routed.reconcile_runtime).to include(status: 'healthy')
+
+    expect(routed).not_to have_received(:ip).with(
+      6,
+      array_including(:replace)
+    )
+  end
+
+  it 'recognizes numeric protocol output and removes stale owned routes' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: true)
+    routed.instance_variable_set(:@veth, 'veth0')
+    routed.routes.add(IPAddress.parse('192.0.2.0/24'))
+    allow(routed).to receive(:runtime_routes).with(4).and_return(
+      [
+        {
+          'dst' => '192.0.2.0/24',
+          'dev' => 'veth0',
+          'protocol' => 230
+        },
+        {
+          'dst' => '198.51.100.0/24',
+          'dev' => 'veth0',
+          'protocol' => '230'
+        }
+      ]
+    )
+    allow(routed).to receive(:runtime_routes).with(6).and_return([])
+
+    expect(routed.reconcile_runtime).to include(status: 'healthy')
+
+    expect(routed).not_to have_received(:ip).with(
+      4,
+      array_including(:replace, '192.0.2.0/24')
+    )
+    expect(routed).to have_received(:ip).with(
+      4,
+      %i[route del] + ['198.51.100.0/24'] + \
+        [:protocol, 'osctld', :dev, 'veth0']
+    )
   end
 
   it 'removes addresses, clears routes, and isolates duplicated route tables' do

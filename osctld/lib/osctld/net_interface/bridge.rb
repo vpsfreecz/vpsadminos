@@ -74,6 +74,16 @@ module OsCtld
       end
     end
 
+    def reconcile_runtime(legacy_runtime: false)
+      result = super
+      return result unless result[:status] == 'healthy'
+
+      ip(:all, %W[link set #{veth} master #{link}])
+      result
+    rescue StandardError => e
+      result.merge(status: 'error', error: "#{e.class}: #{e.message}")
+    end
+
     def add_ip(addr)
       super
 

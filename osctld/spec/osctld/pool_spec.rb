@@ -223,10 +223,12 @@ RSpec.describe OsCtld::Pool do
       pool = build_pool(root: dir)
       missing = { status: 'missing', name: 'eth0', veth: 'veth-test' }
       netif_class = Class.new do
-        def reconcile_runtime; end
+        def reconcile_runtime(legacy_runtime: false); end
       end
       daemon_instance_class = Class.new do
         def record_recovery_failure(*); end
+
+        def upgrade_handoff_runtime?(*); end
       end
       lifecycle = Struct.new(:running_intent_id).new('intent-1')
       netif = instance_double(netif_class, reconcile_runtime: missing)
@@ -239,7 +241,8 @@ RSpec.describe OsCtld::Pool do
       ct.lifecycle = lifecycle
       daemon = instance_double(
         daemon_instance_class,
-        record_recovery_failure: nil
+        record_recovery_failure: nil,
+        upgrade_handoff_runtime?: false
       )
 
       containers = stub_const('OsCtld::DB::Containers', Class.new do
@@ -264,7 +267,8 @@ RSpec.describe OsCtld::Pool do
         ct,
         'tank:ct1:runtime-network',
         [missing],
-        'intent-1'
+        'intent-1',
+        legacy_runtime: false
       )
     end
   end
@@ -275,7 +279,7 @@ RSpec.describe OsCtld::Pool do
       healthy = { status: 'healthy', interface: 'eth0', veth: 'veth-test' }
       netif = instance_double(
         Class.new do
-          def reconcile_runtime; end
+          def reconcile_runtime(legacy_runtime: false); end
         end,
         reconcile_runtime: healthy
       )
@@ -294,8 +298,14 @@ RSpec.describe OsCtld::Pool do
           def clear_recovery_failure(*); end
 
           def record_recovery_failure(*); end
+
+          def fulfil_upgrade_handoff_runtime(*); end
+
+          def upgrade_handoff_runtime?(*); end
         end,
-        clear_recovery_failure: nil
+        clear_recovery_failure: nil,
+        fulfil_upgrade_handoff_runtime: nil,
+        upgrade_handoff_runtime?: true
       )
       containers = stub_const('OsCtld::DB::Containers', Class.new do
         def self.get; end
@@ -308,10 +318,13 @@ RSpec.describe OsCtld::Pool do
 
       pool.send(:reconcile_container_runtime)
 
-      expect(netif).to have_received(:reconcile_runtime).once
+      expect(netif).to have_received(:reconcile_runtime)
+        .with(legacy_runtime: true).once
       expect(daemon).to have_received(:clear_recovery_failure).with(
         'tank:ct1:runtime-network'
       )
+      expect(daemon).to have_received(:fulfil_upgrade_handoff_runtime)
+        .with(ct).once
     end
   end
 
@@ -321,7 +334,7 @@ RSpec.describe OsCtld::Pool do
       missing = { status: 'missing', name: 'eth0', veth: 'veth-test' }
       netif = instance_double(
         Class.new do
-          def reconcile_runtime; end
+          def reconcile_runtime(legacy_runtime: false); end
         end,
         reconcile_runtime: missing
       )
@@ -338,8 +351,11 @@ RSpec.describe OsCtld::Pool do
           def clear_recovery_failure(*); end
 
           def record_recovery_failure(*); end
+
+          def upgrade_handoff_runtime?(*); end
         end,
-        clear_recovery_failure: nil
+        clear_recovery_failure: nil,
+        upgrade_handoff_runtime?: false
       )
       containers = stub_const('OsCtld::DB::Containers', Class.new do
         def self.get; end
@@ -390,7 +406,8 @@ RSpec.describe OsCtld::Pool do
         ct,
         'tank:ct1:runtime-network',
         [{ status: 'missing' }],
-        'intent-1'
+        'intent-1',
+        legacy_runtime: false
       )
 
       expect(restart).to have_received(:run).with(

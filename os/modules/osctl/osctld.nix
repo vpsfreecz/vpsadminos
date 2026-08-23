@@ -70,6 +70,12 @@ in
       };
     };
 
+    # Reserve a private route protocol name for host routes managed by osctld.
+    # iproute2 uses this mapping both when parsing commands and in JSON output.
+    environment.etc."iproute2/rt_protos.d/osctld.conf".text = ''
+      230 osctld
+    '';
+
     runit.services.osctld = {
       path = with pkgs; [
         config.security.wrapperDir
