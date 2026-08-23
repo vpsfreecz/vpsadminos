@@ -1,5 +1,5 @@
 diff --git a/kernel/livepatch/transition.c b/kernel/livepatch/transition.c
-index ba069459c1017b815101cc3aeb186d9407f7bd10..f03497c69830c3272fb8b2926a57208020453929 100644
+index ba069459c1017b815101cc3aeb186d9407f7bd10..18edfa26ae9e57f23aaa5d0b9217a92bc80a8b91 100644
 --- a/kernel/livepatch/transition.c
 +++ b/kernel/livepatch/transition.c
 @@ -10,0 +11,3 @@
@@ -12,12 +12,15 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..f03497c69830c3272fb8b2926a572080
 @@ -316,0 +322,2 @@ static bool klp_try_switch_task(struct task_struct *task)
 +	unsigned long flags;
 +	unsigned int state;
-@@ -335 +342 @@ static bool klp_try_switch_task(struct task_struct *task)
+@@ -335 +342,3 @@ static bool klp_try_switch_task(struct task_struct *task)
 -	if (task == current)
 +	if (task == current) {
-@@ -337,2 +344,41 @@ static bool klp_try_switch_task(struct task_struct *task)
++		/* klp_check_stack() uses per-CPU storage. */
++		preempt_disable();
+@@ -337,2 +346,42 @@ static bool klp_try_switch_task(struct task_struct *task)
 -	else
 -		ret = task_call_func(task, klp_check_and_switch_task, &old_name);
++		preempt_enable();
 +	} else {
 +		/*
 +		 * task_call_func() can hold the task's rq lock while invoking its
@@ -59,7 +62,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..f03497c69830c3272fb8b2926a572080
 +unlock:
 +		raw_spin_unlock_irqrestore(&task->pi_lock, flags);
 +	}
-@@ -365,0 +412,37 @@ static bool klp_try_switch_task(struct task_struct *task)
+@@ -365,0 +415,37 @@ static bool klp_try_switch_task(struct task_struct *task)
 +/*
 + * Try to switch this CPU's idle task while execution on the target CPU makes
 + * its stack stable.  Idle tasks always have TASK_RUNNING state, even when
@@ -97,26 +100,26 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..f03497c69830c3272fb8b2926a572080
 +	}
 +}
 +
-@@ -377,2 +460,2 @@ void __klp_sched_try_switch(void)
+@@ -377,2 +463,2 @@ void __klp_sched_try_switch(void)
 -	 * klp_try_switch_task().  Thanks to task_call_func() they won't be
 -	 * able to switch this task while it's running.
 +	 * klp_try_switch_task().  Its non-current path leaves runnable and
 +	 * on-CPU tasks pending, so they cannot switch this task while it runs.
-@@ -454,0 +538 @@ void klp_try_complete_transition(void)
+@@ -454,0 +541 @@ void klp_try_complete_transition(void)
 +	struct task_struct **tasks = NULL;
-@@ -455,0 +540 @@ void klp_try_complete_transition(void)
+@@ -455,0 +543 @@ void klp_try_complete_transition(void)
 +	size_t capacity = 0, nr_tasks = 0, slack, i;
-@@ -468,0 +554,5 @@ void klp_try_complete_transition(void)
+@@ -468,0 +557,5 @@ void klp_try_complete_transition(void)
 +	/*
 +	 * Keep tasklist_lock coverage to pointer collection.  Stack walking and
 +	 * cumulative function comparison can be expensive on large systems and
 +	 * must remain preemptible and outside this global lock.
 +	 */
-@@ -471,2 +561 @@ void klp_try_complete_transition(void)
+@@ -471,2 +564 @@ void klp_try_complete_transition(void)
 -		if (!klp_try_switch_task(task))
 -			complete = false;
 +		capacity++;
-@@ -474,0 +564,44 @@ void klp_try_complete_transition(void)
+@@ -474,0 +567,44 @@ void klp_try_complete_transition(void)
 +	if (capacity) {
 +		/*
 +		 * Leave room for forks between the count and fill passes.  Requiring
@@ -161,9 +164,9 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..f03497c69830c3272fb8b2926a572080
 +		kvfree(tasks);
 +	}
 +
-@@ -477,0 +611 @@ void klp_try_complete_transition(void)
+@@ -477,0 +614 @@ void klp_try_complete_transition(void)
 +idle_tasks:
-@@ -478,0 +613,13 @@ void klp_try_complete_transition(void)
+@@ -478,0 +616,13 @@ void klp_try_complete_transition(void)
 +	for_each_online_cpu(cpu) {
 +		/*
 +		 * Execute on the idle task's own CPU so it is either current or
@@ -177,7 +180,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..f03497c69830c3272fb8b2926a572080
 +	}
 +
 +	/* Verify every idle task after all target-CPU callbacks have returned. */
-@@ -481,7 +628 @@ void klp_try_complete_transition(void)
+@@ -481,7 +631 @@ void klp_try_complete_transition(void)
 -		if (cpu_online(cpu)) {
 -			if (!klp_try_switch_task(task)) {
 -				complete = false;
@@ -186,6 +189,6 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..f03497c69830c3272fb8b2926a572080
 -			}
 -		} else if (task->patch_state != klp_target_state) {
 +		if (!cpu_online(cpu) && task->patch_state != klp_target_state) {
-@@ -491,0 +633,2 @@ void klp_try_complete_transition(void)
+@@ -491,0 +636,2 @@ void klp_try_complete_transition(void)
 +		if (task->patch_state != klp_target_state)
 +			complete = false;
