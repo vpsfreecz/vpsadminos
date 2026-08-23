@@ -1001,7 +1001,7 @@ import ../../make-test.nix (
         )
         machine.all_succeed(
           "test \"$(getconf _NPROCESSORS_ONLN)\" = 128",
-          "grep -E '^tasks=100000 process_group=[1-9][0-9]*$' " \
+          "grep -F 'tasks=100000 runnable_pinned=128' " \
           "#{TASK_FLEET_STATE}/ready",
           "awk '{ split($4, tasks, \"/\"); exit tasks[2] >= 100000 ? 0 : 1 }' " \
           "/proc/loadavg",
@@ -2187,7 +2187,7 @@ import ../../make-test.nix (
         end
 
         if SCALE_VALIDATION
-          it "bootstraps v7 across 128 CPUs and 100000 mixed tasks" do
+          it "bootstraps v7 with every CPU kept runnable across 100000 tasks" do
             machine.succeeds("insmod #{RELEASED_V5_MODULE}")
             wait_for_patch(machine, RELEASED_V5_NAME, 1)
             machine.succeeds("test \"$(uname -r)\" = 6.12.95.5")

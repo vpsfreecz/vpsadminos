@@ -72,7 +72,7 @@ static void write_state(const char *path, const char *format,
 		die("close");
 }
 
-static void child_main(enum child_role role, pid_t process_group)
+static void child_main(enum child_role role, pid_t process_group, int cpu)
 {
 	struct sigaction action = {
 		.sa_handler = wake_child,
@@ -84,6 +84,14 @@ static void child_main(enum child_role role, pid_t process_group)
 
 	if (setpgid(0, process_group))
 		_exit(110);
+	if (role == ROLE_RUNNABLE) {
+		cpu_set_t affinity;
+
+		CPU_ZERO(&affinity);
+		CPU_SET(cpu, &affinity);
+		if (sched_setaffinity(0, sizeof(affinity), &affinity))
+			_exit(114);
+	}
 	if (prctl(PR_SET_PDEATHSIG, SIGTERM))
 		_exit(111);
 	if (getppid() == 1)
@@ -107,14 +115,14 @@ static void child_main(enum child_role role, pid_t process_group)
 	}
 }
 
-static pid_t spawn_child(enum child_role role, pid_t process_group)
+static pid_t spawn_child(enum child_role role, pid_t process_group, int cpu)
 {
 	pid_t pid = fork();
 
 	if (pid < 0)
 		return -1;
 	if (!pid)
-		child_main(role, process_group ? process_group : getpid());
+		child_main(role, process_group ? process_group : getpid(), cpu);
 
 	if (setpgid(pid, process_group ? process_group : pid) && errno != EACCES) {
 		int saved_errno = errno;
@@ -150,6 +158,8 @@ int main(int argc, char **argv)
 	};
 	const char *ready_path, *stop_path, *progress_path;
 	size_t count, runnable, waking, churn, i, churn_cursor = 0;
+	cpu_set_t allowed_cpus;
+	int allowed_cpu_count, next_cpu = -1;
 	pid_t process_group = 0;
 	pid_t *children;
 	unsigned long cycles = 0;
@@ -172,6 +182,14 @@ int main(int argc, char **argv)
 		fprintf(stderr, "role counts must leave sleeping tasks\n");
 		return EXIT_FAILURE;
 	}
+	if (sched_getaffinity(0, sizeof(allowed_cpus), &allowed_cpus))
+		die("sched_getaffinity");
+	allowed_cpu_count = CPU_COUNT(&allowed_cpus);
+	if (allowed_cpu_count <= 0 || runnable > (size_t)allowed_cpu_count) {
+		fprintf(stderr, "cannot pin %zu runnable tasks across %d CPUs\n",
+			runnable, allowed_cpu_count);
+		return EXIT_FAILURE;
+	}
 
 	children = calloc(count, sizeof(*children));
 	if (!children)
@@ -187,8 +205,20 @@ int main(int argc, char **argv)
 			role = ROLE_RUNNABLE;
 		else if (i < runnable + waking)
 			role = ROLE_WAKING;
+		if (role == ROLE_RUNNABLE) {
+			do {
+				next_cpu++;
+			} while (next_cpu < CPU_SETSIZE &&
+				 !CPU_ISSET(next_cpu, &allowed_cpus));
+			if (next_cpu == CPU_SETSIZE) {
+				fprintf(stderr, "allowed CPU set changed unexpectedly\n");
+				terminate_fleet(process_group, children, i);
+				return EXIT_FAILURE;
+			}
+		}
 
-		children[i] = spawn_child(role, process_group);
+		children[i] = spawn_child(role, process_group,
+					   role == ROLE_RUNNABLE ? next_cpu : -1);
 		if (children[i] < 0) {
 			fprintf(stderr, "fork failed at child %zu of %zu: %s\n",
 				i, count, strerror(errno));
@@ -199,8 +229,8 @@ int main(int argc, char **argv)
 			process_group = children[i];
 	}
 
-	write_state(ready_path, "tasks=%lu process_group=%lu\n",
-		    count, (unsigned long)process_group);
+	write_state(ready_path, "tasks=%lu runnable_pinned=%lu\n",
+		    count, runnable);
 
 	while (!stop_requested && access(stop_path, F_OK)) {
 		struct timespec delay = {
@@ -218,7 +248,7 @@ int main(int argc, char **argv)
 			kill(children[slot], SIGTERM);
 			while (waitpid(children[slot], NULL, 0) < 0 && errno == EINTR)
 				;
-			replacement = spawn_child(ROLE_SLEEPING, process_group);
+			replacement = spawn_child(ROLE_SLEEPING, process_group, -1);
 			if (replacement < 0) {
 				stop_requested = 1;
 				break;

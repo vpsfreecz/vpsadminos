@@ -1,20 +1,21 @@
 diff --git a/kernel/livepatch/transition.c b/kernel/livepatch/transition.c
-index ba069459c1017b815101cc3aeb186d9407f7bd10..3f8b4e068cfd8082cc232191b88ca2fd27c3bc9b 100644
+index ba069459c1017b815101cc3aeb186d9407f7bd10..8334f265165588566c176a687b69b739776018ba 100644
 --- a/kernel/livepatch/transition.c
 +++ b/kernel/livepatch/transition.c
-@@ -10,0 +11,2 @@
+@@ -10,0 +11,3 @@
 +#include <linux/overflow.h>
 +#include <linux/slab.h>
-@@ -23,0 +26,2 @@ static DEFINE_PER_CPU(unsigned long[MAX_STACK_ENTRIES], klp_stack_entries);
++#include <linux/smp.h>
+@@ -23,0 +27,2 @@ static DEFINE_PER_CPU(unsigned long[MAX_STACK_ENTRIES], klp_stack_entries);
 +#define KLP_TASK_BATCH_SIZE 256
 +
-@@ -316,0 +321,2 @@ static bool klp_try_switch_task(struct task_struct *task)
+@@ -316,0 +322,2 @@ static bool klp_try_switch_task(struct task_struct *task)
 +	unsigned long flags;
 +	unsigned int state;
-@@ -335 +341 @@ static bool klp_try_switch_task(struct task_struct *task)
+@@ -335 +342 @@ static bool klp_try_switch_task(struct task_struct *task)
 -	if (task == current)
 +	if (task == current) {
-@@ -337,2 +343,41 @@ static bool klp_try_switch_task(struct task_struct *task)
+@@ -337,2 +344,41 @@ static bool klp_try_switch_task(struct task_struct *task)
 -	else
 -		ret = task_call_func(task, klp_check_and_switch_task, &old_name);
 +	} else {
@@ -58,26 +59,64 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..3f8b4e068cfd8082cc232191b88ca2fd
 +unlock:
 +		raw_spin_unlock_irqrestore(&task->pi_lock, flags);
 +	}
-@@ -377,2 +422,2 @@ void __klp_sched_try_switch(void)
+@@ -365,0 +412,37 @@ static bool klp_try_switch_task(struct task_struct *task)
++/*
++ * Try to switch this CPU's idle task while execution on the target CPU makes
++ * its stack stable.  Idle tasks always have TASK_RUNNING state, even when
++ * they are not current, so the ordinary sleeping-task path cannot handle
++ * them.  If the idle task is current, this callback runs on its stack.  If a
++ * different task is current, local IRQ disablement prevents the idle task
++ * from becoming runnable until its inactive stack walk has finished.
++ */
++static void klp_try_switch_idle_task(void *unused)
++{
++	struct task_struct *task = idle_task(smp_processor_id());
++	const char *old_name;
++	int ret;
++
++	if (task->patch_state == klp_target_state ||
++	    !klp_have_reliable_stack())
++		return;
++
++	ret = klp_check_and_switch_task(task, &old_name);
++	switch (ret) {
++	case 0:
++		break;
++	case -EINVAL:
++		pr_debug("%s: idle task %d has an unreliable stack\n",
++			 __func__, smp_processor_id());
++		break;
++	case -EADDRINUSE:
++		pr_debug("%s: idle task %d is sleeping on function %s\n",
++			 __func__, smp_processor_id(), old_name);
++		break;
++	default:
++		pr_debug("%s: error %d when trying to switch idle task %d\n",
++			 __func__, ret, smp_processor_id());
++		break;
++	}
++}
++
+@@ -377,2 +460,2 @@ void __klp_sched_try_switch(void)
 -	 * klp_try_switch_task().  Thanks to task_call_func() they won't be
 -	 * able to switch this task while it's running.
 +	 * klp_try_switch_task().  Its non-current path leaves runnable and
 +	 * on-CPU tasks pending, so they cannot switch this task while it runs.
-@@ -454,0 +500 @@ void klp_try_complete_transition(void)
+@@ -454,0 +538 @@ void klp_try_complete_transition(void)
 +	struct task_struct **tasks = NULL;
-@@ -455,0 +502 @@ void klp_try_complete_transition(void)
+@@ -455,0 +540 @@ void klp_try_complete_transition(void)
 +	size_t capacity = 0, nr_tasks = 0, slack, i;
-@@ -468,0 +516,5 @@ void klp_try_complete_transition(void)
+@@ -468,0 +554,5 @@ void klp_try_complete_transition(void)
 +	/*
 +	 * Keep tasklist_lock coverage to pointer collection.  Stack walking and
 +	 * cumulative function comparison can be expensive on large systems and
 +	 * must remain preemptible and outside this global lock.
 +	 */
-@@ -471,2 +523 @@ void klp_try_complete_transition(void)
+@@ -471,2 +561 @@ void klp_try_complete_transition(void)
 -		if (!klp_try_switch_task(task))
 -			complete = false;
 +		capacity++;
-@@ -474,0 +526,43 @@ void klp_try_complete_transition(void)
+@@ -474,0 +564,43 @@ void klp_try_complete_transition(void)
 +	if (capacity) {
 +		/*
 +		 * Leave room for forks between the count and fill passes.  Requiring
@@ -121,5 +160,31 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..3f8b4e068cfd8082cc232191b88ca2fd
 +		kvfree(tasks);
 +	}
 +
-@@ -477,0 +572 @@ void klp_try_complete_transition(void)
+@@ -477,0 +610 @@ void klp_try_complete_transition(void)
 +idle_tasks:
+@@ -478,0 +612,13 @@ void klp_try_complete_transition(void)
++	for_each_online_cpu(cpu) {
++		/*
++		 * Execute on the idle task's own CPU so it is either current or
++		 * cannot become current while the callback walks its stack.  The
++		 * callback is synchronous and does not acquire any runqueue lock.
++		 */
++		if (idle_task(cpu)->patch_state != klp_target_state &&
++		    smp_call_function_single(cpu, klp_try_switch_idle_task,
++					     NULL, 1))
++			complete = false;
++	}
++
++	/* Verify every idle task after all target-CPU callbacks have returned. */
+@@ -481,7 +627 @@ void klp_try_complete_transition(void)
+-		if (cpu_online(cpu)) {
+-			if (!klp_try_switch_task(task)) {
+-				complete = false;
+-				/* Make idle task go through the main loop. */
+-				wake_up_if_idle(cpu);
+-			}
+-		} else if (task->patch_state != klp_target_state) {
++		if (!cpu_online(cpu) && task->patch_state != klp_target_state) {
+@@ -491,0 +632,2 @@ void klp_try_complete_transition(void)
++		if (task->patch_state != klp_target_state)
++			complete = false;
