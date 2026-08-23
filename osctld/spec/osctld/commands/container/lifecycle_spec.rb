@@ -43,6 +43,20 @@ RSpec.describe 'container lifecycle commands' do
   before do
     allow(OsCtl::Lib::Logger).to receive(:log)
     allow(build_history).to receive(:log)
+    daemon = Class.new do
+      def with_lifecycle_admission(**)
+        yield
+      end
+
+      def with_lifecycle_admission_context(**)
+        yield
+      end
+
+      def ready?
+        true
+      end
+    end.new
+    allow(OsCtld::Daemon).to receive(:get).and_return(daemon)
   end
 
   describe OsCtld::Commands::Container::Start do
@@ -928,7 +942,8 @@ RSpec.describe 'container lifecycle commands' do
         method: 'kill',
         message: 'bye',
         lifecycle_source: 'restart',
-        lifecycle_intent_id: 'intent-1'
+        lifecycle_intent_id: 'intent-1',
+        lifecycle_recovery: nil
       ).and_return(status: true, output: nil)
       allow(command).to receive(:call_cmd!).with(
         start_class,
@@ -937,10 +952,64 @@ RSpec.describe 'container lifecycle commands' do
         force: true,
         wait: false,
         lifecycle_source: 'restart',
-        lifecycle_intent_id: 'intent-1'
+        lifecycle_intent_id: 'intent-1',
+        lifecycle_recovery: nil
       ).and_return(status: true, output: nil)
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
+    end
+
+    it 'does not reverse a stop committed before network recovery gets the lock' do
+      stop_class = stub_const('OsCtld::Commands::Container::Stop', Class.new)
+      start_class = stub_const('OsCtld::Commands::Container::Start', Class.new)
+      lifecycle = Class.new do
+        attr_reader :desired_state
+
+        def initialize
+          @desired_state = :running
+          @intent_id = 'running-1'
+        end
+
+        def commit_stop
+          @desired_state = :stopped
+          @intent_id = 'stop-1'
+        end
+
+        def request_restart(source:, expected_intent_id:)
+          raise 'test accepted a stale network recovery intent' \
+            if desired_state == :running && @intent_id == expected_intent_id
+
+          OsCtld::Container::Lifecycle::Request.new(
+            action: :superseded,
+            intent_id: @intent_id,
+            warning: "#{source} was superseded"
+          )
+        end
+      end.new
+      ct = Struct.new(:id, :pool, :lifecycle) do
+        def manipulate(_holder, block:, &)
+          lifecycle.commit_stop
+          yield
+        end
+      end.new('ct1', Struct.new(:name).new('tank'), lifecycle)
+      command = described_class.new(
+        {
+          reboot: false,
+          lifecycle_source: 'runtime-network-recovery',
+          lifecycle_expected_intent_id: 'running-1',
+          lifecycle_recovery: true
+        },
+        {}
+      )
+      allow(command).to receive(:call_cmd!)
+
+      expect(command.execute(ct)).to eq(
+        status: true,
+        output: { lifecycle_state: 'stopped', superseded: true }
+      )
+      expect(command).not_to have_received(:call_cmd!).with(stop_class, any_args)
+      expect(command).not_to have_received(:call_cmd!).with(start_class, any_args)
+      expect(lifecycle.desired_state).to eq(:stopped)
     end
   end
 

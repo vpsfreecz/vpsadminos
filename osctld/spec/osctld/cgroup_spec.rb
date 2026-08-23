@@ -270,6 +270,71 @@ RSpec.describe OsCtld::CGroup do
     end
   end
 
+  it 'inventories live container cgroups outside the configured database' do
+    with_tmpdir do |tmpdir|
+      stub_const('OsCtld::CGroup::FS', tmpdir)
+      force_cgroup(2, [''])
+      live = File.join(
+        tmpdir,
+        'osctl',
+        'pool.tank',
+        'user.root',
+        'ct.101'
+      )
+      child = File.join(live, 'runs', 'generation-1')
+      nested_name = File.join(child, 'ct.helper', 'payload')
+      foreign = File.join(tmpdir, 'osctl', 'admin', 'ct.helper')
+      malformed = File.join(
+        tmpdir,
+        'osctl',
+        'pool.tank',
+        'tools',
+        'user.root',
+        'ct.helper'
+      )
+      empty = File.join(
+        tmpdir,
+        'osctl',
+        'pool.tank',
+        'user.root',
+        'ct.102'
+      )
+      FileUtils.mkdir_p([live, empty, nested_name, foreign, malformed])
+      File.write(File.join(live, 'cgroup.procs'), "42\n")
+      File.write(File.join(child, 'cgroup.procs'), "43\n")
+      File.write(File.join(nested_name, 'cgroup.procs'), "44\n")
+      File.write(File.join(empty, 'cgroup.procs'), '')
+      File.write(File.join(foreign, 'cgroup.procs'), "45\n")
+      File.write(File.join(malformed, 'cgroup.procs'), "46\n")
+
+      expect(
+        described_class.runtime_container_cgroups
+      ).to eq([
+                {
+                  cgroup_path: 'osctl/pool.tank/user.root/ct.101',
+                  processes: [
+                    {
+                      cgroup_path: 'osctl/pool.tank/user.root/ct.101',
+                      pids: [42]
+                    },
+                    {
+                      cgroup_path:
+                        'osctl/pool.tank/user.root/ct.101/runs/generation-1',
+                      pids: [43]
+                    },
+                    {
+                      cgroup_path:
+                        'osctl/pool.tank/user.root/ct.101/runs/' \
+                        'generation-1/ct.helper/payload',
+                      pids: [44]
+                    }
+                  ],
+                  pids: [42, 43, 44]
+                }
+              ])
+    end
+  end
+
   it 'prevents forks in every descendant with a pids.max file' do
     with_tmpdir do |tmpdir|
       stub_const('OsCtld::CGroup::FS', tmpdir)

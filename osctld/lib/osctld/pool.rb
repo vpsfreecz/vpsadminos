@@ -328,6 +328,13 @@ module OsCtld
       @hint_updater.start
     end
 
+    # Reconcile live host-side runtime state only after every pool has been
+    # inventoried by the daemon. This prevents one pool's repair from starting
+    # lifecycle work while another pool is still unknown.
+    def reconcile_runtime
+      reconcile_container_runtime
+    end
+
     # Set pool options
     # @param opts [Hash]
     # @option opts [Integer] :parallel_start
@@ -377,9 +384,9 @@ module OsCtld
       save_config
     end
 
-    def autostart(force: false)
-      Hook.run(self, :pre_autostart)
-      autostart_plan.start(force:)
+    def autostart(force: false, activation: nil, hook_timeout: nil)
+      Hook.run(self, :pre_autostart, timeout: hook_timeout)
+      autostart_plan.start(force:, activation:)
     end
 
     def autostop_and_wait(message: nil, client_handler: nil)
@@ -410,6 +417,14 @@ module OsCtld
     def begin_stop
       autostart_plan.stop if autostart_plan.started?
       trash_bin.stop if trash_bin.started?
+    end
+
+    def pause_autostart
+      autostart_plan.pause if autostart_plan&.started?
+    end
+
+    def resume_autostart(activation: nil)
+      autostart_plan.resume(activation:) if autostart_plan&.started?
     end
 
     def all_stop
@@ -673,6 +688,8 @@ module OsCtld
       )
 
       ep = ExecutionPlan.new
+      loaded = []
+      loaded_mutex = Mutex.new
 
       Dir.glob(File.join(conf_path, 'ct', '*.yml')).each do |f|
         ep << File.basename(f)[0..(('.yml'.length + 1) * -1)]
@@ -680,128 +697,163 @@ module OsCtld
 
       log(:info, "Going to load #{ep.length} containers, #{ep.default_threads} at a time")
 
+      # Pass one inventories every configured container and its durable/live
+      # generation ownership. No recovery start is admitted until all
+      # definitions in the pool are visible in DB::Containers.
       ep.run do |ctid|
-        log(:info, "Loading container #{ctid}")
-
-        ct = load_entity('container', ctid) do
-          loaded_ct =
-            Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
-          loaded_ct.ensure_incarnation_id_persisted
-          loaded_ct.lifecycle
-          loaded_ct
-        end
-        next unless ct
-
-        ensure_limits(ct)
-
-        builder = Container::Builder.new(ct.get_run_conf)
-        builder.setup_lxc_home
-        builder.setup_log_file
-
-        ct.reconfigure
-
-        DB::Containers.add(ct)
-
-        runtime_state = ct.fresh_state
-        running = runtime_state == :running
-        ct.ensure_run_conf if running
-
-        lifecycle = ct.lifecycle
-        if lifecycle.active_run_id \
-            && (!ct.run_conf || ct.run_conf.run_id != lifecycle.active_run_id)
-          ct.load_lifecycle_run_conf(lifecycle.active_run_id)
-        end
-        if ct.run_conf && lifecycle.active_run_id.nil?
-          lifecycle.adopt_legacy(
-            ct.run_conf,
-            runtime_state,
-            managers: legacy_manager_identities(ct, runtime_state)
-          )
-        end
-        ct.reconfigure
-
-        legacy_run_id = lifecycle.adopted_legacy_callback_run_id
-        if running && legacy_run_id
-          begin
-            ct.cgparams.reconcile_adopted_cpu_bandwidth(
-              run_id: legacy_run_id
-            )
-          rescue StandardError => e
-            log(
-              :warn,
-              "Unable to reconcile adopted CPU bandwidth of #{ct.ident}: " \
-              "#{e.message} (#{e.class}); lifecycle remains fenced or its " \
-              'policy is quarantined'
-            )
-          end
-        end
-
-        if lifecycle.residuals.any?
-          log(
-            :warn,
-            "#{ct.ident} has residual lifecycle generations. Rolling back to " \
-            'an osctld version without generation fencing can let late events ' \
-            'or cleanup affect a newer run'
-          )
-        end
-
-        Monitor::Master.monitor(ct)
-
-        active_run_id = lifecycle.active_run_id
-        active_run_conf = [ct.run_conf, ct.get_past_run_conf].compact.detect do |run_conf|
-          run_conf.run_id == active_run_id
-        end
-        if active_run_id
-          begin
-            Container::Recovery.new(ct).recover_state(run_id: active_run_id)
-          rescue Container::Recovery::Busy
-            if active_run_conf
-              Container::LifecycleFinalizer.watch_reconciliation(
-                ct,
-                active_run_conf
-              )
-            end
-          rescue StandardError => e
-            log(
-              :warn,
-              "Unable to reconcile lifecycle of #{ct.ident}: " \
-              "#{e.message} (#{e.class})"
-            )
-          end
-        elsif lifecycle.desired_state == :running
-          intent_id = lifecycle.current_intent_id
-          thread = Thread.new do
-            Commands::Container::Start.run(
-              pool: ct.pool.name,
-              id: ct.id,
-              lifecycle_source: 'daemon-restart',
-              lifecycle_intent_id: intent_id,
-              manipulation_lock: 'wait'
-            )
-          end
-          ThreadReaper.add(thread, nil, group: :durable_lifecycle)
-        end
-
-        active_run_id = lifecycle.active_run_id
-        active_run_conf = [ct.run_conf, ct.get_past_run_conf].compact.detect do |run_conf|
-          run_conf.run_id == active_run_id
-        end
-        active_lifecycle_run = active_run_id && lifecycle.run(active_run_id)
-        recorded_managers = active_lifecycle_run && (
-          %w[wrapper lxc_start].any? do |name|
-            active_lifecycle_run.fetch(name, nil)
-          end || active_lifecycle_run.fetch('legacy_managers', []).any?
-        )
-        if active_run_conf && recorded_managers
-          Container::LifecycleFinalizer.watch_wrapper(ct, active_run_conf)
-        end
-        if active_run_conf && !lifecycle.execution_run?(active_run_id)
-          Console.reconnect_tty0(ct, active_run_conf)
-        end
+        ct = load_ct_inventory(ctid, ds_cache)
+        loaded_mutex.synchronize { loaded << ct } if ct
       end
 
       ep.wait
+
+      # Pass two correlates state, resumes exact intents and reconnects runtime
+      # services. This prevents a recovery worker from mistaking a generation
+      # belonging to a definition which simply had not loaded yet for an
+      # orphan.
+      recovery = ExecutionPlan.new
+      loaded.each { |ct| recovery << ct }
+      recovery.run { |ct| reconcile_loaded_ct(ct) }
+      recovery.wait
       log(:info, 'All containers loaded')
+    end
+
+    def load_ct_inventory(ctid, ds_cache)
+      log(:info, "Loading container #{ctid}")
+
+      ct = load_entity('container', ctid) do
+        loaded_ct = Container.new(
+          self,
+          ctid,
+          nil,
+          nil,
+          nil,
+          dataset_cache: ds_cache
+        )
+        loaded_ct.ensure_incarnation_id_persisted
+        loaded_ct.lifecycle
+        loaded_ct
+      end
+      return unless ct
+
+      ensure_limits(ct)
+      builder = Container::Builder.new(ct.get_run_conf)
+      builder.setup_lxc_home
+      builder.setup_log_file
+      ct.reconfigure
+      DB::Containers.add(ct)
+
+      runtime_state = ct.fresh_state
+      live = runtime_live_state?(runtime_state)
+      ct.ensure_run_conf if live
+
+      lifecycle = ct.lifecycle
+      if lifecycle.active_run_id \
+          && (!ct.run_conf || ct.run_conf.run_id != lifecycle.active_run_id)
+        ct.load_lifecycle_run_conf(lifecycle.active_run_id)
+      end
+      if ct.run_conf && lifecycle.active_run_id.nil?
+        lifecycle.adopt_legacy(
+          ct.run_conf,
+          runtime_state,
+          managers: legacy_manager_identities(ct, runtime_state)
+        )
+      end
+      ct.reconfigure
+
+      legacy_run_id = lifecycle.adopted_legacy_callback_run_id
+      if live && legacy_run_id
+        begin
+          Daemon.get.with_lifecycle_admission_context(
+            internal: true,
+            recovery: true
+          ) do
+            ct.cgparams.reconcile_adopted_cpu_bandwidth(run_id: legacy_run_id)
+          end
+        rescue StandardError => e
+          log(
+            :warn,
+            "Unable to reconcile adopted CPU bandwidth of #{ct.ident}: " \
+            "#{e.message} (#{e.class}); lifecycle remains fenced or its " \
+            'policy is quarantined'
+          )
+          Daemon.get.record_recovery_failure(
+            "#{ct.ident}:cpu-bandwidth",
+            e.message,
+            error_class: e.class.name
+          )
+        end
+      end
+
+      if lifecycle.residuals.any?
+        log(
+          :warn,
+          "#{ct.ident} has residual lifecycle generations. Rolling back to " \
+          'an osctld version without generation fencing can let late events ' \
+          'or cleanup affect a newer run'
+        )
+      end
+
+      Monitor::Master.monitor(ct)
+      ct
+    end
+
+    def reconcile_loaded_ct(ct)
+      lifecycle = ct.lifecycle
+      active_run_id = lifecycle.active_run_id
+      active_run_conf = [ct.run_conf, ct.get_past_run_conf].compact.detect do |run_conf|
+        run_conf.run_id == active_run_id
+      end
+      recovery_key = "#{ct.ident}:lifecycle"
+
+      if active_run_id
+        begin
+          Container::Recovery.new(ct).recover_state(run_id: active_run_id)
+          Daemon.get.clear_recovery_failure(recovery_key)
+        rescue Container::Recovery::Busy
+          Daemon.get.record_recovery_failure(
+            recovery_key,
+            'container lifecycle reconciliation is waiting for an exact worker',
+            run_id: active_run_id.to_s
+          )
+          if active_run_conf
+            Container::LifecycleFinalizer.watch_reconciliation(
+              ct,
+              active_run_conf,
+              recovery_key:
+            )
+          end
+        rescue StandardError => e
+          log(
+            :warn,
+            "Unable to reconcile lifecycle of #{ct.ident}: " \
+            "#{e.message} (#{e.class})"
+          )
+          Daemon.get.record_recovery_failure(
+            recovery_key,
+            e.message,
+            error_class: e.class.name,
+            run_id: active_run_id.to_s
+          )
+        end
+      end
+
+      active_run_id = lifecycle.active_run_id
+      active_run_conf = [ct.run_conf, ct.get_past_run_conf].compact.detect do |run_conf|
+        run_conf.run_id == active_run_id
+      end
+      active_lifecycle_run = active_run_id && lifecycle.run(active_run_id)
+      recorded_managers = active_lifecycle_run && (
+        %w[wrapper lxc_start].any? do |name|
+          active_lifecycle_run.fetch(name, nil)
+        end || active_lifecycle_run.fetch('legacy_managers', []).any?
+      )
+      if active_run_conf && recorded_managers
+        Container::LifecycleFinalizer.watch_wrapper(ct, active_run_conf)
+      end
+      return unless active_run_conf && !lifecycle.execution_run?(active_run_id)
+
+      Console.reconnect_tty0(ct, active_run_conf)
     end
 
     def load_repositories
@@ -820,8 +872,106 @@ module OsCtld
       end
     end
 
+    def reconcile_container_runtime
+      DB::Containers.get.select do |ct|
+        ct.pool == self && runtime_live_state?(ct.state)
+      end.each do |ct|
+        results = ct.netifs.filter_map do |netif|
+          netif.reconcile_runtime if netif.respond_to?(:reconcile_runtime)
+        end
+        missing = results.select { |result| result[:status] == 'missing' }
+        restart_required = results.select do |result|
+          result[:status] == 'restart_required'
+        end
+        errors = results.select { |result| result[:status] == 'error' }
+        key = "#{ct.ident}:runtime-network"
+
+        if missing.any? || restart_required.any?
+          recovery_details = missing + restart_required
+          intent_id = ct.lifecycle.running_intent_id
+          if intent_id
+            Daemon.get.record_recovery_failure(
+              key,
+              'host network state requires an exact generation restart',
+              recovery_details
+            )
+            log(
+              :warn,
+              ct,
+              'Host network state requires repair, restarting the exact container generation once'
+            )
+            schedule_runtime_network_recovery(
+              ct,
+              key,
+              recovery_details,
+              intent_id
+            )
+          else
+            log(
+              :info,
+              ct,
+              'Required host veth is missing while a stop is desired; not restarting it'
+            )
+            Daemon.get.clear_recovery_failure(key)
+          end
+        elsif errors.any?
+          Daemon.get.record_recovery_failure(
+            key,
+            'host network drift could not be repaired in place',
+            errors
+          )
+        else
+          Daemon.get.clear_recovery_failure(key)
+        end
+      end
+    end
+
+    def schedule_runtime_network_recovery(ct, key, missing, intent_id)
+      thread = Thread.new do
+        recover_runtime_network(ct, key, missing, intent_id)
+      end
+      ThreadReaper.add(thread, nil, group: :durable_lifecycle)
+    end
+
+    def runtime_live_state?(state)
+      %i[running frozen].include?(state.to_sym)
+    end
+
+    def recover_runtime_network(ct, key, missing, intent_id)
+      ret = Commands::Container::Restart.run(
+        pool: name,
+        id: ct.id,
+        wait: 'infinity',
+        lifecycle_source: 'runtime-network-recovery',
+        lifecycle_expected_intent_id: intent_id,
+        lifecycle_recovery: true,
+        manipulation_lock: 'wait'
+      )
+      if ret[:status]
+        Daemon.get.clear_recovery_failure(key)
+      else
+        Daemon.get.record_recovery_failure(
+          key,
+          ret[:message] || 'controlled network recovery restart failed',
+          missing
+        )
+      end
+    rescue StandardError => e
+      log(
+        :warn,
+        ct,
+        "Controlled network recovery failed: #{e.message} (#{e.class})"
+      )
+      Daemon.get.record_recovery_failure(
+        key,
+        e.message,
+        interfaces: missing,
+        error_class: e.class.name
+      )
+    end
+
     def legacy_manager_identities(ct, runtime_state)
-      return [] unless runtime_state == :running
+      return [] unless %i[running frozen].include?(runtime_state)
 
       {
         'legacy_wrapper' => ct.legacy_wrapper_cgroup_path,

@@ -24,7 +24,23 @@ module DaemonHelpers
     )
 
     daemon_config = Struct.new(:debug?, :cpu_scheduler).new(debug, scheduler_cfg)
-    daemon = Struct.new(:config).new(daemon_config)
+    daemon = Struct.new(:config) do
+      def with_lifecycle_admission(**)
+        yield
+      end
+
+      def with_lifecycle_admission_context(**)
+        yield
+      end
+
+      def with_lifecycle_task(**)
+        yield
+      end
+
+      def ready?
+        true
+      end
+    end.new(daemon_config)
 
     stub_const('OsCtld::Daemon', Class.new do
       def self.get

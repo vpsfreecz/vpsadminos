@@ -119,6 +119,7 @@ RSpec.describe 'group commands' do
   end
 
   before do
+    stub_daemon
     history = stub_const('OsCtld::History', Class.new do
       def self.log(*); end
     end)

@@ -17,7 +17,8 @@ module OsCtld
         ret = recovery.cleanup(
           run_id: opts[:run_id],
           cleanup: opts[:cleanup],
-          force: opts[:force]
+          force: opts[:force],
+          admission: {}
         ) do |veth, routes|
           progress(
             "#{veth}: " + routes.map do |route|

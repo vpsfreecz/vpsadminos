@@ -126,6 +126,27 @@ module OsCtld
       end
     end
 
+    class Restart
+      # @return [Integer] seconds allowed for lifecycle operations to settle
+      attr_reader :drain_timeout
+
+      # @return [Integer] seconds allowed for exact-generation cleanup
+      attr_reader :cleanup_timeout
+
+      # @return [Integer] seconds allowed for startup reconciliation
+      attr_reader :recovery_timeout
+
+      # @return [Integer] seconds allowed for one daemon lifecycle hook
+      attr_reader :hook_timeout
+
+      def initialize(cfg)
+        @drain_timeout = cfg.fetch('drain_timeout', 300)
+        @cleanup_timeout = cfg.fetch('cleanup_timeout', 60)
+        @recovery_timeout = cfg.fetch('recovery_timeout', 300)
+        @hook_timeout = cfg.fetch('hook_timeout', 30)
+      end
+    end
+
     # Enable extra debug logs
     # @return [Boolean]
     attr_reader :debug
@@ -164,6 +185,9 @@ module OsCtld
     # @return [GarbageCollector]
     attr_reader :garbage_collector
 
+    # @return [Restart]
+    attr_reader :restart
+
     # @param path [String]
     def initialize(path)
       cfg = JSON.parse(File.read(path))
@@ -179,6 +203,7 @@ module OsCtld
       @send_receive = SendReceive.new(cfg.fetch('send_receive', {}))
       @trash_bin = TrashBin.new(cfg.fetch('trash_bin', {}))
       @garbage_collector = GarbageCollector.new(cfg.fetch('garbage_collector', {}))
+      @restart = Restart.new(cfg.fetch('restart', {}))
     end
   end
 end

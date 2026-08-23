@@ -102,7 +102,7 @@ RSpec.describe 'container recovery and send wrappers' do
       }
       recovery = double('Recovery')
       allow(recovery).to receive(:cleanup)
-        .with(run_id: nil, cleanup: 'all', force: true)
+        .with(run_id: nil, cleanup: 'all', force: true, admission: {})
         .and_yield('veth0', [route])
         .and_return(result)
       ct = build_send_ct(state: :running)
@@ -122,7 +122,8 @@ RSpec.describe 'container recovery and send wrappers' do
       expect(recovery).to have_received(:cleanup).with(
         run_id: nil,
         cleanup: 'all',
-        force: true
+        force: true,
+        admission: {}
       )
       expect(command).to have_received(:progress).with('veth0: 192.0.2.0/24')
     end
@@ -135,7 +136,9 @@ RSpec.describe 'container recovery and send wrappers' do
       end)
       result = { state: :stopped, run_id: 'tank:ct1:run1' }
       recovery = double('Recovery')
-      allow(recovery).to receive(:recover_state).with(run_id: nil).and_return(result)
+      allow(recovery).to receive(:recover_state)
+        .with(run_id: nil, admission: {})
+        .and_return(result)
       ct = build_send_ct
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
@@ -147,7 +150,10 @@ RSpec.describe 'container recovery and send wrappers' do
         status: true,
         output: result
       )
-      expect(recovery).to have_received(:recover_state).with(run_id: nil)
+      expect(recovery).to have_received(:recover_state).with(
+        run_id: nil,
+        admission: {}
+      )
     end
   end
 

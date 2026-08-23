@@ -13,6 +13,11 @@ module OsCtld
     include OsCtl::Lib::Utils::System
 
     OUTCOMES = %i[cleaned quarantined partial blocked ambiguous].freeze
+    INTERNAL_ADMISSION = {
+      internal: true,
+      continuation: true,
+      recovery: true
+    }.freeze
     class Busy < StandardError; end
 
     # @param ct [Container]
@@ -21,17 +26,19 @@ module OsCtld
     end
 
     # Rediscover an exact generation's LXC state.
-    def recover_state(run_id: nil)
+    def recover_state(run_id: nil, admission: INTERNAL_ADMISSION)
       run = resolve_run(run_id)
       run_id = load_run_id(run)
       unless run['role'] == 'active' && ct.lifecycle.active_run_id == run_id
         raise ArgumentError, 'state recovery is available only for the active lifecycle run'
       end
 
-      reconciliation_id = ct.lifecycle.begin_reconciliation(
-        run_id,
-        source: 'state_recovery'
-      )
+      reconciliation_id = Daemon.get.with_lifecycle_admission(**admission) do
+        ct.lifecycle.begin_reconciliation(
+          run_id,
+          source: 'state_recovery'
+        )
+      end
       raise Busy, 'container lifecycle reconciliation is fenced' unless reconciliation_id
 
       begin
@@ -180,13 +187,29 @@ module OsCtld
     # @param cleanup [String, Array<String>]
     # @param force [Boolean]
     # @return [Hash]
-    def cleanup(run_id: nil, cleanup: 'all', force: false, &progress)
+    def cleanup(
+      run_id: nil,
+      cleanup: 'all',
+      force: false,
+      admission: INTERNAL_ADMISSION,
+      &progress
+    )
       requested = cleanup == 'all' ? %w[cgroups netifs] : Array(cleanup)
       run = resolve_run(run_id, allow_none: run_id.nil?)
-      return cleanup_without_run(requested, force:, &progress) unless run
+      unless run
+        return Daemon.get.with_lifecycle_task(
+          kind: :container_recovery_without_run,
+          details: { pool: ct.pool.name, id: ct.id },
+          **admission
+        ) do
+          cleanup_without_run(requested, force:, &progress)
+        end
+      end
 
       run_id = load_run_id(run)
-      recovery_lease = ct.lifecycle.begin_recovery(run_id)
+      recovery_lease = Daemon.get.with_lifecycle_admission(**admission) do
+        ct.lifecycle.begin_recovery(run_id)
+      end
       completed = []
       hazards = []
       evidence = {
@@ -811,6 +834,9 @@ module OsCtld
       )
       return unless state.to_sym == :running
 
+      ct.pool.fulfil_autostart(ct)
+      ct.pool.fulfil_reboot(ct)
+
       if init_pid
         Eventd.report(
           :ct_init_pid,
@@ -843,6 +869,10 @@ module OsCtld
 
     def reconcile_unlaunched(run_id)
       if ct.lifecycle.desired_state == :running
+        ct.lifecycle.cancel_unlaunched(
+          run_id,
+          'unlaunched lifecycle run deferred until daemon readiness'
+        )
         [:start, ct.lifecycle.current_intent_id]
       else
         ct.lifecycle.cancel_unlaunched(
@@ -855,6 +885,8 @@ module OsCtld
 
     def run_reconciliation_followup(followup)
       action, intent_id = followup
+      return if action == :start && !Daemon.get.ready?
+
       thread = Thread.new do
         command = action == :start ? Commands::Container::Start : Commands::Container::Stop
         opts = {
@@ -865,7 +897,22 @@ module OsCtld
           manipulation_lock: 'wait'
         }
         opts[:method] = 'shutdown_or_kill' if action == :stop
-        command.run(**opts)
+        opts[:lifecycle_recovery] = true
+        ret = command.run(**opts)
+        unless ret[:status]
+          log(
+            :info,
+            "Deferred #{action} follow-up for #{ct.ident}: #{ret[:message]}"
+          )
+        end
+      rescue CommandFailed => e
+        log(:info, "Deferred #{action} follow-up for #{ct.ident}: #{e.message}")
+      rescue StandardError => e
+        log(
+          :warn,
+          "Reconciliation #{action} follow-up failed for #{ct.ident}: " \
+          "#{e.message} (#{e.class})"
+        )
       end
       ThreadReaper.add(thread, nil, group: :durable_lifecycle)
     end
@@ -1126,14 +1173,29 @@ module OsCtld
 
     def restart_if_requested(intent_id)
       return unless intent_id
+      return unless Daemon.get.ready?
 
       thread = Thread.new do
-        Commands::Container::Start.run(
+        ret = Commands::Container::Start.run(
           pool: ct.pool.name,
           id: ct.id,
           lifecycle_source: 'recovery',
           lifecycle_intent_id: intent_id,
+          lifecycle_recovery: true,
           manipulation_lock: 'wait'
+        )
+        unless ret[:status]
+          log(
+            :info,
+            "Recovery start for #{ct.ident} was deferred: #{ret[:message]}"
+          )
+        end
+      rescue CommandFailed => e
+        log(:info, "Recovery start for #{ct.ident} was deferred: #{e.message}")
+      rescue StandardError => e
+        log(
+          :warn,
+          "Recovery start failed for #{ct.ident}: #{e.message} (#{e.class})"
         )
       end
       ThreadReaper.add(thread, nil, group: :durable_lifecycle)

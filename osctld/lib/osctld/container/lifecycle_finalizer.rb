@@ -54,12 +54,15 @@ module OsCtld
               && !ct.lifecycle.run(run_conf.run_id)&.fetch('post_stop', false)
             begin
               Container::Recovery.new(ct).recover_state(run_id: run_conf.run_id)
-            rescue ArgumentError, Container::Recovery::Busy
+            rescue ArgumentError, CommandFailed, Container::Recovery::Busy
               # The active generation changed or recovery fenced reconciliation
-              # after the exact-run check.
+              # after the exact-run check, or restart admission closed after
+              # the stable wrapper stopped.
             end
           end
         end
+      rescue StandardError => e
+        log_watcher_failure('wrapper', ct, run_conf, e)
       end
       ThreadReaper.add(thread, nil, group: :durable_lifecycle)
       thread
@@ -69,28 +72,49 @@ module OsCtld
     # hook process still owns the generation. There is deliberately no
     # deadline: once the last exact identity exits, state recovery atomically
     # prunes its lease, supersedes stale effects and reclaims finalization.
-    def self.watch_reconciliation(ct, run_conf)
+    def self.watch_reconciliation(ct, run_conf, recovery_key: nil)
       thread = Thread.new do
+        resolved = false
         loop do
           break if Daemon.get.stopping?
 
           run = ct.lifecycle.run(run_conf.run_id)
-          break unless run
-          break unless ct.lifecycle.active_run_id == run_conf.run_id
+          unless run && ct.lifecycle.active_run_id == run_conf.run_id
+            resolved = true
+            break
+          end
           break if run['recovery']
 
           begin
             Container::Recovery.new(ct).recover_state(run_id: run_conf.run_id)
+            resolved = true
             break
           rescue Container::Recovery::Busy
             sleep(WRAPPER_CHECK_INTERVAL)
           rescue ArgumentError
+            resolved = true
             break
           end
         end
+        if resolved && recovery_key
+          Daemon.get.clear_recovery_failure(recovery_key)
+        end
+      rescue CommandFailed
+        # Restart preparation closed recovery admission. The persisted run is
+        # sufficient for the replacement daemon to resume reconciliation.
+      rescue StandardError => e
+        log_watcher_failure('reconciliation', ct, run_conf, e)
       end
       ThreadReaper.add(thread, nil, group: :durable_lifecycle)
       thread
+    end
+
+    def self.log_watcher_failure(kind, ct, run_conf, error)
+      OsCtl::Lib::Logger.log(
+        :warn,
+        "#{ct.ident} lifecycle #{kind} watcher for #{run_conf.run_id} " \
+        "failed: #{error.message} (#{error.class})"
+      )
     end
 
     def initialize(ct, run_conf, effect_id)

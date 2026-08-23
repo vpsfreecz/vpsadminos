@@ -42,6 +42,7 @@ RSpec.describe OsCtld::CGroup::ContainerParams do
   end
 
   before do
+    stub_daemon
     OsCtl::Lib::Logger.setup(:none)
     state = cgroup_state
     OsCtld::CGroup.define_singleton_method(:version) { state.version }

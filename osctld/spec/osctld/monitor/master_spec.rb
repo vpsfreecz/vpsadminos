@@ -10,6 +10,7 @@ RSpec.describe OsCtld::Monitor::Master do
   subject(:master) { described_class.send(:new) }
 
   before do
+    stub_daemon
     allow(OsCtl::Lib::Logger).to receive(:log)
   end
 

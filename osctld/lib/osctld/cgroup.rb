@@ -463,6 +463,96 @@ module OsCtld
       end.uniq
     end
 
+    # Inventory live container cgroups independently of the configured
+    # container database. A replacement daemon uses this to refuse readiness
+    # when processes remain in an osctld container cgroup which it cannot map
+    # to a loaded container definition.
+    #
+    # Process placement is captured per exact cgroup. Ownership can then be
+    # decided from the generation cgroup topology without comparing PID lists
+    # sampled at different times.
+    #
+    # @return [Array<Hash>] relative cgroup paths and resident PIDs
+    def self.runtime_container_cgroups
+      subsystem = v1? && subsystems.include?('pids') ? 'pids' : subsystems.first
+      mountpoint = abs_cgroup_path(subsystem)
+      root = File.join(mountpoint, ROOT_GROUP)
+      return [] unless Dir.exist?(root)
+
+      Dir.glob(File.join(root, '**', 'ct.*')).filter_map do |path|
+        next unless Dir.exist?(path)
+        next unless File.basename(path).start_with?('ct.')
+
+        path_within_root = path.delete_prefix("#{root}/")
+        next unless container_runtime_path?(path_within_root)
+
+        relative_path = path.delete_prefix("#{mountpoint}/")
+        processes = runtime_tree_processes(relative_path)
+        pids = processes.flat_map { |process| process.fetch(:pids) }.uniq
+        next if pids.empty?
+
+        {
+          cgroup_path: relative_path,
+          processes:,
+          pids:
+        }
+      rescue Errno::ENOENT
+        nil
+      end
+    end
+
+    def self.container_runtime_path?(path)
+      parts = path.split(File::SEPARATOR)
+      return false if parts.length < 3
+      return false unless parts.shift.match?(/\Apool\..+\z/)
+      return false unless parts.pop.match?(/\Act\..+\z/)
+      return false unless parts.pop.match?(/\Auser\..+\z/)
+
+      parts.all? { |part| part.match?(/\Agroup\..+\z/) }
+    end
+    private_class_method :container_runtime_path?
+
+    # Read PIDs from one exact runtime cgroup. A suspected unowned cgroup is
+    # re-read before it is allowed to block daemon readiness, so a process
+    # which exited or moved during inventory is treated as gone.
+    #
+    # @param path [String] path relative to the runtime subsystem
+    # @return [Array<Integer>]
+    def self.runtime_cgroup_pids(path)
+      subsystem = v1? && subsystems.include?('pids') ? 'pids' : subsystems.first
+
+      get_cgroup_pids(subsystem, path)
+    rescue Errno::ENOENT
+      []
+    end
+
+    # @param path [String] container cgroup path relative to the subsystem
+    # @return [Array<Hash>] exact cgroup paths and their resident PIDs
+    def self.runtime_tree_processes(path)
+      subsystem = v1? && subsystems.include?('pids') ? 'pids' : subsystems.first
+      mountpoint = abs_cgroup_path(subsystem)
+      root = abs_cgroup_path(subsystem, path)
+      return [] unless Dir.exist?(root)
+
+      files = [File.join(root, 'cgroup.procs')]
+      files.concat(Dir.glob(File.join(root, '**', 'cgroup.procs')))
+
+      files.uniq.filter_map do |file|
+        pids = File.readlines(file, chomp: true).filter_map do |line|
+          pid = line.to_i
+          pid if pid > 0
+        end.uniq
+        next if pids.empty?
+
+        {
+          cgroup_path: File.dirname(file).delete_prefix("#{mountpoint}/"),
+          pids:
+        }
+      rescue Errno::ENOENT
+        nil
+      end
+    end
+
     # Prevent new tasks from being created in a generation where supported.
     def self.prevent_forks(path)
       subsystem = v1? && subsystems.include?('pids') ? 'pids' : subsystems.first

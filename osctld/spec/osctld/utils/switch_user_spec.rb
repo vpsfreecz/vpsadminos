@@ -19,6 +19,8 @@ RSpec.describe OsCtld::Utils::SwitchUser do
     end.new
   end
 
+  before { stub_daemon }
+
   it 'builds attach settings for the container user' do
     OsCtld.define_singleton_method(:bin) { |name| "/bin/#{name}" }
     ct = Struct.new(:entry_cgroup_path, :user, :prlimits, :init_pid, keyword_init: true).new(

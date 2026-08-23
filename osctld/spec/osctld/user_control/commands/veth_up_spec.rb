@@ -2,11 +2,12 @@
 
 require 'osctld/user_control/command'
 require 'osctld/user_control/commands/veth_up'
+require 'osctld/user_control/commands/veth_down'
+require 'osctld/utils/switch_user'
 require 'osctld/container'
 require 'osctld/container/lifecycle'
 require 'osctld/container/run_id'
 require 'osctld/utils/ip'
-require 'osctld/utils/switch_user'
 require 'osctld/net_interface/veth'
 
 RSpec.describe OsCtld::UserControl::Commands::VethUp do
@@ -28,7 +29,9 @@ RSpec.describe OsCtld::UserControl::Commands::VethUp do
         }
       },
       active_run_id: run_id,
-      begin_callback: 'callback-1',
+      adopted_legacy_callback_run_id: run_id,
+      reserve_callback: 'callback-1',
+      activate_callback: 'callback-1',
       finish_callback: false,
       record_network_interface: true
     )
@@ -54,6 +57,7 @@ RSpec.describe OsCtld::UserControl::Commands::VethUp do
   end
 
   before do
+    stub_daemon
     allow(OsCtl::Lib::Logger).to receive(:log)
     containers = stub_const('OsCtld::DB::Containers', Class.new do
       def self.find(_id, _pool); end
@@ -104,5 +108,70 @@ RSpec.describe OsCtld::UserControl::Commands::VethUp do
     expect(netif).to have_received(:up).with('veth123')
     expect(netif).to have_received(:down).with('veth123')
     expect(OsCtld::Hook).not_to have_received(:run)
+  end
+
+  it 'holds an adopted veth-up callback lease across network mutation' do
+    mutation_started = Queue.new
+    finish_mutation = Queue.new
+    allow(netif).to receive(:up) do
+      mutation_started << true
+      finish_mutation.pop
+    end
+
+    callback = Thread.new do
+      described_class.run(
+        user,
+        id: 'ct1',
+        pool: 'tank',
+        interface: 'eth0',
+        veth: 'veth123'
+      )
+    end
+    mutation_started.pop
+
+    expect(lifecycle).to have_received(:reserve_callback).with(
+      run_id.to_s,
+      name: 'VethUp'
+    )
+    expect(lifecycle).to have_received(:activate_callback).with(
+      run_id.to_s,
+      'callback-1',
+      name: 'VethUp'
+    )
+    expect(lifecycle).not_to have_received(:finish_callback)
+
+    finish_mutation << true
+
+    expect(callback.value).to eq(status: true, output: nil)
+    expect(lifecycle).to have_received(:finish_callback).with(
+      run_id.to_s,
+      'callback-1'
+    )
+  end
+
+  it 'leases an id-less adopted veth-down callback' do
+    result = OsCtld::UserControl::Commands::VethDown.run(
+      user,
+      id: 'ct1',
+      pool: 'tank',
+      interface: 'eth0',
+      veth: 'veth123'
+    )
+
+    expect(result).to eq(status: true, output: nil)
+    expect(lifecycle).to have_received(:reserve_callback).with(
+      run_id.to_s,
+      name: 'VethDown'
+    )
+    expect(lifecycle).to have_received(:activate_callback).with(
+      run_id.to_s,
+      'callback-1',
+      name: 'VethDown'
+    )
+    expect(lifecycle).to have_received(:finish_callback).with(
+      run_id.to_s,
+      'callback-1'
+    )
+    expect(netif).to have_received(:down).with('veth123')
   end
 end

@@ -2,7 +2,7 @@ require 'libosctl'
 
 module OsCtld
   module Hook
-    extend OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::Log
 
     # Register hook
     # @param event_class [Class]
@@ -53,8 +53,24 @@ module OsCtld
           hook.event_instance,
           "Hook #{hook.class.hook_name} at #{hook_path} exited with #{status.exitstatus}"
         )
+      rescue StandardError => e
+        log(
+          :warn,
+          hook.event_instance,
+          "Unable to reap hook #{hook.class.hook_name} at #{hook_path}: " \
+          "#{e.message} (#{e.class})"
+        )
       ensure
-        hook.send(:finish_lifecycle_process, lifecycle_owner)
+        begin
+          hook.send(:finish_lifecycle_process, lifecycle_owner)
+        rescue StandardError => e
+          log(
+            :warn,
+            hook.event_instance,
+            "Unable to finish hook #{hook.class.hook_name} lifecycle: " \
+            "#{e.message} (#{e.class})"
+          )
+        end
       end
     end
   end

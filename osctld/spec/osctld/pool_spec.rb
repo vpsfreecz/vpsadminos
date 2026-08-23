@@ -31,6 +31,28 @@ RSpec.describe OsCtld::Pool do
     end
   end
 
+  it 'discovers manager identities for frozen legacy containers' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      ct = Struct.new(
+        :id,
+        :legacy_wrapper_cgroup_path,
+        :legacy_cgroup_path
+      ).new('ct1', '/osctl/ct.ct1/wrapper', '/osctl/ct.ct1/user-owned')
+      allow(OsCtld::CGroup).to receive(:get_tree_pids)
+        .and_return([Process.pid])
+
+      identities = pool.send(:legacy_manager_identities, ct, :frozen)
+
+      expect(identities).to contain_exactly(
+        include(
+          'pid' => Process.pid,
+          'kind' => 'legacy_wrapper'
+        )
+      )
+    end
+  end
+
   it 'loads explicit options and attrs from the config file' do
     with_tmpdir do |dir|
       pool = build_pool(root: dir)
@@ -193,6 +215,196 @@ RSpec.describe OsCtld::Pool do
 
       pool.disable
       expect(pool.disabled?).to be(true)
+    end
+  end
+
+  it 'keeps startup responsive while scheduling missing-veth recovery' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      missing = { status: 'missing', name: 'eth0', veth: 'veth-test' }
+      netif_class = Class.new do
+        def reconcile_runtime; end
+      end
+      daemon_instance_class = Class.new do
+        def record_recovery_failure(*); end
+      end
+      lifecycle = Struct.new(:running_intent_id).new('intent-1')
+      netif = instance_double(netif_class, reconcile_runtime: missing)
+      ct = FakeObjects::FakeRuntimeContainer.new(
+        pool:,
+        id: 'ct1',
+        running: true,
+        netifs: [netif]
+      )
+      ct.lifecycle = lifecycle
+      daemon = instance_double(
+        daemon_instance_class,
+        record_recovery_failure: nil
+      )
+
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      daemon_class = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(containers).to receive(:get).and_return([ct])
+      allow(daemon_class).to receive(:get).and_return(daemon)
+      allow(pool).to receive(:schedule_runtime_network_recovery)
+      allow(pool).to receive(:log)
+
+      pool.send(:reconcile_container_runtime)
+
+      expect(daemon).to have_received(:record_recovery_failure).with(
+        'tank:ct1:runtime-network',
+        'host network state requires an exact generation restart',
+        [missing]
+      )
+      expect(pool).to have_received(:schedule_runtime_network_recovery).with(
+        ct,
+        'tank:ct1:runtime-network',
+        [missing],
+        'intent-1'
+      )
+    end
+  end
+
+  it 'reconciles host networking for a frozen live container' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      healthy = { status: 'healthy', interface: 'eth0', veth: 'veth-test' }
+      netif = instance_double(
+        Class.new do
+          def reconcile_runtime; end
+        end,
+        reconcile_runtime: healthy
+      )
+      lifecycle = Struct.new(:running_intent_id).new('intent-1')
+      ct = FakeObjects::FakeRuntimeContainer.new(
+        pool:,
+        id: 'ct1',
+        running: false,
+        fresh_state: :frozen,
+        state: :frozen,
+        netifs: [netif]
+      )
+      ct.lifecycle = lifecycle
+      daemon = instance_double(
+        Class.new do
+          def clear_recovery_failure(*); end
+
+          def record_recovery_failure(*); end
+        end,
+        clear_recovery_failure: nil
+      )
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      daemon_class = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(containers).to receive(:get).and_return([ct])
+      allow(daemon_class).to receive(:get).and_return(daemon)
+
+      pool.send(:reconcile_container_runtime)
+
+      expect(netif).to have_received(:reconcile_runtime).once
+      expect(daemon).to have_received(:clear_recovery_failure).with(
+        'tank:ct1:runtime-network'
+      )
+    end
+  end
+
+  it 'does not restart a missing veth when the lifecycle wants the container stopped' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      missing = { status: 'missing', name: 'eth0', veth: 'veth-test' }
+      netif = instance_double(
+        Class.new do
+          def reconcile_runtime; end
+        end,
+        reconcile_runtime: missing
+      )
+      lifecycle = Struct.new(:running_intent_id).new(nil)
+      ct = FakeObjects::FakeRuntimeContainer.new(
+        pool:,
+        id: 'ct1',
+        running: true,
+        netifs: [netif]
+      )
+      ct.lifecycle = lifecycle
+      daemon = instance_double(
+        Class.new do
+          def clear_recovery_failure(*); end
+
+          def record_recovery_failure(*); end
+        end,
+        clear_recovery_failure: nil
+      )
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      daemon_class = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(containers).to receive(:get).and_return([ct])
+      allow(daemon_class).to receive(:get).and_return(daemon)
+      allow(pool).to receive(:schedule_runtime_network_recovery)
+      allow(pool).to receive(:log)
+
+      pool.send(:reconcile_container_runtime)
+
+      expect(pool).not_to have_received(:schedule_runtime_network_recovery)
+      expect(daemon).to have_received(:clear_recovery_failure).with(
+        'tank:ct1:runtime-network'
+      )
+    end
+  end
+
+  it 'clears the readiness failure after controlled network recovery' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      ct = FakeObjects::FakeRuntimeContainer.new(pool:, id: 'ct1')
+      daemon_instance_class = Class.new do
+        def clear_recovery_failure(*); end
+      end
+      daemon = instance_double(
+        daemon_instance_class,
+        clear_recovery_failure: nil
+      )
+      daemon_class = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      restart = stub_const(
+        'OsCtld::Commands::Container::Restart',
+        Class.new do
+          def self.run(**); end
+        end
+      )
+
+      allow(restart).to receive(:run).and_return(status: true)
+      allow(daemon_class).to receive(:get).and_return(daemon)
+
+      pool.send(
+        :recover_runtime_network,
+        ct,
+        'tank:ct1:runtime-network',
+        [{ status: 'missing' }],
+        'intent-1'
+      )
+
+      expect(restart).to have_received(:run).with(
+        pool: 'tank',
+        id: 'ct1',
+        wait: 'infinity',
+        lifecycle_source: 'runtime-network-recovery',
+        lifecycle_expected_intent_id: 'intent-1',
+        lifecycle_recovery: true,
+        manipulation_lock: 'wait'
+      )
+      expect(daemon).to have_received(:clear_recovery_failure).with(
+        'tank:ct1:runtime-network'
+      )
     end
   end
 

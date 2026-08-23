@@ -722,7 +722,9 @@ module OsCtld
     end
 
     def begin_policy_lease(kind)
-      lease = owner.lifecycle.begin_policy_update(kind:)
+      lease = Daemon.get.with_lifecycle_admission do
+        owner.lifecycle.begin_policy_update(kind:)
+      end
       return lease if lease
 
       raise CGroup::CpusetPolicy::Error,

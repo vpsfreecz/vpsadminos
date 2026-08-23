@@ -26,14 +26,6 @@ module OsCtld
 
       return error('managed lifecycle run changed') unless ct.starting(run_conf.run_id)
 
-      unless ct.lifecycle.execution_run?(run_conf.run_id)
-        # Mark autostart as fulfilled
-        ct.pool.fulfil_autostart(ct)
-
-        # Fulfil possible reboot request
-        ct.pool.fulfil_reboot(ct)
-      end
-
       # Mount datasets
       run_conf.mount(force: true)
 

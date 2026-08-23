@@ -16,33 +16,43 @@ module OsCtld
     end
 
     def execute(ct)
+      daemon = Daemon.get
       return start_queued(ct) if opts[:queue]
 
       error!('start not available') unless ct.can_start?
 
       deadline = wait_deadline
       intent_id = opts[:lifecycle_intent_id]
+      admission_opts = {
+        internal: client_handler.nil?,
+        continuation: indirect? && !intent_id.nil?,
+        recovery: client_handler.nil? && opts[:lifecycle_recovery] == true
+      }
 
       loop do
         request, preflight_error = manipulate(ct, lifecycle: true) do
-          if ct.lifecycle.active_run_id.nil?
-            ret = call_cmd(
-              Commands::Group::CGParamApply,
-              name: ct.group.name,
-              pool: ct.pool.name,
-              manipulation_lock: 'wait',
-              only_policies: true
-            )
-            next [nil, ret] unless ret[:status]
-          end
+          daemon.with_lifecycle_admission_context(**admission_opts) do
+            if ct.lifecycle.active_run_id.nil?
+              ret = call_cmd(
+                Commands::Group::CGParamApply,
+                name: ct.group.name,
+                pool: ct.pool.name,
+                manipulation_lock: 'wait',
+                only_policies: true
+              )
+              next [nil, ret] unless ret[:status]
+            end
 
-          [
-            ct.lifecycle.request_start(
-              source: opts[:lifecycle_source] || 'external',
-              expected_intent_id: intent_id
-            ),
-            nil
-          ]
+            daemon.with_lifecycle_admission(**admission_opts) do
+              [
+                ct.lifecycle.request_start(
+                  source: opts[:lifecycle_source] || 'external',
+                  expected_intent_id: intent_id
+                ),
+                nil
+              ]
+            end
+          end
         end
         return preflight_error if preflight_error
 

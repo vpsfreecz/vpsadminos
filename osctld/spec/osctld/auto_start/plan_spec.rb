@@ -122,6 +122,129 @@ RSpec.describe OsCtld::AutoStart::Plan do
     expect(executor.enqueued.map(&:id)).to eq(%w[autostart rebooted])
   end
 
+  it 'persists the desired lifecycle intent before queueing a boot start' do
+    ct = build_ct(
+      pool:,
+      id: 'ct1',
+      autostart: RuntimePolicyHelpers::FakeAutostart.new(
+        priority: 10,
+        delay: 0,
+        ct_id: 'ct1'
+      )
+    )
+    request = Struct.new(:action, :run_id, :intent_id, :warning).new(
+      :launch,
+      'tank:ct1:run-1',
+      'intent-1',
+      nil
+    )
+    lifecycle_class = Class.new do
+      def autostart_intent?; end
+
+      def request_start(source:); end
+
+      def cancel_unlaunched(*, **); end
+    end
+    lifecycle = instance_double(
+      lifecycle_class,
+      autostart_intent?: false,
+      request_start: request,
+      cancel_unlaunched: true
+    )
+    ct.lifecycle = lifecycle
+    stub_containers_registry([ct])
+
+    plan = described_class.new(pool)
+    allow(plan).to receive(:interruptible_sleep)
+    plan.start
+
+    expect(lifecycle).to have_received(:request_start).with(source: 'autostart')
+    expect(executor.enqueued.map(&:id)).to eq(['ct1'])
+
+    executor.enqueued.first.send(:exec)
+    expect(OsCtld::Commands::Container::Start).to have_received(:run).with(
+      hash_including(
+        lifecycle_source: 'autostart',
+        lifecycle_intent_id: 'intent-1'
+      )
+    )
+  end
+
+  it 'reschedules a durable autostart intent even when autostart was disabled' do
+    ct = build_ct(pool:, id: 'ct1')
+    request = Struct.new(:action, :run_id, :intent_id, :warning).new(
+      :launch,
+      'tank:ct1:run-2',
+      'intent-2',
+      nil
+    )
+    lifecycle_class = Class.new do
+      def autostart_intent?; end
+
+      def request_start(source:); end
+
+      def cancel_unlaunched(*, **); end
+    end
+    lifecycle = instance_double(
+      lifecycle_class,
+      autostart_intent?: true,
+      request_start: request,
+      cancel_unlaunched: true
+    )
+    ct.lifecycle = lifecycle
+    stub_containers_registry([ct])
+
+    described_class.new(pool).start
+
+    expect(executor.enqueued.map(&:id)).to eq(['ct1'])
+    expect(lifecycle).to have_received(:request_start).with(source: 'autostart')
+  end
+
+  it 'cancels queued unlaunched generations while preserving desired running on pause' do
+    ct = build_ct(
+      pool:,
+      id: 'ct1',
+      autostart: RuntimePolicyHelpers::FakeAutostart.new(
+        priority: 10,
+        delay: 0,
+        ct_id: 'ct1'
+      )
+    )
+    request = Struct.new(:action, :run_id, :intent_id, :warning).new(
+      :launch,
+      'tank:ct1:run-1',
+      'intent-1',
+      nil
+    )
+    lifecycle_class = Class.new do
+      def autostart_intent?; end
+
+      def request_start(source:); end
+
+      def cancel_unlaunched(*, **); end
+    end
+    lifecycle = instance_double(
+      lifecycle_class,
+      autostart_intent?: false,
+      request_start: request,
+      cancel_unlaunched: true
+    )
+    ct.lifecycle = lifecycle
+    stub_containers_registry([ct])
+
+    plan = described_class.new(pool)
+    plan.start
+    plan.pause
+
+    expect(lifecycle).to have_received(:cancel_unlaunched).with(
+      'tank:ct1:run-1',
+      'autostart paused before launch',
+      preserve_desired: true,
+      source: 'autostart-cancel'
+    )
+    expect(executor.cleared?).to be(true)
+  end
+
   it 'preschedules only stopped containers in descending daily CPU use order' do
     first = build_ct(
       pool:,
@@ -199,7 +322,7 @@ RSpec.describe OsCtld::AutoStart::Plan do
     stub_containers_registry([ct])
 
     plan = described_class.new(pool)
-    allow(plan).to receive(:sleep)
+    allow(plan).to receive(:interruptible_sleep)
     allow(plan).to receive(:rand).and_return(0.0)
 
     plan.start
@@ -237,7 +360,7 @@ RSpec.describe OsCtld::AutoStart::Plan do
 
     allow(plan).to receive(:delay_after_start?).and_return(false)
     allow(plan).to receive(:log)
-    allow(plan).to receive(:sleep)
+    allow(plan).to receive(:interruptible_sleep)
     allow(OsCtld::Commands::Container::Start).to receive(:run).and_return(
       { status: false },
       { status: true }
@@ -245,7 +368,7 @@ RSpec.describe OsCtld::AutoStart::Plan do
 
     plan.send(:do_try_start_ct, ct, attempts: 2, cooldown: 5)
 
-    expect(plan).to have_received(:sleep).with(5)
+    expect(plan).to have_received(:interruptible_sleep).with(5)
     expect(state).to have_received(:set_started).with(ct)
   end
 
@@ -257,7 +380,7 @@ RSpec.describe OsCtld::AutoStart::Plan do
     )
     plan = described_class.new(pool)
 
-    allow(plan).to receive(:sleep)
+    allow(plan).to receive(:interruptible_sleep)
     allow(plan).to receive(:log)
     allow(OsCtld::Commands::Container::Start).to receive(:run).and_return({ status: false })
 
@@ -274,7 +397,7 @@ RSpec.describe OsCtld::AutoStart::Plan do
     )
     plan = described_class.new(pool)
 
-    allow(plan).to receive(:sleep)
+    allow(plan).to receive(:interruptible_sleep)
     allow(plan).to receive(:log)
     allow(plan).to receive(:stop?).and_return(false, true)
     allow(OsCtld::Commands::Container::Start).to receive(:run).and_return({ status: false })
@@ -294,7 +417,7 @@ RSpec.describe OsCtld::AutoStart::Plan do
     stub_containers_registry([ct])
 
     plan = described_class.new(pool)
-    allow(plan).to receive(:sleep)
+    allow(plan).to receive(:interruptible_sleep)
     allow(plan).to receive(:rand).and_return(0.0)
 
     plan.enqueue(ct, start_opts: { wait: 33, foo: :bar })

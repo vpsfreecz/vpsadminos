@@ -46,7 +46,8 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
       activate_lxc_start: false,
       consume_pre_start: false,
       complete_pre_start: false,
-      begin_callback: 'callback-1',
+      reserve_callback: 'callback-1',
+      activate_callback: 'callback-1',
       finish_callback: false
     )
   end
@@ -68,6 +69,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
   end
 
   before do
+    stub_daemon
     allow(OsCtl::Lib::Logger).to receive(:log)
     containers = stub_const('OsCtld::DB::Containers', Class.new do
       def self.find(_id, _pool); end
@@ -109,6 +111,18 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
   end
 
   it 'leases the exact user-control callback worker around execution' do
+    admission_fence_held = false
+    allow(OsCtld::Daemon.get).to receive(:with_lifecycle_admission) do |**, &block|
+      admission_fence_held = true
+      block.call
+    ensure
+      admission_fence_held = false
+    end
+    allow(lifecycle).to receive(:activate_callback) do
+      expect(admission_fence_held).to be(false)
+      'callback-1'
+    end
+
     result = described_class.run(
       user,
       id: 'ct1',
@@ -122,8 +136,13 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
       status: false,
       message: 'managed launch authorization denied; manual lxc-start is unsupported'
     )
-    expect(lifecycle).to have_received(:begin_callback).with(
+    expect(lifecycle).to have_received(:reserve_callback).with(
       'tank:ct1:run-1',
+      name: 'CtWrapperStart'
+    )
+    expect(lifecycle).to have_received(:activate_callback).with(
+      'tank:ct1:run-1',
+      'callback-1',
       name: 'CtWrapperStart'
     )
     expect(lifecycle).to have_received(:finish_callback).with(
@@ -150,8 +169,13 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
     )
 
     expect(result).to eq(status: true, output: nil)
-    expect(lifecycle).to have_received(:begin_callback).with(
+    expect(lifecycle).to have_received(:reserve_callback).with(
       'tank:ct1:run-1',
+      name: 'CtPostStop'
+    )
+    expect(lifecycle).to have_received(:activate_callback).with(
+      'tank:ct1:run-1',
+      'callback-1',
       name: 'CtPostStop'
     )
     expect(lifecycle).to have_received(:finish_callback).with(
@@ -176,7 +200,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
       status: false,
       message: 'managed lifecycle run not found'
     )
-    expect(lifecycle).not_to have_received(:begin_callback)
+    expect(lifecycle).not_to have_received(:reserve_callback)
   end
 
   it 'rejects a wrapper that lies about its process ID' do

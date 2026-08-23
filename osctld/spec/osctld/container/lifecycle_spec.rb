@@ -41,7 +41,7 @@ RSpec.describe OsCtld::Container::Lifecycle do
     with_tmpdir do |root|
       ct = build_container(root)
       lifecycle = described_class.new(ct)
-      request = lifecycle.request_start
+      request = lifecycle.request_start(source: 'autostart')
 
       expect(request.action).to eq(:launch)
       expect(request.run_id.key).to match(/\A[0-9a-f]{32}\z/)
@@ -51,8 +51,29 @@ RSpec.describe OsCtld::Container::Lifecycle do
       restored = described_class.new(ct)
 
       expect(restored.desired_state).to eq(:running)
+      expect(restored.current_intent_source).to eq('autostart')
+      expect(restored.autostart_intent?).to be(true)
       expect(restored.active_run_id).to eq(request.run_id)
       expect(restored.revision).to be > 0
+    end
+  end
+
+  it 'persists a handoff intent without allocating a launch generation' do
+    with_tmpdir do |root|
+      ct = build_container(root)
+      lifecycle = described_class.new(ct)
+
+      intent_id = lifecycle.persist_running_intent(
+        source: 'legacy-runtime-upgrade'
+      )
+
+      expect(intent_id).to eq(lifecycle.current_intent_id)
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.current_intent_source).to eq(
+        'legacy-runtime-upgrade'
+      )
+      expect(lifecycle.active_run).to be_nil
+      expect(lifecycle.daemon_restart_blockers).to be_empty
     end
   end
 
@@ -205,6 +226,87 @@ RSpec.describe OsCtld::Container::Lifecycle do
       expect(lifecycle.adopted_legacy_callback_run_id).to eq(run_id)
       expect(lifecycle.active_run.fetch('legacy_callbacks')).to be(true)
       expect(lifecycle.active_run.fetch('legacy_managers')).to eq([manager])
+      expect(lifecycle.running_intent_id).not_to be_nil
+      expect(lifecycle.active_run.fetch('launch_intent_id'))
+        .to eq(lifecycle.running_intent_id)
+    end
+  end
+
+  it 'adopts a frozen legacy runtime as the same desired-running generation' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      run_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      run_conf = Struct.new(:run_id, :reboot?).new(run_id, false)
+      manager = OsCtld::ProcessIdentity.capture(Process.pid).dump.merge(
+        'kind' => 'legacy_wrapper'
+      )
+
+      lifecycle.adopt_legacy(run_conf, :frozen, managers: [manager])
+
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.running_intent_id).not_to be_nil
+      expect(lifecycle.active_run).to include(
+        'phase' => 'running',
+        'reported_state' => 'frozen',
+        'launch_intent_id' => lifecycle.running_intent_id
+      )
+      expect(lifecycle.daemon_restart_blockers).to be_empty
+    end
+  end
+
+  it 'does not consider a stale adopted manager identity stable' do
+    %i[running frozen].each do |state|
+      with_tmpdir do |root|
+        lifecycle = described_class.new(build_container(root))
+        run_id = OsCtld::Container::RunId.new(
+          pool_name: 'tank',
+          container_id: 'ct1'
+        )
+        run_conf = Struct.new(:run_id, :reboot?).new(run_id, false)
+        stale_manager = {
+          'pid' => 999_999_999,
+          'start_time_ticks' => 1,
+          'kind' => 'legacy_wrapper'
+        }
+
+        lifecycle.adopt_legacy(
+          run_conf,
+          state,
+          managers: [stale_manager]
+        )
+
+        expect(lifecycle.daemon_restart_blockers).to contain_exactly(
+          include(
+            type: 'container_generation',
+            run_id: run_id.to_s,
+            phase: 'running'
+          )
+        )
+      end
+    end
+  end
+
+  it 'blocks restart readiness for a legacy runtime without a manager identity' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      run_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
+      )
+      run_conf = Struct.new(:run_id, :reboot?).new(run_id, false)
+
+      lifecycle.adopt_legacy(run_conf, :running, managers: [])
+
+      expect(lifecycle.daemon_restart_blockers).to contain_exactly(
+        include(
+          type: 'container_generation',
+          run_id: run_id.to_s,
+          phase: 'running'
+        )
+      )
     end
   end
 
@@ -1321,6 +1423,42 @@ RSpec.describe OsCtld::Container::Lifecycle do
     end
   end
 
+  it 'never interrupts a running generation manager to drain a hook child' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      effect_id = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.mark_launching(start.run_id, effect_id, Process.pid)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, effect_id)
+
+      read_io, write_io = IO.pipe
+      child_pid = Process.fork do
+        write_io.close
+        read_io.read
+      end
+      read_io.close
+
+      begin
+        lifecycle.register_process(
+          start.run_id,
+          kind: 'hook:post_start',
+          pid: child_pid
+        )
+
+        expect(lifecycle.daemon_restart_blockers).not_to be_empty
+        expect(
+          lifecycle.daemon_restart_processes(start.run_id).map do |identity|
+            identity.fetch('pid')
+          end
+        ).to eq([child_pid])
+      ensure
+        write_io.close
+        Process.wait(child_pid)
+      end
+    end
+  end
+
   it 'tracks an external command child without racing its live supervisor' do
     with_tmpdir do |root|
       lifecycle = described_class.new(build_container(root))
@@ -1566,6 +1704,25 @@ RSpec.describe OsCtld::Container::Lifecycle do
 
       expect(stale.action).to eq(:superseded)
       expect(lifecycle.desired_state).to eq(:stopped)
+    end
+  end
+
+  it 'rejects an exact recovery restart after its running intent is stopped' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      running = lifecycle.request_start(source: 'runtime-network-recovery')
+
+      expect(lifecycle.running_intent_id).to eq(running.intent_id)
+
+      lifecycle.request_stop(source: 'external')
+      stale = lifecycle.request_restart(
+        source: 'runtime-network-recovery',
+        expected_intent_id: running.intent_id
+      )
+
+      expect(stale.action).to eq(:superseded)
+      expect(lifecycle.desired_state).to eq(:stopped)
+      expect(lifecycle.running_intent_id).to be_nil
     end
   end
 
@@ -2070,6 +2227,25 @@ RSpec.describe OsCtld::Container::Lifecycle do
     end
   end
 
+  it 'can cancel an operator-cleared queued start and its desired state atomically' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      request = lifecycle.request_start(source: 'queued')
+
+      expect(
+        lifecycle.cancel_unlaunched(
+          request.run_id,
+          'queue cancelled',
+          preserve_desired: false,
+          source: 'autostart-cancel'
+        )
+      ).to be(true)
+      expect(lifecycle.active_run_id).to be_nil
+      expect(lifecycle.desired_state).to eq(:stopped)
+      expect(lifecycle.run(request.run_id).fetch('phase')).to eq('clean')
+    end
+  end
+
   it 'does not let a waiting start reassert itself after a newer stop' do
     with_tmpdir do |root|
       lifecycle = described_class.new(build_container(root))
@@ -2256,6 +2432,33 @@ RSpec.describe OsCtld::Container::Lifecycle do
 
       request = lifecycle.request_start
       expect(request.action).to eq(:failed)
+    end
+  end
+
+  it 'does not block daemon restart for a stable running generation' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      effect_id = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.finish_effect(start.run_id, effect_id)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+
+      expect(lifecycle.daemon_restart_blockers).to be_empty
+    end
+  end
+
+  it 'reports an unlaunched durable start as a daemon restart blocker' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start(source: 'autostart')
+
+      expect(lifecycle.daemon_restart_blockers).to contain_exactly(
+        include(
+          type: 'container_generation',
+          run_id: start.run_id.to_s,
+          phase: 'preparing'
+        )
+      )
     end
   end
 end

@@ -318,6 +318,38 @@ The following shortcuts are supported:
  - `user`
 
 ## COMMANDS
+`daemon status`
+  Show whether osctld is starting, ready, draining, prepared, blocked or
+  stopping. The output includes lifecycle admission, recovery failures,
+  unidentified runtime cgroups and drain blockers. With an older daemon, the
+  command reports the limited state available from `self status`.
+
+`daemon prepare-stop`
+  Close lifecycle admission, pause container auto-start queues and wait for
+  in-progress lifecycle generations to settle. If the configured drain
+  deadline expires, osctld terminates only processes recorded for the exact
+  incomplete generation. Callback services remain available and osctld stays
+  running when ownership cannot be resolved safely.
+
+  This command is normally used by configuration activation. A direct
+  `sv restart osctld` uses the same daemon-side drain. The `sv` client can time
+  out before a long drain completes; runit continues supervising the requested
+  restart. Use `daemon status` to inspect progress.
+
+`daemon resume`
+  Cancel a prepared or failed restart attempt, reopen lifecycle admission after
+  recovery checks pass, resume auto-start queues and continue durable desired
+  starts.
+
+`daemon wait-ready` [`--timeout` *seconds*]
+  Wait until startup inventory, runtime reconciliation and post-resume hooks
+  complete. The command fails when the timeout expires or shutdown makes
+  readiness impossible.
+
+    `--timeout` *seconds*
+      Maximum time to wait. The default comes from osctld's restart recovery
+      timeout.
+
 `pool install` [*options*] *pool*
   Mark zpool *pool* to be used with `osctld`.
   User property **org.vpsadminos.osctl:active** is set to **yes**. `osctld` will
@@ -2673,18 +2705,12 @@ transfer and start again.
     `--network-interfaces`
       Cleanup only network interfaces.
 
-  Before rolling a node back to an osctld version without lifecycle
-  generations, drain all container lifecycle activity and stop all containers.
-  Verify that no lifecycle effect, recovery, residual generation, container
-  policy taint, persistent group `cgroup-policy.yml` marker, or
-  generation-qualified cgroup remains. The old daemon cannot interpret
-  generation-qualified cgroups, hooks, process identities, or quarantine
-  evidence and must not manage a live or quarantined generation. Use exact
-  container recovery and group cgroup-parameter apply before the downgrade to
-  clear every hazard. If the drain cannot be proven, do not roll back: roll
-  forward to the generation-aware version and finish exact-run recovery there.
-  After a rollback, start containers only after the old daemon has inventoried
-  the fully stopped node.
+  Runtime downgrade to an osctld version without lifecycle generations is not
+  supported after the generation-aware daemon has written lifecycle state. The
+  old daemon cannot interpret generation cgroups, hooks, process identities, or
+  quarantine evidence and must not manage those containers. If a replacement
+  daemon fails, keep the lifecycle state intact, deploy a generation-aware fix,
+  and finish exact-run recovery with that version.
 
 `group new` *options* *group*
   Create a new group for resource management.
@@ -3345,8 +3371,14 @@ register hooks during boot or service start.
 ## DAEMON SCRIPT HOOKS
 `pre-stop`
   `pre-stop` is run after `osctld` enters the stopping state, but before it
-  stops accepting management clients. The hook is blocking, but its exit status
-  is only logged and does not abort daemon shutdown.
+  stops accepting management clients. The hook is a blocking restart barrier.
+  A non-zero exit status aborts restart preparation and osctld runs its
+  `post-resume` hooks before reopening lifecycle admission.
+
+`post-resume`
+  `post-resume` is run before lifecycle admission reopens after startup or a
+  cancelled restart. A non-zero exit status keeps osctld blocked; the hook is
+  retried while the daemon remains available for status and recovery commands.
 
 ### Daemon script environment variables
 All daemon script hooks have the following environment variables set:

@@ -10,7 +10,7 @@ module OsCtld
 
       recover = proc do
         recovery = Container::Recovery.new(ct)
-        ok(recovery.recover_state(run_id: opts[:run_id]))
+        ok(recovery.recover_state(run_id: opts[:run_id], admission: {}))
       end
 
       if opts[:manipulation_lock] == 'ignore'

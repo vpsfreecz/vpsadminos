@@ -8,6 +8,7 @@ module OsCtld
   module Commands
     module Container; end
     module CpuScheduler; end
+    module Daemon; end
     module Dataset; end
     module Debug; end
     module Event; end

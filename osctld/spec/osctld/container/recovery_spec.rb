@@ -24,6 +24,7 @@ RSpec.describe OsCtld::Container::Recovery do
   let(:recovery) { described_class.new(ct) }
 
   before do
+    stub_daemon
     stub_const(
       'OsCtld::DB::Containers',
       Class.new do
@@ -151,6 +152,10 @@ RSpec.describe OsCtld::Container::Recovery do
       .and_return(double(state: :running, init_pid: 5678))
     allow(OsCtld::Eventd).to receive(:report)
     allow(OsCtld::Hook).to receive(:run)
+    ct.pool.define_singleton_method(:fulfil_autostart) { |_ct| nil }
+    ct.pool.define_singleton_method(:fulfil_reboot) { |_ct| nil }
+    allow(ct.pool).to receive(:fulfil_autostart)
+    allow(ct.pool).to receive(:fulfil_reboot)
 
     result = recovery.recover_state(run_id: run_id)
 
@@ -173,6 +178,8 @@ RSpec.describe OsCtld::Container::Recovery do
       :running,
       init_pid: 5678
     )
+    expect(ct.pool).to have_received(:fulfil_autostart).with(ct)
+    expect(ct.pool).to have_received(:fulfil_reboot).with(ct)
   end
 
   it 'yields state recovery before mutation when an exact callback arrived' do

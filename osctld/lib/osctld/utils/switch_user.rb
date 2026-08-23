@@ -17,7 +17,9 @@ module OsCtld
           raise CommandFailed, 'managed lifecycle attachment is unavailable'
         end
 
-        process_id = ct.lifecycle.register_attachment(run_id, pid:)
+        process_id = Daemon.get.with_lifecycle_admission do
+          ct.lifecycle.register_attachment(run_id, pid:)
+        end
         unless process_id
           raise CommandFailed,
                 'container stopped before command attachment'

@@ -181,6 +181,21 @@ module OsCtld
       end
     end
 
+    # Persist desired-running ownership without allocating a launch
+    # generation. Startup handoff processing runs behind the global readiness
+    # barrier; the generation itself is scheduled only after readiness, when
+    # ordinary lifecycle execution can make progress.
+    def persist_running_intent(source:)
+      sync do
+        if record['desired_state'] != 'running'
+          update_intent('running', 'start', source)
+          commit
+        end
+
+        current_intent_id_locked
+      end
+    end
+
     # Admit an lxc-execute operation for a stopped container. The transient
     # generation occupies the same active slot as a normal start, but does not
     # change the container's desired state.
@@ -360,8 +375,16 @@ module OsCtld
       end
     end
 
-    def request_restart(source: 'external')
+    def request_restart(source: 'external', expected_intent_id: nil)
       sync do
+        if expected_intent_id \
+            && (
+              record['desired_state'] != 'running' \
+              || current_intent_id_locked != expected_intent_id
+            )
+          next superseded_request
+        end
+
         if live_policy_update_locked
           next Request.new(
             action: :wait,
@@ -1027,7 +1050,7 @@ module OsCtld
     # User-control callbacks execute privileged generation effects in osctld
     # threads. Persist their exact worker identities so recovery cannot race
     # them while the daemon remains alive.
-    def begin_callback(run_id, name:)
+    def reserve_callback(run_id, name:)
       identity = ProcessIdentity.capture_thread
       return unless identity
 
@@ -1048,6 +1071,19 @@ module OsCtld
           'record_revision' => revision + 1
         }
         commit
+        callback_id
+      end
+    end
+
+    # Wait until a durably reserved callback can execute. This deliberately
+    # runs outside the daemon-wide admission fence: policy and reconciliation
+    # waits may be unbounded, while the persisted callback identity is already
+    # sufficient to keep restart draining honest.
+    def activate_callback(run_id, callback_id, name:)
+      sync do
+        run = find_run_locked(run_id)
+        return unless run
+        return unless run.fetch('callbacks', {}).has_key?(callback_id)
 
         while live_policy_update_locked
           if daemon_stopping?
@@ -1111,6 +1147,15 @@ module OsCtld
         commit
         callback_id
       end
+    end
+
+    def begin_callback(run_id, name:)
+      callback_id = reserve_callback(run_id, name:)
+      return unless callback_id
+
+      activated = activate_callback(run_id, callback_id, name:)
+      finish_callback(run_id, callback_id) unless activated
+      activated
     end
 
     def finish_callback(run_id, callback_id)
@@ -1528,12 +1573,22 @@ module OsCtld
       )
     end
 
-    def cancel_unlaunched(run_id, message)
+    def cancel_unlaunched(
+      run_id,
+      message,
+      preserve_desired: true,
+      source: 'lifecycle-cancel'
+    )
       sync do
         run = require_run_locked(run_id)
         return false unless active_run_locked.equal?(run)
         return false unless run['phase'] == 'preparing'
         return false if run['effect']
+
+        if !preserve_desired \
+            && current_intent_id_locked == run['launch_intent_id']
+          update_intent('stopped', 'stop', source)
+        end
 
         run['phase'] = 'clean'
         run['role'] = 'history'
@@ -1862,6 +1917,117 @@ module OsCtld
 
     def current_intent_id
       sync { current_intent_id_locked }
+    end
+
+    def running_intent_id
+      sync do
+        current_intent_id_locked if record.fetch('desired_state') == 'running'
+      end
+    end
+
+    def current_intent_source
+      sync { record.dig('intent', 'source') }
+    end
+
+    def autostart_intent?
+      sync do
+        record['desired_state'] == 'running' \
+          && record.dig('intent', 'source') == 'autostart'
+      end
+    end
+
+    # Return lifecycle work which has to settle before osctld can safely tear
+    # down its callback and event infrastructure. A stable running container
+    # is deliberately not a blocker. External attachments are blockers: their
+    # management handlers wait for the exact child, so they must finish or be
+    # terminated within the configured drain budget before teardown proceeds.
+    #
+    # @return [Array<Hash>]
+    def daemon_restart_blockers
+      sync do
+        policy_update = live_policy_update_locked
+        blockers = []
+
+        if policy_update
+          blockers << {
+            type: 'policy_update',
+            kind: policy_update['kind'],
+            worker: deep_copy(policy_update['worker'])
+          }
+        end
+
+        record.fetch('runs').each_value do |run|
+          next unless %w[active residual].include?(run['role'])
+
+          workers = live_workers_locked(run)
+          lifecycle_workers = workers
+
+          stable = run['role'] == 'active' \
+            && run.fetch('kind', 'container') == 'container' \
+            && run['phase'] == 'running' \
+            && legacy_runtime_owned_locked?(run) \
+            && record['desired_state'] == 'running' \
+            && current_intent_id_locked == run['launch_intent_id'] \
+            && run['effect'].nil? \
+            && run['observer'].nil? \
+            && run['reconciliation'].nil? \
+            && run['recovery'].nil? \
+            && lifecycle_workers.empty?
+          next if stable
+
+          passive_residual = run['role'] == 'residual' \
+            && run['effect'].nil? \
+            && run['observer'].nil? \
+            && run['reconciliation'].nil? \
+            && run['recovery'].nil? \
+            && lifecycle_workers.empty?
+          next if passive_residual
+
+          blockers << {
+            type: 'container_generation',
+            run_id: load_run_id(run).to_s,
+            role: run['role'],
+            kind: run.fetch('kind', 'container'),
+            phase: run['phase'],
+            effect: deep_copy(run['effect']),
+            observer: deep_copy(run['observer']),
+            reconciliation: deep_copy(run['reconciliation']),
+            recovery: deep_copy(run['recovery']),
+            workers: deep_copy(lifecycle_workers)
+          }
+        end
+
+        blockers
+      end
+    end
+
+    # Return identities which can be interrupted without guessing by name or
+    # PID. Thread identities belonging to osctld itself are omitted.
+    #
+    # @param run_id [Container::RunId, String]
+    # @return [Array<Hash>]
+    def daemon_restart_processes(run_id)
+      sync do
+        run = find_run_locked(run_id)
+        next [] unless run
+
+        identities = []
+        unless run['phase'] == 'running'
+          %w[wrapper lxc_start].each do |name|
+            identities << run[name] if run[name]
+          end
+          run.fetch('legacy_managers', []).each do |identity|
+            identities << identity
+          end
+        end
+        run.fetch('processes', {}).each_value do |process|
+          identities << process['identity']
+        end
+
+        identities.compact.uniq do |identity|
+          [identity['pid'], identity['tid'], identity['start_time_ticks']]
+        end.map { |identity| deep_copy(identity) }
+      end
     end
 
     # Fence the runtime cgroup topology while container-wide policy is being
@@ -2201,6 +2367,10 @@ module OsCtld
         return if active_run_locked
 
         run_id = run_conf.run_id
+        live = %i[running frozen].include?(state.to_sym)
+        if live
+          update_intent('running', 'adopt', 'legacy-runtime-upgrade')
+        end
         hazards = ['adopted legacy runtime']
         if state.to_sym != :stopped && managers.empty?
           hazards << 'legacy manager identity unavailable'
@@ -2209,7 +2379,7 @@ module OsCtld
           'id' => run_id.dump,
           'role' => 'active',
           'kind' => 'container',
-          'phase' => state.to_s,
+          'phase' => live ? 'running' : state.to_s,
           'created_at' => run_id.timestamp,
           'launch_intent_id' => current_intent_id_locked,
           'observations' => {
@@ -2223,8 +2393,8 @@ module OsCtld
           'hazards' => hazards,
           'post_stop' => state.to_sym == :stopped,
           'reported_state' => state.to_s,
-          'running_effects_started' => state.to_sym == :running,
-          'running_effects_done' => state.to_sym == :running,
+          'running_effects_started' => live,
+          'running_effects_done' => live,
           'on_stop_hook_started' => false,
           'on_stop_hook_done' => false,
           'post_stop_hook_started' => false,
@@ -2245,7 +2415,7 @@ module OsCtld
           'effect' => nil
         }
         record['active_run_id'] = run_id.to_s
-        record['desired_state'] = state.to_sym == :running ? 'running' : 'stopped'
+        record['desired_state'] = 'stopped' unless live
         commit
       end
     end
@@ -2421,6 +2591,9 @@ module OsCtld
       record['revision'] = revision + 1
       save_record
       @cv.broadcast
+      daemon = Daemon.get
+      daemon.lifecycle_state_changed \
+        if daemon.respond_to?(:lifecycle_state_changed)
     end
 
     def save_record
@@ -2526,6 +2699,7 @@ module OsCtld
 
     def stable_runtime_locked?(active)
       active['phase'] == 'running' \
+        && legacy_runtime_owned_locked?(active) \
         && !active['observer'] \
         && !active['reconciliation'] \
         && !active['recovery'] \
@@ -2533,6 +2707,14 @@ module OsCtld
         && active['effect'].nil? \
         && record['desired_state'] == 'running' \
         && current_intent_id_locked == active['launch_intent_id']
+    end
+
+    def legacy_runtime_owned_locked?(run)
+      return true unless run.fetch('hazards', []).include?('adopted legacy runtime')
+
+      run.fetch('legacy_managers', []).any? do |config|
+        ProcessIdentity.load(config).alive?
+      end
     end
 
     def launch_policy_current_locked?(run)

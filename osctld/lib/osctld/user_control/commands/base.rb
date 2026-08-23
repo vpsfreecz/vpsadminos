@@ -32,11 +32,29 @@ module OsCtld
         return c.execute
       end
 
-      callback_id = ct.lifecycle.begin_callback(
+      reserved_callback_id = Daemon.get.with_lifecycle_admission(
+        internal: true,
+        continuation: true,
+        recovery: true
+      ) do
+        ct.lifecycle.reserve_callback(
+          run_id,
+          name: name.split('::').last
+        )
+      end
+      unless reserved_callback_id
+        return c.send(:error, 'managed lifecycle callback is fenced')
+      end
+
+      callback_id = ct.lifecycle.activate_callback(
         run_id,
+        reserved_callback_id,
         name: name.split('::').last
       )
-      return c.send(:error, 'managed lifecycle callback is fenced') unless callback_id
+      unless callback_id
+        ct.lifecycle.finish_callback(run_id, reserved_callback_id)
+        return c.send(:error, 'managed lifecycle callback is fenced')
+      end
 
       c.instance_variable_set(:@lifecycle_callback_id, callback_id)
 
@@ -46,6 +64,8 @@ module OsCtld
         effect_id = ct.lifecycle.finish_callback(run_id, callback_id)
         c.send(:spawn_finalizer, ct, run_id, effect_id) if effect_id
       end
+    rescue CommandFailed
+      c.send(:error, 'managed lifecycle callback is fenced')
     end
 
     attr_reader :user

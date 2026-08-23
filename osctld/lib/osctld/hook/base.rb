@@ -1,5 +1,6 @@
 require 'libosctl'
 require 'osctld/cgroup'
+require 'timeout'
 
 module OsCtld
   class Hook::Base
@@ -68,6 +69,7 @@ module OsCtld
       end
 
       pid = Process.fork do
+        Process.setsid
         gate_w&.close
         if gate_r
           authorized = gate_r.gets&.strip == 'ready'
@@ -111,7 +113,7 @@ module OsCtld
       end
 
       if blocking?
-        _, status = Process.wait2(pid)
+        _, status = wait_for_blocking_hook(pid, hook_path)
         finish_lifecycle_process(lifecycle_owner)
         return true if status.exitstatus == 0
 
@@ -153,6 +155,45 @@ module OsCtld
         lifecycle: event_instance.lifecycle,
         run_id: run_conf.run_id
       }
+    end
+
+    def wait_for_blocking_hook(pid, hook_path)
+      timeout = opts[:timeout]
+      return Process.wait2(pid) unless timeout
+
+      Timeout.timeout(timeout) { Process.wait2(pid) }
+    rescue Timeout::Error
+      terminate_hook_process_group(pid)
+      raise HookFailed.new(self, hook_path, 124)
+    end
+
+    def terminate_hook_process_group(pid)
+      signal_hook_process_group(pid, 'TERM')
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1
+      waited = nil
+      loop do
+        waited ||= Process.waitpid2(pid, Process::WNOHANG)
+        break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+        sleep(0.05)
+      end
+      # The leader can exit while descendants remain in its process group.
+      # Always kill the group after the grace period, then reap the leader if
+      # it was still alive.
+      signal_hook_process_group(pid, 'KILL')
+      waited || Process.wait2(pid)
+    rescue Errno::ECHILD
+      waited
+    end
+
+    def signal_hook_process_group(pid, signal)
+      Process.kill(signal, -pid)
+    rescue Errno::ESRCH
+      begin
+        Process.kill(signal, pid)
+      rescue Errno::ESRCH
+        nil
+      end
     end
 
     def finish_lifecycle_process(owner)

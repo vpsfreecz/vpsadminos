@@ -208,7 +208,9 @@ RSpec.describe 'heavy system commands' do
         def self.get; end
       end)
       allow(hook).to receive(:run)
-      allow(daemon_class).to receive(:get).and_return(double(shutdown?: false))
+      daemon = double(shutdown?: false)
+      allow(daemon).to receive(:with_lifecycle_task).and_yield
+      allow(daemon_class).to receive(:get).and_return(daemon)
       db_pools = stub_const('OsCtld::DB::Pools', Class.new do
         def self.contains?(_name); end
 

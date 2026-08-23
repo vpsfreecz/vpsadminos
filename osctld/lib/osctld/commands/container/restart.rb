@@ -14,11 +14,19 @@ module OsCtld
     end
 
     def execute(ct)
+      daemon = Daemon.get
+      admission_opts = {
+        internal: client_handler.nil?,
+        continuation: false,
+        recovery: client_handler.nil? && opts[:lifecycle_recovery] == true
+      }
       if opts[:reboot]
         begin
           loop do
             request = manipulate(ct, lifecycle: true) do
-              admission = ct.lifecycle.request_control_reboot
+              admission = daemon.with_lifecycle_admission(**admission_opts) do
+                ct.lifecycle.request_control_reboot
+              end
               if admission.action == :ready
                 begin
                   ContainerControl::Commands::Reboot.run!(ct)
@@ -56,13 +64,24 @@ module OsCtld
 
       else
         request = nil
+        expected_intent_id = opts[:lifecycle_expected_intent_id]
         loop do
           request = manipulate(ct, lifecycle: true) do
-            ct.lifecycle.request_restart
+            daemon.with_lifecycle_admission(**admission_opts) do
+              ct.lifecycle.request_restart(
+                source: opts[:lifecycle_source] || 'external',
+                expected_intent_id:
+              )
+            end
           end
           progress(request.warning) if request.warning
 
           case request.action
+          when :superseded
+            return ok(
+              lifecycle_state: ct.lifecycle.desired_state.to_s,
+              superseded: true
+            )
           when :wait
             progress('Waiting for container cgroup policy update')
             changed = ct.lifecycle.wait_for_change(request.revision)
@@ -83,7 +102,8 @@ module OsCtld
           method: opts[:stop_method],
           message: opts[:message],
           lifecycle_source: 'restart',
-          lifecycle_intent_id: intent_id
+          lifecycle_intent_id: intent_id,
+          lifecycle_recovery: opts[:lifecycle_recovery]
         )
         return stop_ret unless stop_ret[:status]
 
@@ -94,7 +114,8 @@ module OsCtld
           force: true,
           wait: opts[:wait],
           lifecycle_source: 'restart',
-          lifecycle_intent_id: intent_id
+          lifecycle_intent_id: intent_id,
+          lifecycle_recovery: opts[:lifecycle_recovery]
         )
       end
     end

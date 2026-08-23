@@ -4,6 +4,7 @@ require 'osctld/user_control/commands/base'
 module OsCtld
   class UserControl::Commands::VethDown < UserControl::Commands::Base
     handle :veth_down
+    allow_adopted_legacy_callbacks
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System

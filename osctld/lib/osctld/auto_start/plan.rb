@@ -13,6 +13,10 @@ module OsCtld
       @state = AutoStart::State.load(pool)
       @reboot = AutoStart::Reboot.load(pool)
       @stop = false
+      @shutdown = false
+      @sleep_mutex = Mutex.new
+      @sleep_cv = ConditionVariable.new
+      @pending_intents = {}
       @nproc = Etc.nprocessors
     end
 
@@ -21,8 +25,17 @@ module OsCtld
       reboot.assets(add)
     end
 
-    def start(force: false)
-      @stop = false
+    def start(force: false, activation: nil)
+      unpause = proc do
+        @sleep_mutex.synchronize do
+          next false if @shutdown
+
+          @stop = false
+          true
+        end
+      end
+      activated = activation ? activation.call(&unpause) : unpause.call
+      return false unless activated
 
       log(
         :info,
@@ -33,6 +46,12 @@ module OsCtld
       cts = DB::Containers.get.select do |ct|
         next(false) if ct.pool != pool
         next(true) if reboot.include?(ct) && ct.can_start?
+
+        lifecycle = ct.respond_to?(:lifecycle) && ct.lifecycle
+        next(true) if lifecycle \
+          && lifecycle.autostart_intent? \
+          && ct.can_start?
+
         next(true) if ct.autostart && ct.can_start? && (force || !state.is_started?(ct))
 
         next(false)
@@ -93,7 +112,17 @@ module OsCtld
         total = start_cts.size
       end
 
-      plan << (start_cts.map do |ct, i|
+      queued_starts = start_cts.filter_map do |ct, i|
+        next if stop?
+
+        request = persist_start_intent(ct)
+        next if request == :skip
+        next unless track_pending(ct, request)
+
+        [ct, i, request]
+      end
+
+      plan << (queued_starts.map do |ct, i, request|
         if debug
           log(
             :debug,
@@ -119,12 +148,18 @@ module OsCtld
 
           prestart_delay(cur_ct)
           log(:info, cur_ct, 'Auto-starting container')
-          do_try_start_ct(cur_ct)
+          do_try_start_ct(cur_ct, intent_id: request&.intent_id)
+        ensure
+          forget_pending(ct, request)
         end
       end)
     end
 
     def enqueue(ct, priority: 10, start_opts: {})
+      request = persist_start_intent(ct, source: 'queued')
+      return false if request == :skip
+      return false unless track_pending(ct, request)
+
       plan << (
         ContinuousExecutor::Command.new(id: ct.id, priority:) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
@@ -134,13 +169,23 @@ module OsCtld
           log(:info, ct, 'Starting enqueued container')
           do_try_start_ct(
             cur_ct,
+            intent_id: request&.intent_id,
             start_opts: start_opts.merge(queue: false)
           )
+        ensure
+          forget_pending(ct, request)
         end
       )
+      true
     end
 
     def start_ct(ct, priority: 10, start_opts: {}, client_handler: nil)
+      request = persist_start_intent(ct, source: 'queued')
+      return { status: false, message: 'container lifecycle start is blocked' } \
+        if request == :skip
+      return { status: false, message: 'container autostart queue is paused' } \
+        unless track_pending(ct, request)
+
       plan.execute(
         ContinuousExecutor::Command.new(id: ct.id, priority:) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
@@ -152,8 +197,12 @@ module OsCtld
             **start_opts, pool: cur_ct.pool.name,
                           id: cur_ct.id,
                           queue: false,
+                          lifecycle_intent_id: request&.intent_id,
+                          lifecycle_source: 'queued',
                           internal: { handler: client_handler }
           )
+        ensure
+          forget_pending(ct, request)
         end,
         timeout: start_opts ? (start_opts[:wait] || Container::DEFAULT_START_TIMEOUT) : nil
       )
@@ -173,6 +222,7 @@ module OsCtld
 
     def stop_ct(ct)
       plan.remove(ct.id)
+      cancel_pending(ct:, preserve_desired: true)
     end
 
     def clear_ct(ct)
@@ -182,6 +232,24 @@ module OsCtld
 
     def clear
       plan.clear
+      cancel_pending(preserve_desired: false)
+    end
+
+    # Stop admitting queued work without shutting down executor workers which
+    # already own durable lifecycle generations.
+    def pause
+      @sleep_mutex.synchronize do
+        @stop = true
+        @sleep_cv.broadcast
+      end
+      plan.clear
+      cancel_pending(preserve_desired: true)
+    end
+
+    def resume(activation: nil)
+      return if @sleep_mutex.synchronize { @shutdown }
+
+      start(activation:)
     end
 
     def resize(new_size)
@@ -189,12 +257,13 @@ module OsCtld
     end
 
     def stop
-      @stop = true
+      pause
+      @sleep_mutex.synchronize { @shutdown = true }
       plan.stop
     end
 
     def started?
-      !@stop
+      @sleep_mutex.synchronize { !@shutdown }
     end
 
     def queue
@@ -209,13 +278,15 @@ module OsCtld
 
     attr_reader :plan, :state, :reboot
 
-    def do_try_start_ct(ct, attempts: 5, cooldown: 5, start_opts: {})
+    def do_try_start_ct(ct, attempts: 5, cooldown: 5, start_opts: {}, intent_id: nil)
       attempts.times do |i|
         break if stop?
 
         ret = Commands::Container::Start.run(**start_opts, pool: ct.pool.name,
                                                            id: ct.id,
-                                                           wait: 'infinity')
+                                                           wait: 'infinity',
+                                                           lifecycle_source: 'autostart',
+                                                           lifecycle_intent_id: intent_id)
 
         if ret[:status]
           state.set_started(ct)
@@ -223,7 +294,7 @@ module OsCtld
 
           if delay_after_start?
             log(:info, ct, "Autostart delay for #{autostart_delay(ct)} seconds")
-            sleep(autostart_delay(ct))
+            interruptible_sleep(autostart_delay(ct))
           else
             log(:info, ct, 'Skipping autostart delay thanks to low system load average')
           end
@@ -242,7 +313,7 @@ module OsCtld
         else
           pause = cooldown + (i * cooldown)
           log(:warn, ct, "Unable to start the container, retrying in #{pause} seconds")
-          sleep(pause)
+          interruptible_sleep(pause)
         end
       end
     end
@@ -250,7 +321,7 @@ module OsCtld
     def prestart_delay(ct)
       delay = rand(0.0..3.0)
       log(:info, ct, "Delaying auto-start by #{delay.round(2)}s")
-      sleep(delay)
+      interruptible_sleep(delay)
     end
 
     def delay_after_start?
@@ -271,7 +342,93 @@ module OsCtld
     end
 
     def stop?
-      @stop
+      @sleep_mutex.synchronize { @stop }
+    end
+
+    def interruptible_sleep(seconds)
+      @sleep_mutex.synchronize do
+        @sleep_cv.wait(@sleep_mutex, seconds) unless @stop
+      end
+      !stop?
+    end
+
+    def persist_start_intent(ct, source: 'autostart')
+      lifecycle = ct.respond_to?(:lifecycle) && ct.lifecycle
+      return nil unless lifecycle
+
+      daemon = Daemon.get
+      request = daemon.with_lifecycle_admission do
+        lifecycle.request_start(source:)
+      end
+      case request.action
+      when :running
+        state.set_started(ct)
+        reboot.clear(ct)
+        :skip
+      when :blocked, :failed, :superseded
+        log(:warn, ct, request.warning || 'Unable to persist lifecycle start intent')
+        :skip
+      else
+        request
+      end
+    rescue CommandFailed => e
+      log(:info, ct, "Lifecycle start intent deferred: #{e.message}")
+      :skip
+    end
+
+    def track_pending(ct, request)
+      return true unless request&.run_id
+
+      key = pending_key(ct, request)
+      accepted = @sleep_mutex.synchronize do
+        next false if @stop || @shutdown
+
+        @pending_intents[key] = [ct, request.run_id]
+        true
+      end
+      return true if accepted
+
+      ct.lifecycle.cancel_unlaunched(
+        request.run_id,
+        'autostart queue paused before launch'
+      )
+      false
+    end
+
+    def forget_pending(ct, request)
+      return unless request&.run_id
+
+      @sleep_mutex.synchronize do
+        @pending_intents.delete(pending_key(ct, request))
+      end
+    end
+
+    def cancel_pending(preserve_desired:, ct: nil)
+      pending = @sleep_mutex.synchronize do
+        selected = @pending_intents.select do |_key, entry|
+          ct.nil? || entry[0] == ct
+        end
+        selected.each_key { |key| @pending_intents.delete(key) }
+        selected.values
+      end
+
+      pending.each do |pending_ct, run_id|
+        message = if preserve_desired
+                    'autostart paused before launch'
+                  else
+                    'autostart queue cancelled'
+                  end
+        pending_ct.lifecycle.cancel_unlaunched(
+          run_id,
+          message,
+          preserve_desired:,
+          source: 'autostart-cancel'
+        )
+      end
+    end
+
+    def pending_key(ct, request)
+      [ct.pool.name, ct.id, request.run_id.to_s, request.intent_id]
     end
   end
 end

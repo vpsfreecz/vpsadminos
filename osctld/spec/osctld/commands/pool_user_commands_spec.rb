@@ -415,7 +415,7 @@ RSpec.describe 'pool and user command adapters' do
           [{ path: '/tmp/pool' }]
         end
 
-        def autostart(force: false); end
+        def autostart(force: false, hook_timeout: nil); end
 
         def inclusively(&block)
           block.call
@@ -539,6 +539,71 @@ RSpec.describe 'pool and user command adapters' do
           OsCtld::CommandFailed,
           'pre-autostart hook failed: hook pre_autostart at /hooks/pre-autostart exited with 1'
         )
+    end
+
+    it 'holds a lifecycle task around the complete autostart trigger' do
+      pool = build_pool
+      task_active = false
+      daemon = instance_double(
+        Class.new do
+          def config; end
+
+          def with_lifecycle_task(**); end
+        end,
+        config: Struct.new(:restart).new(
+          Struct.new(:hook_timeout).new(30)
+        )
+      )
+      daemon_class = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(daemon_class).to receive(:get).and_return(daemon)
+      allow(OsCtld::DB::Pools).to receive(:find).with('tank').and_return(pool)
+      allow(daemon).to receive(:with_lifecycle_task) do |**, &block|
+        task_active = true
+        block.call
+      ensure
+        task_active = false
+      end
+      allow(pool).to receive(:autostart) do |force:, hook_timeout:|
+        expect(task_active).to be(true)
+        expect(force).to be(true)
+        expect(hook_timeout).to eq(30)
+      end
+
+      expect(OsCtld::Commands::Pool::AutoStartTrigger.run(name: 'tank')).to eq(
+        status: true,
+        output: nil
+      )
+      expect(daemon).to have_received(:with_lifecycle_task).with(
+        kind: :pool_autostart_trigger,
+        details: { pool: 'tank' }
+      )
+    end
+
+    it 'does not begin an autostart trigger after drain closes admission' do
+      pool = build_pool
+      daemon = instance_double(
+        Class.new do
+          def with_lifecycle_task(**); end
+        end
+      )
+      daemon_class = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(daemon_class).to receive(:get).and_return(daemon)
+      allow(OsCtld::DB::Pools).to receive(:find).with('tank').and_return(pool)
+      allow(daemon).to receive(:with_lifecycle_task)
+        .and_raise(OsCtld::CommandFailed, 'lifecycle admission is closed')
+      allow(pool).to receive(:autostart)
+
+      expect do
+        OsCtld::Commands::Pool::AutoStartTrigger.run(name: 'tank')
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        'lifecycle admission is closed'
+      )
+      expect(pool).not_to have_received(:autostart)
     end
 
     it 'validates pool dataset prefixes and delegates install/import and uninstall/zfs cleanup' do

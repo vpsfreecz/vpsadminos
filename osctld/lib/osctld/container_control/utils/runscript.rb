@@ -37,7 +37,9 @@ module OsCtld
               end
             end
 
-            ct.lifecycle.request_execution(source: 'container-control')
+            Daemon.get.with_lifecycle_admission do
+              ct.lifecycle.request_execution(source: 'container-control')
+            end
           end
 
           case request.action
@@ -118,7 +120,9 @@ module OsCtld
           cgroup_path: run.fetch('resources').fetch('lxc_monitor'),
           lxc_config: run.fetch('resources').fetch('lxc_config'),
           on_spawn: proc do |pid|
-            process_id = ct.lifecycle.register_attachment(run_id, pid:)
+            process_id = Daemon.get.with_lifecycle_admission do
+              ct.lifecycle.register_attachment(run_id, pid:)
+            end
             unless process_id
               raise ContainerControl::Error,
                     'container stopped before command attachment'

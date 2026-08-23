@@ -9,7 +9,13 @@ require 'osctld/monitor/process'
 RSpec.describe OsCtld::Monitor::Process do
   subject(:process) { described_class.new(pool, user, group, stdout) }
 
-  let(:pool) { Struct.new(:name).new('tank') }
+  let(:pool) do
+    Struct.new(:name) do
+      def fulfil_autostart(_ct); end
+
+      def fulfil_reboot(_ct); end
+    end.new('tank')
+  end
   let(:user) { Struct.new(:name, :sysusername, :ugid, :homedir).new('alice', 'alice', 1234, '/home/alice') }
   let(:group) do
     Struct.new(:name) do
@@ -28,6 +34,7 @@ RSpec.describe OsCtld::Monitor::Process do
   end
 
   before do
+    stub_daemon
     allow(OsCtl::Lib::Logger).to receive(:log)
   end
 
@@ -155,6 +162,8 @@ RSpec.describe OsCtld::Monitor::Process do
     allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
     allow(eventd).to receive(:report)
     allow(hook).to receive(:run)
+    allow(pool).to receive(:fulfil_autostart)
+    allow(pool).to receive(:fulfil_reboot)
     allow(state_class).to receive(:run!).with(ct).and_return(
       Struct.new(:id, :state, :init_pid).new('ct1', :running, 5678)
     )
@@ -176,6 +185,8 @@ RSpec.describe OsCtld::Monitor::Process do
     expect(hook).to have_received(:run)
       .with(ct, :post_start, init_pid: 5678)
       .once
+    expect(pool).to have_received(:fulfil_autostart).with(ct).once
+    expect(pool).to have_received(:fulfil_reboot).with(ct).once
     expect(ct.lifecycle.observations).to eq(
       [
         ['run-1', :running, 5678, 'monitor'],

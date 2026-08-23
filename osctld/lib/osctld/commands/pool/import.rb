@@ -9,10 +9,18 @@ module OsCtld
     include OsCtl::Lib::Utils::System
 
     def execute
-      if opts[:all]
-        import_all
-      else
-        import_one(opts[:name])
+      internal = client_handler.nil?
+      Daemon.get.with_lifecycle_task(
+        kind: :pool_import,
+        details: { pool: opts[:all] ? 'all' : opts[:name] },
+        internal:,
+        recovery: internal
+      ) do
+        if opts[:all]
+          import_all
+        else
+          import_one(opts[:name])
+        end
       end
     end
 

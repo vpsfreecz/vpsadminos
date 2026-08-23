@@ -15,16 +15,26 @@ module OsCtld
     end
 
     def execute(ct)
-      # Remove the container from autostart queue
-      ct.pool.autostart_plan.stop_ct(ct)
+      daemon = Daemon.get
       intent_id = opts[:lifecycle_intent_id]
+      queue_stopped = false
 
       loop do
         request = manipulate(ct, lifecycle: true) do
-          ct.lifecycle.request_stop(
-            source: opts[:lifecycle_source] || 'external',
-            expected_intent_id: intent_id
-          )
+          daemon.with_lifecycle_admission(
+            internal: client_handler.nil?,
+            continuation: indirect? && !intent_id.nil?,
+            recovery: client_handler.nil? && opts[:lifecycle_recovery] == true
+          ) do
+            unless queue_stopped
+              ct.pool.autostart_plan.stop_ct(ct)
+              queue_stopped = true
+            end
+            ct.lifecycle.request_stop(
+              source: opts[:lifecycle_source] || 'external',
+              expected_intent_id: intent_id
+            )
+          end
         end
         intent_id ||= request.intent_id
 

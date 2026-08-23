@@ -1101,10 +1101,12 @@ module OsCtld
                   'recovery first'
           end
 
-          lease = ct.lifecycle.begin_parent_policy_update(
-            kind:,
-            allow_residuals: residual_mode == :pin
-          )
+          lease = Daemon.get.with_lifecycle_admission do
+            ct.lifecycle.begin_parent_policy_update(
+              kind:,
+              allow_residuals: residual_mode == :pin
+            )
+          end
           unless lease
             raise CGroup::CpusetPolicy::Error,
                   "cannot change #{group_policy_label(kind)} while " \

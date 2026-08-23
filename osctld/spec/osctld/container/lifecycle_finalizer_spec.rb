@@ -58,8 +58,55 @@ RSpec.describe OsCtld::Container::LifecycleFinalizer do
     thread.join(1)
 
     expect(thread).not_to be_alive
-    expect(alive_checks).to eq(2)
+    expect(alive_checks).to be >= 2
     expect(lifecycle).to have_received(:observe_wrapper_gone).with('run-1')
+  end
+
+  it 'defers wrapper recovery when restart preparation already closed admission' do
+    alive_checks = 0
+    manager = instance_double(OsCtld::ProcessIdentity)
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      run: {
+        'wrapper' => { 'pid' => 123 },
+        'lxc_start' => nil,
+        'legacy_managers' => [],
+        'post_stop' => false
+      },
+      observe_wrapper_gone: nil,
+      active_run_id: 'run-1'
+    )
+    ct = instance_double(OsCtld::Container, lifecycle:, ident: 'tank:ct1')
+    run_conf = instance_double(
+      OsCtld::Container::RunConfiguration,
+      run_id: 'run-1'
+    )
+    recovery = instance_double(OsCtld::Container::Recovery)
+
+    allow(manager).to receive(:alive?) do
+      alive_checks += 1
+      alive_checks == 1
+    end
+    allow(OsCtld::ProcessIdentity).to receive(:load).and_return(manager)
+    allow(OsCtld::Container::Recovery).to receive(:new)
+      .with(ct)
+      .and_return(recovery)
+    allow(recovery).to receive(:recover_state)
+      .with(run_id: 'run-1')
+      .and_raise(OsCtld::CommandFailed, 'daemon phase prepared')
+    daemon_class = stub_const('OsCtld::Daemon', Class.new do
+      def self.get; end
+    end)
+    daemon = Class.new do
+      def stopping? = false
+    end.new
+    allow(daemon_class).to receive(:get).and_return(daemon)
+
+    thread = described_class.watch_wrapper(ct, run_conf)
+    thread.join(1)
+
+    expect(thread).not_to be_alive
+    expect(recovery).to have_received(:recover_state).with(run_id: 'run-1')
   end
 
   it 'retries restart reconciliation after a persisted hook process exits' do

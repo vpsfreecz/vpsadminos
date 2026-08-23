@@ -139,12 +139,18 @@ module OsCtld
         end
       end
 
-      observer_id = ct.lifecycle.begin_state_observation(
-        run_id,
-        st.state,
-        init_pid: st.init_pid,
-        source: 'state_query'
-      )
+      observer_id = Daemon.get.with_lifecycle_admission(
+        internal: true,
+        continuation: true,
+        recovery: true
+      ) do
+        ct.lifecycle.begin_state_observation(
+          run_id,
+          st.state,
+          init_pid: st.init_pid,
+          source: 'state_query'
+        )
+      end
       return unless observer_id
       return if ct.lifecycle.execution_run?(run_id)
       return unless ct.observe_run_state(run_id, st.state, init_pid: st.init_pid)
@@ -158,6 +164,8 @@ module OsCtld
           init_pid: st.init_pid
         )
       end
+    rescue CommandFailed
+      nil
     rescue ContainerControl::Error => e
       log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
     ensure

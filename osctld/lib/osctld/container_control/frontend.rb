@@ -83,7 +83,9 @@ module OsCtld
         end
 
         on_spawn = proc do |pid|
-          process_id = ct.lifecycle.register_attachment(run_id, pid:)
+          process_id = Daemon.get.with_lifecycle_admission do
+            ct.lifecycle.register_attachment(run_id, pid:)
+          end
           unless process_id
             raise ContainerControl::Error,
                   'container stopped before command attachment'

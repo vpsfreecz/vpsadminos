@@ -56,6 +56,42 @@ RSpec.describe OsCtld::Hook do
     end
   end
 
+  it 'terminates the complete process group of a timed out blocking hook' do
+    with_tmpdir do |dir|
+      event = event_class.new(dir)
+      hook = blocking_hook_class.new(event, timeout: 0.1)
+      child_pid_file = File.join(dir, 'child.pid')
+      script = write_executable(
+        File.join(dir, 'timeout'),
+        <<~SH
+          #!/bin/sh
+          trap 'exit 0' TERM
+          sh -c 'trap "" TERM; while :; do sleep 1; done' &
+          echo $! > #{child_pid_file}
+          wait
+        SH
+      )
+
+      expect { hook.exec(script) }.to raise_error(
+        OsCtld::HookFailed,
+        /exited with 124/
+      )
+
+      child_pid = Integer(File.read(child_pid_file))
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+      while process_running?(child_pid) \
+          && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+        sleep(0.05)
+      end
+
+      expect(process_running?(child_pid)).to be(false)
+    ensure
+      Process.kill('KILL', child_pid) if child_pid && process_running?(child_pid)
+    end
+  rescue Errno::ESRCH
+    nil
+  end
+
   it 'dispatches async hooks through Hook.watch' do
     with_tmpdir do |dir|
       event = event_class.new(dir)
@@ -73,6 +109,32 @@ RSpec.describe OsCtld::Hook do
         lifecycle_owner: nil
       )
     end
+  end
+
+  it 'contains lifecycle completion errors in async hook watchers' do
+    status = instance_double(Process::Status, exitstatus: 0)
+    hook_class = Class.new do
+      def self.hook_name = :async_event
+
+      def event_instance = @event_instance ||= Object.new
+
+      def finish_lifecycle_process(_owner); end
+    end
+    hook = hook_class.new
+    allow(Process).to receive(:wait2).with(1234).and_return([1234, status])
+    allow(hook).to receive(:finish_lifecycle_process)
+      .with({ run_id: 'run-1' })
+      .and_raise('lifecycle completion failed')
+
+    thread = described_class.watch(
+      hook,
+      '/hooks/async-event',
+      1234,
+      lifecycle_owner: { run_id: 'run-1' }
+    )
+
+    expect { thread.value }.not_to raise_error
+    expect(hook).to have_received(:finish_lifecycle_process).once
   end
 
   it 'records a generation hook child before releasing it to exec' do
@@ -166,5 +228,12 @@ RSpec.describe OsCtld::Hook do
 
       expect(hook_instance).to have_received(:exec).with(File.join(dir, 'blocking-event'))
     end
+  end
+
+  def process_running?(pid)
+    state = File.read("/proc/#{pid}/stat").split[2]
+    state != 'Z'
+  rescue Errno::ENOENT
+    false
   end
 end

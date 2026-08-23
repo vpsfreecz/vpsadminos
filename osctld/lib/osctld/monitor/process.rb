@@ -161,12 +161,18 @@ module OsCtld
         return
       end
 
-      observer_id = ct.lifecycle.begin_state_observation(
-        run_id,
-        change[:state],
-        init_pid:,
-        source: 'monitor'
-      )
+      observer_id = Daemon.get.with_lifecycle_admission(
+        internal: true,
+        continuation: true,
+        recovery: true
+      ) do
+        ct.lifecycle.begin_state_observation(
+          run_id,
+          change[:state],
+          init_pid:,
+          source: 'monitor'
+        )
+      end
       return unless observer_id
       return if ct.lifecycle.execution_run?(run_id)
 
@@ -194,6 +200,12 @@ module OsCtld
       )
 
       if change[:state] == :running
+        # Boot/autostart intent is fulfilled only after the exact lifecycle
+        # generation has been qualified as RUNNING. A successful pre-start
+        # callback alone does not prove that lxc-start completed.
+        ct.pool.fulfil_autostart(ct)
+        ct.pool.fulfil_reboot(ct)
+
         if init_pid
           Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid:)
         end
@@ -212,6 +224,8 @@ module OsCtld
           )
         end
       end
+    rescue CommandFailed
+      nil
     ensure
       if ct && run_id && observer_id
         effect_id = ct.lifecycle.finish_state_observation(run_id, observer_id)

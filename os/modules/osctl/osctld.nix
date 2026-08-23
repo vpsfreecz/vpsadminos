@@ -61,6 +61,13 @@ in
 
       ct_wrapper = "${pkgs.ctptywrapper}/bin/osctld-ct-wrapper";
       ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
+
+      restart = {
+        drain_timeout = 300;
+        cleanup_timeout = 60;
+        recovery_timeout = 300;
+        hook_timeout = 30;
+      };
     };
 
     runit.services.osctld = {

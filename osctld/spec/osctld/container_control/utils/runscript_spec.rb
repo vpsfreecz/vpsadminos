@@ -47,6 +47,7 @@ RSpec.describe OsCtld::ContainerControl::Utils::Runscript::Frontend do
   end
 
   before do
+    stub_daemon
     allow(ct).to receive(:manipulate) do |_holder, **, &callback|
       callback.call
     end

@@ -2435,6 +2435,32 @@ module OsCtl::Cli
         c.action(&Command.run(Self, :healthcheck))
       end
 
+      desc 'Manage the osctld daemon lifecycle'
+      command :daemon do |daemon|
+        daemon.desc 'Show readiness, drain and lifecycle recovery status'
+        daemon.command :status do |c|
+          c.action(&Command.run(Daemon, :status))
+        end
+
+        daemon.desc 'Close lifecycle admission and drain active operations'
+        daemon.command 'prepare-stop' do |c|
+          c.action(&Command.run(Daemon, :prepare_stop))
+        end
+
+        daemon.desc 'Reopen lifecycle admission after an aborted stop'
+        daemon.command :resume do |c|
+          c.action(&Command.run(Daemon, :resume))
+        end
+
+        daemon.desc 'Wait for startup recovery and lifecycle admission'
+        daemon.command 'wait-ready' do |c|
+          c.desc 'Maximum number of seconds to wait'
+          c.flag :timeout, type: Integer, default_value: 300, arg_name: 'n'
+
+          c.action(&Command.run(Daemon, :wait_ready))
+        end
+      end
+
       desc 'Check if osctld is running'
       arg_name '[wait]'
       command :ping do |c|
