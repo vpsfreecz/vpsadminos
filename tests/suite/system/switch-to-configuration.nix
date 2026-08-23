@@ -547,7 +547,7 @@ import ../../make-test.nix (
           )
           host_veth = host_veth.strip
           _, nodectld_pid = machine.succeeds(
-            'cat /run/service/nodectld/supervise/pid'
+            'cat /service/nodectld/supervise/pid'
           )
           machine.succeeds(
             'truncate -s 0 ${nodectldStateDir}/events && ' \
@@ -582,7 +582,7 @@ import ../../make-test.nix (
           )
           machine.fails('sv check nodectld')
           machine.succeeds(
-            "test \"$(cat /run/service/nodectld/supervise/pid)\" != " \
+            "test \"$(cat /service/nodectld/supervise/pid)\" != " \
               "#{Shellwords.escape(nodectld_pid.strip)}"
           )
           machine.succeeds(
@@ -647,14 +647,14 @@ import ../../make-test.nix (
           )
           expect(nodectld_events.lines.map(&:strip)).to include('pause', 'resume')
           _, new_nodectld_pid = machine.succeeds(
-            'cat /run/service/nodectld/supervise/pid'
+            'cat /service/nodectld/supervise/pid'
           )
           expect(new_nodectld_pid.strip).not_to eq(nodectld_pid.strip)
           machine.all_succeed(
             'test ! -e /run/osctl/upgrade-handoff.yml',
             'test ! -e /run/osctl/nodectld-upgrade-pause.json',
             'test ! -e ${nodectldStateDir}/paused',
-            "test \"$(cat /run/service/nodectld/supervise/pid)\" = " \
+            "test \"$(cat /service/nodectld/supervise/pid)\" = " \
               "#{Shellwords.escape(new_nodectld_pid.strip)}",
             "test -e /sys/class/net/#{host_veth}",
             "test -S /run/osctl/pools/tank/console/#{ctid}/tty0.sock",
@@ -759,7 +759,7 @@ import ../../make-test.nix (
           host_veth = host_veth.strip
           expect(host_veth).not_to be_empty
           _, nodectld_pid = machine.succeeds(
-            'cat /run/service/nodectld/supervise/pid'
+            'cat /service/nodectld/supervise/pid'
           )
           machine.succeeds('truncate -s 0 ${nodectldStateDir}/events')
 
@@ -792,7 +792,7 @@ import ../../make-test.nix (
             before.fetch('lifecycle_run_id')
           )
           _, new_nodectld_pid = machine.succeeds(
-            'cat /run/service/nodectld/supervise/pid'
+            'cat /service/nodectld/supervise/pid'
           )
           expect(new_nodectld_pid.strip).not_to eq(nodectld_pid.strip)
           _, nodectld_events = machine.succeeds(
@@ -810,10 +810,10 @@ import ../../make-test.nix (
 
         it 'aborts before service changes when nodectld cannot be paused' do
           _, osctld_pid = machine.succeeds(
-            'cat /run/service/osctld/supervise/pid'
+            'cat /service/osctld/supervise/pid'
           )
           _, nodectld_pid = machine.succeeds(
-            'cat /run/service/nodectld/supervise/pid'
+            'cat /service/nodectld/supervise/pid'
           )
           machine.succeeds(
             'truncate -s 0 ${nodectldStateDir}/events && ' \
@@ -833,9 +833,9 @@ import ../../make-test.nix (
           expect(daemon_status.fetch('phase')).to eq('ready')
           expect(daemon_status.fetch('lifecycle_admission')).to be(true)
           machine.all_succeed(
-            "test \"$(cat /run/service/osctld/supervise/pid)\" = " \
+            "test \"$(cat /service/osctld/supervise/pid)\" = " \
               "#{Shellwords.escape(osctld_pid.strip)}",
-            "test \"$(cat /run/service/nodectld/supervise/pid)\" = " \
+            "test \"$(cat /service/nodectld/supervise/pid)\" = " \
               "#{Shellwords.escape(nodectld_pid.strip)}",
             'test ! -e ${nodectldStateDir}/paused',
             'test ! -e /run/osctl/nodectld-upgrade-pause.json',
@@ -854,7 +854,7 @@ import ../../make-test.nix (
           machine.wait_for_osctl_pool('tank')
           expect(machine.osctl_json('daemon status').fetch('phase')).to eq('ready')
           machine.succeeds(
-            "test \"$(cat /run/service/nodectld/supervise/pid)\" = " \
+            "test \"$(cat /service/nodectld/supervise/pid)\" = " \
               "#{Shellwords.escape(nodectld_pid.strip)}"
           )
         end

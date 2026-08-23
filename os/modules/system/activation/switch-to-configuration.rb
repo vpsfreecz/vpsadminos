@@ -931,7 +931,7 @@ class OsctldRestart
   end
 
   def service_process_identity(name)
-    pid = File.read(File.join('/run/service', name, 'supervise/pid')).to_i
+    pid = File.read(File.join('/service', name, 'supervise/pid')).to_i
     return if pid <= 0
 
     stat = File.read(File.join('/proc', pid.to_s, 'stat'))
@@ -1099,7 +1099,7 @@ class OsctldRestart
   end
 
   def service_running?(name)
-    pid = File.read(File.join('/run/service', name, 'supervise/pid')).to_i
+    pid = File.read(File.join('/service', name, 'supervise/pid')).to_i
     return false if pid <= 0
 
     Process.kill(0, pid)
@@ -1109,7 +1109,7 @@ class OsctldRestart
   end
 
   def service_supervised?(name)
-    File.directory?(File.join('/run/service', name))
+    File.directory?(File.join('/service', name))
   end
 
   def osctl_json(*args)
@@ -1230,7 +1230,7 @@ class Services
     end
 
     def running?
-      pid = File.read(File.join('/run/service', name, 'supervise/pid')).to_i
+      pid = File.read(File.join('/service', name, 'supervise/pid')).to_i
       return false if pid <= 0
 
       Process.kill(0, pid)

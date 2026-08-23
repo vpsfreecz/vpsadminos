@@ -404,7 +404,7 @@ import ../../make-test.nix (
           wait_block_started('ct-start')
           blocked_run_id = machine.osctl_json("ct show #{ctid}")['lifecycle_run_id']
           _, old_daemon_pid = machine.succeeds(
-            'cat /run/service/osctld/supervise/pid'
+            'cat /service/osctld/supervise/pid'
           )
           old_daemon_pid = old_daemon_pid.strip
 
@@ -422,7 +422,7 @@ import ../../make-test.nix (
           release_block('ct-start')
           wait_shell_job(start_job, timeout: 120)
           machine.wait_until_succeeds(
-            "test \"$(cat /run/service/osctld/supervise/pid)\" != " \
+            "test \"$(cat /service/osctld/supervise/pid)\" != " \
               "#{Shellwords.escape(old_daemon_pid)}",
             timeout: 120
           )
