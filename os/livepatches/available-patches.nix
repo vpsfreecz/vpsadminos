@@ -19,6 +19,11 @@ let
         buildPatches = [ "bp-6.12.95-transition-guard" ];
         targets = [ "vmlinux" ];
         nonReplace = true;
+        bootstrap = {
+          moduleName = "livepatch_transition_bootstrap";
+          sourceDir = "transition-bootstrap";
+          kickParameter = "kick_idle";
+        };
       };
       filterFn = availableFor "6.12.95";
       version = 7;

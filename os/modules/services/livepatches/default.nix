@@ -21,6 +21,8 @@ let
   transitionGuard =
     assert length transitionGuards <= 1;
     if transitionGuards == [ ] then null else head transitionGuards;
+  transitionBootstrap =
+    if transitionGuard == null then null else transitionGuard.bootstrap or null;
   patchVersion = availablePatches.patchVersion;
 
   buildEnable = (patchVersion > 0) && cfg.enable;
@@ -35,6 +37,10 @@ let
   guardModuleName = if transitionGuard == null then null else transitionGuard.moduleName;
   guardInstallModPath =
     if transitionGuard == null then null else "${installModDir}/${guardModuleName}.ko";
+  bootstrapModuleName =
+    if transitionBootstrap == null then null else transitionBootstrap.moduleName;
+  bootstrapInstallModPath =
+    if transitionBootstrap == null then null else "${installModDir}/${bootstrapModuleName}.ko";
 
   buildKpatchCommand =
     {
@@ -165,6 +171,11 @@ let
 
       ''
       + optionalString (transitionGuard != null) (buildKpatchCommand transitionGuard)
+      + optionalString (transitionBootstrap != null) ''
+        echo building ${bootstrapModuleName}
+        make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
+          M="$PWD/${transitionBootstrap.sourceDir}" modules
+      ''
       + buildKpatchCommand {
         moduleName = patchModuleName;
         buildPatches = availablePatchesList;
@@ -179,6 +190,10 @@ let
       ''
       + optionalString (transitionGuard != null) ''
         cp ${guardModuleName}.ko $out/${guardInstallModPath} || (ls -lah && exit 1)
+      ''
+      + optionalString (transitionBootstrap != null) ''
+        cp ${transitionBootstrap.sourceDir}/${bootstrapModuleName}.ko \
+          $out/${bootstrapInstallModPath} || (ls -lah && exit 1)
       '';
     };
 
@@ -261,18 +276,59 @@ let
           exit 1
         fi
       fi
+      ${optionalString (transitionBootstrap != null) ''
+        transition_bootstrap_cleanup() {
+          if [ -d /sys/module/${bootstrapModuleName} ]; then
+            if ! rmmod ${bootstrapModuleName}; then
+              echo live-patches: unloading ${bootstrapModuleName} FAILED
+              return 1
+            fi
+          fi
+          return 0
+        }
+        trap 'transition_bootstrap_cleanup || true' EXIT
+
+        if [ ! -d /sys/module/${bootstrapModuleName} ]; then
+          echo live-patches: loading ${bootstrapModuleName}...
+          if ! insmod "$livepatch/${bootstrapInstallModPath}"; then
+            echo live-patches: loading ${bootstrapModuleName} FAILED
+            exit 1
+          fi
+        fi
+      ''}
       ${moduleLoadGen {
         installModPath = "$livepatch/${guardInstallModPath}";
         moduleName = guardModuleName;
         recordApplied = false;
       }}
+      ${optionalString (transitionBootstrap != null) ''
+        if [ ! -d /sys/kernel/livepatch/${guardModuleName} ]; then
+          echo live-patches: loading and applying ${guardModuleName} FAILED
+          exit 1
+        fi
+      ''}
       if [ "$(cat /sys/kernel/livepatch/${guardModuleName}/enabled 2>/dev/null)" != "1" ]; then
         echo 1 > /sys/kernel/livepatch/${guardModuleName}/enabled 2>/dev/null || {
           echo live-patches: enabling ${guardModuleName} FAILED
           exit 1
         }
       fi
+      ${optionalString (transitionBootstrap != null) ''
+        if [ "$(cat /sys/kernel/livepatch/${guardModuleName}/transition 2>/dev/null)" = "1" ]; then
+          if ! echo 1 > \
+            /sys/module/${bootstrapModuleName}/parameters/${transitionBootstrap.kickParameter}; then
+            echo live-patches: ${bootstrapModuleName} idle-task bootstrap FAILED
+            exit 1
+          fi
+        fi
+      ''}
       ${moduleWaitGen { moduleName = guardModuleName; }}
+      ${optionalString (transitionBootstrap != null) ''
+        if ! transition_bootstrap_cleanup; then
+          exit 1
+        fi
+        trap - EXIT
+      ''}
     '';
 
   moduleUnloadGen =
