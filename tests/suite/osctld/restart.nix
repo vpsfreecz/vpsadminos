@@ -270,16 +270,19 @@ import ../../make-test.nix (
         SH
       end
 
-      def self.expect_osctl_lost_osctld(job)
+      def self.expect_osctl_interrupted(job, expected: [])
         status, log = wait_shell_job_exit(job, timeout: 30)
-        expected = [
+        expected_messages = [
           'osctld closed connection',
           'osctld is shutting down',
-          "No such file or directory - connect(2) for #{OSCTLD_SOCKET}"
+          "No such file or directory - connect(2) for #{OSCTLD_SOCKET}",
+          *expected
         ]
 
         expect(status).not_to eq(0)
-        expect(log).to satisfy { |v| expected.any? { |msg| v.include?(msg) } }
+        expect(log).to satisfy do |v|
+          expected_messages.any? { |msg| v.include?(msg) }
+        end
       end
 
       configure_examples do |config|
@@ -367,7 +370,7 @@ import ../../make-test.nix (
           )
 
           kill_osctld
-          expect_osctl_lost_osctld(monitor_job)
+          expect_osctl_interrupted(monitor_job)
           wait_osctld_ready
         end
 
@@ -379,7 +382,7 @@ import ../../make-test.nix (
           )
 
           kill_osctld
-          expect_osctl_lost_osctld(top_job)
+          expect_osctl_interrupted(top_job)
           wait_osctld_ready
         end
       end
@@ -568,7 +571,7 @@ import ../../make-test.nix (
           wait_block_started('ct-restart-killed')
 
           kill_osctld
-          expect_osctl_lost_osctld(restart_job)
+          expect_osctl_interrupted(restart_job)
           release_block('ct-restart-killed')
           wait_osctld_ready
         end
@@ -791,7 +794,7 @@ import ../../make-test.nix (
           machine.succeeds("ip link del #{Shellwords.escape(host_veth.strip)}")
 
           kill_osctld
-          expect_osctl_lost_osctld(stop_job)
+          expect_osctl_interrupted(stop_job)
           release_block('ct-stop-missing-veth')
           wait_osctld_ready
           machine.succeeds(
@@ -951,7 +954,12 @@ import ../../make-test.nix (
             timeout: 240
           )
           machine.wait_until_succeeds("test ! -S #{OSCTLD_SOCKET}", timeout: 30)
-          expect_osctl_lost_osctld(state_job)
+          expect_osctl_interrupted(
+            state_job,
+            expected: [
+              "hook pre_stop at #{hook_path(ctid, 'pre-stop')} exited"
+            ]
+          )
           release_block('ct-copy-state')
           wait_shell_job(restart_job, timeout: 240)
           wait_osctld_ready
