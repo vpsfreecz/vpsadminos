@@ -1,6 +1,7 @@
 #!@ruby@/bin/ruby
 require 'fileutils'
 require 'json'
+require 'open3'
 
 class Configuration
   OUT = '@out@'.freeze
@@ -37,11 +38,14 @@ class Configuration
       puts "unable to handle pools: #{pools.error.map(&:name).join(',')}"
     end
 
+    osctld = OsctldRestart.new(services, dry_run: true)
+    osctld.prepare
+
     puts 'would stop deprecated services...'
     services.stop.each(&:stop)
 
     puts 'would stop changed services...'
-    services.restart.each(&:stop)
+    services.restart_before_osctld.each(&:stop)
 
     puts 'would activate the configuration...'
     activate
@@ -50,11 +54,14 @@ class Configuration
 
     osctld_start_config(services)
 
+    osctld.start_and_wait
+
     puts 'would reload changed services...'
     services.reload.each(&:reload)
 
     puts 'would restart changed services...'
-    services.restart.each(&:start)
+    services.deferred_restart_after_osctld.each(&:stop)
+    services.restart_after_osctld.each(&:start)
 
     puts 'runit would start new services...'
     services.start.each(&:start)
@@ -89,11 +96,14 @@ class Configuration
       puts "unable to handle pools: #{pools.error.map(&:name).join(',')}"
     end
 
+    osctld = OsctldRestart.new(services, dry_run: false)
+    osctld.prepare
+
     puts 'stopping deprecated services...'
     services.stop.each(&:stop)
 
     puts 'stopping changed services...'
-    services.restart.each(&:stop)
+    services.restart_before_osctld.each(&:stop)
 
     puts 'activating the configuration...'
     activate
@@ -102,11 +112,14 @@ class Configuration
 
     osctld_start_config(services)
 
+    osctld.start_and_wait
+
     puts 'reloading changed services...'
     services.reload.each(&:reload)
 
     puts 'restarting changed services...'
-    services.restart.each(&:start)
+    services.deferred_restart_after_osctld.each(&:stop)
+    services.restart_after_osctld.each(&:start)
 
     puts 'runit will start new services...'
 
@@ -154,6 +167,124 @@ class Configuration
     return if opts[:dry_run]
 
     system(File.join(CURRENT_BIN, 'osctl'), 'activate', *args)
+  end
+end
+
+class OsctldRestart
+  SERVICE_STOP_TIMEOUT = 60
+  READY_TIMEOUT = 300
+
+  def initialize(
+    services,
+    dry_run:,
+    service_stop_timeout: SERVICE_STOP_TIMEOUT,
+    ready_timeout: READY_TIMEOUT
+  )
+    @service = services.osctld_restart
+    @target_service = services.osctld_target
+    @dry_run = dry_run
+    @service_stop_timeout = service_stop_timeout
+    @ready_timeout = ready_timeout
+  end
+
+  def prepare
+    return unless service
+
+    if dry_run
+      puts '> osctl daemon prepare-stop'
+      puts "> sv stop osctld; wait up to #{service_stop_timeout} seconds"
+      return
+    end
+
+    status = osctl_json('daemon', 'status')
+    unless status['initialized']
+      raise 'osctld is not initialized, refusing runtime replacement'
+    end
+    if status['legacy'] == true
+      raise 'running osctld requires the legacy runtime upgrade protocol'
+    end
+
+    unless run_osctl('daemon', 'prepare-stop')
+      run_osctl('daemon', 'resume')
+      raise 'osctld lifecycle drain failed before activation'
+    end
+
+    service.stop
+    return if wait_service_down
+
+    service.start
+    run_osctl('daemon', 'resume')
+    raise "osctld supervisor did not stop within #{service_stop_timeout} seconds"
+  end
+
+  def start_and_wait
+    return unless service
+
+    if dry_run
+      puts '> sv start osctld'
+      puts "> osctl daemon wait-ready --timeout #{ready_timeout}"
+      return
+    end
+
+    target_service.start
+    return if wait_for_target_ready
+
+    raise "target osctld did not become ready within #{ready_timeout} seconds"
+  end
+
+  protected
+
+  attr_reader :service, :target_service, :service_stop_timeout, :ready_timeout,
+              :dry_run
+
+  def wait_service_down
+    deadline = monotonic_now + service_stop_timeout
+
+    loop do
+      return true unless service.running?
+      return false if monotonic_now >= deadline
+
+      sleep(0.2)
+    end
+  end
+
+  def wait_for_target_ready
+    deadline = monotonic_now + ready_timeout
+
+    loop do
+      remaining = deadline - monotonic_now
+      return false if remaining <= 0
+      return true if run_osctl(
+        'daemon',
+        'wait-ready',
+        '--timeout',
+        remaining.ceil.to_s
+      )
+
+      sleep([0.2, remaining].min)
+    end
+  end
+
+  def osctl_json(*args)
+    output, error, status = Open3.capture3(
+      File.join(Configuration::NEW_BIN, 'osctl'),
+      '--json',
+      *args
+    )
+    raise "osctl #{args.join(' ')} failed: #{error.strip}" unless status.success?
+
+    JSON.parse(output)
+  rescue JSON::ParserError => e
+    raise "osctl #{args.join(' ')} returned invalid JSON: #{e.message}"
+  end
+
+  def run_osctl(*args)
+    puts "> osctl #{args.join(' ')}"
+    system(File.join(Configuration::NEW_BIN, 'osctl'), *args)
+  end
+
+  def monotonic_now
+    Process.clock_gettime(Process::CLOCK_MONOTONIC)
   end
 end
 
@@ -236,6 +367,16 @@ class Services
     def skip?
       opts[:skip]
     end
+
+    def running?
+      pid = File.read(File.join('/run/service', name, 'supervise/pid')).to_i
+      return false if pid <= 0
+
+      Process.kill(0, pid)
+      true
+    rescue Errno::ENOENT, Errno::ESRCH
+      false
+    end
   end
 
   def initialize(dry_run: true)
@@ -277,6 +418,30 @@ class Services
     end.map { |s| new_services[s] }
   end
 
+  def osctld_restart
+    restart.detect { |service| service.name == 'osctld' && !service.skip? }
+  end
+
+  def osctld_target
+    service = new_services['osctld']
+    service unless service&.skip?
+  end
+
+  def restart_before_osctld
+    restart.reject do |service|
+      (service.name == 'osctld' && !service.skip?) \
+        || service == deferred_nodectld_restart
+    end
+  end
+
+  def deferred_restart_after_osctld
+    [deferred_nodectld_restart].compact
+  end
+
+  def restart_after_osctld
+    restart.reject { |service| service.name == 'osctld' && !service.skip? }
+  end
+
   # Services that have been changed and should be reloaded
   # @return [Array<Service>]
   def reload
@@ -311,6 +476,14 @@ class Services
   protected
 
   attr_reader :old_cfg, :new_cfg, :protected_list, :old_services, :new_services, :old_runlevel, :new_runlevel, :opts
+
+  def nodectld_restart
+    restart.detect { |service| service.name == 'nodectld' && !service.skip? }
+  end
+
+  def deferred_nodectld_restart
+    osctld_restart && nodectld_restart
+  end
 
   # Parse service config
   # @param path [String]
@@ -544,16 +717,18 @@ class Pools
   end
 end
 
-case ARGV[0]
-when 'boot'
-  Configuration.boot
-when 'switch'
-  Configuration.switch
-when 'test'
-  Configuration.test
-when 'dry-activate'
-  Configuration.dry_run
-else
-  warn "Usage: #{$0} switch|boot|test|dry-activate"
-  exit(false)
+if __FILE__ == $0
+  case ARGV[0]
+  when 'boot'
+    Configuration.boot
+  when 'switch'
+    Configuration.switch
+  when 'test'
+    Configuration.test
+  when 'dry-activate'
+    Configuration.dry_run
+  else
+    warn "Usage: #{$0} switch|boot|test|dry-activate"
+    exit(false)
+  end
 end
