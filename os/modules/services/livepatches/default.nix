@@ -170,7 +170,9 @@ let
         LIVEPATCH_HEADER_END
 
       ''
-      + optionalString (transitionGuard != null) (buildKpatchCommand transitionGuard)
+      + optionalString (transitionGuard != null) (
+        buildKpatchCommand (removeAttrs transitionGuard [ "bootstrap" ])
+      )
       + optionalString (transitionBootstrap != null) ''
         echo building ${bootstrapModuleName}
         make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
