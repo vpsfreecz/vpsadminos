@@ -2156,6 +2156,9 @@ import ../../make-test.nix (
             "test \"$(sha256sum #{TRANSITION_GUARD_MODULE} | cut -d' ' -f1)\" = #{TRANSITION_GUARD_SHA256}"
           )
           machine.succeeds(
+            "test \"$(sha256sum #{TRANSITION_BOOTSTRAP_MODULE} | cut -d' ' -f1)\" = #{TRANSITION_BOOTSTRAP_SHA256}"
+          )
+          machine.succeeds(
             "test \"$(sha256sum #{RELEASED_V1_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V1_SHA256}"
           )
           machine.succeeds(
