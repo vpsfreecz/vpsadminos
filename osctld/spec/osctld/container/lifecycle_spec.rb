@@ -1,6 +1,15 @@
 # frozen_string_literal: true
 
+require 'osctld/command'
 require 'osctld/container/lifecycle'
+require 'osctld/container/lifecycle_executor'
+require 'osctld/container_control/command'
+require 'osctld/console'
+require 'osctld/switch_user'
+require 'osctld/thread_reaper'
+require 'osctld/utils/container'
+require 'osctld/utils/switch_user'
+require 'osctld/commands/container/start'
 require 'osctld/group'
 
 RSpec.describe OsCtld::Container::Lifecycle do
@@ -37,6 +46,45 @@ RSpec.describe OsCtld::Container::Lifecycle do
       next_run_conf: nil,
       run_conf: nil
     )
+  end
+
+  def prepare_restart_interruption(lifecycle, run_id, effect_id)
+    pid = Process.spawn('sleep', '30')
+    allow(lifecycle).to receive(:watch_process)
+    process_id = lifecycle.register_process(
+      run_id,
+      kind: 'hook:test',
+      pid:
+    )
+    processes = lifecycle.interrupt_daemon_restart_effect(
+      run_id,
+      expected_effect_id: effect_id,
+      expected_phase: lifecycle.run(run_id).fetch('phase'),
+      signal: 'TERM'
+    )
+    expect(processes.map { |v| v.fetch('pid') }).to include(pid)
+
+    Process.wait(pid)
+    pid = nil
+    lifecycle.finish_process(run_id, process_id)
+  ensure
+    if pid
+      Process.kill('KILL', pid)
+      Process.wait(pid)
+    end
+  end
+
+  def leave_completed_cleanup_worker(lifecycle)
+    start = lifecycle.request_start
+    start_effect = lifecycle.claim_effect(start.run_id, :start)
+    lifecycle.finish_effect(start.run_id, start_effect)
+    lifecycle.observe_wrapper_gone(start.run_id)
+    cleanup_effect = lifecycle.observe_post_stop(start.run_id)
+    Thread.new do
+      lifecycle.set_effect_worker(start.run_id, cleanup_effect, Process.pid)
+      lifecycle.complete_run(start.run_id, cleanup_effect)
+    end.join
+    start.run_id
   end
 
   it 'persists intents and exact generation resources across daemon instances' do
@@ -191,6 +239,59 @@ RSpec.describe OsCtld::Container::Lifecycle do
           File.join(root, 'run', 'ct1', 'lifecycle.yml.incarnation-*')
         ).length
       ).to eq(1)
+    end
+  end
+
+  it 'normalizes a dead completed cleanup worker on reload' do
+    with_tmpdir do |root|
+      ct = build_container(root)
+      lifecycle = described_class.new(ct)
+      run_id = leave_completed_cleanup_worker(lifecycle)
+
+      expect(lifecycle.run(run_id).fetch('effect')).to include(
+        'status' => 'completed'
+      )
+      restored = described_class.new(ct)
+
+      expect(restored.run(run_id).fetch('effect')).to be_nil
+      expect(restored.run(run_id)).to include(
+        'role' => 'history',
+        'phase' => 'clean'
+      )
+    end
+  end
+
+  it 'archives a drained completed worker for a different incarnation' do
+    with_tmpdir do |root|
+      old_ct = build_container(root, incarnation_id: 'incarnation-old')
+      lifecycle = described_class.new(old_ct)
+      leave_completed_cleanup_worker(lifecycle)
+
+      replacement = described_class.new(
+        build_container(root, incarnation_id: 'incarnation-new')
+      )
+
+      expect(replacement.snapshot.fetch('incarnation_id'))
+        .to eq('incarnation-new')
+      expect(
+        Dir.glob(
+          File.join(root, 'run', 'ct1', 'lifecycle.yml.incarnation-*')
+        ).length
+      ).to eq(1)
+    end
+  end
+
+  it 'prunes clean history after a completed worker is dead' do
+    with_tmpdir do |root|
+      ct = build_container(root)
+      lifecycle = described_class.new(ct)
+      run_id = leave_completed_cleanup_worker(lifecycle)
+      restored = described_class.new(ct)
+
+      replacement = restored.request_start
+
+      expect(replacement.action).to eq(:launch)
+      expect(restored.run(run_id)).to be_nil
     end
   end
 
@@ -1442,6 +1543,7 @@ RSpec.describe OsCtld::Container::Lifecycle do
       read_io.close
 
       begin
+        allow(lifecycle).to receive(:watch_process)
         lifecycle.register_process(
           start.run_id,
           kind: 'hook:post_start',
@@ -1573,6 +1675,567 @@ RSpec.describe OsCtld::Container::Lifecycle do
       retry_stop = lifecycle.request_stop
       expect(retry_stop.action).to eq(:stop)
       expect(retry_stop.intent_id).not_to eq(stop.intent_id)
+    end
+  end
+
+  it 'preserves a stop intent interrupted by daemon restart' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+
+      stop = lifecycle.request_stop
+      stop_effect = lifecycle.claim_effect(stop.run_id, :stop)
+      prepare_restart_interruption(lifecycle, stop.run_id, stop_effect)
+      lifecycle.fail_stop(stop.run_id, stop_effect, 'restart interruption')
+
+      expect(lifecycle.desired_state).to eq(:stopped)
+      expect(lifecycle.daemon_restart_blockers).to be_empty
+
+      retry_stop = lifecycle.request_stop(
+        expected_intent_id: stop.intent_id,
+        source: 'daemon-restart'
+      )
+      expect(retry_stop.action).to eq(:stop)
+      expect(lifecycle.claim_effect(retry_stop.run_id, :stop)).not_to be_nil
+      expect(lifecycle.run(stop.run_id)).not_to have_key(
+        'daemon_restart_handoff'
+      )
+    end
+  end
+
+  it 'preserves a start intent interrupted by daemon restart' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      effect_id = lifecycle.claim_effect(start.run_id, :start)
+      prepare_restart_interruption(lifecycle, start.run_id, effect_id)
+
+      lifecycle.fail_launch(start.run_id, effect_id, 'restart interruption')
+
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.current_intent_id).to eq(start.intent_id)
+      expect(lifecycle.daemon_restart_blockers).to be_empty
+
+      retry_start = lifecycle.request_start(
+        expected_intent_id: start.intent_id,
+        source: 'daemon-restart'
+      )
+      expect(retry_start.action).to eq(:launch)
+      expect(retry_start.run_id).not_to eq(start.run_id)
+    end
+  end
+
+  it 'clears interrupted start handoff after running recovery completes' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      effect_id = lifecycle.claim_effect(start.run_id, :start)
+      prepare_restart_interruption(lifecycle, start.run_id, effect_id)
+      observer_id = lifecycle.begin_state_observation(
+        start.run_id,
+        :running,
+        init_pid: Process.pid,
+        source: 'monitor'
+      )
+      expect(
+        lifecycle.claim_state_effects(start.run_id, observer_id, :running)
+      ).to be(true)
+
+      expect(
+        lifecycle.complete_running_effects(start.run_id, observer_id)
+      ).to be(true)
+      lifecycle.finish_state_observation(start.run_id, observer_id)
+      lifecycle.finish_effect(start.run_id, effect_id)
+
+      expect(lifecycle.run(start.run_id)).not_to have_key(
+        'daemon_restart_handoff'
+      )
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.daemon_restart_blockers).to be_empty
+    end
+  end
+
+  it 'hands interrupted cleanup to daemon restart recovery' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.finish_effect(start.run_id, start_effect)
+      lifecycle.observe_wrapper_gone(start.run_id)
+      cleanup_effect = lifecycle.observe_post_stop(start.run_id)
+      prepare_restart_interruption(lifecycle, start.run_id, cleanup_effect)
+
+      lifecycle.fail_cleanup(
+        start.run_id,
+        cleanup_effect,
+        'restart interruption'
+      )
+
+      expect(lifecycle.desired_state).to eq(:stopped)
+      expect(lifecycle.active_phase).to eq(:cleanup_failed)
+      expect(lifecycle.daemon_restart_blockers).to be_empty
+    end
+  end
+
+  it 'waits for an interrupted effect worker to leave before handoff' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+      stop = lifecycle.request_stop
+      stop_effect = lifecycle.claim_effect(stop.run_id, :stop)
+      child_pid = Process.spawn('sleep', '30')
+      allow(lifecycle).to receive(:watch_process)
+      process_id = lifecycle.register_process(
+        stop.run_id,
+        kind: 'hook:test',
+        pid: child_pid
+      )
+      worker_ready = Queue.new
+      reduce = Queue.new
+      reduced = Queue.new
+      finish = Queue.new
+      worker = Thread.new do
+        lifecycle.set_effect_worker(stop.run_id, stop_effect, Process.pid)
+        worker_ready << true
+        reduce.pop
+        lifecycle.fail_stop(
+          stop.run_id,
+          stop_effect,
+          'restart interruption'
+        )
+        reduced << true
+        finish.pop
+        lifecycle.effect_worker_exited(stop.run_id, stop_effect)
+      end
+      worker_ready.pop
+
+      processes = lifecycle.interrupt_daemon_restart_effect(
+        stop.run_id,
+        expected_effect_id: stop_effect,
+        expected_phase: lifecycle.run(stop.run_id).fetch('phase'),
+        signal: 'TERM'
+      )
+      expect(processes.map { |v| v.fetch('pid') }).to include(child_pid)
+      Process.wait(child_pid)
+      child_pid = nil
+      lifecycle.finish_process(stop.run_id, process_id)
+      reduce << true
+      reduced.pop
+
+      expect(lifecycle.daemon_restart_blockers).to contain_exactly(
+        include(
+          run_id: stop.run_id.to_s,
+          workers: contain_exactly(
+            include('kind' => 'restart_interrupted_effect')
+          )
+        )
+      )
+
+      finish << true
+      worker.join
+      expect(lifecycle.daemon_restart_blockers).to be_empty
+    ensure
+      finish << true if worker&.alive?
+      worker&.join
+      if child_pid
+        Process.kill('KILL', child_pid)
+        Process.wait(child_pid)
+      end
+    end
+  end
+
+  it 'resumes a restart whose stop is interrupted by daemon restart' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+      restart = lifecycle.request_restart
+      stop = lifecycle.request_stop(expected_intent_id: restart.intent_id)
+      stop_effect = lifecycle.claim_effect(stop.run_id, :stop)
+      prepare_restart_interruption(lifecycle, stop.run_id, stop_effect)
+
+      lifecycle.fail_stop(stop.run_id, stop_effect, 'restart interruption')
+
+      run = lifecycle.run(stop.run_id)
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.current_intent_id).to eq(restart.intent_id)
+      expect(run.fetch('launch_intent_id')).to eq(start.intent_id)
+      expect(lifecycle.daemon_restart_blockers).to be_empty
+
+      retry_stop = lifecycle.request_stop(
+        expected_intent_id: restart.intent_id,
+        source: 'daemon-restart'
+      )
+      retry_effect = lifecycle.claim_effect(retry_stop.run_id, :stop)
+      lifecycle.finish_effect(retry_stop.run_id, retry_effect)
+      lifecycle.observe_wrapper_gone(retry_stop.run_id)
+      cleanup_effect = lifecycle.observe_post_stop(retry_stop.run_id)
+      completed, restart_intent_id = lifecycle.complete_run(
+        retry_stop.run_id,
+        cleanup_effect
+      )
+
+      expect(completed).to be(true)
+      expect(restart_intent_id).to eq(restart.intent_id)
+      retry_start = lifecycle.request_start(
+        expected_intent_id: restart_intent_id,
+        source: 'daemon-restart'
+      )
+      expect(retry_start.action).to eq(:launch)
+    end
+  end
+
+  it 'resumes an interrupted start after its published wrapper exits' do
+    with_tmpdir do |root|
+      ct = build_container(root)
+      lifecycle = described_class.new(ct)
+      ct.define_singleton_method(:lifecycle) { lifecycle }
+      start = lifecycle.request_start
+      effect_id = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.set_effect_worker(start.run_id, effect_id, Process.pid)
+      wrapper_pid = Process.spawn('sleep', '30')
+      lifecycle.mark_launching(start.run_id, effect_id, wrapper_pid)
+      processes = lifecycle.interrupt_daemon_restart_effect(
+        start.run_id,
+        expected_effect_id: effect_id,
+        expected_phase: 'launching',
+        signal: 'TERM'
+      )
+      expect(processes.map { |v| v.fetch('pid') }).to include(wrapper_pid)
+      Process.wait(wrapper_pid)
+      wrapper_pid = nil
+      recovery_class = stub_const(
+        'OsCtld::Container::Recovery',
+        Class.new do
+          def initialize(*); end
+
+          def recover_state(*); end
+        end
+      )
+      recovery = instance_double(recovery_class, recover_state: {})
+      allow(recovery_class).to receive(:new)
+        .with(ct)
+        .and_return(recovery)
+      command = OsCtld::Commands::Container::Start.new({}, {})
+
+      command.send(
+        :finish_dead_wrapper,
+        ct,
+        double,
+        start.run_id,
+        effect_id
+      )
+      lifecycle.effect_worker_exited(start.run_id, effect_id)
+      cleanup_effect = lifecycle.observe_post_stop(start.run_id)
+      completed, restart_intent_id = lifecycle.complete_run(
+        start.run_id,
+        cleanup_effect
+      )
+
+      expect(recovery).to have_received(:recover_state).with(run_id: start.run_id)
+      expect(completed).to be(true)
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(restart_intent_id).to eq(lifecycle.current_intent_id)
+      expect(restart_intent_id).not_to eq(start.intent_id)
+    ensure
+      if wrapper_pid
+        Process.kill('KILL', wrapper_pid)
+        Process.wait(wrapper_pid)
+      end
+    end
+  end
+
+  it 'preserves a managed start interrupted after its effect is released' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      effect_id = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.mark_launching(start.run_id, effect_id, Process.pid)
+      lifecycle.authorize_lxc_start(start.run_id, Process.pid)
+      lifecycle.activate_lxc_start(start.run_id, Process.pid)
+      callback_id = lifecycle.begin_callback(
+        start.run_id,
+        name: 'CtPreStart'
+      )
+      lifecycle.consume_pre_start(
+        start.run_id,
+        client_pid: Process.pid,
+        callback_id:
+      )
+      lifecycle.complete_pre_start(start.run_id, callback_id:)
+      lifecycle.finish_callback(start.run_id, callback_id)
+      child_pid = Process.spawn('sleep', '30')
+      signalled_pid = child_pid
+      allow(lifecycle).to receive(:watch_process)
+      process_id = lifecycle.register_process(
+        start.run_id,
+        kind: 'hook:test',
+        pid: child_pid
+      )
+
+      expect(lifecycle.run(start.run_id)).to include(
+        'phase' => 'starting',
+        'effect' => nil
+      )
+      processes = lifecycle.interrupt_daemon_restart_effect(
+        start.run_id,
+        expected_effect_id: nil,
+        expected_phase: 'starting',
+        signal: 'TERM'
+      )
+      Process.wait(child_pid)
+      child_pid = nil
+      lifecycle.finish_process(start.run_id, process_id)
+      expect(lifecycle.run(start.run_id).fetch('daemon_restart_handoff'))
+        .to include(
+          'effect_type' => 'start',
+          'effect_missing' => true
+        )
+
+      lifecycle.observe_wrapper_gone(start.run_id)
+      cleanup_effect = lifecycle.observe_post_stop(start.run_id)
+
+      expect(processes.map { |v| v.fetch('pid') }).to include(signalled_pid)
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.current_intent_id).not_to eq(start.intent_id)
+      expect(lifecycle.complete_run(start.run_id, cleanup_effect))
+        .to eq([true, lifecycle.current_intent_id])
+    ensure
+      if child_pid
+        Process.kill('KILL', child_pid)
+        Process.wait(child_pid)
+      end
+    end
+  end
+
+  it 'rejects stale effect interruption without marking replacement work' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+      first_stop = lifecycle.request_stop
+      first_effect = lifecycle.claim_effect(first_stop.run_id, :stop)
+      lifecycle.fail_stop(first_stop.run_id, first_effect, 'ordinary failure')
+      second_stop = lifecycle.request_stop
+      second_effect = lifecycle.claim_effect(second_stop.run_id, :stop)
+      child_pid = Process.spawn('sleep', '30')
+      allow(lifecycle).to receive(:watch_process)
+      lifecycle.register_process(
+        second_stop.run_id,
+        kind: 'hook:test',
+        pid: child_pid
+      )
+
+      expect(
+        lifecycle.interrupt_daemon_restart_effect(
+          second_stop.run_id,
+          expected_effect_id: first_effect,
+          expected_phase: 'running',
+          signal: 'TERM'
+        )
+      ).to be_nil
+      effect = lifecycle.run(second_stop.run_id).fetch('effect')
+      expect(effect).to include('id' => second_effect)
+      expect(effect).not_to have_key('daemon_restart_interrupted')
+      expect { Process.kill(0, child_pid) }.not_to raise_error
+    ensure
+      if child_pid
+        Process.kill('KILL', child_pid)
+        Process.wait(child_pid)
+      end
+    end
+  end
+
+  it 'keeps the exact effect locked until its signal is delivered' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      effect_id = lifecycle.claim_effect(start.run_id, :start)
+      child_pid = Process.spawn('sleep', '30')
+      signalled_pid = child_pid
+      allow(lifecycle).to receive(:watch_process)
+      lifecycle.register_process(
+        start.run_id,
+        kind: 'hook:test',
+        pid: child_pid
+      )
+      transition_attempted = Queue.new
+      transition = nil
+      allow(Process).to receive(:kill).and_wrap_original do |original, *args|
+        if args == ['TERM', child_pid]
+          transition = Thread.new do
+            transition_attempted << true
+            lifecycle.fail_launch(
+              start.run_id,
+              effect_id,
+              'concurrent completion'
+            )
+          end
+          transition_attempted.pop
+          expect(lifecycle.instance_variable_get(:@mutex)).to be_owned
+          expect(transition).to be_alive
+        end
+        original.call(*args)
+      end
+
+      processes = lifecycle.interrupt_daemon_restart_effect(
+        start.run_id,
+        expected_effect_id: effect_id,
+        expected_phase: 'preparing',
+        signal: 'TERM'
+      )
+      Process.wait(child_pid)
+      child_pid = nil
+      transition.join
+
+      expect(processes.map { |v| v.fetch('pid') }).to include(signalled_pid)
+      expect(lifecycle.desired_state).to eq(:running)
+    ensure
+      transition&.join
+      if child_pid
+        Process.kill('KILL', child_pid)
+        Process.wait(child_pid)
+      end
+    end
+  end
+
+  it 'retains completed cleanup ownership through persisted restart handoff' do
+    with_tmpdir do |root|
+      ct = build_container(root)
+      lifecycle = described_class.new(ct)
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+      restart = lifecycle.request_restart
+      stop = lifecycle.request_stop(expected_intent_id: restart.intent_id)
+      stop_effect = lifecycle.claim_effect(stop.run_id, :stop)
+      lifecycle.finish_effect(stop.run_id, stop_effect)
+      lifecycle.observe_wrapper_gone(stop.run_id)
+      cleanup_effect = lifecycle.observe_post_stop(stop.run_id)
+      ready = Queue.new
+      completed = Queue.new
+      finish = Queue.new
+      worker = Thread.new do
+        lifecycle.set_effect_worker(stop.run_id, cleanup_effect, Process.pid)
+        ready << true
+        completed << lifecycle.complete_run(stop.run_id, cleanup_effect)
+        finish.pop
+        lifecycle.effect_worker_exited(stop.run_id, cleanup_effect)
+      end
+      ready.pop
+      expect(completed.pop).to eq([true, restart.intent_id])
+
+      restored = described_class.new(ct)
+      run_conf = instance_double(
+        OsCtld::Container::RunConfiguration,
+        run_id: stop.run_id
+      )
+      expect(restored.active_run_id).to be_nil
+      expect(restored.desired_state).to eq(:running)
+      expect(restored.run(stop.run_id).fetch('effect')).to include(
+        'id' => cleanup_effect,
+        'status' => 'completed'
+      )
+      expect(restored.daemon_restart_blockers).to contain_exactly(
+        include(
+          run_id: stop.run_id.to_s,
+          workers: contain_exactly(include('kind' => 'completed_effect'))
+        )
+      )
+      expect(restored.adopt_legacy(run_conf, :error)).to eq(
+        :uncertain_completed
+      )
+      expect(restored.desired_state).to eq(:running)
+      expect(restored.adopt_legacy(run_conf, :stopped)).to eq(
+        :stale_completed
+      )
+      expect(restored.desired_state).to eq(:running)
+
+      finish << true
+      worker.join
+      worker = nil
+      expect(described_class.new(ct).daemon_restart_blockers).to be_empty
+    ensure
+      finish << true if worker&.alive?
+      worker&.join
+    end
+  end
+
+  it 'preserves clean restart handoff after post-completion failure' do
+    with_tmpdir do |root|
+      ct = build_container(root)
+      lifecycle = described_class.new(ct)
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+      restart = lifecycle.request_restart
+      stop = lifecycle.request_stop(expected_intent_id: restart.intent_id)
+      stop_effect = lifecycle.claim_effect(stop.run_id, :stop)
+      lifecycle.finish_effect(stop.run_id, stop_effect)
+      lifecycle.observe_wrapper_gone(stop.run_id)
+      cleanup_effect = lifecycle.observe_post_stop(stop.run_id)
+      failed = Queue.new
+      finish = Queue.new
+      worker = Thread.new do
+        lifecycle.set_effect_worker(stop.run_id, cleanup_effect, Process.pid)
+        lifecycle.complete_run(stop.run_id, cleanup_effect)
+        failed << lifecycle.fail_cleanup(
+          stop.run_id,
+          cleanup_effect,
+          'run configuration removal failed'
+        )
+        finish.pop
+        lifecycle.effect_worker_exited(stop.run_id, cleanup_effect)
+      end
+      expect(failed.pop).to be(true)
+
+      run = lifecycle.run(stop.run_id)
+      expect(run).to include(
+        'role' => 'history',
+        'phase' => 'clean',
+        'post_completion_error' => 'run configuration removal failed'
+      )
+      expect(run.fetch('effect')).to include(
+        'id' => cleanup_effect,
+        'status' => 'completed',
+        'post_completion_error' => 'run configuration removal failed'
+      )
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.current_intent_id).to eq(restart.intent_id)
+      expect(lifecycle.daemon_restart_blockers).to contain_exactly(
+        include(
+          run_id: stop.run_id.to_s,
+          workers: contain_exactly(include('kind' => 'completed_effect'))
+        )
+      )
+
+      finish << true
+      worker.join
+      worker = nil
+      restored = described_class.new(ct)
+      run_conf = instance_double(
+        OsCtld::Container::RunConfiguration,
+        run_id: stop.run_id
+      )
+      expect(restored.adopt_legacy(run_conf, :stopped)).to eq(
+        :stale_completed
+      )
+      expect(restored.desired_state).to eq(:running)
+    ensure
+      finish << true if worker&.alive?
+      worker&.join
     end
   end
 

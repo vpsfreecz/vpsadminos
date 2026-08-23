@@ -1358,19 +1358,21 @@ module OsCtld
           next
         end
 
-        ct.lifecycle.daemon_restart_processes(run_id).each do |cfg|
-          identity = ProcessIdentity.load(cfg)
-          next unless identity.alive?
-          next if identity.pid == Process.pid
+        effect_id = blocker[:effect]&.fetch('id')
+        process_configs = ct.lifecycle.interrupt_daemon_restart_effect(
+          run_id,
+          expected_effect_id: effect_id,
+          expected_phase: blocker[:phase],
+          signal:
+        )
+        next unless process_configs
 
+        process_configs.each do |cfg|
           log(
             :warn,
             ct,
-            "Sending #{signal} to lifecycle process #{identity.pid} for #{run_id}"
+            "Sent #{signal} to lifecycle process #{cfg.fetch('pid')} for #{run_id}"
           )
-          Process.kill(signal, identity.pid) if identity.alive?
-        rescue Errno::ESRCH
-          next
         end
       rescue StandardError => e
         log(:warn, ct, "Unable to interrupt lifecycle blocker: #{e.message} (#{e.class})")

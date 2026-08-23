@@ -762,11 +762,7 @@ module OsCtld
         ct.run_conf.init_pid = runtime_observation.init_pid
       end
       if ct.run_conf && lifecycle.active_run_id.nil?
-        lifecycle.adopt_legacy(
-          ct.run_conf,
-          runtime_state,
-          managers: legacy_manager_identities(ct, runtime_state)
-        )
+        adopt_legacy_run_conf(ct, lifecycle, runtime_state)
       end
       ct.reconfigure
 
@@ -805,6 +801,27 @@ module OsCtld
 
       Monitor::Master.monitor(ct)
       ct
+    end
+
+    def adopt_legacy_run_conf(ct, lifecycle, runtime_state)
+      run_conf = ct.run_conf
+      adoption = lifecycle.adopt_legacy(
+        run_conf,
+        runtime_state,
+        managers: legacy_manager_identities(ct, runtime_state)
+      )
+      case adoption
+      when :stale_completed
+        ct.abort_run_conf(run_conf)
+      when :uncertain_completed
+        Daemon.get.record_recovery_failure(
+          "#{ct.ident}:runtime-state",
+          'unable to authoritatively observe a completed container generation',
+          run_id: run_conf.run_id.to_s,
+          observed_state: runtime_state.to_s
+        )
+      end
+      adoption
     end
 
     def reconcile_loaded_ct(ct)

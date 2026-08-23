@@ -264,11 +264,11 @@ RSpec.describe OsCtld::Daemon do
       restart = Struct.new(:drain_timeout, :cleanup_timeout).new(0, 0)
       config = Struct.new(:restart).new(restart)
       lifecycle_class = Class.new do
-        def daemon_restart_processes(*); end
+        def interrupt_daemon_restart_effect(*, **); end
       end
       lifecycle = instance_double(
         lifecycle_class,
-        daemon_restart_processes: []
+        interrupt_daemon_restart_effect: []
       )
       ct = Struct.new(:pool, :id, :lifecycle).new(
         Struct.new(:name).new('tank'),
@@ -1588,7 +1588,7 @@ RSpec.describe OsCtld::Daemon do
     it 'escalates the exact residual generation named by a blocker' do
       daemon = described_class.allocate
       lifecycle_class = Class.new do
-        def daemon_restart_processes(*); end
+        def interrupt_daemon_restart_effect(*, **); end
       end
       lifecycle = instance_double(lifecycle_class)
       ct_class = Class.new do
@@ -1612,10 +1612,15 @@ RSpec.describe OsCtld::Daemon do
         run_id: 'tank:ct1:residual',
         role: 'residual',
         phase: 'cleaning',
-        effect: { 'type' => 'cleanup' }
+        effect: { 'id' => 'cleanup-1', 'type' => 'cleanup' }
       }
-      allow(lifecycle).to receive(:daemon_restart_processes)
-        .with('tank:ct1:residual')
+      allow(lifecycle).to receive(:interrupt_daemon_restart_effect)
+        .with(
+          'tank:ct1:residual',
+          expected_effect_id: 'cleanup-1',
+          expected_phase: 'cleaning',
+          signal: 'TERM'
+        )
         .and_return([])
 
       daemon.send(
@@ -1624,8 +1629,99 @@ RSpec.describe OsCtld::Daemon do
         signal: 'TERM'
       )
 
-      expect(lifecycle).to have_received(:daemon_restart_processes)
-        .with('tank:ct1:residual')
+      expect(lifecycle).to have_received(
+        :interrupt_daemon_restart_effect
+      ).with(
+        'tank:ct1:residual',
+        expected_effect_id: 'cleanup-1',
+        expected_phase: 'cleaning',
+        signal: 'TERM'
+      )
+    end
+
+    it 'fences an exact lifecycle effect before signalling its process' do
+      daemon = described_class.allocate
+      child_pid = Process.spawn('sleep', '30')
+      identity = OsCtld::ProcessIdentity.capture(child_pid).dump
+      calls = []
+      lifecycle_class = Class.new do
+        def interrupt_daemon_restart_effect(*, **); end
+      end
+      lifecycle = instance_double(lifecycle_class)
+      ct_class = Struct.new(:pool, :id, :lifecycle)
+      ct = ct_class.new(Struct.new(:name).new('tank'), 'ct1', lifecycle)
+      blocker = {
+        type: 'container_generation',
+        run_id: 'tank:ct1:run-1',
+        phase: 'running',
+        effect: { 'id' => 'stop-1', 'type' => 'stop' }
+      }
+      allow(lifecycle).to receive(
+        :interrupt_daemon_restart_effect
+      ) do |*, signal:, **|
+        calls << :marked
+        Process.kill(signal, child_pid)
+        [identity]
+      end
+      allow(Process).to receive(:kill).and_wrap_original do |original, *args|
+        calls << :signalled
+        original.call(*args)
+      end
+      allow(daemon).to receive(:log)
+
+      daemon.send(
+        :interrupt_lifecycle_blockers,
+        [[ct, blocker]],
+        signal: 'TERM'
+      )
+      Process.wait(child_pid)
+      child_pid = nil
+
+      expect(calls).to eq(%i[marked signalled])
+      expect(lifecycle).to have_received(
+        :interrupt_daemon_restart_effect
+      ).with(
+        'tank:ct1:run-1',
+        expected_effect_id: 'stop-1',
+        expected_phase: 'running',
+        signal: 'TERM'
+      )
+    ensure
+      if child_pid
+        Process.kill('KILL', child_pid)
+        Process.wait(child_pid)
+      end
+    end
+
+    it 'does not signal when the exact effect transition is stale' do
+      daemon = described_class.allocate
+      lifecycle_class = Class.new do
+        def interrupt_daemon_restart_effect(*, **); end
+      end
+      lifecycle = instance_double(lifecycle_class)
+      ct = Struct.new(:pool, :id, :lifecycle).new(
+        Struct.new(:name).new('tank'),
+        'ct1',
+        lifecycle
+      )
+      blocker = {
+        type: 'container_generation',
+        run_id: 'tank:ct1:run-1',
+        phase: 'running',
+        effect: { 'id' => 'old-stop', 'type' => 'stop' }
+      }
+      allow(lifecycle).to receive(
+        :interrupt_daemon_restart_effect
+      ).and_return(nil)
+      allow(Process).to receive(:kill)
+
+      daemon.send(
+        :interrupt_lifecycle_blockers,
+        [[ct, blocker]],
+        signal: 'TERM'
+      )
+
+      expect(Process).not_to have_received(:kill)
     end
   end
 

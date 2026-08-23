@@ -130,6 +130,82 @@ RSpec.describe OsCtld::Pool do
     end
   end
 
+  it 'discards a stale run configuration for a completed lifecycle run' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      run_conf = instance_double(OsCtld::Container::RunConfiguration)
+      lifecycle = instance_double(
+        OsCtld::Container::Lifecycle,
+        adopt_legacy: :stale_completed
+      )
+      ct = instance_double(
+        OsCtld::Container,
+        run_conf:,
+        abort_run_conf: true
+      )
+      allow(pool).to receive(:legacy_manager_identities).and_return([])
+
+      result = pool.send(
+        :adopt_legacy_run_conf,
+        ct,
+        lifecycle,
+        :stopped
+      )
+
+      expect(result).to eq(:stale_completed)
+      expect(lifecycle).to have_received(:adopt_legacy).with(
+        run_conf,
+        :stopped,
+        managers: []
+      )
+      expect(ct).to have_received(:abort_run_conf).with(run_conf)
+    end
+  end
+
+  it 'blocks readiness on uncertain state of a completed lifecycle run' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      run_id = instance_double(
+        OsCtld::Container::RunId,
+        to_s: 'tank:ct1:run-1'
+      )
+      run_conf = instance_double(
+        OsCtld::Container::RunConfiguration,
+        run_id:
+      )
+      lifecycle = instance_double(
+        OsCtld::Container::Lifecycle,
+        adopt_legacy: :uncertain_completed
+      )
+      ct = instance_double(
+        OsCtld::Container,
+        run_conf:,
+        abort_run_conf: true,
+        ident: 'tank:ct1'
+      )
+      daemon = instance_double(OsCtld::Daemon)
+      allow(OsCtld::Daemon).to receive(:get).and_return(daemon)
+      allow(daemon).to receive(:record_recovery_failure)
+      allow(pool).to receive(:legacy_manager_identities).and_return([])
+
+      result = pool.send(
+        :adopt_legacy_run_conf,
+        ct,
+        lifecycle,
+        :error
+      )
+
+      expect(result).to eq(:uncertain_completed)
+      expect(ct).not_to have_received(:abort_run_conf)
+      expect(daemon).to have_received(:record_recovery_failure).with(
+        'tank:ct1:runtime-state',
+        'unable to authoritatively observe a completed container generation',
+        run_id: 'tank:ct1:run-1',
+        observed_state: 'error'
+      )
+    end
+  end
+
   it 'loads explicit options and attrs from the config file' do
     with_tmpdir do |dir|
       pool = build_pool(root: dir)

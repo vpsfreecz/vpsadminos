@@ -527,6 +527,7 @@ module OsCtld
 
         effect_id = SecureRandom.uuid
         run.delete('stop_error') if type.to_sym == :stop
+        run.delete('daemon_restart_handoff')
         run['effect'] = {
           'id' => effect_id,
           'type' => type.to_s,
@@ -536,6 +537,77 @@ module OsCtld
         }
         commit
         effect_id
+      end
+    end
+
+    # Fence the blocker's exact effect while the daemon deliberately
+    # interrupts owned processes during restart draining. Validation, process
+    # discovery, marking and signal delivery share the reducer lock, so an
+    # effect cannot finish and transfer a long-lived process to stable runtime
+    # ownership between the snapshot and the signal.
+    #
+    # @return [Array<Hash>, nil] signalled process identities, or nil when stale
+    def interrupt_daemon_restart_effect(
+      run_id,
+      expected_effect_id:,
+      expected_phase:,
+      signal:
+    )
+      sync do
+        run = find_run_locked(run_id)
+        return unless run
+        return unless run.fetch('phase') == expected_phase.to_s
+
+        effect = run['effect']
+        return unless effect&.fetch('id', nil) == expected_effect_id
+
+        interruption_type = effect&.fetch('type', nil)
+        if interruption_type.nil? \
+            && %w[launching starting].include?(run.fetch('phase')) \
+            && container_run_locked?(run)
+          interruption_type = 'start'
+        end
+        return unless interruption_type
+
+        processes = daemon_restart_processes_locked(run).filter_map do |config|
+          identity = ProcessIdentity.load(config)
+          next unless identity.alive?
+          next if identity.pid == Process.pid
+
+          identity
+        end
+        return [] if processes.empty?
+
+        changed = false
+        handoff = run['daemon_restart_handoff']
+        handoff_key = effect&.fetch('id', nil) || "#{run.fetch('phase')}:none"
+        unless handoff&.fetch('effect_id', nil) == handoff_key
+          handoff = {
+            'effect_id' => handoff_key,
+            'effect_type' => interruption_type,
+            'effect_missing' => effect.nil?,
+            'worker' => deep_copy(effect&.fetch('worker', nil)),
+            'requested_at' => Time.now.to_f
+          }
+          run['daemon_restart_handoff'] = handoff
+          changed = true
+        end
+
+        if effect && !effect['daemon_restart_interrupted']
+          effect['daemon_restart_interrupted'] = true
+          effect['daemon_restart_interrupted_at'] = Time.now.to_f
+          changed = true
+        end
+        commit if changed
+
+        processes.filter_map do |identity|
+          next unless identity.alive?
+
+          Process.kill(signal, identity.pid)
+          identity.dump
+        rescue Errno::ESRCH
+          nil
+        end
       end
     end
 
@@ -551,8 +623,14 @@ module OsCtld
         effect = require_effect_locked(run_id, effect_id)
         return false unless effect
 
-        effect['worker'] = identity&.dump
+        worker = identity&.dump
+        effect['worker'] = worker
         effect['status'] = 'running'
+        run = require_run_locked(run_id)
+        handoff = run['daemon_restart_handoff']
+        if handoff&.fetch('effect_id', nil) == effect_id
+          handoff['worker'] = deep_copy(worker)
+        end
         commit
         true
       end
@@ -576,10 +654,24 @@ module OsCtld
         return false unless run
 
         effect = run['effect']
-        return false unless effect && effect['id'] == effect_id
+        handoff = run['daemon_restart_handoff']
+        effect_matches = effect && effect['id'] == effect_id
+        handoff_matches = handoff && handoff['effect_id'] == effect_id
+        return false unless effect_matches || handoff_matches
 
-        effect['worker'] = nil
-        effect['status'] = 'worker_exited'
+        if effect_matches
+          if effect['status'] == 'completed'
+            run['effect'] = nil
+          else
+            effect['worker'] = nil
+            effect['status'] = 'worker_exited'
+          end
+        end
+        if handoff_matches
+          handoff['worker'] = nil
+          handoff['worker_exited_at'] = Time.now.to_f
+        end
+        clear_completed_start_handoff_locked(run)
         commit
         true
       end
@@ -967,6 +1059,11 @@ module OsCtld
 
         run['running_effects_done'] = true
         run['running_effects_error'] = error if error
+        handoff = run['daemon_restart_handoff']
+        if handoff&.fetch('effect_type', nil) == 'start'
+          handoff['running_recovered_at'] = Time.now.to_f
+          clear_completed_start_handoff_locked(run)
+        end
         commit
         true
       end
@@ -1455,13 +1552,19 @@ module OsCtld
         run['post_stop'] = true
         run['aborted'] = aborted
         if container_run_locked?(run)
+          restart_interrupted_start =
+            run.dig('daemon_restart_handoff', 'effect_type') == 'start'
           run['reboot'] = true if reboot
           if reboot
             if record['desired_state'] != 'stopped' && !pending_running_intent?(run)
               update_intent('running', 'reboot', 'container')
             end
           elsif current_intent_id_locked == run['launch_intent_id']
-            update_intent('stopped', 'halt', 'container')
+            if restart_interrupted_start && record['desired_state'] == 'running'
+              update_intent('running', 'restart_interrupted', 'lifecycle')
+            else
+              update_intent('stopped', 'halt', 'container')
+            end
           end
         end
         run['phase'] = 'post_stop'
@@ -1489,15 +1592,19 @@ module OsCtld
 
     def fail_launch(run_id, effect_id, message)
       sync do
-        return false unless require_effect_locked(run_id, effect_id)
+        effect = require_effect_locked(run_id, effect_id)
+        return false unless effect
 
         run = require_run_locked(run_id)
+        restart_interrupted = daemon_restart_interrupted_locked?(run, effect)
         run['phase'] = 'failed'
         run['role'] = 'history'
         run['error'] = message
         run['effect'] = nil
         record['active_run_id'] = nil if active_run_locked.equal?(run)
-        if container_run_locked?(run) && !pending_running_intent?(run)
+        if container_run_locked?(run) \
+            && !restart_interrupted \
+            && !pending_running_intent?(run)
           update_intent('stopped', 'start_failed', 'lifecycle')
         end
         commit
@@ -1507,16 +1614,22 @@ module OsCtld
 
     def fail_stop(run_id, effect_id, message)
       sync do
-        return false unless require_effect_locked(run_id, effect_id)
+        effect = require_effect_locked(run_id, effect_id)
+        return false unless effect
 
         run = require_run_locked(run_id)
+        restart_interrupted = daemon_restart_interrupted_locked?(run, effect)
         run['effect'] = nil
         run['stop_error'] = message
+        handoff = run['daemon_restart_handoff']
+        handoff['failed_at'] = Time.now.to_f if restart_interrupted
         if run['phase'] == 'running' && container_run_locked?(run)
-          if record['desired_state'] == 'stopped'
+          if record['desired_state'] == 'stopped' && !restart_interrupted
             update_intent('running', 'stop_failed', 'lifecycle')
           end
-          run['launch_intent_id'] = current_intent_id_locked
+          if record['desired_state'] == 'running' && !restart_interrupted
+            run['launch_intent_id'] = current_intent_id_locked
+          end
         end
         commit
         true
@@ -1525,12 +1638,24 @@ module OsCtld
 
     def fail_cleanup(run_id, effect_id, message)
       sync do
-        return false unless require_effect_locked(run_id, effect_id)
+        effect = require_effect_locked(run_id, effect_id)
+        return false unless effect
 
         run = require_run_locked(run_id)
+        if effect['status'] == 'completed'
+          run['post_completion_error'] = message
+          run['post_completion_failed_at'] = Time.now.to_f
+          effect['post_completion_error'] = message
+          commit
+          next true
+        end
+
         run['phase'] = 'cleanup_failed'
         run['effect'] = nil
         run['error'] = message
+        if daemon_restart_interrupted_locked?(run, effect)
+          run['daemon_restart_handoff']['failed_at'] = Time.now.to_f
+        end
         commit
         true
       end
@@ -1605,7 +1730,8 @@ module OsCtld
     #   intent ID requesting a new start
     def complete_run(run_id, effect_id)
       sync do
-        return false unless require_effect_locked(run_id, effect_id)
+        effect = require_effect_locked(run_id, effect_id)
+        return false unless effect
 
         run = require_run_locked(run_id)
         if live_workers_locked(run).any?
@@ -1614,7 +1740,13 @@ module OsCtld
 
         run['phase'] = 'clean'
         run['role'] = 'history'
-        run['effect'] = nil
+        worker = effect['worker'] && ProcessIdentity.load(effect['worker'])
+        if worker&.alive?
+          effect['status'] = 'completed'
+          effect['completed_at'] = Time.now.to_f
+        else
+          run['effect'] = nil
+        end
         record['active_run_id'] = nil if active_run_locked.equal?(run)
         restart_intent_id = restart_intent_id_locked(run)
         commit
@@ -1957,22 +2089,36 @@ module OsCtld
         end
 
         record.fetch('runs').each_value do |run|
+          completed_worker = completed_effect_worker_locked(run)
+          handoff_worker = daemon_restart_handoff_worker_locked(run)
+          terminal_workers = [completed_worker, handoff_worker].compact.uniq do |worker|
+            identity = worker.fetch('worker')
+            [identity['pid'], identity['tid'], identity['start_time_ticks']]
+          end
+          if terminal_workers.any?
+            blockers << {
+              type: 'container_generation',
+              run_id: load_run_id(run).to_s,
+              role: run['role'],
+              kind: run.fetch('kind', 'container'),
+              phase: run['phase'],
+              effect: deep_copy(run['effect']),
+              observer: deep_copy(run['observer']),
+              reconciliation: deep_copy(run['reconciliation']),
+              recovery: deep_copy(run['recovery']),
+              workers: deep_copy(terminal_workers)
+            }
+            next
+          end
+
           next unless %w[active residual].include?(run['role'])
 
           workers = live_workers_locked(run)
           lifecycle_workers = workers
 
           stable = run['role'] == 'active' \
-            && run.fetch('kind', 'container') == 'container' \
-            && run['phase'] == 'running' \
-            && legacy_runtime_owned_locked?(run) \
-            && record['desired_state'] == 'running' \
-            && current_intent_id_locked == run['launch_intent_id'] \
-            && run['effect'].nil? \
-            && run['observer'].nil? \
-            && run['reconciliation'].nil? \
-            && run['recovery'].nil? \
-            && lifecycle_workers.empty?
+            && (stable_runtime_locked?(run) \
+              || daemon_restart_handoff_safe_locked?(run, lifecycle_workers))
           next if stable
 
           passive_residual = run['role'] == 'residual' \
@@ -2011,22 +2157,7 @@ module OsCtld
         run = find_run_locked(run_id)
         next [] unless run
 
-        identities = []
-        unless run['phase'] == 'running'
-          %w[wrapper lxc_start].each do |name|
-            identities << run[name] if run[name]
-          end
-          run.fetch('legacy_managers', []).each do |identity|
-            identities << identity
-          end
-        end
-        run.fetch('processes', {}).each_value do |process|
-          identities << process['identity']
-        end
-
-        identities.compact.uniq do |identity|
-          [identity['pid'], identity['tid'], identity['start_time_ticks']]
-        end.map { |identity| deep_copy(identity) }
+        deep_copy(daemon_restart_processes_locked(run))
       end
     end
 
@@ -2367,6 +2498,14 @@ module OsCtld
         return if active_run_locked
 
         run_id = run_conf.run_id
+        completed = find_run_locked(run_id)
+        if completed&.fetch('role', nil) == 'history' \
+            && completed.fetch('phase', nil) == 'clean'
+          next :stale_completed if state.to_sym == :stopped
+          next :uncertain_completed \
+            unless %i[running frozen].include?(state.to_sym)
+        end
+
         live = %i[running frozen].include?(state.to_sym)
         if live
           update_intent('running', 'adopt', 'legacy-runtime-upgrade')
@@ -2417,6 +2556,7 @@ module OsCtld
         record['active_run_id'] = run_id.to_s
         record['desired_state'] = 'stopped' unless live
         commit
+        :adopted
       end
     end
 
@@ -2538,7 +2678,14 @@ module OsCtld
       raise ConfigError, "unsupported lifecycle schema #{record['schema']}" \
         unless record['schema'] == SCHEMA
 
-      return if record['incarnation_id'] == ct.incarnation_id
+      normalized = normalize_dead_completed_effects!
+      if record['incarnation_id'] == ct.incarnation_id
+        if normalized
+          record['revision'] = revision + 1
+          save_record
+        end
+        return
+      end
 
       unless discardable_incarnation_record?
         raise ConfigError,
@@ -2552,6 +2699,23 @@ module OsCtld
       stale = "#{stale}-#{SecureRandom.hex(4)}" if File.exist?(stale)
       File.rename(file_path, stale)
       @record = default_record
+    end
+
+    def normalize_dead_completed_effects!
+      changed = false
+      record.fetch('runs').each_value do |run|
+        effect = run['effect']
+        next unless run.fetch('role', nil) == 'history'
+        next unless run.fetch('phase', nil) == 'clean'
+        next unless effect&.fetch('status', nil) == 'completed'
+
+        worker = effect['worker'] && ProcessIdentity.load(effect['worker'])
+        next if worker&.alive?
+
+        run['effect'] = nil
+        changed = true
+      end
+      changed
     end
 
     def discardable_incarnation_record?
@@ -2683,6 +2847,9 @@ module OsCtld
       return false if run['recovery'] || live_workers_locked(run).any?
 
       effect_id = SecureRandom.uuid
+      unless daemon_restart_handoff_worker_locked(run)
+        run.delete('daemon_restart_handoff')
+      end
       run['phase'] = 'cleaning'
       run['effect'] = {
         'id' => effect_id,
@@ -2705,6 +2872,85 @@ module OsCtld
         && active['effect'].nil? \
         && record['desired_state'] == 'running' \
         && current_intent_id_locked == active['launch_intent_id']
+    end
+
+    def daemon_restart_handoff_safe_locked?(run, lifecycle_workers)
+      handoff = run['daemon_restart_handoff']
+      return false unless handoff
+      return false unless run['role'] == 'active'
+      return false unless run.fetch('kind', 'container') == 'container'
+      return false if run['effect'] || run['observer'] || run['reconciliation']
+      return false if run['recovery'] || lifecycle_workers.any?
+      return false if daemon_restart_handoff_worker_locked(run)
+
+      case handoff.fetch('effect_type')
+      when 'stop'
+        run['phase'] == 'running' \
+          && (record['desired_state'] == 'stopped' \
+            || pending_running_intent?(run)) \
+          && legacy_runtime_owned_locked?(run)
+      when 'cleanup'
+        run['phase'] == 'cleanup_failed' \
+          && run['post_stop'] \
+          && run['wrapper_gone']
+      else
+        false
+      end
+    end
+
+    def daemon_restart_interrupted_locked?(run, effect)
+      effect['daemon_restart_interrupted'] \
+        && run.dig('daemon_restart_handoff', 'effect_id') == effect['id']
+    end
+
+    def daemon_restart_handoff_worker_locked(run)
+      handoff = run['daemon_restart_handoff']
+      worker = handoff && handoff['worker']
+      return unless worker
+
+      identity = ProcessIdentity.load(worker)
+      return unless identity.alive?
+
+      handoff.merge('kind' => 'restart_interrupted_effect')
+    end
+
+    def completed_effect_worker_locked(run)
+      effect = run['effect']
+      return unless effect&.fetch('status', nil) == 'completed'
+
+      worker = effect['worker']
+      return unless worker
+      return unless ProcessIdentity.load(worker).alive?
+
+      effect.merge('kind' => 'completed_effect')
+    end
+
+    def daemon_restart_processes_locked(run)
+      identities = []
+      unless run['phase'] == 'running'
+        %w[wrapper lxc_start].each do |name|
+          identities << run[name] if run[name]
+        end
+        run.fetch('legacy_managers', []).each do |identity|
+          identities << identity
+        end
+      end
+      run.fetch('processes', {}).each_value do |process|
+        identities << process['identity']
+      end
+
+      identities.compact.uniq do |identity|
+        [identity['pid'], identity['tid'], identity['start_time_ticks']]
+      end
+    end
+
+    def clear_completed_start_handoff_locked(run)
+      handoff = run['daemon_restart_handoff']
+      return unless handoff&.fetch('effect_type', nil) == 'start'
+      return unless handoff['running_recovered_at']
+      return if daemon_restart_handoff_worker_locked(run)
+
+      run.delete('daemon_restart_handoff')
     end
 
     def legacy_runtime_owned_locked?(run)
@@ -3024,7 +3270,9 @@ module OsCtld
 
     def prune_clean_runs
       record.fetch('runs').delete_if do |_key, run|
-        run['role'] == 'history' && run['phase'] == 'clean'
+        run['role'] == 'history' \
+          && run['phase'] == 'clean' \
+          && completed_effect_worker_locked(run).nil?
       end
     end
 
