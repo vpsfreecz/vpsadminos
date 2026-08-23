@@ -398,7 +398,7 @@ import ../../make-test.nix (
         end
       end
 
-      describe 'a drained daemon downgrade and re-upgrade' do
+      describe 'manual legacy-runtime adoption compatibility' do
         ctid = "#{get_container_id}-rollback"
         legacy_pid_file = '/tmp/osctld-lifecycle-legacy.pid'
 
@@ -409,6 +409,7 @@ import ../../make-test.nix (
             "osctl ct unset start-menu #{ctid}",
             "osctl ct start #{ctid}",
             "osctl ct stop #{ctid}",
+            "osctl ct netif new routed #{ctid} eth0",
             "osctl ct set cpu-limit #{ctid} 250"
           )
         end
@@ -430,7 +431,7 @@ import ../../make-test.nix (
           cleanup_ct(ctid) unless @compat_stop_failed
         end
 
-        it 'loads new config in old code and adopts its legacy run again' do
+        it 'adopts a deliberately reconstructed legacy runtime' do
           drained = ct_info(ctid)
           expect(drained.fetch('state')).to eq('stopped')
           expect(drained.fetch('lifecycle_run_id')).to be_nil
@@ -488,6 +489,21 @@ import ../../make-test.nix (
 
           machine.succeeds("osctl ct start --wait infinity #{ctid}")
           machine.wait_for_osctl_container(ctid)
+          legacy_running = ct_info(ctid)
+          _, legacy_veth = machine.succeeds(
+            "osctl ct netif ls -H -o veth #{ctid}"
+          )
+          legacy_veth = legacy_veth.strip
+          expect(legacy_veth).not_to be_empty
+          machine.succeeds("osctl ct freeze #{ctid}")
+          machine.wait_until_succeeds(
+            "test \"$(osctl ct show -H -o state #{ctid})\" = frozen",
+            timeout: 60
+          )
+          legacy_frozen = ct_info(ctid)
+          expect(legacy_frozen.fetch('init_pid')).to eq(
+            legacy_running.fetch('init_pid')
+          )
 
           machine.succeeds(<<~SH)
             pid=$(cat #{legacy_pid_file})
@@ -502,7 +518,10 @@ import ../../make-test.nix (
           machine.wait_for_osctl_pool('tank')
 
           adopted = ct_info(ctid)
-          expect(adopted.fetch('state')).to eq('running')
+          expect(adopted.fetch('state')).to eq('frozen')
+          expect(adopted.fetch('init_pid')).to eq(
+            legacy_frozen.fetch('init_pid')
+          )
           expect(adopted.fetch('lifecycle_run_id')).not_to be_nil
           adopted_run = lifecycle_run(
             ctid,
@@ -534,6 +553,19 @@ import ../../make-test.nix (
             SH
           )
           expect(adopted_cpu_max.strip.split.first).to eq('250000')
+          _, adopted_veth = machine.succeeds(
+            "osctl ct netif ls -H -o veth #{ctid}"
+          )
+          expect(adopted_veth.strip).to eq(legacy_veth)
+          machine.succeeds(
+            "test -e /sys/class/net/#{Shellwords.escape(legacy_veth)}"
+          )
+          machine.succeeds("osctl ct unfreeze #{ctid}")
+          machine.wait_until_succeeds(
+            "test \"$(osctl ct show -H -o state #{ctid})\" = running",
+            timeout: 60
+          )
+          machine.succeeds("osctl ct exec #{ctid} true")
 
           stop_thread = Thread.new do
             machine.execute(
