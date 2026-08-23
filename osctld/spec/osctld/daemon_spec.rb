@@ -1080,6 +1080,52 @@ RSpec.describe OsCtld::Daemon do
       expect(daemon.instance_variable_get(:@orphans)).to be_empty
     end
 
+    it 'persists a stopped legacy handoff intent before fulfilling it' do
+      daemon = described_class.allocate
+      daemon.instance_variable_set(:@initialized, false)
+      daemon.instance_variable_set(:@phase, :starting)
+      daemon.instance_variable_set(:@lifecycle_admission, false)
+      daemon.instance_variable_set(:@lifecycle_admission_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      lifecycle_class = Class.new do
+        def persist_running_intent(**); end
+
+        def desired_state; end
+      end
+      lifecycle = instance_double(
+        lifecycle_class,
+        desired_state: :running
+      )
+      pool = Struct.new(:name).new('tank')
+      ct = FakeObjects::FakeRuntimeContainer.new(
+        pool:,
+        id: '101'
+      )
+      ct.lifecycle = lifecycle
+      handoff = instance_double(
+        OsCtld::UpgradeHandoff,
+        remaining: [%w[tank 101]],
+        empty?: true,
+        fulfil: nil,
+        complete: true
+      )
+      daemon.instance_variable_set(:@upgrade_handoff, handoff)
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(*); end
+      end)
+      allow(containers).to receive(:find).with('101', 'tank').and_return(ct)
+      allow(lifecycle).to receive(:persist_running_intent)
+        .with(source: 'legacy-runtime-upgrade')
+        .and_return('intent-1')
+
+      daemon.send(:persist_upgrade_handoff)
+
+      expect(lifecycle).to have_received(:persist_running_intent).ordered
+      expect(handoff).to have_received(:fulfil).with(ct).ordered
+      expect(handoff).to have_received(:complete).ordered
+    end
+
     it 'escalates the exact residual generation named by a blocker' do
       daemon = described_class.allocate
       lifecycle_class = Class.new do

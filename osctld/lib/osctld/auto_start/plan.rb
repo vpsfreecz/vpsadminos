@@ -52,6 +52,10 @@ module OsCtld
           && lifecycle.autostart_intent? \
           && ct.can_start?
 
+        daemon = Daemon.get
+        next(true) if daemon.respond_to?(:upgrade_handoff_desired?) \
+          && daemon.upgrade_handoff_desired?(ct) \
+          && ct.can_start?
         next(true) if ct.autostart && ct.can_start? && (force || !state.is_started?(ct))
 
         next(false)
@@ -364,11 +368,15 @@ module OsCtld
       when :running
         state.set_started(ct)
         reboot.clear(ct)
+        daemon.fulfil_upgrade_handoff(ct) \
+          if daemon.respond_to?(:fulfil_upgrade_handoff)
         :skip
       when :blocked, :failed, :superseded
         log(:warn, ct, request.warning || 'Unable to persist lifecycle start intent')
         :skip
       else
+        daemon.fulfil_upgrade_handoff(ct) \
+          if daemon.respond_to?(:fulfil_upgrade_handoff)
         request
       end
     rescue CommandFailed => e

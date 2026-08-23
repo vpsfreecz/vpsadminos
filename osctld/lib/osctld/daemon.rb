@@ -9,6 +9,7 @@ require 'osctld/hook/base'
 require 'osctld/process_identity'
 require 'osctld/run_state'
 require 'osctld/generic/client_handler'
+require 'osctld/upgrade_handoff'
 
 module OsCtld
   class Daemon
@@ -107,6 +108,7 @@ module OsCtld
       @drain_started_at = nil
       @drain_deadline = nil
       @cleanup_deadline = nil
+      @upgrade_handoff = UpgradeHandoff.load
       @autostart_enabled = false
       @autostarts_started = false
       @resume_hooks_complete = false
@@ -206,7 +208,9 @@ module OsCtld
       # later pool is still being inspected, so @initialized remains false
       # until all global startup barriers have run.
       inventory_runtime_orphans
+      persist_upgrade_handoff
       DB::Pools.get.each(&:reconcile_runtime)
+      finalize_upgrade_handoff
       @initialized = true
       complete_readiness_safely
 
@@ -495,6 +499,18 @@ module OsCtld
         end
         lifecycle_state_changed
       end
+    end
+
+    def upgrade_handoff_desired?(ct)
+      @upgrade_handoff.include?(ct)
+    end
+
+    def fulfil_upgrade_handoff(ct)
+      @upgrade_handoff.fulfil(ct)
+      return unless @upgrade_handoff.empty?
+
+      @upgrade_handoff.complete
+      clear_recovery_failure('upgrade-handoff') if @initialized
     end
 
     def record_recovery_failure(key, message, details = nil)
@@ -1081,6 +1097,45 @@ module OsCtld
           }
         ]
       ]
+    end
+
+    # Persist every boot-bound legacy start intent only after all pools have
+    # been imported. This includes a container which became stopped while the
+    # old daemon was draining: it must be represented by a durable
+    # desired-running intent before the handoff file can be removed.
+    def persist_upgrade_handoff
+      @upgrade_handoff.remaining.each do |pool, id|
+        ct = DB::Containers.find(id, pool)
+        next unless ct
+
+        with_lifecycle_admission(internal: true, recovery: true) do
+          ct.lifecycle.persist_running_intent(
+            source: 'legacy-runtime-upgrade'
+          )
+        end
+        if ct.lifecycle.desired_state == :running
+          fulfil_upgrade_handoff(ct)
+        else
+          log(
+            :warn,
+            ct,
+            'Unable to persist legacy runtime start intent'
+          )
+        end
+      end
+    end
+
+    def finalize_upgrade_handoff
+      remaining = @upgrade_handoff.remaining
+      if remaining.empty?
+        @upgrade_handoff.complete
+      else
+        record_recovery_failure(
+          'upgrade-handoff',
+          'not all legacy runtime start intents could be persisted',
+          containers: remaining.map { |pool, id| { pool:, id: } }
+        )
+      end
     end
 
     def finish_prepare_stop
