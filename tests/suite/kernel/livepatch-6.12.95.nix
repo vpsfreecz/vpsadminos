@@ -533,6 +533,7 @@ import ../../make-test.nix (
       PREDECESSOR_NAME = "livepatch_predecessor_1"
       CORRECTED_SHA256 = ${builtins.toJSON expectedCorrectedSha256}
       TRANSITION_GUARD_SHA256 = ${builtins.toJSON expectedTransitionGuardSha256}
+      TRANSITION_BOOTSTRAP_SHA256 = ${builtins.toJSON expectedTransitionBootstrapSha256}
       RELEASED_V1_SHA256 = ${builtins.toJSON expectedReleasedV1Sha256}
       RELEASED_V5_SHA256 = ${builtins.toJSON expectedReleasedV5Sha256}
       PREDECESSOR_SHA256 = ${builtins.toJSON expectedPredecessorSha256}
