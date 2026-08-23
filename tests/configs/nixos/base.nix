@@ -75,16 +75,16 @@ in
     boot.loader.generic-extlinux-compatible.enable = false;
     boot.loader.systemd-boot.enable = false;
 
-    boot.kernelParams = [
-      "console=ttyS0"
-      # Linux 6.18 can hit module-loader text/execmem races when udev workers
-      # load modules concurrently. The rd. parameter serializes initrd
-      # coldplug; the unprefixed parameter also serializes the normal udev
-      # daemon, including the post-pivot coldplug where a vpsAdmin services VM
-      # Oopsed. These settings apply only to generated test VMs.
-      "rd.udev.children_max=1"
-      "udev.children_max=1"
-    ];
+    # Linux 6.18's executable-memory cache can race during parallel module
+    # loading and Oops in __execmem_cache_free. Serializing udev workers did
+    # not prevent other module loaders from racing. Keep generated test VMs on
+    # 6.12 until 1871d548fc4feb007644efb6d669c93a4e191254 is in linux-6.18.y
+    # and the pinned nixpkgs contains that release. Before removing the pin,
+    # stress parallel boot and module loading and confirm that neither this
+    # failure nor the earlier __text_poke static-call failure recurs.
+    boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_6_12;
+
+    boot.kernelParams = [ "console=ttyS0" ];
 
     boot.initrd.availableKernelModules = [
       "ahci"
