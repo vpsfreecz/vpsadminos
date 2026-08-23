@@ -53,6 +53,64 @@ RSpec.describe OsCtld::Pool do
     end
   end
 
+  it 'authoritatively inventories a cached frozen legacy container' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      run_id = Object.new
+      run_conf = Struct.new(:run_id, :init_pid).new(run_id, nil)
+      runtime_observation = OsCtld::Container::StateObservation.new(
+        'ct1',
+        :frozen,
+        4321
+      )
+      lifecycle = instance_double(
+        OsCtld::Container::Lifecycle,
+        active_run_id: nil,
+        adopted_legacy_callback_run_id: nil,
+        residuals: []
+      )
+      allow(lifecycle).to receive(:adopt_legacy)
+      ct = instance_double(
+        OsCtld::Container,
+        get_run_conf: run_conf,
+        reconfigure: nil,
+        current_state_observation: runtime_observation,
+        ensure_run_conf: run_conf,
+        lifecycle:,
+        run_conf:,
+        ident: 'tank:ct1'
+      )
+      builder = instance_double(
+        OsCtld::Container::Builder,
+        setup_lxc_home: nil,
+        setup_log_file: nil
+      )
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.add(_ct); end
+      end)
+
+      allow(pool).to receive_messages(
+        load_entity: ct,
+        ensure_limits: nil,
+        legacy_manager_identities: []
+      )
+      allow(OsCtld::Container::Builder).to receive(:new).and_return(builder)
+      allow(containers).to receive(:add)
+      allow(OsCtld::Monitor::Master).to receive(:monitor)
+
+      loaded = pool.send(:load_ct_inventory, 'ct1', nil)
+
+      expect(loaded).to equal(ct)
+      expect(ct).to have_received(:current_state_observation)
+      expect(run_conf.init_pid).to eq(4321)
+      expect(lifecycle).to have_received(:adopt_legacy).with(
+        run_conf,
+        :frozen,
+        managers: []
+      )
+    end
+  end
+
   it 'loads explicit options and attrs from the config file' do
     with_tmpdir do |dir|
       pool = build_pool(root: dir)

@@ -743,7 +743,11 @@ module OsCtld
       ct.reconfigure
       DB::Containers.add(ct)
 
-      runtime_observation = ct.fresh_state_observation
+      # The persisted state can describe the last event seen by the previous
+      # daemon. Always inventory LXC itself so a restart also discovers a
+      # frozen runtime's init PID and a runtime whose last state transition was
+      # interrupted before it reached the container config.
+      runtime_observation = ct.current_state_observation
       runtime_state = runtime_observation.state
       live = runtime_live_state?(runtime_state)
       ct.ensure_run_conf if live
