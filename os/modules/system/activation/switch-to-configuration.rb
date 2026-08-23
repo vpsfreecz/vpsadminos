@@ -351,9 +351,10 @@ class OsctldRestart
 
   def prepare_legacy
     merge_existing_handoff
-    pause_legacy_nodectld
-    raise 'nodectld transactions did not drain before legacy osctld handoff' \
-      unless wait_for_legacy_nodectld_idle
+    nodectld_barrier = pause_legacy_nodectld
+    if nodectld_barrier && !wait_for_legacy_nodectld_idle
+      raise 'nodectld transactions did not drain before legacy osctld handoff'
+    end
 
     pools = osctl_json('pool', 'list', '-o', 'name').map { |pool| pool.fetch('name') }
     containers = osctl_json(
@@ -393,7 +394,13 @@ class OsctldRestart
   end
 
   def pause_legacy_nodectld
-    return unless service_supervised?('nodectld')
+    unless service_supervised?('nodectld')
+      if legacy_nodectld_paused
+        raise 'nodectld restart barrier exists, but its service is not supervised'
+      end
+
+      return false
+    end
 
     puts '> nodectld remote pause'
     unless legacy_nodectld_pause?
@@ -411,6 +418,8 @@ class OsctldRestart
 
     raise 'unable to pause nodectld for legacy osctld handoff' \
       unless wait_nodectld_remote(:pause)
+
+    true
   rescue StandardError
     restore_nodectld_supervision if @legacy_nodectld_down_created
     raise

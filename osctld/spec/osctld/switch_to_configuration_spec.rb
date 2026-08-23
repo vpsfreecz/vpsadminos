@@ -399,6 +399,45 @@ RSpec.describe OsctldRestart do
     expect(restart.svc_calls).to be_nil
   end
 
+  it 'prepares a legacy upgrade without waiting for absent nodectld' do
+    restart = coordinator(
+      status: { 'initialized' => true, 'legacy' => true }
+    )
+    restart.test_service_supervised = false
+    allow(restart).to receive(:osctl_json).and_return(
+      { 'initialized' => true, 'legacy' => true },
+      [],
+      []
+    )
+    allow(restart).to receive_messages(
+      write_handoff: nil,
+      wait_for_legacy_stability: nil,
+      wait_for_legacy_nodectld_idle: true
+    )
+
+    restart.prepare
+
+    expect(service).to have_received(:stop).once
+    expect(restart).not_to have_received(:wait_for_legacy_nodectld_idle)
+    expect(restart.nodectld_calls).to be_nil
+    expect(restart.svc_calls).to be_nil
+  end
+
+  it 'fails closed when a nodectld barrier outlives supervision' do
+    restart = coordinator(
+      status: { 'initialized' => true, 'legacy' => true }
+    )
+    restart.test_service_supervised = false
+    restart.instance_variable_set(:@legacy_nodectld_paused, true)
+
+    expect do
+      restart.send(:pause_legacy_nodectld)
+    end.to raise_error(
+      RuntimeError,
+      'nodectld restart barrier exists, but its service is not supervised'
+    )
+  end
+
   it 'waits for paused nodectld workers and subprocesses to drain' do
     restart = coordinator(
       status: { 'initialized' => true, 'legacy' => true }
