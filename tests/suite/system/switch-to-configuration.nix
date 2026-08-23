@@ -597,8 +597,10 @@ import ../../make-test.nix (
             timeout: 60
           )
           machine.succeeds(
-            "! grep -Fq '\"id\": \"#{stopping_ctid}\"' " \
-              '/run/osctl/upgrade-handoff.yml'
+            "${pkgs.ruby}/bin/ruby -rjson -e \"cfg = " \
+              "JSON.parse(File.read('/run/osctl/upgrade-handoff.yml')); " \
+              "abort if cfg.fetch('containers').any? { |entry| " \
+              "entry.fetch('id') == '#{stopping_ctid}' }\""
           )
           machine.all_succeed(
             'test -e /run/osctl/nodectld-upgrade-pause.json',
@@ -621,9 +623,10 @@ import ../../make-test.nix (
             "test \"$(osctl ct show -H -o state #{stopping_ctid})\" = stopped",
             timeout: 120
           )
-          machine.succeeds(
+          machine.wait_until_succeeds(
             "! grep -Fq '\"id\": \"#{stopping_ctid}\"' " \
-              '/run/osctl/upgrade-handoff.yml'
+              '/run/osctl/upgrade-handoff.yml',
+            timeout: 30
           )
           machine.wait_until_succeeds(
             'test -e /run/handoff-boundary-test/stopping',
