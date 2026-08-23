@@ -721,10 +721,11 @@ import ../../make-test.nix (
           machine.succeeds("rmmod #{TRANSITION_GUARD_NAME}")
         end
 
+        unless machine.execute("test -d /sys/module/#{TRANSITION_BOOTSTRAP_NAME}")[0] == 0
+          machine.succeeds("insmod #{TRANSITION_BOOTSTRAP_MODULE}")
+        end
+
         unless machine.execute("test -d /sys/module/#{TRANSITION_GUARD_NAME}")[0] == 0
-          unless machine.execute("test -d /sys/module/#{TRANSITION_BOOTSTRAP_NAME}")[0] == 0
-            machine.succeeds("insmod #{TRANSITION_BOOTSTRAP_MODULE}")
-          end
           machine.succeeds("insmod #{TRANSITION_GUARD_MODULE}")
         end
 
