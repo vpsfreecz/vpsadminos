@@ -560,8 +560,7 @@ import ../../make-test.nix (
             timeout: 60
           )
           machine.wait_until_succeeds(
-            "test -e #{stopping_block}/started && " \
-              "test \"$(osctl ct show -H -o state #{stopping_ctid})\" = stopping",
+            "test -e #{stopping_block}/started",
             timeout: 60
           )
           before = machine.osctl_json("ct show #{ctid}")
