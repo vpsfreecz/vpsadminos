@@ -42,6 +42,10 @@ import ../../make-test.nix (
       def self.wait_osctld_ready
         machine.wait_for_service('osctld')
         machine.wait_until_succeeds("test -S #{OSCTLD_SOCKET}", timeout: 60)
+        machine.succeeds(
+          'osctl daemon wait-ready --timeout 180',
+          timeout: 240
+        )
         machine.wait_for_osctl_pool('tank')
       end
 

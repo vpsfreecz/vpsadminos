@@ -580,31 +580,33 @@ module OsCtld
 
       mutex = @readiness_retry_mutex ||= Mutex.new
       thread = mutex.synchronize do
-        @readiness_retry_dirty = true
         next if @readiness_retry&.alive?
 
         @readiness_retry = Thread.new do
           loop do
-            mutex.synchronize { @readiness_retry_dirty = false }
             Thread.pass
-            complete_readiness_safely(schedule_retry: false) \
-              unless stopping? || draining?
-            readiness_failed = state_sync do
-              @recovery_failures.has_key?('daemon-readiness')
-            end
-            if readiness_failed && !stopping? && !draining?
-              sleep(1)
-              mutex.synchronize { @readiness_retry_dirty = true }
-            end
-            repeat = mutex.synchronize do
-              if @readiness_retry_dirty
-                true
-              else
-                @readiness_retry = nil
-                false
+            complete_readiness_safely(
+              schedule_retry: false,
+              blocked_only: true
+            )
+            still_blocked = state_sync { @phase == :blocked && !@stopping }
+
+            unless still_blocked
+              exit_retry = mutex.synchronize do
+                if state_sync { @phase == :blocked && !@stopping }
+                  false
+                else
+                  @readiness_retry = nil
+                  true
+                end
               end
+              break if exit_retry
             end
-            break unless repeat
+
+            # A runtime cgroup process can exit without notifying osctld, and
+            # the last lifecycle notification can race readiness publication.
+            # Keep the exceptional blocked phase self-healing in both cases.
+            sleep(1)
           end
         end
       end
@@ -749,10 +751,15 @@ module OsCtld
       @admission_context_key ||= :"osctld-admission-#{object_id}"
     end
 
-    def complete_readiness(retrying: false)
+    def complete_readiness(retrying: false, blocked_only: false)
       became_ready, activation_epoch = lifecycle_admission_sync do
         eligible = state_sync do
-          %i[starting blocked ready].include?(@phase) && !@stopping
+          eligible_phase = if blocked_only
+                             @phase == :blocked
+                           else
+                             %i[starting blocked ready].include?(@phase)
+                           end
+          eligible_phase && !@stopping
         end
         next [false, nil] unless eligible
 
@@ -766,8 +773,12 @@ module OsCtld
           attempt_resume_hooks(retrying:)
         end
         became_ready = state_sync do
-          phase_eligible = %i[starting blocked ready].include?(@phase) \
-            && !@stopping
+          phase_eligible = if blocked_only
+                             @phase == :blocked
+                           else
+                             %i[starting blocked ready].include?(@phase)
+                           end
+          phase_eligible &&= !@stopping
           if phase_eligible \
               && @initialized \
               && @resume_hooks_complete \
@@ -797,9 +808,15 @@ module OsCtld
     # Keep detached readiness retries fail-closed. Readiness now performs
     # hook, inventory and autostart work, so an unexpected exception must not
     # be allowed to terminate the whole daemon through Thread.abort_on_exception.
-    def complete_readiness_safely(retrying: false, schedule_retry: true)
+    def complete_readiness_safely(
+      retrying: false,
+      schedule_retry: true,
+      blocked_only: false
+    )
       state_sync { @recovery_failures.delete('daemon-readiness') }
-      complete_readiness(retrying:)
+      completed = complete_readiness(retrying:, blocked_only:)
+      lifecycle_state_changed if schedule_retry && !completed
+      completed
     rescue StandardError => e
       state_sync do
         @resume_hook_running = false

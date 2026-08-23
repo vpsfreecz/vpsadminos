@@ -862,6 +862,134 @@ RSpec.describe OsCtld::Daemon do
       expect(daemon).to have_received(:lifecycle_state_changed).once
     end
 
+    it 'retries blocked readiness without another lifecycle notification' do
+      daemon = described_class.allocate
+      daemon.instance_variable_set(:@initialized, true)
+      daemon.instance_variable_set(:@phase, :blocked)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      daemon.instance_variable_set(:@stopping, false)
+      daemon.instance_variable_set(:@readiness_retry_mutex, Mutex.new)
+      daemon.instance_variable_set(:@readiness_retry, nil)
+
+      attempts = 0
+      allow(daemon).to receive(:complete_readiness_safely) do
+        attempts += 1
+        if attempts == 2
+          daemon.instance_variable_set(:@phase, :ready)
+          true
+        else
+          false
+        end
+      end
+      allow(daemon).to receive(:sleep)
+      allow(OsCtld::ThreadReaper).to receive(:add)
+
+      daemon.lifecycle_state_changed
+      Timeout.timeout(1) do
+        sleep(0.01) until daemon.instance_variable_get(:@readiness_retry).nil?
+      end
+
+      expect(attempts).to eq(2)
+      expect(OsCtld::ThreadReaper).to have_received(:add).once
+    end
+
+    it 'discards a stale retry notification after readiness opens' do
+      daemon = described_class.allocate
+      daemon.instance_variable_set(:@initialized, true)
+      daemon.instance_variable_set(:@phase, :blocked)
+      daemon.instance_variable_set(:@lifecycle_admission, false)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      daemon.instance_variable_set(:@stopping, false)
+      daemon.instance_variable_set(:@lifecycle_admission_mutex, Mutex.new)
+      daemon.instance_variable_set(:@lifecycle_tasks, {})
+      daemon.instance_variable_set(:@recovery_failures, {})
+      daemon.instance_variable_set(:@orphans, [])
+      daemon.instance_variable_set(:@resume_hooks_complete, true)
+      daemon.instance_variable_set(:@resume_hook_running, false)
+      daemon.instance_variable_set(:@readiness_epoch, 0)
+      daemon.instance_variable_set(:@readiness_retry_mutex, Mutex.new)
+      daemon.instance_variable_set(:@readiness_retry, nil)
+
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      allow(containers).to receive(:get).and_return([])
+
+      blocker_scans = 0
+      allow(daemon).to receive(:lifecycle_restart_blockers) do
+        blocker_scans += 1
+        if blocker_scans == 1
+          daemon.lifecycle_state_changed
+          []
+        else
+          [[nil, { type: 'daemon_lifecycle_task' }]]
+        end
+      end
+      allow(daemon).to receive(:activate_ready_services) do
+        daemon.instance_variable_get(:@lifecycle_tasks)['autostart'] = true
+      end
+      allow(daemon).to receive(:sleep)
+      allow(OsCtld::ThreadReaper).to receive(:add)
+
+      daemon.lifecycle_state_changed
+      Timeout.timeout(1) do
+        sleep(0.01) until daemon.instance_variable_get(:@readiness_retry).nil?
+      end
+
+      expect(blocker_scans).to eq(1)
+      expect(daemon.phase).to eq(:ready)
+      expect(daemon.lifecycle_admission?).to be(true)
+      expect(daemon).to have_received(:activate_ready_services).once
+      expect(daemon).not_to have_received(:sleep)
+    end
+
+    it 'keeps polling when blocked phase returns during worker exit' do
+      daemon = described_class.allocate
+      daemon.instance_variable_set(:@initialized, true)
+      daemon.instance_variable_set(:@phase, :blocked)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      daemon.instance_variable_set(:@stopping, false)
+
+      retry_mutex = Mutex.new
+      retry_mutex_calls = 0
+      allow(retry_mutex).to receive(:synchronize).and_wrap_original do |method, &block|
+        retry_mutex_calls += 1
+
+        if retry_mutex_calls == 2
+          daemon.instance_variable_set(:@phase, :blocked)
+          daemon.lifecycle_state_changed
+        end
+
+        method.call(&block)
+      end
+      daemon.instance_variable_set(:@readiness_retry_mutex, retry_mutex)
+      daemon.instance_variable_set(:@readiness_retry, nil)
+
+      attempts = 0
+      allow(daemon).to receive(:complete_readiness_safely) do
+        attempts += 1
+        daemon.instance_variable_set(
+          :@phase,
+          attempts == 1 ? :draining : :ready
+        )
+      end
+      allow(daemon).to receive(:sleep)
+      allow(OsCtld::ThreadReaper).to receive(:add)
+
+      daemon.lifecycle_state_changed
+      Timeout.timeout(1) do
+        sleep(0.01) until daemon.instance_variable_get(:@readiness_retry).nil?
+      end
+
+      expect(attempts).to eq(2)
+      expect(daemon.phase).to eq(:ready)
+      expect(daemon).to have_received(:sleep).once
+      expect(OsCtld::ThreadReaper).to have_received(:add).once
+    end
+
     it 'withdraws readiness when ready-service activation raises unexpectedly' do
       daemon = described_class.allocate
       daemon.instance_variable_set(:@started_at, Time.now)
