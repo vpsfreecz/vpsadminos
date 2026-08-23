@@ -264,91 +264,93 @@ module OsCtld
     #
     # @return [Boolean] true when all lifecycle work is safely settled
     def prepare_stop
-      @prepare_mutex.synchronize do
-        current_phase = state_sync { @phase }
-        return true if current_phase == :prepared
-        return false if current_phase == :stopping
+      @prepare_mutex.synchronize { prepare_stop_locked }
+    end
 
-        now = Time.now
-        lifecycle_admission_sync do
-          state_sync do
-            @phase = :draining
-            @lifecycle_admission = false
-            @drain_started_at = now
-            @drain_deadline = now + config.restart.drain_timeout
-            @cleanup_deadline = nil
-            @drain_blockers = []
-            @state_cv.broadcast
-          end
-        end
+    def prepare_stop_locked
+      current_phase = state_sync { @phase }
+      return true if current_phase == :prepared
+      return false if current_phase == :stopping
 
-        log(:info, 'Preparing daemon restart: pausing lifecycle admission')
-        pause_autostarts
-        unless run_pre_stop_hooks_once
-          log(
-            :error,
-            'Daemon restart preparation aborted because a pre-stop barrier failed'
-          )
-          abort_prepare_stop
-          return false
-        end
-
-        if wait_for_lifecycle_drain(config.restart.drain_timeout)
-          return true
-        end
-
-        blockers = lifecycle_restart_blockers
-        log(
-          :warn,
-          "Lifecycle drain timed out with #{blockers.length} blocker(s), " \
-          'terminating only recorded generation processes'
-        )
-        interrupt_lifecycle_blockers(
-          blockers,
-          signal: 'TERM'
-        )
-        cleanup_timeout = config.restart.cleanup_timeout
-        term_timeout = cleanup_timeout / 2.0
-        kill_timeout = cleanup_timeout - term_timeout
+      now = Time.now
+      lifecycle_admission_sync do
         state_sync do
-          @cleanup_deadline = Time.now + cleanup_timeout
-          @state_cv.broadcast
-        end
-
-        if wait_for_lifecycle_drain(term_timeout)
-          return true
-        end
-
-        blockers = lifecycle_restart_blockers
-        log(
-          :warn,
-          "Lifecycle termination left #{blockers.length} blocker(s), " \
-          'killing exact recorded lifecycle processes'
-        )
-        interrupt_lifecycle_blockers(
-          blockers,
-          signal: 'KILL'
-        )
-
-        if wait_for_lifecycle_drain(kill_timeout)
-          return true
-        end
-
-        blockers = lifecycle_restart_blockers
-        state_sync do
-          @phase = :drain_failed
-          @drain_blockers = public_blockers(blockers)
-          @drain_deadline = nil
+          @phase = :draining
+          @lifecycle_admission = false
+          @drain_started_at = now
+          @drain_deadline = now + config.restart.drain_timeout
           @cleanup_deadline = nil
+          @drain_blockers = []
           @state_cv.broadcast
         end
-        log(
-          :fatal,
-          "Daemon restart remains blocked by #{blockers.length} lifecycle " \
-          'operation(s); callback services will remain available'
-        )
-        false
       end
+
+      log(:info, 'Preparing daemon restart: pausing lifecycle admission')
+      pause_autostarts
+      unless run_pre_stop_hooks_once
+        log(
+          :error,
+          'Daemon restart preparation aborted because a pre-stop barrier failed'
+        )
+        abort_prepare_stop
+        return false
+      end
+
+      if wait_for_lifecycle_drain(config.restart.drain_timeout)
+        return true
+      end
+
+      blockers = lifecycle_restart_blockers
+      log(
+        :warn,
+        "Lifecycle drain timed out with #{blockers.length} blocker(s), " \
+        'terminating only recorded generation processes'
+      )
+      interrupt_lifecycle_blockers(
+        blockers,
+        signal: 'TERM'
+      )
+      cleanup_timeout = config.restart.cleanup_timeout
+      term_timeout = cleanup_timeout / 2.0
+      kill_timeout = cleanup_timeout - term_timeout
+      state_sync do
+        @cleanup_deadline = Time.now + cleanup_timeout
+        @state_cv.broadcast
+      end
+
+      if wait_for_lifecycle_drain(term_timeout)
+        return true
+      end
+
+      blockers = lifecycle_restart_blockers
+      log(
+        :warn,
+        "Lifecycle termination left #{blockers.length} blocker(s), " \
+        'killing exact recorded lifecycle processes'
+      )
+      interrupt_lifecycle_blockers(
+        blockers,
+        signal: 'KILL'
+      )
+
+      if wait_for_lifecycle_drain(kill_timeout)
+        return true
+      end
+
+      blockers = lifecycle_restart_blockers
+      state_sync do
+        @phase = :drain_failed
+        @drain_blockers = public_blockers(blockers)
+        @drain_deadline = nil
+        @cleanup_deadline = nil
+        @state_cv.broadcast
+      end
+      log(
+        :fatal,
+        "Daemon restart remains blocked by #{blockers.length} lifecycle " \
+        'operation(s); callback services will remain available'
+      )
+      false
     end
 
     # Reopen lifecycle admission after a prepared or failed restart attempt.
@@ -378,18 +380,24 @@ module OsCtld
     end
 
     def stop
-      unless prepare_stop
+      prepared = @prepare_mutex.synchronize do
+        next false unless prepare_stop_locked
+
+        state_sync do
+          @phase = :stopping
+          @lifecycle_admission = false
+          @stopping = true
+          @stop_thread = Thread.current
+          @state_cv.broadcast
+        end
+        true
+      end
+
+      unless prepared
         log(:fatal, 'Refusing to stop osctld while lifecycle ownership is unresolved')
         return false
       end
 
-      state_sync do
-        @phase = :stopping
-        @lifecycle_admission = false
-        @stopping = true
-        @stop_thread = Thread.current
-        @state_cv.broadcast
-      end
       log(:info, 'Stopping daemon after successful lifecycle drain')
       DB::Containers.get.each { |ct| ct.lifecycle.wake_all }
       Container::LifecycleExecutor.wake_all
@@ -706,6 +714,8 @@ module OsCtld
     def log_type
       'daemon'
     end
+
+    protected :prepare_stop_locked
 
     protected
 

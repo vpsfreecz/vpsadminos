@@ -156,6 +156,63 @@ RSpec.describe OsCtld::Daemon do
       expect(daemon).to have_received(:run_pre_stop_hooks_once).ordered
     end
 
+    it 'serializes the prepared-to-stopping transition against resume' do
+      daemon = described_class.allocate
+      prepared = Queue.new
+      release_prepare = Queue.new
+      stop_result = Queue.new
+      resume_attempted = Queue.new
+      resume_result = Queue.new
+
+      daemon.instance_variable_set(:@phase, :ready)
+      daemon.instance_variable_set(:@lifecycle_admission, true)
+      daemon.instance_variable_set(:@prepare_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      daemon.instance_variable_set(:@stopping, false)
+
+      allow(daemon).to receive(:prepare_stop_locked) do
+        daemon.instance_variable_set(:@phase, :prepared)
+        daemon.instance_variable_set(:@lifecycle_admission, false)
+        prepared << true
+        release_prepare.pop
+        true
+      end
+      allow(daemon).to receive(:log) do |_level, message|
+        raise 'stop transition committed' if message.start_with?('Stopping daemon')
+      end
+
+      stop_thread = Thread.new do
+        daemon.stop
+      rescue RuntimeError => e
+        stop_result << e.message
+      end
+      prepared.pop
+      prepare_mutex = daemon.instance_variable_get(:@prepare_mutex)
+      mutex_acquired = prepare_mutex.try_lock
+      prepare_mutex.unlock if mutex_acquired
+      expect(mutex_acquired).to be(false)
+
+      resume_thread = Thread.new do
+        resume_attempted << true
+        resume_result << daemon.resume
+      end
+      resume_attempted.pop
+
+      release_prepare << true
+      join_thread!(stop_thread)
+      join_thread!(resume_thread)
+
+      expect(stop_result.pop).to eq('stop transition committed')
+      expect(resume_result.pop).to be(false)
+      expect(daemon.phase).to eq(:stopping)
+      expect(daemon.lifecycle_admission?).to be(false)
+    ensure
+      release_prepare << true if stop_thread&.alive?
+      join_thread!(stop_thread) if stop_thread
+      join_thread!(resume_thread) if resume_thread
+    end
+
     it 'keeps callback services available when exact ownership cannot settle' do
       daemon = described_class.allocate
       restart = Struct.new(:drain_timeout, :cleanup_timeout).new(0, 0)
