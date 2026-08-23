@@ -149,6 +149,7 @@ import ../../make-template.nix (
             end
 
             def unload_candidate(machine)
+              dmesg_start = machine.succeeds("dmesg | wc -l")[1].to_i + 1
               machine.succeeds("live-patches unload", timeout: 960)
               machine.fails("test -d /sys/module/#{CANDIDATE_NAME}")
               machine.fails("test -d #{patch_dir(CANDIDATE_NAME)}")
@@ -157,6 +158,17 @@ import ../../make-template.nix (
 
               machine.fails("test -d /sys/module/#{TRANSITION_GUARD_NAME}")
               machine.fails("test -d #{patch_dir(TRANSITION_GUARD_NAME)}")
+
+              output = machine.succeeds("dmesg | tail -n +#{dmesg_start}")[1]
+              markers = [
+                "'#{TRANSITION_GUARD_NAME}': patching complete",
+                "'#{CANDIDATE_NAME}': unpatching complete",
+                "'#{TRANSITION_GUARD_NAME}': unpatching complete",
+              ]
+              positions = markers.map { |marker| output.index(marker) }
+              unless positions.none?(&:nil?) && positions == positions.sort
+                raise "unsafe reverse livepatch ordering:\n#{output}"
+              end
             end
 
             def enable_patch(machine, module_path, name)
