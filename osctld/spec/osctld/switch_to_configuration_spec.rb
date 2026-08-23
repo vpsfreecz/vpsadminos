@@ -105,6 +105,14 @@ RSpec.describe OsctldRestart do
     ret
   end
 
+  def process_stat(pid, name:, parent_pid:, start_time_ticks:)
+    fields = Array.new(20, '0')
+    fields[0] = 'S'
+    fields[1] = parent_pid.to_s
+    fields[19] = start_time_ticks.to_s
+    "#{pid} (#{name}) #{fields.join(' ')}\n"
+  end
+
   it 'drains the old daemon before asking runit to stop it' do
     restart = coordinator(
       status: { 'initialized' => true, 'legacy' => false }
@@ -263,6 +271,107 @@ RSpec.describe OsctldRestart do
         nil
       end
       old_waiter&.join
+    end
+  end
+
+  it 'attributes a recorded nodectld PID to its live runsv service' do
+    Dir.mktmpdir do |dir|
+      service_dir = File.join(dir, 'service')
+      proc_dir = File.join(dir, 'proc')
+      cgroup_dir = File.join(dir, 'cgroup.service')
+      stub_const('OsctldRestart::SERVICE_DIR', service_dir)
+      stub_const('OsctldRestart::PROC_DIR', proc_dir)
+      stub_const('OsctldRestart::RUNIT_SERVICE_CGROUP_DIR', cgroup_dir)
+
+      pid = 123
+      parent_pid = 456
+      FileUtils.mkdir_p(File.join(service_dir, 'nodectld', 'supervise'))
+      FileUtils.mkdir_p(File.join(proc_dir, pid.to_s))
+      FileUtils.mkdir_p(File.join(proc_dir, parent_pid.to_s))
+      FileUtils.mkdir_p(File.join(cgroup_dir, 'nodectld'))
+      File.write(
+        File.join(service_dir, 'nodectld', 'supervise', 'pid'),
+        "#{pid}\n"
+      )
+      File.write(
+        File.join(proc_dir, pid.to_s, 'stat'),
+        process_stat(
+          pid,
+          name: 'nodectld',
+          parent_pid:,
+          start_time_ticks: 789
+        )
+      )
+      File.binwrite(
+        File.join(proc_dir, parent_pid.to_s, 'cmdline'),
+        "/nix/store/runit/bin/runsv\0nodectld\0"
+      )
+      File.write(
+        File.join(cgroup_dir, 'nodectld', 'cgroup.procs'),
+        "#{pid}\n"
+      )
+      allow(Process).to receive(:kill).with(0, pid).and_return(1)
+      restart = described_class.new(services, dry_run: true)
+
+      expect(restart.send(:service_process_identity, 'nodectld')).to eq(
+        'pid' => pid,
+        'start_time_ticks' => 789
+      )
+    end
+  end
+
+  it 'does not persist signal authority from a stale runit PID' do
+    Dir.mktmpdir do |dir|
+      service_dir = File.join(dir, 'service')
+      proc_dir = File.join(dir, 'proc')
+      cgroup_dir = File.join(dir, 'cgroup.service')
+      pause_path = File.join(dir, 'nodectld-pause.json')
+      stub_const('OsctldRestart::SERVICE_DIR', service_dir)
+      stub_const('OsctldRestart::PROC_DIR', proc_dir)
+      stub_const('OsctldRestart::RUNIT_SERVICE_CGROUP_DIR', cgroup_dir)
+
+      pid = 123
+      parent_pid = 456
+      FileUtils.mkdir_p(File.join(service_dir, 'nodectld', 'supervise'))
+      FileUtils.mkdir_p(File.join(proc_dir, pid.to_s))
+      FileUtils.mkdir_p(File.join(proc_dir, parent_pid.to_s))
+      FileUtils.mkdir_p(File.join(cgroup_dir, 'nodectld'))
+      File.write(
+        File.join(service_dir, 'nodectld', 'supervise', 'pid'),
+        "#{pid}\n"
+      )
+      File.write(
+        File.join(proc_dir, pid.to_s, 'stat'),
+        process_stat(
+          pid,
+          name: 'unrelated',
+          parent_pid:,
+          start_time_ticks: 789
+        )
+      )
+      File.binwrite(
+        File.join(proc_dir, parent_pid.to_s, 'cmdline'),
+        ['/nix/store/coreutils/bin/sleep', '30', ''].join("\0")
+      )
+      File.write(
+        File.join(cgroup_dir, 'nodectld', 'cgroup.procs'),
+        "#{pid}\n"
+      )
+      restart = described_class.new(
+        services,
+        dry_run: false,
+        nodectld_pause_path: pause_path,
+        nodectld_down_path: File.join(dir, 'nodectld-down'),
+        boot_id_path: File.join(dir, 'boot-id')
+      )
+
+      expect do
+        restart.send(:pause_legacy_nodectld)
+      end.to raise_error(
+        RuntimeError,
+        'unable to identify the supervised nodectld process'
+      )
+      expect(File).not_to exist(pause_path)
     end
   end
 

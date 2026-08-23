@@ -184,6 +184,9 @@ end
 
 class OsctldRestart
   HANDOFF_PATH = '/run/osctl/upgrade-handoff.yml'.freeze
+  SERVICE_DIR = '/service'.freeze
+  PROC_DIR = '/proc'.freeze
+  RUNIT_SERVICE_CGROUP_DIR = '/run/runit/cgroup.service'.freeze
   NODECTLD_PAUSE_PATH = '/run/osctl/nodectld-upgrade-pause.json'.freeze
   NODECTLD_DOWN_PATH = '/etc/runit/services/nodectld/down'.freeze
   NODECTLD_DOWN_CONTENT = "osctld-runtime-upgrade\n".freeze
@@ -931,17 +934,62 @@ class OsctldRestart
   end
 
   def service_process_identity(name)
-    pid = File.read(File.join('/service', name, 'supervise/pid')).to_i
+    pid_path = File.join(SERVICE_DIR, name, 'supervise/pid')
+    pid = File.read(pid_path).to_i
     return if pid <= 0
 
-    stat = File.read(File.join('/proc', pid.to_s, 'stat'))
-    tail = stat[stat.rindex(')') + 2..]
+    stat = process_stat(pid)
+    return unless stat
+
     identity = {
       'pid' => pid,
-      'start_time_ticks' => tail.split.fetch(19).to_i
+      'start_time_ticks' => stat.fetch(:start_time_ticks)
     }
+    return unless runsv_service_process?(name, pid, stat.fetch(:parent_pid))
+    return unless File.read(pid_path).to_i == pid
+
     identity if process_identity_alive?(identity)
   rescue Errno::ENOENT, Errno::ESRCH
+    nil
+  end
+
+  def runsv_service_process?(name, pid, parent_pid)
+    return false if parent_pid <= 0
+
+    cmdline = File.binread(
+      File.join(PROC_DIR, parent_pid.to_s, 'cmdline')
+    ).split("\0")
+    return false unless File.basename(cmdline.fetch(0)) == 'runsv'
+    return false unless File.basename(cmdline.fetch(1)) == name
+
+    cgroup_pids = File.readlines(
+      File.join(RUNIT_SERVICE_CGROUP_DIR, name, 'cgroup.procs')
+    ).filter_map do |line|
+      Integer(line.strip, 10)
+    rescue ArgumentError
+      nil
+    end
+    return false unless cgroup_pids.include?(pid)
+
+    current_stat = process_stat(pid)
+    current_stat && current_stat.fetch(:parent_pid) == parent_pid
+  rescue Errno::ENOENT, Errno::ESRCH, IndexError
+    false
+  end
+
+  def process_stat(pid)
+    raw = File.read(File.join(PROC_DIR, pid.to_s, 'stat'))
+    closing_parenthesis = raw.rindex(')')
+    return unless closing_parenthesis
+
+    fields = raw[closing_parenthesis + 2..].split
+    return if fields.length <= 19
+
+    {
+      parent_pid: Integer(fields.fetch(1), 10),
+      start_time_ticks: Integer(fields.fetch(19), 10)
+    }
+  rescue Errno::ENOENT, Errno::ESRCH, ArgumentError
     nil
   end
 
@@ -956,9 +1004,9 @@ class OsctldRestart
   def process_identity_alive?(identity)
     return false unless valid_process_identity?(identity)
 
-    stat = File.read(File.join('/proc', identity.fetch('pid').to_s, 'stat'))
-    tail = stat[stat.rindex(')') + 2..]
-    return false unless tail.split.fetch(19).to_i == identity.fetch('start_time_ticks')
+    stat = process_stat(identity.fetch('pid'))
+    return false unless stat
+    return false unless stat.fetch(:start_time_ticks) == identity.fetch('start_time_ticks')
 
     Process.kill(0, identity.fetch('pid'))
     true
@@ -1099,7 +1147,7 @@ class OsctldRestart
   end
 
   def service_running?(name)
-    pid = File.read(File.join('/service', name, 'supervise/pid')).to_i
+    pid = File.read(File.join(SERVICE_DIR, name, 'supervise/pid')).to_i
     return false if pid <= 0
 
     Process.kill(0, pid)
@@ -1109,7 +1157,7 @@ class OsctldRestart
   end
 
   def service_supervised?(name)
-    File.directory?(File.join('/service', name))
+    File.directory?(File.join(SERVICE_DIR, name))
   end
 
   def osctl_json(*args)
