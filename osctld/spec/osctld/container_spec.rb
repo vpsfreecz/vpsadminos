@@ -178,6 +178,8 @@ RSpec.describe OsCtld::Container do
   end
 
   describe 'incarnation identity during configuration replacement' do
+    before { stub_daemon }
+
     def quarantine_generation(ct)
       ct.instance_variable_set(:@run_conf, nil)
       ct.instance_variable_set(:@next_run_conf, nil)

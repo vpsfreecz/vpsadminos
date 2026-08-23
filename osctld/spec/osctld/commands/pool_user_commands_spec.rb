@@ -528,6 +528,7 @@ RSpec.describe 'pool and user command adapters' do
     end
 
     it 'maps autostart hook failures to command errors' do
+      stub_daemon
       pool = build_pool
       allow(OsCtld::DB::Pools).to receive(:find).with('tank').and_return(pool)
       allow(pool).to receive(:autostart).and_raise(

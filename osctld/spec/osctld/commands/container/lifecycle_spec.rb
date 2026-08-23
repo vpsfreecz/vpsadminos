@@ -55,6 +55,8 @@ RSpec.describe 'container lifecycle commands' do
       def ready?
         true
       end
+
+      def lifecycle_state_changed; end
     end.new
     allow(OsCtld::Daemon).to receive(:get).and_return(daemon)
   end

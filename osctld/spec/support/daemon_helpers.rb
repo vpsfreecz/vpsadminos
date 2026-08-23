@@ -2,6 +2,7 @@
 
 module DaemonHelpers
   SchedulerPackageConfig = Struct.new(:cpu_mask, :enable, keyword_init: true)
+  RestartConfig = Struct.new(:hook_timeout, keyword_init: true)
 
   SchedulerConfig = Struct.new(
     :enable_flag,
@@ -23,7 +24,11 @@ module DaemonHelpers
       sequential_start_priority_threshold: 1000
     )
 
-    daemon_config = Struct.new(:debug?, :cpu_scheduler).new(debug, scheduler_cfg)
+    daemon_config = Struct.new(:debug?, :cpu_scheduler, :restart).new(
+      debug,
+      scheduler_cfg,
+      RestartConfig.new(hook_timeout: 30)
+    )
     daemon = Struct.new(:config) do
       def with_lifecycle_admission(**)
         yield
@@ -40,6 +45,22 @@ module DaemonHelpers
       def ready?
         true
       end
+
+      def stopping?
+        false
+      end
+
+      def draining?
+        false
+      end
+
+      def upgrade_handoff_desired?(_ct)
+        false
+      end
+
+      def fulfil_upgrade_handoff(_ct); end
+
+      def lifecycle_state_changed; end
     end.new(daemon_config)
 
     stub_const('OsCtld::Daemon', Class.new do

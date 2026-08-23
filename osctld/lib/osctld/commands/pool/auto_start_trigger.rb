@@ -24,15 +24,10 @@ module OsCtld
         end
       end
 
-      if daemon.respond_to?(:with_lifecycle_task)
-        daemon.with_lifecycle_task(
-          kind: :pool_autostart_trigger,
-          details: { pool: pool.name }
-        ) do
-          trigger.call
-        end
-      else
-        daemon.admit_lifecycle! if daemon.respond_to?(:admit_lifecycle!)
+      daemon.with_lifecycle_task(
+        kind: :pool_autostart_trigger,
+        details: { pool: pool.name }
+      ) do
         trigger.call
       end
     end
@@ -40,10 +35,7 @@ module OsCtld
     protected
 
     def daemon_hook_timeout(daemon)
-      return unless daemon.respond_to?(:config)
-
-      restart = daemon.config&.restart
-      restart.respond_to?(:hook_timeout) ? restart.hook_timeout : nil
+      daemon.config.restart.hook_timeout
     end
   end
 end

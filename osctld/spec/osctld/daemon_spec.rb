@@ -193,24 +193,39 @@ RSpec.describe OsCtld::Daemon do
       expect(daemon).to have_received(:interrupt_lifecycle_blockers)
         .with(
           [[ct, blocker]],
-          signal: 'TERM',
-          kill_generation: false
+          signal: 'TERM'
         )
       expect(daemon).to have_received(:interrupt_lifecycle_blockers)
         .with(
           [[ct, blocker]],
-          signal: 'KILL',
-          kill_generation: true
+          signal: 'KILL'
         )
     end
 
-    it 'leaves unowned cgroup processes alive through both drain escalations' do
+    it 'leaves unowned processes alive beside an attributable generation' do
       daemon = described_class.allocate
       restart = Struct.new(:drain_timeout, :cleanup_timeout).new(0, 0)
       config = Struct.new(:restart).new(restart)
-      ct = Struct.new(:pool, :id).new(Struct.new(:name).new('tank'), '101')
+      lifecycle_class = Class.new do
+        def daemon_restart_processes(*); end
+      end
+      lifecycle = instance_double(
+        lifecycle_class,
+        daemon_restart_processes: []
+      )
+      ct = Struct.new(:pool, :id, :lifecycle).new(
+        Struct.new(:name).new('tank'),
+        '101',
+        lifecycle
+      )
       pid = Process.spawn('sleep', '30')
-      blocker = {
+      generation_blocker = {
+        type: 'container_generation',
+        run_id: 'tank:101:run-1',
+        phase: 'starting',
+        effect: nil
+      }
+      unowned_blocker = {
         type: 'unowned_container_cgroup_processes',
         phase: 'stopped',
         processes: [
@@ -220,6 +235,15 @@ RSpec.describe OsCtld::Daemon do
           }
         ]
       }
+      recovery_class = stub_const(
+        'OsCtld::Container::Recovery',
+        Class.new do
+          def initialize(*); end
+
+          def kill_generation(*); end
+        end
+      )
+      recovery = instance_double(recovery_class)
 
       daemon.instance_variable_set(:@config, config)
       daemon.instance_variable_set(:@phase, :ready)
@@ -236,12 +260,21 @@ RSpec.describe OsCtld::Daemon do
       allow(daemon).to receive(:pause_autostarts)
       allow(daemon).to receive_messages(
         run_pre_stop_hooks_once: true,
-        lifecycle_restart_blockers: [[ct, blocker]]
+        lifecycle_restart_blockers: [
+          [ct, generation_blocker],
+          [ct, unowned_blocker]
+        ]
       )
+      allow(recovery_class).to receive(:new).with(ct)
+                                            .and_return(recovery)
+      allow(recovery).to receive(:kill_generation) do
+        Process.kill('KILL', pid)
+      end
 
       expect(daemon.prepare_stop).to be(false)
       expect(daemon.phase).to eq(:drain_failed)
       expect { Process.kill(0, pid) }.not_to raise_error
+      expect(recovery).not_to have_received(:kill_generation)
     ensure
       begin
         if pid
@@ -255,6 +288,8 @@ RSpec.describe OsCtld::Daemon do
 
     it 'fails a daemon pre-stop barrier instead of continuing to stop' do
       daemon = described_class.allocate
+      restart = Struct.new(:hook_timeout).new(30)
+      daemon.instance_variable_set(:@config, Struct.new(:restart).new(restart))
       hook_class = Class.new do
         def self.hook_name
           :pre_stop
@@ -379,6 +414,68 @@ RSpec.describe OsCtld::Daemon do
       expect(daemon.lifecycle_admission?).to be(false)
     end
 
+    it 'drains direct restart requests behind startup reconciliation' do
+      daemon = described_class.allocate
+      restart = Struct.new(:drain_timeout, :cleanup_timeout).new(2, 0)
+      config = Struct.new(:restart).new(restart)
+      startup_entered = Queue.new
+      finish_startup = Queue.new
+
+      daemon.instance_variable_set(:@config, config)
+      daemon.instance_variable_set(:@initialized, false)
+      daemon.instance_variable_set(:@phase, :starting)
+      daemon.instance_variable_set(:@lifecycle_admission, false)
+      daemon.instance_variable_set(:@lifecycle_admission_mutex, Mutex.new)
+      daemon.instance_variable_set(:@lifecycle_tasks, {})
+      daemon.instance_variable_set(:@prepare_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      daemon.instance_variable_set(:@stopping, false)
+      daemon.instance_variable_set(:@pre_stop_hooks_ran, false)
+
+      pools = stub_const('OsCtld::DB::Pools', Class.new do
+        def self.get; end
+      end)
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      allow(pools).to receive(:get).and_return([])
+      allow(containers).to receive(:get).and_return([])
+      allow(daemon).to receive(:log)
+      allow(daemon).to receive(:run_pre_stop_hooks_once).and_return(true)
+
+      startup_thread = Thread.new do
+        daemon.send(:with_startup_lifecycle_task) do
+          startup_entered << true
+          finish_startup.pop
+        end
+      end
+      startup_entered.pop
+
+      prepare_thread = Thread.new { daemon.prepare_stop }
+      Timeout.timeout(1) { sleep(0.01) until daemon.phase == :draining }
+
+      expect(prepare_thread).to be_alive
+      expect(daemon.send(:lifecycle_restart_blockers)).to contain_exactly(
+        [
+          nil,
+          include(
+            type: 'daemon_lifecycle_task',
+            kind: 'daemon_startup_reconciliation'
+          )
+        ]
+      )
+
+      finish_startup << true
+      expect(startup_thread.value).to be(true)
+      expect(prepare_thread.value).to be(true)
+      expect(daemon.phase).to eq(:prepared)
+    ensure
+      finish_startup << true if finish_startup && startup_thread&.alive?
+      startup_thread&.join
+      prepare_thread&.join
+    end
+
     it 'does not start autostarts until all recovery failures clear' do
       daemon = described_class.allocate
       pool_class = Class.new do
@@ -391,6 +488,10 @@ RSpec.describe OsCtld::Daemon do
       pool = instance_spy(pool_class, name: 'tank')
 
       daemon.instance_variable_set(:@initialized, true)
+      daemon.instance_variable_set(
+        :@config,
+        Struct.new(:restart).new(Struct.new(:hook_timeout).new(30))
+      )
       daemon.instance_variable_set(:@phase, :starting)
       daemon.instance_variable_set(:@lifecycle_admission, false)
       daemon.instance_variable_set(:@state_mutex, Mutex.new)
@@ -614,6 +715,35 @@ RSpec.describe OsCtld::Daemon do
       expect(daemon.lifecycle_admission?).to be(true)
       expect(daemon).to have_received(:run_resume_hooks).twice
       expect(daemon).to have_received(:schedule_resume_hook_retry).once
+    end
+
+    it 'restores the pause barrier when readiness changes during resume' do
+      daemon = described_class.allocate
+      daemon.instance_variable_set(:@initialized, true)
+      daemon.instance_variable_set(:@phase, :starting)
+      daemon.instance_variable_set(:@lifecycle_admission, false)
+      daemon.instance_variable_set(:@lifecycle_admission_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      daemon.instance_variable_set(:@recovery_failures, {})
+      daemon.instance_variable_set(:@orphans, [])
+      daemon.instance_variable_set(:@resume_hooks_complete, false)
+      daemon.instance_variable_set(:@resume_hook_running, false)
+
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      allow(containers).to receive(:get).and_return([])
+      allow(daemon).to receive(:run_resume_hooks) do
+        daemon.record_recovery_failure('late-recovery', 'late failure')
+        true
+      end
+      allow(daemon).to receive(:run_pre_stop_hooks).and_return(true)
+
+      expect(daemon.send(:complete_readiness)).to be(false)
+      expect(daemon.phase).to eq(:blocked)
+      expect(daemon.lifecycle_admission?).to be(false)
+      expect(daemon).to have_received(:run_pre_stop_hooks).once
     end
 
     it 'contains unexpected post-resume hook errors and keeps admission blocked' do
@@ -881,6 +1011,7 @@ RSpec.describe OsCtld::Daemon do
         state: :stopped,
         base_cgroup_path: 'osctl/pool.tank/user.root/ct.101'
       )
+      ct.lifecycle = Struct.new(:runtime_generations).new([])
       containers = stub_const('OsCtld::DB::Containers', Class.new do
         def self.get; end
       end)
@@ -1053,6 +1184,7 @@ RSpec.describe OsCtld::Daemon do
         state: :stopped,
         base_cgroup_path: 'osctl/pool.tank/user.root/ct.101'
       )
+      ct.lifecycle = Struct.new(:runtime_generations).new([])
       containers = stub_const('OsCtld::DB::Containers', Class.new do
         def self.get; end
       end)
@@ -1105,6 +1237,7 @@ RSpec.describe OsCtld::Daemon do
       ct.lifecycle = lifecycle
       handoff = instance_double(
         OsCtld::UpgradeHandoff,
+        valid?: true,
         remaining: [%w[tank 101]],
         empty?: true,
         fulfil: nil,
@@ -1124,6 +1257,40 @@ RSpec.describe OsCtld::Daemon do
       expect(lifecycle).to have_received(:persist_running_intent).ordered
       expect(handoff).to have_received(:fulfil).with(ct).ordered
       expect(handoff).to have_received(:complete).ordered
+    end
+
+    it 'keeps readiness blocked for an invalid current-boot handoff' do
+      daemon = described_class.allocate
+      daemon.instance_variable_set(:@started_at, Time.now)
+      daemon.instance_variable_set(:@initialized, false)
+      daemon.instance_variable_set(:@phase, :starting)
+      daemon.instance_variable_set(:@lifecycle_admission, false)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      daemon.instance_variable_set(:@recovery_failures, {})
+      daemon.instance_variable_set(:@orphans, [])
+      daemon.instance_variable_set(:@drain_blockers, [])
+      handoff = instance_double(
+        OsCtld::UpgradeHandoff,
+        valid?: false,
+        error: 'unsupported schema 2',
+        complete: false
+      )
+      daemon.instance_variable_set(:@upgrade_handoff, handoff)
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      allow(containers).to receive(:get).and_return([])
+
+      daemon.send(:persist_upgrade_handoff)
+
+      expect(daemon.status.fetch(:failures)).to contain_exactly(
+        include(
+          key: 'upgrade-handoff',
+          message: 'invalid legacy runtime handoff: unsupported schema 2'
+        )
+      )
+      expect(handoff).not_to have_received(:complete)
     end
 
     it 'escalates the exact residual generation named by a blocker' do
@@ -1162,8 +1329,7 @@ RSpec.describe OsCtld::Daemon do
       daemon.send(
         :interrupt_lifecycle_blockers,
         [[ct, blocker]],
-        signal: 'TERM',
-        kill_generation: false
+        signal: 'TERM'
       )
 
       expect(lifecycle).to have_received(:daemon_restart_processes)

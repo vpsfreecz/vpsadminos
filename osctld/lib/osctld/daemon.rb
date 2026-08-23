@@ -176,41 +176,43 @@ module OsCtld
       # Setup network interfaces
       NetInterface.setup
 
-      # Start accepting client commands
-      serve
+      with_startup_lifecycle_task do
+        # Start accepting client commands
+        serve
 
-      # Load data pools
-      if KernelParams.import_pools?
-        @autostart_enabled = KernelParams.autostart_cts?
+        # Load data pools
+        if KernelParams.import_pools?
+          @autostart_enabled = KernelParams.autostart_cts?
 
-        # Pool import is inventory-only. Global runtime ownership and recovery
-        # have to settle before ordinary autostart is admitted.
-        Commands::Pool::Import.run(all: true, autostart: false)
+          # Pool import is inventory-only. Global runtime ownership and recovery
+          # have to settle before ordinary autostart is admitted.
+          Commands::Pool::Import.run(all: true, autostart: false)
 
-        unless @autostart_enabled
-          log(:info, 'Container autostart disabled by kernel parameter')
+          unless @autostart_enabled
+            log(:info, 'Container autostart disabled by kernel parameter')
+          end
+        else
+          log(:info, 'Pool autoimport disabled by kernel parameter')
         end
-      else
-        log(:info, 'Pool autoimport disabled by kernel parameter')
+
+        # Resume shutdown
+        if shutdown?
+          log(:info, 'Resuming shutdown')
+          Commands::Self::Shutdown.run
+        end
+
+        # Close start config
+        start_cfg.close
+
+        # Reconcile the complete imported inventory before readiness can be
+        # published. Individual pool recovery may clear its own failure while a
+        # later pool is still being inspected, so @initialized remains false
+        # until all global startup barriers have run.
+        inventory_runtime_orphans
+        persist_upgrade_handoff
+        DB::Pools.get.each(&:reconcile_runtime)
+        finalize_upgrade_handoff
       end
-
-      # Resume shutdown
-      if shutdown?
-        log(:info, 'Resuming shutdown')
-        Commands::Self::Shutdown.run
-      end
-
-      # Close start config
-      start_cfg.close
-
-      # Reconcile the complete imported inventory before readiness can be
-      # published. Individual pool recovery may clear its own failure while a
-      # later pool is still being inspected, so @initialized remains false
-      # until all global startup barriers have run.
-      inventory_runtime_orphans
-      persist_upgrade_handoff
-      DB::Pools.get.each(&:reconcile_runtime)
-      finalize_upgrade_handoff
       @initialized = true
       complete_readiness_safely
 
@@ -301,8 +303,7 @@ module OsCtld
         )
         interrupt_lifecycle_blockers(
           blockers,
-          signal: 'TERM',
-          kill_generation: false
+          signal: 'TERM'
         )
         cleanup_timeout = config.restart.cleanup_timeout
         term_timeout = cleanup_timeout / 2.0
@@ -320,12 +321,11 @@ module OsCtld
         log(
           :warn,
           "Lifecycle termination left #{blockers.length} blocker(s), " \
-          'killing exact incomplete generation processes'
+          'killing exact recorded lifecycle processes'
         )
         interrupt_lifecycle_blockers(
           blockers,
-          signal: 'KILL',
-          kill_generation: true
+          signal: 'KILL'
         )
 
         if wait_for_lifecycle_drain(kill_timeout)
@@ -505,8 +505,20 @@ module OsCtld
       @upgrade_handoff.include?(ct)
     end
 
+    def upgrade_handoff_runtime?(ct)
+      @upgrade_handoff.runtime?(ct)
+    end
+
     def fulfil_upgrade_handoff(ct)
       @upgrade_handoff.fulfil(ct)
+      return unless @upgrade_handoff.empty?
+
+      @upgrade_handoff.complete
+      clear_recovery_failure('upgrade-handoff') if @initialized
+    end
+
+    def fulfil_upgrade_handoff_runtime(ct)
+      @upgrade_handoff.fulfil_runtime(ct)
       return unless @upgrade_handoff.empty?
 
       @upgrade_handoff.complete
@@ -732,7 +744,6 @@ module OsCtld
         if resume_prerequisites && blockers.empty?
           attempt_resume_hooks(retrying:)
         end
-        blockers = lifecycle_restart_blockers
         became_ready = state_sync do
           phase_eligible = %i[starting blocked ready].include?(@phase) \
             && !@stopping
@@ -827,12 +838,22 @@ module OsCtld
         end
       end
 
-      unless succeeded
+      if !succeeded
         record_recovery_failure(
           'daemon-post-resume',
           'daemon post-resume hook failed'
         )
         schedule_resume_hook_retry
+      elsif !completed
+        # A failure recorded while the resume hook was running must not leave
+        # nodectld open while osctld stays blocked. Restore the checked pause
+        # barrier before returning to the readiness retry loop.
+        unless run_pre_stop_hooks
+          record_recovery_failure(
+            'daemon-pre-stop',
+            'unable to restore daemon restart barrier after readiness changed'
+          )
+        end
       end
 
       completed
@@ -987,7 +1008,6 @@ module OsCtld
     # generation root is not ownership.
     def lifecycle_runtime_process_owned?(ct, process)
       lifecycle = ct.lifecycle
-      return false unless lifecycle.respond_to?(:runtime_generations)
 
       lifecycle.runtime_generations.any? do |run|
         next false unless %w[active residual].include?(run['role'])
@@ -1104,6 +1124,14 @@ module OsCtld
     # old daemon was draining: it must be represented by a durable
     # desired-running intent before the handoff file can be removed.
     def persist_upgrade_handoff
+      unless @upgrade_handoff.valid?
+        record_recovery_failure(
+          'upgrade-handoff',
+          "invalid legacy runtime handoff: #{@upgrade_handoff.error}"
+        )
+        return
+      end
+
       @upgrade_handoff.remaining.each do |pool, id|
         ct = DB::Containers.find(id, pool)
         next unless ct
@@ -1126,14 +1154,20 @@ module OsCtld
     end
 
     def finalize_upgrade_handoff
+      return unless @upgrade_handoff.valid?
+
       remaining = @upgrade_handoff.remaining
-      if remaining.empty?
+      runtime_remaining = @upgrade_handoff.remaining_runtime
+      if remaining.empty? && runtime_remaining.empty?
         @upgrade_handoff.complete
       else
         record_recovery_failure(
           'upgrade-handoff',
-          'not all legacy runtime start intents could be persisted',
-          containers: remaining.map { |pool, id| { pool:, id: } }
+          'legacy runtime handoff could not be fully reconciled',
+          containers: remaining.map { |pool, id| { pool:, id: } },
+          runtime_containers: runtime_remaining.map do |pool, id|
+            { pool:, id: }
+          end
         )
       end
     end
@@ -1166,14 +1200,24 @@ module OsCtld
     end
 
     def pause_autostarts
-      DB::Pools.get.each do |pool|
-        pool.pause_autostart if pool.respond_to?(:pause_autostart)
-      end
+      DB::Pools.get.each(&:pause_autostart)
     end
 
     def resume_autostarts(activation:)
-      DB::Pools.get.each do |pool|
-        pool.resume_autostart(activation:) if pool.respond_to?(:resume_autostart)
+      DB::Pools.get.each { |pool| pool.resume_autostart(activation:) }
+    end
+
+    # Keep the complete startup inventory and reconciliation pass visible to
+    # the restart drain. If a direct signal closes admission while startup is
+    # running, nested recovery tasks remain valid continuations of this exact
+    # registered worker and shutdown waits for them to settle.
+    def with_startup_lifecycle_task(&)
+      with_lifecycle_admission_context(recovery: true, continuation: true) do
+        with_lifecycle_task(
+          kind: :daemon_startup_reconciliation,
+          recovery: true,
+          &
+        )
       end
     end
 
@@ -1258,7 +1302,7 @@ module OsCtld
       end
     end
 
-    def interrupt_lifecycle_blockers(blockers, signal:, kill_generation:)
+    def interrupt_lifecycle_blockers(blockers, signal:)
       blockers.each do |ct, blocker|
         next unless ct
         next unless blocker[:type] == 'container_generation'
@@ -1288,13 +1332,6 @@ module OsCtld
         rescue Errno::ESRCH
           next
         end
-
-        # Before RUNNING, every payload belongs to an incomplete generation.
-        # Killing that exact cgroup is safe and lets its worker/finalizer settle.
-        next unless kill_generation
-        next if blocker[:phase] == 'running'
-
-        Container::Recovery.new(ct).kill_generation(run_id)
       rescue StandardError => e
         log(:warn, ct, "Unable to interrupt lifecycle blocker: #{e.message} (#{e.class})")
       end
@@ -1329,10 +1366,7 @@ module OsCtld
     end
 
     def restart_hook_timeout
-      restart = config&.restart
-      return 30 unless restart
-
-      restart.respond_to?(:hook_timeout) ? restart.hook_timeout : 30
+      config.restart.hook_timeout
     end
 
     def schedule_resume_hook_retry

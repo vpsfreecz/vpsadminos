@@ -2591,9 +2591,7 @@ module OsCtld
       record['revision'] = revision + 1
       save_record
       @cv.broadcast
-      daemon = Daemon.get
-      daemon.lifecycle_state_changed \
-        if daemon.respond_to?(:lifecycle_state_changed)
+      Daemon.get.lifecycle_state_changed
     end
 
     def save_record

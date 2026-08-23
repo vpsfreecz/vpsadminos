@@ -4,6 +4,8 @@ require 'osctld/container/lifecycle'
 require 'osctld/group'
 
 RSpec.describe OsCtld::Container::Lifecycle do
+  before { stub_daemon }
+
   let(:pool_class) { Struct.new(:name, :ct_dir) }
   let(:container_class) do
     Struct.new(

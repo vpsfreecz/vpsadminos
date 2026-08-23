@@ -49,7 +49,7 @@ RSpec.describe OsCtld::AutoStart::Plan do
   end
 
   def build_ct(pool:, id:, autostart: nil, usage_us: 0, can_start: true, running: false)
-    FakeObjects::FakeRuntimeContainer.new(
+    ct = FakeObjects::FakeRuntimeContainer.new(
       pool:,
       id:,
       autostart:,
@@ -57,6 +57,18 @@ RSpec.describe OsCtld::AutoStart::Plan do
       running:,
       hints: Struct.new(:cpu_daily).new(Struct.new(:usage_us).new(usage_us))
     )
+    request = Struct.new(:action, :run_id, :intent_id, :warning).new
+    lifecycle = Class.new do
+      def initialize(request)
+        @request = request
+      end
+
+      def autostart_intent? = false
+
+      def request_start(source:) = @request
+    end.new(request)
+    ct.lifecycle = lifecycle
+    ct
   end
 
   let(:pool) do
