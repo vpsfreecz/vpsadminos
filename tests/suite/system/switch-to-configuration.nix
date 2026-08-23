@@ -123,9 +123,11 @@ import ../../make-test.nix (
       stopping = false
       trap('TERM') do
         stopping = true
-        server.close
-      rescue IOError
-        nil
+        Thread.new do
+          server.close
+        rescue IOError
+          nil
+        end
       end
 
       loop do
