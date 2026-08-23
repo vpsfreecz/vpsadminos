@@ -9,12 +9,23 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
-    machine = (import ../../machines/vpsadminos/tank.nix pkgs) // {
-      shells = [
-        "client"
-        "restart"
-      ];
-    };
+    machine =
+      let
+        baseMachine = import ../../machines/vpsadminos/tank.nix pkgs;
+      in
+      baseMachine
+      // {
+        config = baseMachine.config // {
+          osctld.settings.restart = {
+            drain_timeout = 5;
+            cleanup_timeout = 2;
+          };
+        };
+        shells = [
+          "client"
+          "restart"
+        ];
+      };
 
     testScript = ''
       require 'shellwords'
@@ -311,6 +322,38 @@ import ../../make-test.nix (
         end
       end
 
+      describe 'explicit daemon drain' do
+        ctid = "#{get_container_id}-daemon-drain"
+
+        before(:context) do
+          cleanup_ct(ctid)
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{ctid}",
+            "osctl ct unset start-menu #{ctid}"
+          )
+        end
+
+        after(:context) do
+          machine.execute('osctl daemon resume')
+          cleanup_ct(ctid)
+        end
+
+        it 'closes admission until the prepared daemon is resumed' do
+          machine.succeeds('osctl daemon prepare-stop')
+          status = machine.osctl_json('daemon status')
+          expect(status.fetch('phase')).to eq('prepared')
+          expect(status.fetch('lifecycle_admission')).to be(false)
+
+          _, rejected = machine.fails("osctl ct start #{ctid}")
+          expect(rejected).to include('container lifecycle admission is closed')
+
+          machine.succeeds('osctl daemon resume')
+          expect(machine.osctl_json('daemon status').fetch('phase')).to eq('ready')
+          machine.succeeds("osctl ct start #{ctid}")
+          wait_ct_running(ctid)
+        end
+      end
+
       describe 'clients after abrupt osctld death' do
         it 'ct monitor exits instead of spinning' do
           monitor_job = shell_job(
@@ -355,30 +398,85 @@ import ../../make-test.nix (
           cleanup_ct(ctid)
         end
 
-        it 'continues through a concurrent osctld restart' do
+        it 'drains before restart even after the sv client times out' do
           install_blocking_hook(ctid, 'pre-start', 'ct-start')
           start_job = shell_job('ct-start', "osctl ct start #{ctid}", shell: 'client')
           wait_block_started('ct-start')
-
-          restart_job = shell_job(
-            'restart-during-ct-start',
-            'sv -w 180 restart osctld',
-            shell: 'restart',
-            timeout: 240
+          blocked_run_id = machine.osctl_json("ct show #{ctid}")['lifecycle_run_id']
+          _, old_daemon_pid = machine.succeeds(
+            'cat /run/service/osctld/supervise/pid'
           )
-          machine.wait_until_succeeds("test ! -S #{OSCTLD_SOCKET}", timeout: 30)
-          expect_osctl_lost_osctld(start_job)
-          release_block('ct-start')
-          wait_shell_job(restart_job, timeout: 240)
-          wait_osctld_ready
+          old_daemon_pid = old_daemon_pid.strip
 
+          restart_status, restart_output = machine.execute(
+            'sv -w 1 restart osctld',
+            shell: 'restart',
+            timeout: 30
+          )
+          expect(restart_status).not_to eq(0), restart_output
+          status = machine.osctl_json('daemon status')
+          expect(status.fetch('phase')).to eq('draining')
+          expect(status.fetch('lifecycle_admission')).to be(false)
+          expect(shell_job_finished?(start_job)).to be(false)
+
+          release_block('ct-start')
+          wait_shell_job(start_job, timeout: 120)
           machine.wait_until_succeeds(
-            "test \"$(osctl ct show -H -o state #{ctid})\" = stopped",
+            "test \"$(cat /run/service/osctld/supervise/pid)\" != " \
+              "#{Shellwords.escape(old_daemon_pid)}",
             timeout: 120
           )
-
-          machine.succeeds("osctl ct start --wait infinity #{ctid}")
+          wait_osctld_ready
           wait_ct_running(ctid)
+
+          info = machine.osctl_json("ct show #{ctid}")
+          expect(info.fetch('lifecycle_run_id')).to eq(blocked_run_id)
+          expect(info.fetch('lifecycle_state')).to eq('running')
+        end
+      end
+
+      describe 'interrupted autostart' do
+        ctid = "#{get_container_id}-auto-kill"
+
+        before(:context) do
+          wait_osctld_ready
+          cleanup_ct(ctid)
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{ctid}",
+            "osctl ct unset start-menu #{ctid}",
+            "osctl ct set autostart --delay 0 #{ctid}"
+          )
+        end
+
+        after(:context) do
+          release_block_if_present('ct-autostart-killed')
+          remove_hook(ctid, 'pre-start')
+          cleanup_ct(ctid)
+        end
+
+        it 'converges to one active generation after daemon SIGKILL' do
+          install_blocking_hook(ctid, 'pre-start', 'ct-autostart-killed')
+          machine.succeeds('osctl pool autostart trigger tank')
+          wait_block_started('ct-autostart-killed')
+          before = machine.osctl_json("ct show #{ctid}")
+          expect(before.fetch('lifecycle_desired_state')).to eq('running')
+          expect(before.fetch('lifecycle_run_id')).not_to be_nil
+
+          kill_osctld
+          release_block('ct-autostart-killed')
+          wait_osctld_ready
+          machine.succeeds(
+            'osctl daemon wait-ready --timeout 180',
+            timeout: 240
+          )
+          wait_ct_running(ctid)
+
+          after = machine.osctl_json("ct show #{ctid}")
+          expect(after.fetch('state')).to eq('running')
+          expect(after.fetch('lifecycle_desired_state')).to eq('running')
+          expect(after.fetch('lifecycle_state')).to eq('running')
+          expect(after.fetch('lifecycle_run_id')).not_to be_nil
+          expect(after.fetch('lifecycle_residuals')).to eq(0)
         end
       end
 
@@ -391,6 +489,7 @@ import ../../make-test.nix (
           machine.all_succeed(
             "osctl ct new --distribution alpine #{ctid}",
             "osctl ct unset start-menu #{ctid}",
+            "osctl ct netif new routed #{ctid} eth0",
             "osctl ct start #{ctid}"
           )
           wait_ct_running(ctid)
@@ -443,6 +542,7 @@ import ../../make-test.nix (
           machine.all_succeed(
             "osctl ct new --distribution alpine #{ctid}",
             "osctl ct unset start-menu #{ctid}",
+            "osctl ct netif new routed #{ctid} eth0",
             "osctl ct start #{ctid}"
           )
           wait_ct_running(ctid)
@@ -470,8 +570,347 @@ import ../../make-test.nix (
         end
       end
 
+      describe 'running container with a missing host veth' do
+        ctid = "#{get_container_id}-missing-veth"
+
+        before(:context) do
+          wait_osctld_ready
+          cleanup_ct(ctid)
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{ctid}",
+            "osctl ct unset start-menu #{ctid}",
+            "osctl ct netif new routed #{ctid} eth0",
+            "osctl ct start #{ctid}"
+          )
+          wait_ct_running(ctid)
+        end
+
+        after(:context) do
+          cleanup_ct(ctid)
+        end
+
+        it 'performs one controlled generation restart and restores networking' do
+          write_ct_file(ctid, 'tmp/osctld-restart-veth/state', 'preserved')
+          before = machine.osctl_json("ct show #{ctid}")
+          _, host_veth = machine.succeeds(
+            "osctl ct netif ls -H -o veth #{ctid}"
+          )
+          host_veth = host_veth.strip
+          expect(host_veth).not_to be_empty
+
+          machine.succeeds("ip link del #{Shellwords.escape(host_veth)}")
+          machine.succeeds('sv -w 60 restart osctld')
+          machine.succeeds(
+            'osctl daemon wait-ready --timeout 180',
+            timeout: 240
+          )
+          wait_ct_running(ctid)
+
+          after = machine.osctl_json("ct show #{ctid}")
+          expect(after.fetch('init_pid')).not_to eq(before.fetch('init_pid'))
+          expect(after.fetch('lifecycle_run_id')).not_to eq(
+            before.fetch('lifecycle_run_id')
+          )
+          _, recovered_veth = machine.succeeds(
+            "osctl ct netif ls -H -o veth #{ctid}"
+          )
+          recovered_veth = recovered_veth.strip
+          expect(recovered_veth).not_to be_empty
+          machine.succeeds(
+            "test -e /sys/class/net/#{Shellwords.escape(recovered_veth)}"
+          )
+          machine.succeeds("osctl ct exec #{ctid} true")
+          expect_ct_file(ctid, 'tmp/osctld-restart-veth/state', 'preserved')
+        end
+      end
+
+      describe 'parallel missing console sockets' do
+        first_ctid = "#{get_container_id}-console-a"
+        second_ctid = "#{get_container_id}-console-b"
+
+        before(:context) do
+          wait_osctld_ready
+          cleanup_ct(first_ctid, second_ctid)
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{first_ctid}",
+            "osctl ct unset start-menu #{first_ctid}",
+            "osctl ct start #{first_ctid}",
+            "osctl ct new --distribution alpine #{second_ctid}",
+            "osctl ct unset start-menu #{second_ctid}",
+            "osctl ct start #{second_ctid}"
+          )
+          wait_ct_running(first_ctid)
+          wait_ct_running(second_ctid)
+        end
+
+        after(:context) do
+          cleanup_ct(first_ctid, second_ctid)
+        end
+
+        it 'degrades each console independently without blocking readiness' do
+          before = [first_ctid, second_ctid].to_h do |ctid|
+            [ctid, machine.osctl_json("ct show #{ctid}")]
+          end
+          socket_paths = [first_ctid, second_ctid].to_h do |ctid|
+            [ctid, "/run/osctl/pools/tank/console/#{ctid}/tty0.sock"]
+          end
+
+          machine.all_succeed(
+            *socket_paths.values.map do |path|
+              "test -S #{Shellwords.escape(path)} && " \
+                "rm -f #{Shellwords.escape(path)}"
+            end,
+            'sv -w 60 restart osctld',
+            'osctl daemon wait-ready --timeout 180'
+          )
+
+          expect(machine.osctl_json('daemon status').fetch('phase')).to eq('ready')
+          [first_ctid, second_ctid].each do |ctid|
+            after = machine.osctl_json("ct show #{ctid}")
+            expect(after.fetch('state')).to eq('running')
+            expect(after.fetch('init_pid')).to eq(before.fetch(ctid).fetch('init_pid'))
+            expect(after.fetch('lifecycle_run_id')).to eq(
+              before.fetch(ctid).fetch('lifecycle_run_id')
+            )
+            machine.all_succeed(
+              "test ! -e #{Shellwords.escape(socket_paths.fetch(ctid))}",
+              "osctl ct exec #{ctid} true"
+            )
+          end
+        end
+      end
+
+      describe 'repairable host network drift' do
+        routed_ctid = "#{get_container_id}-routed-drift"
+        bridge_ctid = "#{get_container_id}-bridge-drift"
+
+        before(:context) do
+          wait_osctld_ready
+          cleanup_ct(routed_ctid, bridge_ctid)
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{routed_ctid}",
+            "osctl ct unset start-menu #{routed_ctid}",
+            "osctl ct netif new routed --max-tx 10M --max-rx 20M " \
+              "#{routed_ctid} eth0",
+            "osctl ct netif route add #{routed_ctid} eth0 192.0.2.100/32",
+            "osctl ct start #{routed_ctid}",
+            "osctl ct new --distribution alpine #{bridge_ctid}",
+            "osctl ct unset start-menu #{bridge_ctid}",
+            "osctl ct netif new bridge --link lxcbr0 #{bridge_ctid} eth0",
+            "osctl ct start #{bridge_ctid}"
+          )
+          wait_ct_running(routed_ctid)
+          wait_ct_running(bridge_ctid)
+        end
+
+        after(:context) do
+          cleanup_ct(routed_ctid, bridge_ctid)
+        end
+
+        it 'restores owned state without removing foreign routes' do
+          routed_before = machine.osctl_json("ct show #{routed_ctid}")
+          bridge_before = machine.osctl_json("ct show #{bridge_ctid}")
+          _, routed_veth = machine.succeeds(
+            "osctl ct netif ls -H -o veth #{routed_ctid}"
+          )
+          _, bridge_veth = machine.succeeds(
+            "osctl ct netif ls -H -o veth #{bridge_ctid}"
+          )
+          routed_veth = routed_veth.strip
+          bridge_veth = bridge_veth.strip
+
+          machine.all_succeed(
+            "ip -4 route del 192.0.2.100/32 dev #{routed_veth}",
+            "ip -4 route add 192.0.2.101/32 dev #{routed_veth}",
+            "tc qdisc del root dev #{routed_veth}",
+            "tc qdisc del dev #{routed_veth} ingress",
+            "ip link del ifb#{routed_veth}",
+            "ip link set #{bridge_veth} nomaster",
+            'sv -w 60 restart osctld',
+            'osctl daemon wait-ready --timeout 180'
+          )
+
+          machine.all_succeed(
+            "ip -4 route show 192.0.2.100/32 dev #{routed_veth} | " \
+              'grep -Fq 192.0.2.100',
+            "ip -4 route show 192.0.2.101/32 dev #{routed_veth} | " \
+              'grep -Fq 192.0.2.101',
+            "tc qdisc show dev #{routed_veth} | grep -Fq cake",
+            "tc qdisc show dev #{routed_veth} | grep -Fq ingress",
+            "tc filter show dev #{routed_veth} ingress | grep -Fq mirred",
+            "tc qdisc show dev ifb#{routed_veth} | grep -Fq cake",
+            "test \"$(basename \"$(readlink -f " \
+              "/sys/class/net/#{bridge_veth}/master)\")\" = lxcbr0"
+          )
+          routed_after = machine.osctl_json("ct show #{routed_ctid}")
+          bridge_after = machine.osctl_json("ct show #{bridge_ctid}")
+          expect(routed_after.fetch('init_pid')).to eq(
+            routed_before.fetch('init_pid')
+          )
+          expect(bridge_after.fetch('init_pid')).to eq(
+            bridge_before.fetch('init_pid')
+          )
+        end
+      end
+
+      describe 'missing host veth while stopping' do
+        ctid = "#{get_container_id}-stop-veth"
+
+        before(:context) do
+          wait_osctld_ready
+          cleanup_ct(ctid)
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{ctid}",
+            "osctl ct unset start-menu #{ctid}",
+            "osctl ct netif new routed #{ctid} eth0",
+            "osctl ct start #{ctid}"
+          )
+          wait_ct_running(ctid)
+        end
+
+        after(:context) do
+          release_block_if_present('ct-stop-missing-veth')
+          remove_hook(ctid, 'pre-stop')
+          cleanup_ct(ctid)
+        end
+
+        it 'finishes the desired stop without scheduling a recovery restart' do
+          install_blocking_hook(ctid, 'pre-stop', 'ct-stop-missing-veth')
+          stop_job = shell_job(
+            'ct-stop-missing-veth',
+            "osctl ct stop #{ctid}",
+            shell: 'client'
+          )
+          wait_block_started('ct-stop-missing-veth')
+          expect(
+            machine.osctl_json("ct show #{ctid}").fetch(
+              'lifecycle_desired_state'
+            )
+          ).to eq('stopped')
+          _, host_veth = machine.succeeds(
+            "osctl ct netif ls -H -o veth #{ctid}"
+          )
+          machine.succeeds("ip link del #{Shellwords.escape(host_veth.strip)}")
+
+          kill_osctld
+          expect_osctl_lost_osctld(stop_job)
+          release_block('ct-stop-missing-veth')
+          wait_osctld_ready
+          machine.succeeds(
+            'osctl daemon wait-ready --timeout 180',
+            timeout: 240
+          )
+          machine.wait_until_succeeds(
+            "test \"$(osctl ct show -H -o state #{ctid})\" = stopped",
+            timeout: 120
+          )
+
+          after = machine.osctl_json("ct show #{ctid}")
+          expect(after.fetch('lifecycle_desired_state')).to eq('stopped')
+          expect(after.fetch('state')).to eq('stopped')
+          expect(after.fetch('lifecycle_residuals')).to eq(0)
+        end
+      end
+
+      describe 'stopped container with live cgroup processes' do
+        ctid = "#{get_container_id}-stopped-live"
+        pid_path = '/tmp/osctld-stopped-live-cgroup.pid'
+        cgroup_path = '/tmp/osctld-stopped-live-cgroup.path'
+
+        before(:context) do
+          wait_osctld_ready
+          cleanup_ct(ctid)
+          machine.succeeds("osctl ct new --distribution alpine #{ctid}")
+        end
+
+        after(:context) do
+          machine.execute(<<~CMD)
+            test ! -e #{pid_path} || kill "$(cat #{pid_path})" 2>/dev/null || true
+            test ! -e #{cgroup_path} || rmdir "$(cat #{cgroup_path})" 2>/dev/null || true
+            rm -f #{pid_path} #{cgroup_path}
+          CMD
+          cleanup_ct(ctid)
+        end
+
+        it 'fails drain without signalling the unowned process' do
+          machine.succeeds(<<~CMD)
+            set -eu
+            group_path=$(osctl ct show -H -o group_path #{ctid})
+            group_path="''${group_path#/}"
+            base="/sys/fs/cgroup/''${group_path%/user-owned}"
+            echo "$base/restart-test-orphan" > #{cgroup_path}
+            orphan=$(cat #{cgroup_path})
+            mkdir -p "$orphan"
+            sleep 300 >/dev/null 2>&1 &
+            pid=$!
+            echo "$pid" > "$orphan/cgroup.procs"
+            echo "$pid" > #{pid_path}
+          CMD
+
+          status, output = machine.execute(
+            'osctl daemon prepare-stop',
+            timeout: 30
+          )
+          expect(status).not_to eq(0), output
+          expect(machine.osctl_json('daemon status').fetch('phase')).to eq(
+            'drain_failed'
+          )
+          machine.succeeds("kill -0 \"$(cat #{pid_path})\"")
+
+          machine.succeeds(<<~CMD)
+            kill "$(cat #{pid_path})"
+            sleep 0.2
+            rmdir "$(cat #{cgroup_path})"
+            rm -f #{pid_path} #{cgroup_path}
+            osctl daemon resume
+            osctl daemon wait-ready --timeout 30
+          CMD
+        end
+
+        it 'blocks readiness until the unowned process is removed' do
+          machine.succeeds(<<~CMD)
+            set -eu
+            group_path=$(osctl ct show -H -o group_path #{ctid})
+            group_path="''${group_path#/}"
+            base="/sys/fs/cgroup/''${group_path%/user-owned}"
+            echo "$base/restart-test-orphan" > #{cgroup_path}
+            osctl daemon prepare-stop
+            sv -w 60 stop osctld
+            orphan=$(cat #{cgroup_path})
+            mkdir -p "$orphan"
+            sleep 300 >/dev/null 2>&1 &
+            pid=$!
+            echo "$pid" > "$orphan/cgroup.procs"
+            echo "$pid" > #{pid_path}
+            sv start osctld
+          CMD
+
+          machine.wait_until_succeeds("test -S #{OSCTLD_SOCKET}", timeout: 60)
+          machine.wait_until_succeeds(
+            "osctl --json daemon status | " \
+              "grep -Fq 'configured_container_unowned_processes'",
+            timeout: 60
+          )
+          status = machine.osctl_json('daemon status')
+          expect(status.fetch('phase')).to eq('blocked')
+
+          machine.succeeds(<<~CMD)
+            kill "$(cat #{pid_path})"
+            sleep 0.2
+            rmdir "$(cat #{cgroup_path})"
+            rm -f #{pid_path} #{cgroup_path}
+          CMD
+          kill_osctld
+          wait_osctld_ready
+          machine.succeeds(
+            'osctl daemon wait-ready --timeout 180',
+            timeout: 240
+          )
+        end
+      end
+
       describe 'active local copy state' do
-        ctid = "#{get_container_id}-copy-restart"
+        ctid = "#{get_container_id}-copy"
         target = "#{ctid}-dst"
 
         before(:context) do
