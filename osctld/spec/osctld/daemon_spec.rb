@@ -656,6 +656,67 @@ RSpec.describe OsCtld::Daemon do
       expect(readiness_thread.value).to be(true)
     end
 
+    it 'keeps a prepared drain closed when ready-service activation fails' do
+      daemon = described_class.allocate
+      restart = Struct.new(:drain_timeout, :cleanup_timeout).new(0, 0)
+      config = Struct.new(:restart).new(restart)
+      activation_started = Queue.new
+      finish_activation = Queue.new
+
+      daemon.instance_variable_set(:@config, config)
+      daemon.instance_variable_set(:@initialized, true)
+      daemon.instance_variable_set(:@phase, :starting)
+      daemon.instance_variable_set(:@lifecycle_admission, false)
+      daemon.instance_variable_set(:@lifecycle_admission_mutex, Mutex.new)
+      daemon.instance_variable_set(:@prepare_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_mutex, Mutex.new)
+      daemon.instance_variable_set(:@state_cv, ConditionVariable.new)
+      daemon.instance_variable_set(:@stopping, false)
+      daemon.instance_variable_set(:@recovery_failures, {})
+      daemon.instance_variable_set(:@orphans, [])
+      daemon.instance_variable_set(:@resume_hooks_complete, false)
+      daemon.instance_variable_set(:@resume_hook_running, false)
+      daemon.instance_variable_set(:@pre_stop_hooks_ran, false)
+
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      allow(containers).to receive(:get).and_return([])
+      allow(daemon).to receive(:log)
+      allow(daemon).to receive_messages(
+        run_resume_hooks: true,
+        lifecycle_restart_blockers: []
+      )
+      allow(daemon).to receive(:pause_autostarts)
+      allow(daemon).to receive(:run_pre_stop_hooks_once).and_return(true)
+      allow(daemon).to receive(:activate_ready_services) do
+        activation_started << true
+        finish_activation.pop
+        raise 'autostart setup failed'
+      end
+
+      readiness_thread = Thread.new do
+        daemon.send(:complete_readiness_safely, schedule_retry: false)
+      end
+      activation_started.pop
+
+      expect(daemon.prepare_stop).to be(true)
+      expect(daemon.phase).to eq(:prepared)
+      expect(daemon.lifecycle_admission?).to be(false)
+
+      finish_activation << true
+      expect(readiness_thread.value).to be(false)
+
+      expect(daemon.phase).to eq(:prepared)
+      expect(daemon.lifecycle_admission?).to be(false)
+      expect(daemon.status.fetch(:failures)).to contain_exactly(
+        include(
+          key: 'daemon-readiness',
+          message: 'readiness evaluation failed: autostart setup failed'
+        )
+      )
+    end
+
     it 'drains a registered pre-autostart hook before becoming prepared' do
       daemon = described_class.allocate
       restart = Struct.new(

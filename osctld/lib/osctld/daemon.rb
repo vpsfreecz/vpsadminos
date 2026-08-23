@@ -820,10 +820,12 @@ module OsCtld
     rescue StandardError => e
       state_sync do
         @resume_hook_running = false
-        unless @stopping
-          @phase = :blocked if @initialized
-          @lifecycle_admission = false
+        stop_phase = @stopping \
+                     || %i[draining prepared drain_failed stopping].include?(@phase)
+        if @initialized && !stop_phase
+          @phase = :blocked
         end
+        @lifecycle_admission = false
         @recovery_failures['daemon-readiness'] = {
           key: 'daemon-readiness',
           message: "readiness evaluation failed: #{e.message}",
