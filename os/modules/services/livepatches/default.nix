@@ -241,16 +241,56 @@ let
       fi
     '';
 
+  transitionGuardEnableContent =
+    optionalString (transitionGuard != null) ''
+      # A disabled guard absorbed by a replacing patch cannot be re-enabled.
+      # Wait out asynchronous livepatch cleanup and remove that stale module
+      # before loading a fresh guard.
+      if [ -d /sys/module/${guardModuleName} ] && \
+        [ "$(cat /sys/kernel/livepatch/${guardModuleName}/enabled 2>/dev/null)" != "1" ]; then
+        retries=151
+        while [ -d /sys/module/${guardModuleName} ] && [ "$retries" -gt 0 ]; do
+          rmmod ${guardModuleName} 2>/dev/null || true
+          retries=$((retries - 1))
+          if [ -d /sys/module/${guardModuleName} ]; then
+            sleep 0.2
+          fi
+        done
+        if [ -d /sys/module/${guardModuleName} ]; then
+          echo live-patches: removing stale ${guardModuleName} FAILED
+          exit 1
+        fi
+      fi
+      ${moduleLoadGen {
+        installModPath = "$livepatch/${guardInstallModPath}";
+        moduleName = guardModuleName;
+        recordApplied = false;
+      }}
+      if [ "$(cat /sys/kernel/livepatch/${guardModuleName}/enabled 2>/dev/null)" != "1" ]; then
+        echo 1 > /sys/kernel/livepatch/${guardModuleName}/enabled 2>/dev/null || {
+          echo live-patches: enabling ${guardModuleName} FAILED
+          exit 1
+        }
+      fi
+      ${moduleWaitGen { moduleName = guardModuleName; }}
+    '';
+
   moduleUnloadGen =
-    { moduleName }:
+    {
+      moduleName,
+      timeoutSeconds ? 90,
+    }:
     let
       modDetectDir = "/sys/kernel/livepatch/${moduleName}";
     in
     ''
       if [ -d ${modDetectDir} ] && [ -f ${modDetectDir}/enabled ]; then
         echo -en live-patches: disabling ${moduleName}..
-        echo 0 > ${modDetectDir}/enabled 2>/dev/null
-        retries=91
+        if ! echo 0 > ${modDetectDir}/enabled 2>/dev/null; then
+          echo -e "\nlive-patches: disabling ${moduleName}... FAILED"
+          exit 1
+        fi
+        retries=${toString (timeoutSeconds + 1)}
         while [ -d ${modDetectDir} ] && [ $retries -gt 0 ]; do
           if [ "$(( $retries % 5 ))" -eq 0 ]; then
             echo -en " $retries "
@@ -283,6 +323,10 @@ let
           fi
         done
         echo
+      fi
+      if [ -d /sys/module/${moduleName} ]; then
+        echo live-patches: unloading ${moduleName}... FAILED
+        exit 1
       fi
       rm -f /run/vpsadminos/livepatches/${moduleName}.applied-at
     '';
@@ -331,18 +375,7 @@ let
   ''
   + optionalString (transitionGuard != null) ''
     if [ ! -d /sys/kernel/livepatch/${patchModuleName} ]; then
-      ${moduleLoadGen {
-        installModPath = "$livepatch/${guardInstallModPath}";
-        moduleName = guardModuleName;
-        recordApplied = false;
-      }}
-      if [ "$(cat /sys/kernel/livepatch/${guardModuleName}/enabled 2>/dev/null)" != "1" ]; then
-        echo 1 > /sys/kernel/livepatch/${guardModuleName}/enabled 2>/dev/null || {
-          echo live-patches: enabling ${guardModuleName} FAILED
-          exit 1
-        }
-      fi
-      ${moduleWaitGen { moduleName = guardModuleName; }}
+      ${transitionGuardEnableContent}
     fi
   ''
   + moduleLoadGen {
@@ -377,9 +410,21 @@ let
     livepatch=$(cat /etc/livepatch-store-path)
     # Patches built with build-kpatch
   ''
-  + moduleUnloadGen { moduleName = patchModuleName; }
+  + optionalString (transitionGuard != null) ''
+    # Keep the corrected transition functions above the cumulative patch for
+    # its entire reverse transition.  The minimal guard is removed last.
+    if [ -d /sys/kernel/livepatch/${patchModuleName} ] && \
+      [ "$(cat /sys/kernel/livepatch/${patchModuleName}/enabled 2>/dev/null)" = "1" ]; then
+      ${transitionGuardEnableContent}
+    fi
+  ''
+  + moduleUnloadGen {
+    moduleName = patchModuleName;
+    timeoutSeconds = if transitionGuard == null then 90 else 900;
+  }
   + optionalString (transitionGuard != null) (moduleUnloadGen {
     moduleName = guardModuleName;
+    timeoutSeconds = 900;
   })
   + "\n";
 

@@ -914,19 +914,28 @@ import ../../make-test.nix (
         )
       end
 
-      def self.disable_patch(machine, name)
+      def self.disable_patch(machine, name, timeout: 180)
         dir = patch_dir(name)
         return unless machine.execute("test -e #{dir}/enabled")[0] == 0
 
+        if name == CORRECTED_NAME
+          ensure_transition_guard(machine, timeout: timeout)
+        end
+
         machine.succeeds("sh -c 'echo 0 > #{dir}/enabled'")
-        wait_for_patch(machine, name, 0)
+        wait_for_patch(machine, name, 0, timeout: timeout)
       end
 
-      def self.remove_module(machine, name)
+      def self.remove_module(machine, name, timeout: 180)
         return unless machine.execute("test -d /sys/module/#{name}")[0] == 0
 
         machine.succeeds("rmmod #{name}")
         machine.fails("test -d /sys/module/#{name}")
+
+        return unless name == CORRECTED_NAME
+
+        disable_patch(machine, TRANSITION_GUARD_NAME, timeout: timeout)
+        remove_module(machine, TRANSITION_GUARD_NAME, timeout: timeout)
       end
 
       def self.unload_late_target_dependents(machine)
@@ -1182,11 +1191,25 @@ import ../../make-test.nix (
           "rm -rf #{V6_STATE}"
         )
 
+        if machine.execute(
+          "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled 2>/dev/null)\" = 1"
+        )[0] == 0
+          begin
+            ensure_transition_guard(machine)
+          rescue StandardError => e
+            warn "best-effort reverse transition guard failed: #{e.class}: #{e.message}"
+          end
+        end
+
         machine.execute(
           "for name in #{CORRECTED_NAME} #{RELEASED_V1_NAME} " \
           "#{RELEASED_V5_NAME} #{PREDECESSOR_NAME} " \
           "#{TRANSITION_GUARD_NAME}; do " \
           "dir=/sys/kernel/livepatch/$name; " \
+          "if test \"$name\" = #{CORRECTED_NAME} && " \
+          "test \"$(cat $dir/enabled 2>/dev/null)\" = 1 && " \
+          "test \"$(cat #{patch_dir(TRANSITION_GUARD_NAME)}/enabled 2>/dev/null)\" != 1; then " \
+          "continue; fi; " \
           "if test -e \"$dir/enabled\"; then " \
           "echo 0 > \"$dir/enabled\" 2>/dev/null || true; " \
           "attempt=0; " \
@@ -2220,6 +2243,9 @@ import ../../make-test.nix (
 
             machine.succeeds("rmmod #{RELEASED_V5_NAME}")
             remove_module(machine, TRANSITION_GUARD_NAME)
+            disable_patch(machine, CORRECTED_NAME, timeout: 900)
+            remove_module(machine, CORRECTED_NAME, timeout: 900)
+            machine.succeeds("test \"$(uname -r)\" = 6.12.95")
             stop_task_fleet(machine)
           end
         end
@@ -3311,6 +3337,7 @@ import ../../make-test.nix (
             "test \"$(cat #{PROBE_PARAMETERS}/probe_held)\" = Y",
             timeout: 30
           )
+          ensure_transition_guard(machine)
           machine.succeeds(
             "(echo 0 > #{patch_dir(CORRECTED_NAME)}/enabled; " \
             "printf '%s\\n' \"$?\" > #{NFT_BATCH_STATE}/disable.status) " \
@@ -3666,6 +3693,7 @@ import ../../make-test.nix (
           )
           signal_sunrpc_tls_mount(machine, "owned")
 
+          ensure_transition_guard(machine)
           machine.succeeds(
             "(echo 0 > #{patch_dir(CORRECTED_NAME)}/enabled; " \
             "printf '%s\\n' \"$?\" > #{SUNRPC_STATE}/disable.status) " \
@@ -3742,6 +3770,7 @@ import ../../make-test.nix (
             ">#{SUNRPC_STATE}/spin-deadline/output.log 2>&1 & " \
             "echo $! > #{SUNRPC_STATE}/spin-deadline/pid"
           )
+          ensure_transition_guard(machine)
           machine.succeeds(
             "mkdir -p #{race_state}; " \
             "rm -f #{race_state}/snapshot #{race_state}/held " \
@@ -4425,6 +4454,7 @@ import ../../make-test.nix (
             timeout: 60
           )
 
+          ensure_transition_guard(machine)
           machine.succeeds(
             "mkdir -p #{V6_STATE}; " \
             "(echo 0 > #{patch_dir(CORRECTED_NAME)}/enabled; " \
