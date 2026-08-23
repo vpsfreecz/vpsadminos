@@ -92,6 +92,7 @@ in
         gnutar
         openssh
         runit
+        ruby_vpsadminos
         shadow
         util-linux
         devcgprog
