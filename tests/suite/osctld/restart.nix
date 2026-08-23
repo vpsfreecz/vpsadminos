@@ -603,11 +603,7 @@ import ../../make-test.nix (
           expect(host_veth).not_to be_empty
 
           machine.succeeds("ip link del #{Shellwords.escape(host_veth)}")
-          machine.succeeds('sv -w 60 restart osctld')
-          machine.succeeds(
-            'osctl daemon wait-ready --timeout 180',
-            timeout: 240
-          )
+          restart_osctld
           wait_ct_running(ctid)
 
           after = machine.osctl_json("ct show #{ctid}")
@@ -663,10 +659,9 @@ import ../../make-test.nix (
             *socket_paths.values.map do |path|
               "test -S #{Shellwords.escape(path)} && " \
                 "rm -f #{Shellwords.escape(path)}"
-            end,
-            'sv -w 60 restart osctld',
-            'osctl daemon wait-ready --timeout 180'
+            end
           )
+          restart_osctld
 
           expect(machine.osctl_json('daemon status').fetch('phase')).to eq('ready')
           [first_ctid, second_ctid].each do |ctid|
@@ -729,10 +724,9 @@ import ../../make-test.nix (
             "tc qdisc del root dev #{routed_veth}",
             "tc qdisc del dev #{routed_veth} ingress",
             "ip link del ifb#{routed_veth}",
-            "ip link set #{bridge_veth} nomaster",
-            'sv -w 60 restart osctld',
-            'osctl daemon wait-ready --timeout 180'
+            "ip link set #{bridge_veth} nomaster"
           )
+          restart_osctld
 
           machine.all_succeed(
             "ip -4 route show 192.0.2.100/32 dev #{routed_veth} | " \
