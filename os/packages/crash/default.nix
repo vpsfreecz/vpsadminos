@@ -37,6 +37,7 @@ stdenv.mkDerivation rec {
   ];
 
   patches = [
+    ./input-file-pipe-wait.patch
     ./ps-active-filter.patch
     ./ps-last-run-cache.patch
   ];

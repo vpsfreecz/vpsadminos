@@ -22,6 +22,7 @@ let
 
   makedumpfile = pkgs.callPackage (import ../../packages/makedumpfile/default.nix) { };
   crash = pkgs.callPackage ../../packages/crash/default.nix { };
+  crashBuffer = pkgs.callPackage ../../packages/crash-buffer/default.nix { };
 
   kernelParams = concatStringsSep " " cfg.kernelParams;
 
@@ -177,12 +178,14 @@ in
 
           ${optionalString cfg.inspect.enable ''
             copy_bin_and_libs ${crash}/bin/crash
+            copy_bin_and_libs ${crashBuffer}/bin/crash-buffer
 
             cat <<'EOF_CRASH_VMCORE' > $out/bin/crash-vmcore
             #!/bin/sh
             set -eu
 
             vmlinux=''${CRASH_VMLINUX:-/.crash/vmlinux.gz}
+            crash_binary=''${CRASH_BINARY:-crash}
             export TERMINFO=''${TERMINFO:-/share/terminfo}
             export TERM=''${TERM:-linux}
 
@@ -198,7 +201,7 @@ in
 
             mkdir -p /tmp /var/tmp
 
-            exec crash --no_scroll -f "$@" "$vmlinux" /proc/vmcore
+            exec "$crash_binary" --no_scroll -f "$@" "$vmlinux" /proc/vmcore
             EOF_CRASH_VMCORE
             chmod +x $out/bin/crash-vmcore
 
@@ -217,16 +220,35 @@ in
 
             outdir=''${1:-/tmp/crash-inspect}
             tmpdir=$(mktemp -d /tmp/crash-collect.XXXXXX)
+            collector_start_ms=$(awk '{printf "%.0f\n", $1 * 1000}' /proc/uptime)
             status=0
             trap 'rm -rf "$tmpdir"' EXIT
 
             mkdir -p "$outdir"
             : > "$outdir/status"
+            : > "$tmpdir/timings.raw"
+
+            for report in \
+              sys.txt \
+              log.txt \
+              ps.txt \
+              ps-summary.txt \
+              ps-last-run.txt \
+              ps-active.txt \
+              bt-panic.txt \
+              bt-active.txt \
+              bt-active-nonidle.txt \
+              bt-sleeping-interruptible.txt \
+              bt-sleeping-uninterruptible.txt ; do
+              : > "$outdir/$report"
+            done
 
             cat > "$outdir/README" <<'EOF_COLLECT_README'
             Files written by crash-collect:
               manifest                        basic metadata about the collected vmcore
-              status                          exit status of each crash command
+              status                          completion status of each logical report
+              timings                         elapsed milliseconds by report and phase
+              session.txt                     crash startup and session diagnostics
               sys.txt                         sys, sys -t, kmem -i
               log.txt                         log -m
               ps.txt                          ps
@@ -238,86 +260,107 @@ in
               bt-active-nonidle.txt           bt -a -n idle
               bt-sleeping-interruptible.txt   foreach IN bt
               bt-sleeping-uninterruptible.txt foreach UN bt
+
+            Report payloads are streamed directly to their destination through one
+            bounded 256 KiB writer. Only command, timing and completion marker files
+            are held in /tmp. Timings exclude the caller's final filesystem sync.
             EOF_COLLECT_README
 
             cat > "$outdir/manifest" <<EOF_COLLECT_MANIFEST
+            collector_version=2
+            crash_sessions=1
+            crash_options=--no_kmem_cache
+            output_buffer_bytes=262144
+            report_storage=direct
             vmlinux=''${CRASH_VMLINUX:-/.crash/vmlinux.gz}
             vmcore=/proc/vmcore
             crash_binary=$(readlink -f "$(command -v crash)")
+            session_log=session.txt
+            timings=timings
             EOF_COLLECT_MANIFEST
 
-            run_crash() {
-              local name rc cmdfile
+            report_status() {
+              local name rc marker
               name="$1"
-              cmdfile="$tmpdir/$1.cmd"
-              cat > "$cmdfile"
-              echo "crash-collect: $name"
-              if crash-vmcore -i "$cmdfile" > "$outdir/$name" 2>&1 ; then
-                rc=0
-              else
-                rc=$?
+              shift
+              rc=0
+
+              for marker in "$@" ; do
+                if [ ! -f "$tmpdir/$marker.complete" ] ; then
+                  rc=1
+                  break
+                fi
+              done
+
+              if [ "$rc" != 0 ] ; then
                 status=1
               fi
+
               echo "$name $rc" >> "$outdir/status"
-              return 0
             }
 
-            run_crash sys.txt <<'EOF_CRASH_SYS'
-            sys
-            sys -t
-            kmem -i
-            quit
-            EOF_CRASH_SYS
+            export CRASH_COLLECT_OUTDIR="$outdir"
+            export CRASH_COLLECT_TMPDIR="$tmpdir"
+            export CRASH_COLLECT_TIMINGS="$tmpdir/timings.raw"
 
-            run_crash log.txt <<'EOF_CRASH_LOG'
-            log -m
+            cat > "$tmpdir/session.cmd" <<'EOF_CRASH_SESSION'
+            sys | crash-buffer --since "$CRASH_COLLECT_SESSION_START_MS" --timing sys.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/sys-1.complete" "$CRASH_COLLECT_OUTDIR/sys.txt"
+            sys -t | crash-buffer --append --timing sys.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/sys-2.complete" "$CRASH_COLLECT_OUTDIR/sys.txt"
+            kmem -i | crash-buffer --append --timing sys.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/sys-3.complete" "$CRASH_COLLECT_OUTDIR/sys.txt"
+            log -m | crash-buffer --timing log.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/log.complete" "$CRASH_COLLECT_OUTDIR/log.txt"
+            bt -p | crash-buffer --timing bt-panic.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/bt-panic.complete" "$CRASH_COLLECT_OUTDIR/bt-panic.txt"
+            bt -a | crash-buffer --timing bt-active.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/bt-active.complete" "$CRASH_COLLECT_OUTDIR/bt-active.txt"
+            bt -a -n idle | crash-buffer --timing bt-active-nonidle.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/bt-active-nonidle.complete" "$CRASH_COLLECT_OUTDIR/bt-active-nonidle.txt"
+            foreach UN bt | crash-buffer --timing bt-sleeping-uninterruptible.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/bt-uninterruptible.complete" "$CRASH_COLLECT_OUTDIR/bt-sleeping-uninterruptible.txt"
+            ps -S | crash-buffer --timing ps-summary.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/ps-summary.complete" "$CRASH_COLLECT_OUTDIR/ps-summary.txt"
+            ps -A | crash-buffer --timing ps-active.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/ps-active.complete" "$CRASH_COLLECT_OUTDIR/ps-active.txt"
+            ps | crash-buffer --timing ps.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/ps.complete" "$CRASH_COLLECT_OUTDIR/ps.txt"
+            foreach IN bt | crash-buffer --timing bt-sleeping-interruptible.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/bt-interruptible.complete" "$CRASH_COLLECT_OUTDIR/bt-sleeping-interruptible.txt"
+            ps -m | crash-buffer --timing ps-last-run.txt "$CRASH_COLLECT_TIMINGS" --complete "$CRASH_COLLECT_TMPDIR/ps-last-run.complete" "$CRASH_COLLECT_OUTDIR/ps-last-run.txt"
             quit
-            EOF_CRASH_LOG
+            EOF_CRASH_SESSION
 
-            run_crash ps.txt <<'EOF_CRASH_PS'
-            ps
-            quit
-            EOF_CRASH_PS
+            session_start_ms=$(awk '{printf "%.0f\n", $1 * 1000}' /proc/uptime)
+            export CRASH_COLLECT_SESSION_START_MS="$session_start_ms"
 
-            run_crash ps-summary.txt <<'EOF_CRASH_PS_SUMMARY'
-            ps -S
-            quit
-            EOF_CRASH_PS_SUMMARY
+            echo "crash-collect: starting crash session"
+            if crash-vmcore --no_kmem_cache -i "$tmpdir/session.cmd" \
+              > "$outdir/session.txt" 2>&1 ; then
+              crash_rc=0
+            else
+              crash_rc=$?
+              status=1
+            fi
 
-            run_crash ps-last-run.txt <<'EOF_CRASH_PS_LAST_RUN'
-            ps -m
-            quit
-            EOF_CRASH_PS_LAST_RUN
+            session_end_ms=$(awk '{printf "%.0f\n", $1 * 1000}' /proc/uptime)
+            echo "session $((session_end_ms - session_start_ms))" \
+              >> "$tmpdir/timings.raw"
+            echo "crash_exit_status=$crash_rc" >> "$outdir/manifest"
 
-            run_crash ps-active.txt <<'EOF_CRASH_PS_ACTIVE'
-            ps -A
-            quit
-            EOF_CRASH_PS_ACTIVE
+            report_status sys.txt sys-1 sys-2 sys-3
+            report_status log.txt log
+            report_status ps.txt ps
+            report_status ps-summary.txt ps-summary
+            report_status ps-last-run.txt ps-last-run
+            report_status ps-active.txt ps-active
+            report_status bt-panic.txt bt-panic
+            report_status bt-active.txt bt-active
+            report_status bt-active-nonidle.txt bt-active-nonidle
+            report_status bt-sleeping-interruptible.txt bt-interruptible
+            report_status bt-sleeping-uninterruptible.txt bt-uninterruptible
 
-            run_crash bt-panic.txt <<'EOF_CRASH_BT_PANIC'
-            bt -p
-            quit
-            EOF_CRASH_BT_PANIC
+            awk '
+              !seen[$1]++ { order[++count] = $1 }
+              { elapsed[$1] += $2 }
+              END {
+                for (i = 1; i <= count; i++)
+                  print order[i], elapsed[order[i]]
+              }
+            ' "$tmpdir/timings.raw" > "$outdir/timings"
 
-            run_crash bt-active.txt <<'EOF_CRASH_BT_ACTIVE'
-            bt -a
-            quit
-            EOF_CRASH_BT_ACTIVE
-
-            run_crash bt-active-nonidle.txt <<'EOF_CRASH_BT_ACTIVE_NONIDLE'
-            bt -a -n idle
-            quit
-            EOF_CRASH_BT_ACTIVE_NONIDLE
-
-            run_crash bt-sleeping-interruptible.txt <<'EOF_CRASH_BT_SLEEPING_INTERRUPTIBLE'
-            foreach IN bt
-            quit
-            EOF_CRASH_BT_SLEEPING_INTERRUPTIBLE
-
-            run_crash bt-sleeping-uninterruptible.txt <<'EOF_CRASH_BT_SLEEPING_UNINTERRUPTIBLE'
-            foreach UN bt
-            quit
-            EOF_CRASH_BT_SLEEPING_UNINTERRUPTIBLE
+            collector_end_ms=$(awk '{printf "%.0f\n", $1 * 1000}' /proc/uptime)
+            echo "collector $((collector_end_ms - collector_start_ms))" \
+              >> "$outdir/timings"
 
             exit $status
             EOF_CRASH_COLLECT

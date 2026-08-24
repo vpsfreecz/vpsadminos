@@ -1,0 +1,112 @@
+#!/bin/sh
+set -u
+
+outdir=${1:-/tmp/crash-inspect}
+tmpdir=$(mktemp -d /tmp/crash-collect.XXXXXX)
+status=0
+trap 'rm -rf "$tmpdir"' EXIT
+
+mkdir -p "$outdir"
+: > "$outdir/status"
+
+cat > "$outdir/README" <<'EOF_COLLECT_README'
+Files written by crash-collect:
+  manifest                        basic metadata about the collected vmcore
+  status                          exit status of each crash command
+  sys.txt                         sys, sys -t, kmem -i
+  log.txt                         log -m
+  ps.txt                          ps
+  ps-summary.txt                  ps -S
+  ps-last-run.txt                 ps -m
+  ps-active.txt                   ps -A
+  bt-panic.txt                    bt -p
+  bt-active.txt                   bt -a
+  bt-active-nonidle.txt           bt -a -n idle
+  bt-sleeping-interruptible.txt   foreach IN bt
+  bt-sleeping-uninterruptible.txt foreach UN bt
+EOF_COLLECT_README
+
+cat > "$outdir/manifest" <<EOF_COLLECT_MANIFEST
+collector_version=1
+crash_sessions=11
+vmlinux=${CRASH_VMLINUX:-/.crash/vmlinux.gz}
+vmcore=/proc/vmcore
+crash_binary=$(readlink -f "$(command -v crash-legacy)")
+EOF_COLLECT_MANIFEST
+
+export CRASH_BINARY=crash-legacy
+
+run_crash() {
+  local name rc cmdfile
+  name="$1"
+  cmdfile="$tmpdir/$1.cmd"
+  cat > "$cmdfile"
+  echo "crash-collect: $name"
+  if crash-vmcore -i "$cmdfile" > "$outdir/$name" 2>&1; then
+    rc=0
+  else
+    rc=$?
+    status=1
+  fi
+  echo "$name $rc" >> "$outdir/status"
+  return 0
+}
+
+run_crash sys.txt <<'EOF_CRASH_SYS'
+sys
+sys -t
+kmem -i
+quit
+EOF_CRASH_SYS
+
+run_crash log.txt <<'EOF_CRASH_LOG'
+log -m
+quit
+EOF_CRASH_LOG
+
+run_crash ps.txt <<'EOF_CRASH_PS'
+ps
+quit
+EOF_CRASH_PS
+
+run_crash ps-summary.txt <<'EOF_CRASH_PS_SUMMARY'
+ps -S
+quit
+EOF_CRASH_PS_SUMMARY
+
+run_crash ps-last-run.txt <<'EOF_CRASH_PS_LAST_RUN'
+ps -m
+quit
+EOF_CRASH_PS_LAST_RUN
+
+run_crash ps-active.txt <<'EOF_CRASH_PS_ACTIVE'
+ps -A
+quit
+EOF_CRASH_PS_ACTIVE
+
+run_crash bt-panic.txt <<'EOF_CRASH_BT_PANIC'
+bt -p
+quit
+EOF_CRASH_BT_PANIC
+
+run_crash bt-active.txt <<'EOF_CRASH_BT_ACTIVE'
+bt -a
+quit
+EOF_CRASH_BT_ACTIVE
+
+run_crash bt-active-nonidle.txt <<'EOF_CRASH_BT_ACTIVE_NONIDLE'
+bt -a -n idle
+quit
+EOF_CRASH_BT_ACTIVE_NONIDLE
+
+run_crash bt-sleeping-interruptible.txt <<'EOF_CRASH_BT_SLEEPING_INTERRUPTIBLE'
+foreach IN bt
+quit
+EOF_CRASH_BT_SLEEPING_INTERRUPTIBLE
+
+run_crash bt-sleeping-uninterruptible.txt <<'EOF_CRASH_BT_SLEEPING_UNINTERRUPTIBLE'
+foreach UN bt
+quit
+EOF_CRASH_BT_SLEEPING_UNINTERRUPTIBLE
+
+exit "$status"

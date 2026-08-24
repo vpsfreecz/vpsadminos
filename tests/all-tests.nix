@@ -86,8 +86,38 @@ let
         "cgroups/system-v1"
         "cgroups/system-v2"
         "crashdump/default"
+        "crashdump/equivalence"
         "crashdump/inspect"
         "crashdump/nfs-inspect"
+        {
+          template = "crashdump/benchmark";
+          instances = [
+            {
+              collector = "legacy";
+              run = 1;
+            }
+            {
+              collector = "legacy";
+              run = 2;
+            }
+            {
+              collector = "legacy";
+              run = 3;
+            }
+            {
+              collector = "optimized";
+              run = 1;
+            }
+            {
+              collector = "optimized";
+              run = 2;
+            }
+            {
+              collector = "optimized";
+              run = 3;
+            }
+          ];
+        }
         "ctstartmenu/setup"
         "declarative-containers"
         "defaults"

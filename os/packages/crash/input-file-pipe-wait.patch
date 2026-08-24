@@ -1,0 +1,36 @@
+diff --git a/cmdline.c b/cmdline.c
+--- a/cmdline.c
++++ b/cmdline.c
+@@ -1257 +1257 @@ restore_ifile_sanity(void)
+-        int fd;
++        int fd, waitstatus;
+@@ -1261,4 +1261,25 @@ restore_ifile_sanity(void)
+-        if (pc->ifile_pipe) {
+-		close(fileno(pc->ifile_pipe));
+-                pc->ifile_pipe = NULL;
+-        }
++        if (pc->ifile_pipe) {
++		fflush(pc->ifile_pipe);
++		close(fileno(pc->ifile_pipe));
++                pc->ifile_pipe = NULL;
++		if (pc->pipe_pid &&
++		    ((pc->redirect & (PIPE_OPTIONS|REDIRECT_PID_KNOWN)) ==
++		    (FROM_INPUT_FILE|REDIRECT_TO_PIPE|REDIRECT_PID_KNOWN))) {
++			console("wait for redirect %d->%d to finish...\n",
++				pc->pipe_shell_pid, pc->pipe_pid);
++			while (PID_ALIVE(pc->pipe_pid)) {
++				waitpid(pc->pipe_pid, &waitstatus, WNOHANG);
++				stall(1000);
++			}
++			if (pc->pipe_shell_pid)
++				while (PID_ALIVE(pc->pipe_shell_pid)) {
++					waitpid(pc->pipe_shell_pid,
++						&waitstatus, WNOHANG);
++					stall(1000);
++				}
++			if (pc->redirect & REDIRECT_MULTI_PIPE)
++				wait_for_children(ALL_CHILDREN);
++		}
++		pc->pipe_pid = 0;
++		pc->pipe_shell_pid = 0;
++        }

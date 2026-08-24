@@ -1,5 +1,8 @@
 import ../../make-test.nix (
   { pkgs }:
+  let
+    processFarm = import ./process-farm.nix { inherit pkgs; };
+  in
   {
     name = "crashdump-inspect";
 
@@ -16,6 +19,8 @@ import ../../make-test.nix (
       config =
         { config, ... }:
         {
+          environment.systemPackages = [ processFarm ];
+
           boot.crashDump = {
             enable = true;
             inspect.enable = true;
@@ -32,6 +37,65 @@ import ../../make-test.nix (
               crash-collect inspect
               rc=$?
               echo "crash-collect exited with $rc"
+              [ "$rc" = 0 ] || fail "crash-collect failed"
+
+              expected_reports=11
+              completed_reports=$(awk '$2 == 0 { count++ } END { print count + 0 }' inspect/status)
+              [ "$completed_reports" = "$expected_reports" ] \
+                || fail "Expected $expected_reports complete reports, got $completed_reports"
+
+              crash_load_bt=$(grep -c 'crash-load' inspect/bt-sleeping-interruptible.txt)
+              crash_load_ps=$(grep -c 'crash-load' inspect/ps-last-run.txt)
+              echo "crash-load interruptible backtraces: $crash_load_bt"
+              echo "crash-load last-run rows: $crash_load_ps"
+              [ "$crash_load_bt" -ge 512 ] \
+                || fail "Expected at least 512 crash-load backtraces"
+              [ "$crash_load_ps" -ge 512 ] \
+                || fail "Expected at least 512 crash-load ps -m rows"
+              ! grep -q 'crash-load' inspect/ps-active.txt \
+                || fail "ps -A contains sleeping crash-load processes"
+
+              [ "$(grep -c '^crash 9\.0\.1' inspect/session.txt)" = 1 ] \
+                || fail "Expected one crash initialization"
+              ! grep -l '^crash 9\.0\.1' inspect/*.txt \
+                | grep -v '/session.txt$' \
+                || fail "Report contains a repeated crash initialization"
+
+              for timing in \
+                initialization session collector sys.txt log.txt ps.txt \
+                ps-summary.txt ps-last-run.txt ps-active.txt bt-panic.txt \
+                bt-active.txt bt-active-nonidle.txt \
+                bt-sleeping-interruptible.txt \
+                bt-sleeping-uninterruptible.txt ; do
+                grep -Eq "^$timing [0-9]+$" inspect/timings \
+                  || fail "Missing timing for $timing"
+              done
+
+              for report in \
+                sys.txt log.txt ps.txt ps-summary.txt ps-last-run.txt \
+                ps-active.txt bt-panic.txt bt-active.txt \
+                bt-active-nonidle.txt bt-sleeping-interruptible.txt \
+                bt-sleeping-uninterruptible.txt ; do
+                printf 'stale report\n' > "inspect/$report"
+              done
+
+              if CRASH_VMLINUX=/missing crash-collect inspect ; then
+                fail "Retry with missing vmlinux unexpectedly succeeded"
+              fi
+
+              for report in \
+                sys.txt log.txt ps.txt ps-summary.txt ps-last-run.txt \
+                ps-active.txt bt-panic.txt bt-active.txt \
+                bt-active-nonidle.txt bt-sleeping-interruptible.txt \
+                bt-sleeping-uninterruptible.txt ; do
+                [ ! -s "inspect/$report" ] \
+                  || fail "Retry left stale report data in $report"
+              done
+
+              failed_reports=$(awk '$2 != 0 { count++ } END { print count + 0 }' inspect/status)
+              [ "$failed_reports" = "$expected_reports" ] \
+                || fail "Retry did not mark every report failed"
+              echo "Failed retry cleared all stale reports"
 
               echo "Inspection output"
               find inspect -maxdepth 1 -type f | sort
@@ -39,6 +103,8 @@ import ../../make-test.nix (
                 inspect/README \
                 inspect/manifest \
                 inspect/status \
+                inspect/timings \
+                inspect/session.txt \
                 inspect/ps-active.txt \
                 inspect/bt-active.txt \
                 inspect/bt-sleeping-interruptible.txt \
@@ -102,6 +168,20 @@ import ../../make-test.nix (
 
           sleep(5)
 
+          machine.succeeds(
+            'rm -f /run/crash-process-farm.ready /run/crash-process-farm.log; ' \
+            'crash-process-farm 512 /run/crash-process-farm.ready ' \
+            '> /run/crash-process-farm.log 2>&1 &'
+          )
+          machine.wait_until_succeeds(
+            "test \"$(cat /run/crash-process-farm.ready)\" = 512",
+            timeout: 120
+          )
+          _, process_count = machine.succeeds(
+            'pgrep -xc crash-load'
+          )
+          expect(process_count.to_i).to be >= 512
+
           machine.wait_for_service('crashdump')
         end
 
@@ -120,6 +200,7 @@ import ../../make-test.nix (
           expect(base_listing).to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash(\n|$)})
           expect(base_listing).to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash-vmcore(\n|$)})
           expect(base_listing).to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash-collect(\n|$)})
+          expect(base_listing).to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash-buffer(\n|$)})
           expect(base_listing).not_to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash-report(\n|$)})
           expect(base_listing).not_to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash-continue(\n|$)})
           expect(base_listing).to match(%r{(^|\n)nix/store/.+-extra-utils/share/terminfo/l/linux(\n|$)})
@@ -170,6 +251,8 @@ import ../../make-test.nix (
             machine.wait_for_console_text(/This is a crash kernel/, timeout:)
             machine.wait_for_console_text(/Running crash-collect/, timeout:)
             machine.wait_for_console_text(/crash-collect exited with 0/, timeout:)
+            machine.wait_for_console_text(/crash-load interruptible backtraces: 5[1-9][0-9]/, timeout:)
+            machine.wait_for_console_text(/Failed retry cleared all stale reports/, timeout:)
             machine.wait_for_console_text(/inspect\/README/, timeout:)
             machine.wait_for_console_text(/inspect\/ps-active.txt/, timeout:)
             machine.wait_for_console_text(/inspect\/bt-active.txt/, timeout:)

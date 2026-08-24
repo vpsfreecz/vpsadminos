@@ -204,6 +204,8 @@ import ../../make-test.nix (
           test -f "$target/inspect.exit-status"
           test -f "$target/inspect/status"
           test -f "$target/inspect/manifest"
+          test -f "$target/inspect/timings"
+          test -f "$target/inspect/session.txt"
           test -f "$target/inspect/ps-active.txt"
           test -f "$target/inspect/bt-active.txt"
         CMD
@@ -278,8 +280,26 @@ import ../../make-test.nix (
 
             server.succeeds("grep -F #{Shellwords.escape(message)} #{Shellwords.escape(target)}/dmesg")
             server.succeeds("grep -F 'vmcore=/proc/vmcore' #{Shellwords.escape(target)}/inspect/manifest")
+            server.succeeds("grep -F 'collector_version=2' #{Shellwords.escape(target)}/inspect/manifest")
+            server.succeeds("grep -F 'crash_sessions=1' #{Shellwords.escape(target)}/inspect/manifest")
+            server.succeeds("grep -F 'report_storage=direct' #{Shellwords.escape(target)}/inspect/manifest")
             server.succeeds("grep -F 'ps-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
             server.succeeds("grep -F 'bt-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
+            server.succeeds(
+              "test \"$(awk '$2 == 0 { count++ } END { print count + 0 }' " \
+              "#{Shellwords.escape(target)}/inspect/status)\" = 11"
+            )
+            server.succeeds(
+              "grep -Eq '^collector [0-9]+$' #{Shellwords.escape(target)}/inspect/timings"
+            )
+            server.succeeds(
+              "test \"$(grep -c '^crash 9\\.0\\.1' " \
+              "#{Shellwords.escape(target)}/inspect/session.txt)\" = 1"
+            )
+
+            crasher.wait_for_console_text(/Syncing filesystems/, timeout: 120)
+            crasher.wait_for_console_text(/Rebooting/, timeout: 120)
+            crasher.wait_for_shutdown(timeout: 120)
           end
         end
       end
