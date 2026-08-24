@@ -1,0 +1,10 @@
+diff --git a/task.c b/task.c
+--- a/task.c
++++ b/task.c
+@@ -3838,2 +3837,0 @@ show_ps_data(ulong flag, struct task_context *tc, struct psinfo *psi)
+-	tm = &task_mem_usage;
+-	get_task_mem_usage(tc->task, tm);
+@@ -3844,0 +3843,3 @@ show_ps_data(ulong flag, struct task_context *tc, struct psinfo *psi)
++
++	tm = &task_mem_usage;
++	get_task_mem_usage(tc->task, tm);

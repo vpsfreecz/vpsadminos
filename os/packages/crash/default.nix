@@ -36,6 +36,11 @@ stdenv.mkDerivation rec {
     texinfo
   ];
 
+  patches = [
+    ./ps-active-filter.patch
+    ./ps-last-run-cache.patch
+  ];
+
   buildInputs = [
     ncurses
     zlib

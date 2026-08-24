@@ -1,0 +1,28 @@
+diff --git a/defs.h b/defs.h
+--- a/defs.h
++++ b/defs.h
+@@ -841,0 +842 @@ struct task_context {                     /* context stored for each task */
++	ulonglong last_run;
+diff --git a/task.c b/task.c
+--- a/task.c
++++ b/task.c
+@@ -3090 +3089,0 @@ sort_by_last_run(const void *arg1, const void *arg2)
+-	ulong task_last_run_stamp(ulong);
+@@ -3092 +3090,0 @@ sort_by_last_run(const void *arg1, const void *arg2)
+-	ulonglong lr1, lr2;
+@@ -3097,2 +3094,0 @@ sort_by_last_run(const void *arg1, const void *arg2)
+-	lr1 = task_last_run(t1->task);
+-	lr2 = task_last_run(t2->task);
+@@ -3100,2 +3096,2 @@ sort_by_last_run(const void *arg1, const void *arg2)
+-        return (lr2 < lr1 ? -1 :
+-        	lr2 == lr1 ? 0 : 1);
++        return (t2->last_run < t1->last_run ? -1 :
++        	t2->last_run == t1->last_run ? 0 : 1);
+@@ -3106,0 +3103,2 @@ sort_context_array_by_last_run(void)
++	int i;
++	struct task_context *tc;
+@@ -3109,0 +3109,4 @@ sort_context_array_by_last_run(void)
++	tc = FIRST_CONTEXT();
++	for (i = 0; i < RUNNING_TASKS(); i++, tc++)
++		tc->last_run = task_last_run(tc->task);
++
