@@ -32,7 +32,7 @@ import ../../make-test.nix (
         machine.succeeds("osctl ct exec #{exec_opts} #{ctid} sh -c \"grep -q '^root:[^!*]' /etc/shadow\"")
       end
 
-      _, output = machine.succeeds("osctl ct show -H -o state startedct")
+      _, output = machine.succeeds("osctl ct show -H -o runtime_state startedct")
 
       if output.strip != "running"
         fail "startedct is in an unexpected state: #{output.inspect}"
@@ -44,7 +44,7 @@ import ../../make-test.nix (
         "",
       )
 
-      _, output = machine.succeeds("osctl ct show -H -o state stoppedct")
+      _, output = machine.succeeds("osctl ct show -H -o runtime_state stoppedct")
 
       if output.strip != "stopped"
         fail "stoppedct is in an unexpected state: #{output.inspect}"

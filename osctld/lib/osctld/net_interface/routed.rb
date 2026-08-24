@@ -142,7 +142,7 @@ module OsCtld
       r = @routes.add(route) if route && !@routes.contains?(route)
 
       ct.inclusively do
-        next if ct.state != :running
+        next if ct.runtime_state != :running
 
         # Add host route
         ip(v, %i[route add] + owned_route_spec(r)) if r && enable
@@ -192,7 +192,7 @@ module OsCtld
       end
 
       ct.inclusively do
-        next if ct.state != :running
+        next if ct.runtime_state != :running
 
         # Remove host route
         if enable
@@ -228,7 +228,7 @@ module OsCtld
       return unless enable
 
       ct.inclusively do
-        next if ct.state != :running
+        next if ct.runtime_state != :running
 
         ip(route.ip_version, %i[route add] + owned_route_spec(route))
       end
@@ -239,7 +239,7 @@ module OsCtld
       return if !route || !enable
 
       ct.inclusively do
-        next if ct.state != :running
+        next if ct.runtime_state != :running
 
         ip(route.ip_version, %i[route del] + owned_route_spec(route))
       end
@@ -251,7 +251,7 @@ module OsCtld
       return unless enable
 
       ct.inclusively do
-        next if ct.state != :running
+        next if ct.runtime_state != :running
 
         removed.each do |route|
           ip(route.ip_version, %i[route del] + owned_route_spec(route))

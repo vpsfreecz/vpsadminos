@@ -19,6 +19,7 @@ module OsCtld
       root_mnt = nil
 
       manipulate(ct) do
+        ensure_config_ready!(ct)
         error!('container is running') if ct.running? && !opts[:force]
 
         # Check rootfs mount

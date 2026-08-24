@@ -44,7 +44,7 @@ module OsCtld
       begin
         supersede_stale_effect(run_id)
         run = ct.lifecycle.run(run_id)
-        original_state = ct.state
+        original_runtime_state = ct.runtime_state
         state_result = ContainerControl::Commands::State.run!(ct)
         current_state = state_result.state
         init_pid = state_result.init_pid
@@ -52,7 +52,7 @@ module OsCtld
 
         unless ct.lifecycle.commit_reconciliation(run_id, reconciliation_id)
           return {
-            state: current_state,
+            runtime_state: current_state,
             run_id: run_id.to_s,
             lifecycle_revision: ct.lifecycle.revision,
             yielded_to_callback: true
@@ -60,7 +60,7 @@ module OsCtld
         end
 
         if execution_run
-          ct.state = :stopped unless original_state == :error
+          ct.set_runtime_state(:stopped)
           logical_observed = false
         else
           logical_observed =
@@ -94,32 +94,37 @@ module OsCtld
             init_pid
           )
         elsif !execution_run \
-            && original_state != current_state \
-            && ct.state == current_state
+            && original_runtime_state != current_state \
+            && ct.runtime_state == current_state
           Eventd.report(
-            :state,
+            :runtime_state,
             pool: ct.pool.name,
             id: ct.id,
-            state: current_state
+            runtime_state: current_state,
+            runtime_state_error: nil
           )
         end
 
         Eventd.report(
-          :state_recovery,
+          :runtime_state_recovery,
           pool: ct.pool.name,
           id: ct.id,
           run_id: run_id.to_s,
-          state: ct.state
+          runtime_state: ct.runtime_state,
+          runtime_state_error: ct.runtime_state_error
         )
 
         result = {
-          state: ct.state,
+          runtime_state: ct.runtime_state,
           run_id: run_id.to_s,
           lifecycle_revision: ct.lifecycle.revision
         }
-      rescue ContainerControl::Error
+      rescue ContainerControl::Error => e
         if ct.lifecycle.commit_reconciliation(run_id, reconciliation_id)
-          ct.state = :error
+          ct.set_runtime_state_unknown(
+            source: :lxc_state_observation,
+            message: e.message
+          )
         end
         raise
       ensure
@@ -215,8 +220,8 @@ module OsCtld
       evidence = {
         'observed_at' => Time.now.to_f,
         'requested' => requested,
-        'lxc_state' => ct.state.to_s,
-        'lxc_state_source' => 'osctld-cache'
+        'runtime_state' => ct.runtime_state.to_s,
+        'runtime_state_source' => 'osctld-cache'
       }
 
       if recovery_lease.busy
@@ -244,7 +249,7 @@ module OsCtld
         release_effect(superseded_effect)
       end
 
-      if run['role'] != 'residual' && ct.state != :stopped && !force
+      if run['role'] != 'residual' && ct.runtime_state != :stopped && !force
         hazards << 'LXC is not stopped'
         ct.lifecycle.record_partial_recovery(
           run_id,
@@ -480,7 +485,6 @@ module OsCtld
       !%i[blocked ambiguous].include?(ret[:outcome])
     rescue StandardError => e
       log(:warn, "Failed to recover container: #{e.class}: #{e.message}")
-      ct.state = :error
       false
     end
 
@@ -659,12 +663,12 @@ module OsCtld
       evidence = {
         'observed_at' => Time.now.to_f,
         'requested' => requested,
-        'lxc_state' => ct.state.to_s,
-        'lxc_state_source' => 'osctld-cache',
+        'runtime_state' => ct.runtime_state.to_s,
+        'runtime_state_source' => 'osctld-cache',
         'lifecycle_target' => 'none'
       }
 
-      if ct.state != :stopped && !force
+      if ct.runtime_state != :stopped && !force
         hazards << 'LXC is not stopped'
         return result(
           :blocked,
@@ -800,8 +804,20 @@ module OsCtld
 
         ct.stopped(run_id)
         unless execution_run
-          Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: :aborting)
-          Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: :stopped)
+          Eventd.report(
+            :runtime_state,
+            pool: ct.pool.name,
+            id: ct.id,
+            runtime_state: :aborting,
+            runtime_state_error: nil
+          )
+          Eventd.report(
+            :runtime_state,
+            pool: ct.pool.name,
+            id: ct.id,
+            runtime_state: :stopped,
+            runtime_state_error: nil
+          )
         end
       end
 
@@ -827,10 +843,11 @@ module OsCtld
 
     def publish_state_effects(run_id, owner_id, state, init_pid)
       Eventd.report(
-        :state,
+        :runtime_state,
         pool: ct.pool.name,
         id: ct.id,
-        state:
+        runtime_state: state,
+        runtime_state_error: nil
       )
       return unless state.to_sym == :running
 

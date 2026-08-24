@@ -32,24 +32,37 @@ module OsCtld
   # === `:osctld_shutdown`
   # Sent when osctld is shutting down.
   #
-  # === `:state`
-  # Used to report changes of container states.
+  # === `:config_state`
+  # Used to report changes of container configuration states.
   # Options:
   #
   #     {
   #       pool: pool name,
   #       id: container id,
-  #       state: new state
+  #       config_state: new configuration state,
+  #       config_state_error: structured error or nil
   #     }
   #
-  # === `:state_recovery`
-  # Used to report container state when the administrator recovered it.
+  # === `:runtime_state`
+  # Used to report changes of container runtime states.
   # Options:
   #
   #     {
   #       pool: pool name,
   #       id: container id,
-  #       state: new state
+  #       runtime_state: new runtime state,
+  #       runtime_state_error: structured error or nil
+  #     }
+  #
+  # === `:runtime_state_recovery`
+  # Used to report runtime state when the administrator recovered it.
+  # Options:
+  #
+  #     {
+  #       pool: pool name,
+  #       id: container id,
+  #       runtime_state: recovered runtime state,
+  #       runtime_state_error: structured error or nil
   #     }
   #
   # === `:db`

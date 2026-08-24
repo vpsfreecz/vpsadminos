@@ -63,26 +63,28 @@ module OsVm
       self
     end
 
-    # Wait for osctl container to exist and be in a given state
+    # Wait for osctl container to exist and be in a given runtime state
     # @param id [String]
-    # @param state [String]
+    # @param runtime_state [String]
     # @return [Machine]
-    def wait_for_osctl_container(id, state: 'running', timeout: @default_timeout)
+    def wait_for_osctl_container(id, runtime_state: 'running', timeout: @default_timeout)
       t1 = Time.now
       cur_timeout = timeout
 
       loop do
         status, output = wait_until_succeeds(
-          "osctl ct show -H -o state #{id}",
+          "osctl ct show -H -o runtime_state #{id}",
           timeout: cur_timeout
         )
 
-        return self if output.strip == state
+        return self if output.strip == runtime_state
 
         cur_timeout = timeout - (Time.now - t1)
 
         if cur_timeout <= 0
-          raise TimeoutError, "Timeout occurred while waiting for container #{id.inspect} to become #{state}"
+          raise TimeoutError,
+                "Timeout occurred while waiting for container #{id.inspect} " \
+                "to become #{runtime_state}"
         end
 
         sleep(1)

@@ -117,7 +117,7 @@ let
       done
 
       ### Containers
-      ${osctlPool} ct ls -H -o id,state,org.vpsadminos.osctl:declarative > "$entryList"
+      ${osctlPool} ct ls -H -o id,runtime_state,org.vpsadminos.osctl:declarative > "$entryList"
 
       if [ "$?" != "0" ] ; then
         echo "Unable to list containers"

@@ -11,7 +11,7 @@ module OsCtld
 
     def execute(ct)
       manipulate(ct) do
-        error!('the container has to be running') if ct.current_state != :running
+        error!('the container has to be running') if ct.current_runtime_state != :running
         ct.mounts.activate(opts[:mountpoint])
         ok
       end

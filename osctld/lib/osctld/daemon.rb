@@ -630,7 +630,10 @@ module OsCtld
         {
           pool: ct.pool.name,
           id: ct.id,
-          state: ct.state.to_s,
+          config_state: ct.config_state.to_s,
+          config_state_error: ct.config_state_error,
+          runtime_state: ct.runtime_state.to_s,
+          runtime_state_error: ct.runtime_state_error,
           desired_state: lifecycle.desired_state.to_s,
           intent_id: lifecycle.current_intent_id,
           active_run_id: lifecycle.active_run_id&.to_s,
@@ -643,7 +646,7 @@ module OsCtld
 
       state_sync do
         {
-          schema: 1,
+          schema: 2,
           legacy: false,
           started_at: started_at.to_i,
           initialized:,
@@ -994,7 +997,8 @@ module OsCtld
                             type: 'configured_container_unowned_processes',
                             pool: ct.pool.name,
                             id: ct.id,
-                            state: ct.state.to_s,
+                            config_state: ct.config_state.to_s,
+                            runtime_state: ct.runtime_state.to_s,
                             cgroup_path: ct.base_cgroup_path,
                             pids: unowned_processes.flat_map do |process|
                               process.fetch(:pids)
@@ -1005,7 +1009,7 @@ module OsCtld
           end
         end
 
-        unless %i[running frozen].include?(ct.state)
+        unless %i[running frozen].include?(ct.runtime_state)
           next
         end
 
@@ -1015,7 +1019,8 @@ module OsCtld
                           type: 'unowned_container_runtime',
                           pool: ct.pool.name,
                           id: ct.id,
-                          state: ct.state.to_s,
+                          config_state: ct.config_state.to_s,
+                          runtime_state: ct.runtime_state.to_s,
                           cgroup_path: ct.base_cgroup_path,
                           init_pid: ct.init_pid,
                           reason: 'live container has no lifecycle generation'
@@ -1033,7 +1038,8 @@ module OsCtld
                         type: 'unowned_container_runtime',
                         pool: ct.pool.name,
                         id: ct.id,
-                        state: ct.state.to_s,
+                        config_state: ct.config_state.to_s,
+                        runtime_state: ct.runtime_state.to_s,
                         cgroup_path: ct.base_cgroup_path,
                         init_pid: ct.init_pid,
                         reason: 'adopted legacy manager identity is not alive'
@@ -1085,7 +1091,7 @@ module OsCtld
       return false unless run['role'] == 'active'
       return false unless %w[launching starting running].include?(run['phase'])
 
-      %i[running frozen].include?(ct.state) \
+      %i[running frozen].include?(ct.runtime_state) \
         || (
           run.fetch('kind', 'container') == 'execution' \
           && generation_manager_identities(run).any? do |identity|
@@ -1141,7 +1147,7 @@ module OsCtld
           ct,
           {
             type: 'unowned_container_cgroup_processes',
-            phase: ct.state.to_s,
+            phase: ct.runtime_state.to_s,
             processes:
           }
         ]

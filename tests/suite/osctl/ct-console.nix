@@ -205,12 +205,12 @@ import ../../make-test.nix (
       end
 
       def self.ct_state(ctid)
-        output_of("osctl ct show -H -o state #{ctid}")
+        output_of("osctl ct show -H -o runtime_state #{ctid}")
       end
 
       def self.wait_ct_state(ctid, state, timeout: 60)
         machine.wait_until_succeeds(
-          "test \"$(osctl ct show -H -o state #{ctid})\" = #{state}",
+          "test \"$(osctl ct show -H -o runtime_state #{ctid})\" = #{state}",
           timeout:
         )
       end

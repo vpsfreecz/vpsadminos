@@ -58,9 +58,9 @@ module OsCtld
             DB::Containers.get.each do |ct|
               next if ct.pool != pool
 
-              next if %i[staged stopped].include?(ct.state)
+              next if ct.config_state == :staged || ct.runtime_state == :stopped
 
-              msg = "Container #{ct.ident} is still #{ct.state}, waiting until stopped"
+              msg = "Container #{ct.ident} is still #{ct.runtime_state}, waiting until stopped"
               progress(msg)
               log(:warn, msg)
               all_stopped = false

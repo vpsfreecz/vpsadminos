@@ -5,6 +5,7 @@
 require 'stringio'
 require 'osctld/exceptions'
 require 'osctld/command'
+require 'osctld/container/run_id'
 require 'osctld/manipulable'
 require 'osctld/utils/container'
 
@@ -259,7 +260,7 @@ RSpec.describe 'container provisioning commands' do
 
         def init; end
       end.new
-      ct = Struct.new(:pool, :devices, :netifs, :state) do
+      ct = Struct.new(:pool, :devices, :netifs, :config_state) do
         def new_run_conf
           :run_conf
         end
@@ -269,6 +270,10 @@ RSpec.describe 'container provisioning commands' do
         end
 
         def save_config; end
+
+        def complete_staging
+          self.config_state = :ready
+        end
       end.new(pool, devices, [], nil)
       builder = instance_double(
         builder_class,
@@ -320,7 +325,7 @@ RSpec.describe 'container provisioning commands' do
       end)
       user = Object.new
       group = Object.new
-      ct = Struct.new(:pool, :devices, :netifs, :state) do
+      ct = Struct.new(:pool, :devices, :netifs, :config_state) do
         def new_run_conf
           :run_conf
         end
@@ -330,6 +335,10 @@ RSpec.describe 'container provisioning commands' do
         end
 
         def save_config; end
+
+        def complete_staging
+          self.config_state = :ready
+        end
       end.new(
         pool,
         Struct.new do
@@ -702,7 +711,7 @@ RSpec.describe 'container provisioning commands' do
 
     class FakeCtForChown
       attr_reader :pool, :group, :log_path, :datasets
-      attr_accessor :user, :state
+      attr_accessor :user, :runtime_state
 
       def initialize(pool:, group:, user:, log_path:, datasets:)
         @pool = pool
@@ -710,7 +719,7 @@ RSpec.describe 'container provisioning commands' do
         @user = user
         @log_path = log_path
         @datasets = datasets
-        @state = :stopped
+        @runtime_state = :stopped
       end
 
       def map_mode
@@ -748,7 +757,7 @@ RSpec.describe 'container provisioning commands' do
                                           log_path: '/tmp/ct.log',
                                           datasets: []
                                         ))
-      ct.state = :running
+      ct.runtime_state = :running
       allow(OsCtld::DB::Users).to receive(:find).with('bob', pool).and_return(
         FakeUser.new(name: 'bob', ugid: 1001, uid_map: [], gid_map: [])
       )
@@ -869,7 +878,7 @@ RSpec.describe 'container provisioning commands' do
         def check_all_available!(*, **); end
       end.new
       ct = without_residual_generations(lockable(Struct.new(:pool, :user, :group, :devices) do
-        attr_accessor :state
+        attr_accessor :runtime_state
 
         def lxc_dir(group: self.group)
           group.name == '/new' ? '/lxc/new/ct1' : '/lxc/old/ct1'
@@ -886,7 +895,7 @@ RSpec.describe 'container provisioning commands' do
           yield
         end
       end.new(pool, user, old_group, devices)))
-      ct.state = :stopped
+      ct.runtime_state = :stopped
       allow(OsCtld::DB::Groups).to receive(:find).with('/new', pool).and_return(new_group)
       allow(monitor).to receive(:demonitor)
       allow(monitor).to receive(:monitor)
@@ -955,7 +964,7 @@ RSpec.describe 'container provisioning commands' do
       end.new
       ct = without_residual_generations(
         Struct.new(:pool, :user, :group, :devices) do
-          attr_accessor :state
+          attr_accessor :runtime_state
 
           def lxc_dir(group: self.group)
             File.join(group.userdir(user), 'ct1')
@@ -969,7 +978,7 @@ RSpec.describe 'container provisioning commands' do
       )
       ct.extend(OsCtld::Manipulable)
       ct.send(:init_manipulable)
-      ct.state = :stopped
+      ct.runtime_state = :stopped
 
       allow(OsCtld::DB::Groups).to receive(:find)
         .with('/parent/new', pool)

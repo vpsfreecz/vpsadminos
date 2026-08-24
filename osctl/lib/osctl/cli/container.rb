@@ -37,7 +37,10 @@ module OsCtl::Cli
       arch
       vendor
       variant
-      state
+      config_state
+      config_state_error
+      runtime_state
+      runtime_state_error
       init_pid
       lifecycle_desired_state
       lifecycle_state
@@ -81,7 +84,8 @@ module OsCtl::Cli
       arch
       vendor
       variant
-      state
+      config_state
+      runtime_state
     ].freeze
 
     DEFAULT_FIELDS = %i[
@@ -91,7 +95,8 @@ module OsCtl::Cli
       group
       distribution
       version
-      state
+      config_state
+      runtime_state
       init_pid
       memory
       cpu_us
@@ -199,8 +204,12 @@ module OsCtl::Cli
         cmd_opts[:read_hostname] = true
       end
 
+      cts = c.cmd_data!(:ct_list, **cmd_opts)
+      cts.each { |ct| normalize_state_fields(ct) }
+      filter_normalized_states!(cts)
+
       cts = cg_add_stats(
-        c.cmd_data!(:ct_list, **cmd_opts),
+        cts,
         ->(ct) { ct[:group_path] },
         cols,
         gopts[:parsable]
@@ -263,6 +272,7 @@ module OsCtl::Cli
       end
 
       ct = c.cmd_data!(:ct_show, **cmd_opts)
+      normalize_state_fields(ct)
 
       cg_add_stats(ct, ct[:group_path], cols, gopts[:parsable])
       c.close
@@ -1131,7 +1141,7 @@ module OsCtl::Cli
       end
 
       cmd_opts = {
-        state: 'running'
+        runtime_state: 'running'
       }
 
       FILTERS.each do |v|
@@ -1151,6 +1161,8 @@ module OsCtl::Cli
       cmd_opts[:ids] = args if args.count > 0
 
       cts = conn.cmd_data!(:ct_list, **cmd_opts)
+      cts.each { |ct| normalize_state_fields(ct) }
+      cts.select! { |ct| ct[:runtime_state] == 'running' }
 
       if opts[:exclude]
         exclude_ctids = opts[:exclude].split(',').map do |v|
@@ -1965,8 +1977,49 @@ module OsCtl::Cli
       ret
     end
 
+    def normalize_state_fields(ct)
+      if ct.has_key?(:runtime_state)
+        ct.delete(:state)
+        return ct
+      end
+
+      legacy_state = ct.delete(:state)&.to_s
+
+      case legacy_state
+      when 'staged'
+        ct[:config_state] = 'staged'
+        ct[:runtime_state] = 'unknown'
+
+      when 'error'
+        ct[:config_state] = 'error'
+        ct[:config_state_error] = {
+          source: 'legacy_state',
+          message: 'legacy osctld reported an undifferentiated error state'
+        }
+        ct[:runtime_state] = 'unknown'
+
+      else
+        ct[:config_state] = 'ready'
+        ct[:runtime_state] = legacy_state || 'unknown'
+      end
+
+      ct[:config_state_error] ||= nil
+      ct[:runtime_state_error] ||= nil
+      ct
+    end
+
+    def filter_normalized_states!(cts)
+      %i[config_state runtime_state].each do |field|
+        values = [gopts, opts].filter_map { |options| options[field] }
+        next if values.empty?
+
+        accepted = values.flat_map { |value| value.split(',') }
+        cts.select! { |ct| accepted.include?(ct[field]) }
+      end
+    end
+
     def add_loadavg(ct)
-      if ct[:state] != 'running'
+      if ct[:runtime_state] != 'running'
         ct[:loadavg] = nil
         return
       end
@@ -1991,7 +2044,7 @@ module OsCtl::Cli
       end
 
       cts.each do |ct|
-        if ct[:state] != 'running'
+        if ct[:runtime_state] != 'running'
           ct[:loadavg] = nil
           next
         end

@@ -177,6 +177,10 @@ module FakeObjects
     def find_cpu_limit(parents: true)
       cpu_limit
     end
+
+    def inherited_cgroup_policy_state
+      nil
+    end
   end
 
   FakeDbObject = Struct.new(:id, :pool, :send_log, keyword_init: true)
@@ -198,14 +202,17 @@ module FakeObjects
   end
 
   class FakeRuntimeContainer
-    attr_accessor :autostart, :hints, :run_conf, :fresh_state, :state, :init_pid,
-                  :map_mode, :lxc_config, :cgparams, :base_cgroup_path, :netifs,
-                  :cpu_package, :lifecycle
+    attr_accessor :autostart, :hints, :run_conf, :fresh_runtime_state,
+                  :config_state, :config_state_error, :runtime_state,
+                  :runtime_state_error, :init_pid, :map_mode, :lxc_config,
+                  :cgparams, :base_cgroup_path, :netifs, :cpu_package,
+                  :lifecycle
     attr_reader :id, :pool, :ident, :save_config_calls, :dataset
 
     def initialize(pool:, id: 'ct1', dataset: nil, autostart: nil, can_start: true,
                    running: false, ephemeral: false, hints: nil, run_conf: nil,
-                   fresh_state: nil, state: nil, init_pid: 1234, map_mode: 'zfs',
+                   fresh_runtime_state: nil, runtime_state: nil, init_pid: 1234,
+                   config_state: :ready, map_mode: 'zfs',
                    lxc_config: FakeLxcConfig.new, cgparams: nil,
                    base_cgroup_path: '/osctl/pool.tank/ct.ct1', netifs: [],
                    cpu_package: 'auto')
@@ -219,8 +226,11 @@ module FakeObjects
       @ephemeral = ephemeral
       @hints = hints || Struct.new(:cpu_daily).new(Struct.new(:usage_us).new(0))
       @run_conf = run_conf
-      @fresh_state = fresh_state || (@running ? :running : :stopped)
-      @state = state || (@running ? :running : :stopped)
+      @fresh_runtime_state = fresh_runtime_state || (@running ? :running : :stopped)
+      @config_state = config_state
+      @config_state_error = nil
+      @runtime_state = runtime_state || (@running ? :running : :stopped)
+      @runtime_state_error = nil
       @init_pid = init_pid
       @map_mode = map_mode
       @lxc_config = lxc_config
@@ -236,13 +246,13 @@ module FakeObjects
     end
 
     def running?
-      @running
+      @runtime_state == :running
     end
 
     def running=(v)
       @running = v
-      @state = v ? :running : :stopped
-      @fresh_state = @state
+      @runtime_state = v ? :running : :stopped
+      @fresh_runtime_state = @runtime_state
     end
 
     def ephemeral?

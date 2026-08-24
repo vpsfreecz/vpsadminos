@@ -76,8 +76,8 @@ RSpec.describe OsCtld::NetInterface::Veth do
   end
 
   it 'discovers the existing host veth while the container is frozen' do
-    ct.fresh_state = :frozen
-    ct.state = :frozen
+    ct.fresh_runtime_state = :frozen
+    ct.runtime_state = :frozen
     veth.create(name: 'eth0', hwaddr: nil)
 
     veth.setup

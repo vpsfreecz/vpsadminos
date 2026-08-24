@@ -9,7 +9,12 @@ require 'osctld/commands/event/subscribe'
 
 RSpec.describe OsCtld::Commands::Event::Subscribe do
   let(:event) do
-    OsCtld::Eventd::Event.new(:state, pool: 'tank', id: 'ct1', state: 'running')
+    OsCtld::Eventd::Event.new(
+      :runtime_state,
+      pool: 'tank',
+      id: 'ct1',
+      runtime_state: 'running'
+    )
   end
 
   let(:command_class) do
@@ -43,7 +48,7 @@ RSpec.describe OsCtld::Commands::Event::Subscribe do
   end
 
   it 'matches a single type filter' do
-    cmd = described_class.new({ type: 'state' }, { id: 1 })
+    cmd = described_class.new({ type: 'runtime_state' }, { id: 1 })
 
     expect(cmd.send(:filter?, event)).to be(true)
   end
@@ -55,7 +60,7 @@ RSpec.describe OsCtld::Commands::Event::Subscribe do
   end
 
   it 'matches only requested types when type filter is an array' do
-    cmd = described_class.new({ type: %w[state db] }, { id: 1 })
+    cmd = described_class.new({ type: %w[runtime_state db] }, { id: 1 })
 
     expect(cmd.send(:filter?, event)).to be(true)
     expect(
@@ -64,7 +69,7 @@ RSpec.describe OsCtld::Commands::Event::Subscribe do
   end
 
   it 'supports symbol arrays in type filters' do
-    cmd = described_class.new({ type: %i[state db] }, { id: 1 })
+    cmd = described_class.new({ type: %i[runtime_state db] }, { id: 1 })
 
     expect(cmd.send(:filter?, event)).to be(true)
     expect(
@@ -79,19 +84,32 @@ RSpec.describe OsCtld::Commands::Event::Subscribe do
     expect(
       cmd.send(
         :filter?,
-        OsCtld::Eventd::Event.new(:state, pool: 'other', id: 'ct1', state: 'running')
+        OsCtld::Eventd::Event.new(
+          :runtime_state,
+          pool: 'other',
+          id: 'ct1',
+          runtime_state: 'running'
+        )
       )
     ).to be(false)
   end
 
   it 'filters by array-valued event options' do
-    cmd = described_class.new({ opts: { state: %w[running staging] } }, { id: 1 })
+    cmd = described_class.new(
+      { opts: { runtime_state: %w[running starting] } },
+      { id: 1 }
+    )
 
     expect(cmd.send(:filter?, event)).to be(true)
     expect(
       cmd.send(
         :filter?,
-        OsCtld::Eventd::Event.new(:state, pool: 'tank', id: 'ct1', state: 'stopped')
+        OsCtld::Eventd::Event.new(
+          :runtime_state,
+          pool: 'tank',
+          id: 'ct1',
+          runtime_state: 'stopped'
+        )
       )
     ).to be(false)
   end
@@ -107,12 +125,12 @@ RSpec.describe OsCtld::Commands::Event::Subscribe do
     allow(handler).to receive(:reply_ok).with('subscribed').and_return(true)
     allow(handler).to receive(:reply_ok).with(
       {
-        type: :state,
-        opts: { pool: 'tank', id: 'ct1', state: 'running' }
+        type: :runtime_state,
+        opts: { pool: 'tank', id: 'ct1', runtime_state: 'running' }
       }
     ).and_return(false)
 
-    cmd = command_class.new({ type: 'state' }, { id: 1, handler: })
+    cmd = command_class.new({ type: 'runtime_state' }, { id: 1, handler: })
     ret = cmd.execute
 
     expect(ret).to eq(status: true, output: nil)
@@ -131,12 +149,12 @@ RSpec.describe OsCtld::Commands::Event::Subscribe do
     allow(handler).to receive(:reply_ok).with('subscribed').and_return(true)
     allow(handler).to receive(:reply_ok).with(
       {
-        type: :state,
-        opts: { pool: 'tank', id: 'ct1', state: 'running' }
+        type: :runtime_state,
+        opts: { pool: 'tank', id: 'ct1', runtime_state: 'running' }
       }
     ).and_return(false)
 
-    cmd = command_class.new({ type: 'state' }, { id: 1, handler: })
+    cmd = command_class.new({ type: 'runtime_state' }, { id: 1, handler: })
     ret = cmd.execute
 
     expect(ret).to eq(status: true, output: nil)
@@ -182,7 +200,7 @@ RSpec.describe OsCtld::Commands::Event::Subscribe do
     allow(handler).to receive(:reply_ok).and_return(true)
     allow(handler).to receive(:reply_ok).with('subscribed').and_return(true)
 
-    cmd = command_class.new({ type: 'state' }, { id: 1, handler: })
+    cmd = command_class.new({ type: 'runtime_state' }, { id: 1, handler: })
     cmd.request_stop
 
     ret = cmd.execute

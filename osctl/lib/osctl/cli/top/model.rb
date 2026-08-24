@@ -49,7 +49,7 @@ module OsCtl::Cli
           begin
             ct.measure(host, subsystems)
           rescue Top::Measurement::Error
-            ct.state = :error
+            next
           end
         end
 

@@ -58,7 +58,7 @@ module OsCtl::Cli
 
     # @param iostat_reader [OsCtl::Lib::Zfs::IOStat, nil]
     def initialize(iostat_reader)
-      super(id: '[host]', pool: nil, group_path: '', state: 'running')
+      super(id: '[host]', pool: nil, group_path: '', runtime_state: 'running')
       @iostat_reader = iostat_reader
       @pools = []
       @cpu = []

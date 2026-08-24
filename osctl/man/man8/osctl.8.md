@@ -881,10 +881,14 @@ The following shortcuts are supported:
     `-g`, `--group` *groups*
       Filter by group name, comma separated.
 
-    `-S`, `--state` *states*
-      Filter by state, comma separated. Available states:
-      **stopped**, **starting**, **running**, **stopping**, **aborting**, **freezing**,
-      **frozen**, **thawed**.
+    `--config-state` *states*
+      Filter by configuration state, comma separated. Available states are
+      **staged**, **ready** and **error**.
+
+    `-S`, `--runtime-state` *states*
+      Filter by runtime state, comma separated. Available states are
+      **unknown**, **stopped**, **starting**, **running**, **stopping**,
+      **aborting**, **freezing**, **frozen** and **thawed**.
 
     `-e`, `--ephemeral`
       Filter ephemeral containers.
@@ -1900,13 +1904,13 @@ transfer and start again.
       state, but from there, the container can be deleted using `osctl ct del`
       if needed.
 
-`ct monitor` *ctid*
-  Monitor state changes of container *ctid* and print them on standard output.
-  If global option `-j`, `--json` is used, the state changes are reported
-  in JSON.
+`ct monitor` [*ctid...*]
+  Monitor configuration and runtime state changes of the selected containers
+  and print them on standard output. If global option `-j`, `--json` is used,
+  the state changes are reported in JSON.
 
-`ct wait` *ctid* *state...*
-  Block until container *ctid* enters one of the given states.
+`ct wait` *ctid* *runtime-state...*
+  Block until container *ctid* enters one of the given runtime states.
 
 `ct top` [*options*]
   top-like TUI application showing running containers and their CPU, memory,

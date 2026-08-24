@@ -72,7 +72,7 @@ let
 
       if osctlEntityExists ct "${name}" ; then
         echo "Container ${pool}:${name} already exists"
-        lines=( $(${osctlPool} ct show -H -o rootfs,state,user,group,map_mode,org.vpsadminos.osctl:config ${name}) )
+        lines=( $(${osctlPool} ct show -H -o rootfs,runtime_state,user,group,map_mode,org.vpsadminos.osctl:config ${name}) )
         if [ "$?" != 0 ] ; then
           echo "Unable to get the container's status"
           exit 1

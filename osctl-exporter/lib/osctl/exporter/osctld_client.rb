@@ -54,7 +54,7 @@ module OsCtl::Exporter
     end
 
     def list_containers
-      client.cmd_data!(:ct_list)
+      client.cmd_data!(:ct_list).map { |ct| normalize_container_state(ct) }
     end
 
     def list_netifs
@@ -75,6 +75,36 @@ module OsCtl::Exporter
 
     def log_type
       'osctld-client'
+    end
+
+    protected
+
+    def normalize_container_state(ct)
+      if ct.has_key?(:runtime_state)
+        ct.delete(:state)
+        return ct
+      end
+
+      legacy_state = ct.delete(:state)&.to_s
+      case legacy_state
+      when 'staged'
+        ct[:config_state] = 'staged'
+        ct[:runtime_state] = 'unknown'
+      when 'error'
+        ct[:config_state] = 'error'
+        ct[:config_state_error] = {
+          source: 'legacy_state',
+          message: 'legacy osctld reported an undifferentiated error state'
+        }
+        ct[:runtime_state] = 'unknown'
+      else
+        ct[:config_state] = 'ready'
+        ct[:runtime_state] = legacy_state || 'unknown'
+      end
+
+      ct[:config_state_error] ||= nil
+      ct[:runtime_state_error] ||= nil
+      ct
     end
   end
 end

@@ -11,7 +11,7 @@ RSpec.describe OsCtld::Console::TTY do
     allow(OsCtl::Lib::Logger).to receive(:log)
   end
 
-  def build_ct(state: :running, lifecycle: nil)
+  def build_ct(runtime_state: :running, lifecycle: nil)
     user = Struct.new(
       :ugid,
       :sysusername,
@@ -19,7 +19,7 @@ RSpec.describe OsCtld::Console::TTY do
     ).new(1234, 'u-ct1', '/home/ct1')
     pool = Struct.new(:name).new('tank')
     Struct.new(
-      :state,
+      :runtime_state,
       :entry_cgroup_path,
       :user,
       :pool,
@@ -32,7 +32,7 @@ RSpec.describe OsCtld::Console::TTY do
         nil
       end
     end.new(
-      state:,
+      runtime_state:,
       entry_cgroup_path: '/osctl/pool.tank/ct.ct1',
       user:,
       pool:,

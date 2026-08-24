@@ -14,10 +14,18 @@ module OsCtl::Exporter
       )
 
       add_metric(
-        :pool_containers,
+        :pool_containers_config,
         :gauge,
-        :osctl_pool_containers_count,
-        docstring: 'Number of pool containers',
+        :osctl_pool_containers_config_count,
+        docstring: 'Number of pool containers by configuration state',
+        labels: %i[pool state]
+      )
+
+      add_metric(
+        :pool_containers_runtime,
+        :gauge,
+        :osctl_pool_containers_runtime_count,
+        docstring: 'Number of pool containers by runtime state',
         labels: %i[pool state]
       )
     end
@@ -29,7 +37,7 @@ module OsCtl::Exporter
 
     protected
 
-    attr_reader :pools, :pool_containers
+    attr_reader :pools, :pool_containers_config, :pool_containers_runtime
 
     def collect_pools(client)
       states = {
@@ -56,35 +64,37 @@ module OsCtl::Exporter
 
     def collect_pool_containers(client)
       pools = client.list_pools
-      pool_cts = {}
+      pool_config_states = {}
+      pool_runtime_states = {}
 
       pools.each do |pool|
-        pool_cts[pool[:name]] = {
-          staged: 0,
-          stopped: 0,
-          starting: 0,
-          running: 0,
-          stopping: 0,
-          freezing: 0,
-          frozen: 0,
-          thawed: 0,
-          aborting: 0,
-          error: 0
-        }
+        pool_config_states[pool[:name]] =
+          Collectors::Container::CONFIG_STATES.to_h { |state| [state, 0] }
+        pool_runtime_states[pool[:name]] =
+          Collectors::Container::RUNTIME_STATES.to_h { |state| [state, 0] }
       end
 
       client.list_containers.each do |ct|
         pool = ct[:pool]
-        st = ct[:state].to_sym
+        next unless pool_config_states.has_key?(pool)
 
-        next if !pool_cts.has_key?(pool) || !pool_cts[pool].has_key?(st)
-
-        pool_cts[pool][st] += 1
+        config_state = ct[:config_state].to_sym
+        runtime_state = ct[:runtime_state].to_sym
+        pool_config_states[pool][config_state] += 1 \
+          if pool_config_states[pool].has_key?(config_state)
+        pool_runtime_states[pool][runtime_state] += 1 \
+          if pool_runtime_states[pool].has_key?(runtime_state)
       end
 
-      pool_cts.each do |pool, states|
-        states.each do |st, cnt|
-          pool_containers.set(cnt, labels: { pool:, state: st })
+      pool_config_states.each do |pool, states|
+        states.each do |state, count|
+          pool_containers_config.set(count, labels: { pool:, state: })
+        end
+      end
+
+      pool_runtime_states.each do |pool, states|
+        states.each do |state, count|
+          pool_containers_runtime.set(count, labels: { pool:, state: })
         end
       end
     end

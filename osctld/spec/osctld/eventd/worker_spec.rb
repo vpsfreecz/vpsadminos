@@ -26,7 +26,7 @@ RSpec.describe OsCtld::Eventd::Worker do
   it 'delivers reported events to all subscribers' do
     q1 = OsCtl::Lib::Queue.new
     q2 = OsCtl::Lib::Queue.new
-    event = OsCtld::Eventd::Event.new(:state, pool: 'tank', id: 'ct1')
+    event = OsCtld::Eventd::Event.new(:runtime_state, pool: 'tank', id: 'ct1')
 
     worker.subscribe(q1)
     worker.subscribe(q2)

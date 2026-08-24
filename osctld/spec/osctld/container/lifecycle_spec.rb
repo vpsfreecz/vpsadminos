@@ -3,6 +3,7 @@
 require 'osctld/command'
 require 'osctld/container/lifecycle'
 require 'osctld/container/lifecycle_executor'
+require 'osctld/container/run_configuration'
 require 'osctld/container_control/command'
 require 'osctld/console'
 require 'osctld/switch_user'
@@ -16,6 +17,7 @@ RSpec.describe OsCtld::Container::Lifecycle do
   before { stub_daemon }
 
   let(:pool_class) { Struct.new(:name, :ct_dir) }
+  let(:group_class) { Struct.new(:inherited_cgroup_policy_state) }
   let(:container_class) do
     Struct.new(
       :id,
@@ -44,7 +46,8 @@ RSpec.describe OsCtld::Container::Lifecycle do
       legacy_wrapper_cgroup_path: '/osctl/pool.tank/group.default/user.root/ct.ct1/wrapper',
       lxc_dir: '/var/lib/lxc/ct1',
       next_run_conf: nil,
-      run_conf: nil
+      run_conf: nil,
+      group: group_class.new(nil)
     )
   end
 

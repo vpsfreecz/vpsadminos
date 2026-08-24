@@ -22,7 +22,10 @@ require 'osctld/commands/container/send_rootfs'
 require 'osctld/commands/container/send_sync'
 
 RSpec.describe 'container recovery and send wrappers' do
-  def build_send_ct(state: :stopped, send_log: nil, local_transfer_log: nil, descendants: [])
+  def build_send_ct(
+    runtime_state: :stopped, send_log: nil, local_transfer_log: nil,
+    descendants: []
+  )
     dataset = Struct.new(:name, :descendants, :relative_name) do
       def to_s
         name
@@ -30,7 +33,7 @@ RSpec.describe 'container recovery and send wrappers' do
     end.new('tank/ct1', descendants, 'ct1')
 
     Struct.new(
-      :id, :pool, :state, :send_log, :local_transfer_log, :dataset, :user,
+      :id, :pool, :runtime_state, :send_log, :local_transfer_log, :dataset, :user,
       :group, :opened_send_log, :closed_send_log, :save_config_calls,
       keyword_init: true
     ) do
@@ -73,7 +76,7 @@ RSpec.describe 'container recovery and send wrappers' do
     end.new(
       id: 'ct1',
       pool: Struct.new(:name, :send_receive_key_chain).new('tank', nil),
-      state:,
+      runtime_state:,
       send_log:,
       local_transfer_log:,
       dataset:,
@@ -105,7 +108,7 @@ RSpec.describe 'container recovery and send wrappers' do
         .with(run_id: nil, cleanup: 'all', force: true, admission: {})
         .and_yield('veth0', [route])
         .and_return(result)
-      ct = build_send_ct(state: :running)
+      ct = build_send_ct(runtime_state: :running)
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
       end)
@@ -134,7 +137,7 @@ RSpec.describe 'container recovery and send wrappers' do
       recovery_class = stub_const('OsCtld::Container::Recovery', Class.new do
         def self.new(_ct); end
       end)
-      result = { state: :stopped, run_id: 'tank:ct1:run1' }
+      result = { runtime_state: :stopped, run_id: 'tank:ct1:run1' }
       recovery = double('Recovery')
       allow(recovery).to receive(:recover_state)
         .with(run_id: nil, admission: {})

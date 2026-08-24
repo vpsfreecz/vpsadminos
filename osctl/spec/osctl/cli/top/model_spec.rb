@@ -54,16 +54,14 @@ RSpec.describe OsCtl::Cli::Top::Model do
     bad_ct = instance_double(OsCtl::Cli::Top::Container, running?: true)
     stopped_ct = instance_double(OsCtl::Cli::Top::Container, running?: false)
     allow(bad_ct).to receive(:measure).and_raise(OsCtl::Cli::Top::Measurement::Error, 'boom')
-    allow(bad_ct).to receive(:state=)
     allow(OsCtl::Lib::LoadAvgReader).to receive(:read_for).and_return({})
     model.instance_variable_set(:@host, host)
     model.instance_variable_set(:@containers, [ok_ct, bad_ct, stopped_ct])
 
-    model.measure
+    expect { model.measure }.not_to raise_error
 
     expect(host).to have_received(:measure).with({})
     expect(ok_ct).to have_received(:measure).with(host, {})
-    expect(bad_ct).to have_received(:state=).with(:error)
   end
 
   it 'shapes realtime data for containers and the host' do
@@ -117,7 +115,7 @@ RSpec.describe OsCtl::Cli::Top::Model do
     iostat = instance_double(OsCtl::Lib::Zfs::IOStat, add_pool: nil, remove_pool: nil)
     client = instance_double(FakeClientHelpers::ClientDouble)
     allow(client).to receive(:cmd_data!).with(:ct_show, pool: 'tank', id: 'ct1').and_return(
-      id: 'ct1', pool: 'tank', dataset: 'tank/ct1', group_path: '/grp', state: 'running', cpu_package_inuse: nil, init_pid: 10
+      id: 'ct1', pool: 'tank', dataset: 'tank/ct1', group_path: '/grp', runtime_state: 'running', cpu_package_inuse: nil, init_pid: 10
     )
     allow(client).to receive(:cmd_data!).with(:netif_list, id: 'ct1', pool: 'tank').and_return([{ name: 'eth0', veth: 'veth0' }])
     allow(client).to receive(:cmd_data!).with(:netif_show, pool: 'tank', id: 'ct1', name: 'eth1').and_return(name: 'eth1', veth: 'veth1')

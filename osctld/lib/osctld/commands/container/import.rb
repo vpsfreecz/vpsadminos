@@ -135,7 +135,7 @@ module OsCtld
             call_cmd(Commands::User::LxcUsernet)
           end
 
-          ct.state = :complete
+          ct.complete_staging
 
           ok
         rescue StandardError

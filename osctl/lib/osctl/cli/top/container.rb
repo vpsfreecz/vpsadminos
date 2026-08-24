@@ -8,7 +8,7 @@ module OsCtl::Cli
     end
 
     attr_reader :id, :pool, :ident, :dataset, :group_path
-    attr_accessor :state, :cpu_package_inuse, :init_pid, :netifs
+    attr_accessor :runtime_state, :cpu_package_inuse, :init_pid, :netifs
 
     # @param ct [Hash] container from ct_show
     def initialize(ct)
@@ -17,7 +17,10 @@ module OsCtl::Cli
       @ident = "#{@pool}:#{@id}"
       @dataset = ct[:dataset]
       @group_path = ct[:group_path]
-      @state = ct[:state].to_sym
+      legacy_state = ct[:state]
+      @runtime_state = (
+        ct[:runtime_state] || (%w[staged error].include?(legacy_state) ? 'unknown' : legacy_state)
+      ).to_sym
       @cpu_package_inuse = ct[:cpu_package_inuse]
       @init_pid = ct[:init_pid]
       @netifs = []
@@ -44,7 +47,7 @@ module OsCtl::Cli
     end
 
     def running?
-      @state == :running
+      @runtime_state == :running
     end
 
     def container?

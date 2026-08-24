@@ -37,10 +37,11 @@ module OsCtld
 
       unless execution_run
         Eventd.report(
-          :state,
+          :runtime_state,
           pool: ct.pool.name,
           id: ct.id,
-          state: :stopped
+          runtime_state: :stopped,
+          runtime_state_error: nil
         )
       end
       Container::LifecycleFinalizer.spawn(ct, run_conf, effect_id) if effect_id

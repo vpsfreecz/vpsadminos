@@ -719,13 +719,13 @@ module OsCtl::Cli::Top
       Curses.addstr('Containers: ')
       bold { Curses.addstr(format('%3d', model_thread.containers.count)) }
       Curses.addstr(' total, ')
-      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.state == :starting })) }
+      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.runtime_state == :starting })) }
       Curses.addstr(' starting, ')
       bold { Curses.addstr(format('%3d', data[:containers].count - 1)) } # -1 for [host]
       Curses.addstr(' running, ')
-      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.state == :stopping })) }
+      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.runtime_state == :stopping })) }
       Curses.addstr(' stopping, ')
-      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.state == :stopped })) }
+      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.runtime_state == :stopped })) }
       Curses.addstr(' stopped')
 
       @status_bar_cols += pos - orig_pos + 1

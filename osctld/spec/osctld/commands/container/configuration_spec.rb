@@ -98,7 +98,7 @@ RSpec.describe 'container configuration commands' do
 
   describe OsCtld::Commands::Container::ConfigReload do
     it 'requires the container to be stopped' do
-      ct = Struct.new(:current_state) do
+      ct = Struct.new(:current_runtime_state) do
         def manipulate(_holder, block:, &)
           yield
         end
@@ -117,7 +117,7 @@ RSpec.describe 'container configuration commands' do
         end
       end.new
       lifecycle = build_lifecycle
-      ct = Struct.new(:current_state, :lxc_config, :lifecycle) do
+      ct = Struct.new(:current_runtime_state, :lxc_config, :lifecycle) do
         attr_reader :reloaded
 
         def reload_config
@@ -145,7 +145,7 @@ RSpec.describe 'container configuration commands' do
       lifecycle = build_lifecycle(
         [{ 'id' => run_id.dump, 'role' => 'residual' }]
       )
-      ct = Struct.new(:current_state, :lifecycle) do
+      ct = Struct.new(:current_runtime_state, :lifecycle) do
         attr_reader :reloaded
 
         def reload_config
@@ -174,7 +174,7 @@ RSpec.describe 'container configuration commands' do
       lifecycle = build_lifecycle(
         [{ 'id' => run_id.dump, 'role' => 'active' }]
       )
-      ct = Struct.new(:current_state, :lifecycle) do
+      ct = Struct.new(:current_runtime_state, :lifecycle) do
         attr_reader :reloaded
 
         def reload_config
@@ -206,7 +206,7 @@ RSpec.describe 'container configuration commands' do
         end
       end.new
       lifecycle = build_lifecycle
-      ct = Struct.new(:current_state, :lxc_config, :lifecycle) do
+      ct = Struct.new(:current_runtime_state, :lxc_config, :lifecycle) do
         attr_reader :replaced
 
         def replace_config(config)
@@ -234,7 +234,7 @@ RSpec.describe 'container configuration commands' do
       lifecycle = build_lifecycle(
         [{ 'id' => run_id.dump, 'role' => 'residual' }]
       )
-      ct = Struct.new(:current_state, :lifecycle) do
+      ct = Struct.new(:current_runtime_state, :lifecycle) do
         attr_reader :replaced
 
         def replace_config(config)
@@ -507,7 +507,7 @@ RSpec.describe 'container configuration commands' do
       end
     end
 
-    def build_list_ct(id:, running:, ephemeral:, state:, hostname:)
+    def build_list_ct(id:, ephemeral:, runtime_state:, hostname:)
       pool = Struct.new(:name).new('tank')
       user = Struct.new(:name).new('alice')
       group = Struct.new(:name).new('/default')
@@ -521,18 +521,23 @@ RSpec.describe 'container configuration commands' do
         :arch,
         :vendor,
         :variant,
-        :state,
+        :config_state,
+        :runtime_state,
         :ephemeral,
         :hostname
       ) do
         attr_accessor :read_hostname_calls
 
         def running?
-          state == :running
+          runtime_state == :running
         end
 
         def export
-          { id:, state: state.to_s }
+          {
+            id:,
+            config_state: config_state.to_s,
+            runtime_state: runtime_state.to_s
+          }
         end
 
         def read_hostname
@@ -549,7 +554,8 @@ RSpec.describe 'container configuration commands' do
         'x86_64',
         'default',
         'default',
-        state,
+        :ready,
+        runtime_state,
         ephemeral,
         hostname
       ).tap do |ct|
@@ -560,9 +566,24 @@ RSpec.describe 'container configuration commands' do
     it 'filters containers and reads hostnames only for running matches' do
       db = build_db_containers
       execution_plan = stub_const('OsCtld::ExecutionPlan', FakeExecutionPlan)
-      running_ct = build_list_ct(id: 'ct1', running: true, ephemeral: false, state: :running, hostname: 'running.example')
-      stopped_ct = build_list_ct(id: 'ct2', running: false, ephemeral: false, state: :stopped, hostname: 'stopped.example')
-      skipped_ct = build_list_ct(id: 'ct3', running: true, ephemeral: true, state: :running, hostname: 'skip.example')
+      running_ct = build_list_ct(
+        id: 'ct1',
+        ephemeral: false,
+        runtime_state: :running,
+        hostname: 'running.example'
+      )
+      stopped_ct = build_list_ct(
+        id: 'ct2',
+        ephemeral: false,
+        runtime_state: :stopped,
+        hostname: 'stopped.example'
+      )
+      skipped_ct = build_list_ct(
+        id: 'ct3',
+        ephemeral: true,
+        runtime_state: :running,
+        hostname: 'skip.example'
+      )
       allow(db).to receive(:each_by_ids).with(nil, ['tank']).and_yield(running_ct).and_yield(stopped_ct).and_yield(skipped_ct)
 
       expect(
@@ -574,8 +595,18 @@ RSpec.describe 'container configuration commands' do
       ).to eq(
         status: true,
         output: [
-          { id: 'ct1', state: 'running', hostname_readout: 'running.example' },
-          { id: 'ct2', state: 'stopped', hostname_readout: nil }
+          {
+            id: 'ct1',
+            config_state: 'ready',
+            runtime_state: 'running',
+            hostname_readout: 'running.example'
+          },
+          {
+            id: 'ct2',
+            config_state: 'ready',
+            runtime_state: 'stopped',
+            hostname_readout: nil
+          }
         ]
       )
       expect(execution_plan).to be(FakeExecutionPlan)

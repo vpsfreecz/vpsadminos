@@ -148,7 +148,8 @@ RSpec.describe OsCtl::Exporter::Collectors::Container do
         pool: 'tank',
         id: 'ct1',
         group_path: '/grp/ct1',
-        state: 'running',
+        config_state: 'error',
+        runtime_state: 'running',
         dataset: 'tank/ct/ct1',
         uid_map: [{ 'inside_id' => 0, 'outside_id' => 100_000, 'count' => 65_536 }],
         init_pid: 123
@@ -215,8 +216,13 @@ RSpec.describe OsCtl::Exporter::Collectors::Container do
 
     collector.run_collect(client)
 
-    expect(metric_values(registry.get(:osctl_container_state_running))).to eq(
-      { { pool: 'tank', id: 'ct1' } => 1.0 }
+    expect(metric_values(registry.get(:osctl_container_config_state))).to include(
+      { pool: 'tank', id: 'ct1', state: 'error' } => 1.0,
+      { pool: 'tank', id: 'ct1', state: 'ready' } => 0.0
+    )
+    expect(metric_values(registry.get(:osctl_container_runtime_state))).to include(
+      { pool: 'tank', id: 'ct1', state: 'running' } => 1.0,
+      { pool: 'tank', id: 'ct1', state: 'stopped' } => 0.0
     )
     expect(metric_values(registry.get(:osctl_container_memory_used_bytes))).to eq(
       { { pool: 'tank', id: 'ct1' } => 1024.0 }

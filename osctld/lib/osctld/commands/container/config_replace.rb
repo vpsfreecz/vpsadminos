@@ -13,7 +13,7 @@ module OsCtld
 
     def execute(ct)
       manipulate(ct) do
-        error!('the container has to be stopped') if ct.current_state != :stopped
+        error!('the container has to be stopped') if ct.current_runtime_state != :stopped
         guard_no_runtime_generations!(
           ct,
           'container configuration replacement'

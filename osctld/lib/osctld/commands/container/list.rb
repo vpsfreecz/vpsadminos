@@ -50,7 +50,12 @@ module OsCtld
       return false if opts[:arch] && !opts[:arch].include?(ct.arch)
       return false if opts[:vendor] && !opts[:vendor].include?(ct.vendor)
       return false if opts[:variant] && !opts[:variant].include?(ct.variant)
-      return false if opts[:state] && !opts[:state].include?(ct.state.to_s)
+      if opts[:config_state] && !opts[:config_state].include?(ct.config_state.to_s)
+        return false
+      end
+      if opts[:runtime_state] && !opts[:runtime_state].include?(ct.runtime_state.to_s)
+        return false
+      end
 
       # rubocop:disable Style/DoubleNegation
       # We use double negation to ensure conversion to boolean

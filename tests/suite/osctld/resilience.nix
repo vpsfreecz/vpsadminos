@@ -30,6 +30,7 @@ import ../../make-test.nix (
         machine.wait_for_service('osctld')
         machine.wait_until_succeeds("test -S #{OSCTLD_SOCKET}", timeout: 60)
         machine.wait_for_osctl_pool('tank')
+        machine.succeeds('osctl daemon wait-ready --timeout 60')
       end
 
       def self.restart_osctld
@@ -37,8 +38,8 @@ import ../../make-test.nix (
         wait_osctld_ready
       end
 
-      def self.ct_state(ctid)
-        machine.osctl_json("ct show #{ctid}")['state']
+      def self.ct_runtime_state(ctid)
+        machine.osctl_json("ct show #{ctid}")['runtime_state']
       end
 
       def self.ct_info(ctid)
@@ -55,7 +56,7 @@ import ../../make-test.nix (
 
       def self.wait_ct_running(ctid)
         wait_for_block(name: "#{ctid} becomes running", timeout: 120) do
-          ct_state(ctid) == 'running'
+          ct_runtime_state(ctid) == 'running'
         end
 
         machine.wait_until_succeeds("osctl ct exec #{Shellwords.escape(ctid)} true", timeout: 120)
@@ -112,7 +113,7 @@ import ../../make-test.nix (
         end
 
         it 'starts from a running container' do
-          expect(ct_state(ctid)).to eq('running')
+          expect(ct_runtime_state(ctid)).to eq('running')
           expect(output_of("zfs list -H -o name #{Shellwords.escape(@dataset)}")).to eq(@dataset)
         end
 
@@ -122,11 +123,15 @@ import ../../make-test.nix (
           expect_osctld_operational
         end
 
-        it 'survives osctld restart and reports the container as errored' do
+        it 'reports a configuration error while the runtime remains running' do
           restart_osctld
 
           expect_osctld_operational
-          expect(ct_state(ctid)).to eq('error')
+          info = ct_info(ctid)
+          expect(info['config_state']).to eq('error')
+          expect(info.dig('config_state_error', 'source')).to eq('lxc_config')
+          expect(info['runtime_state']).to eq('running')
+          expect(info['runtime_state_error']).to be_nil
         end
 
         it 'deletes the errored container while its original dataset is absent' do

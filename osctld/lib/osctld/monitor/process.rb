@@ -109,8 +109,6 @@ module OsCtld
         return
       end
 
-      return if ct.state == :error
-
       run_id = ct.lifecycle.active_run_id
 
       unless run_id
@@ -193,10 +191,11 @@ module OsCtld
       )
 
       Eventd.report(
-        :state,
+        :runtime_state,
         pool: ct.pool.name,
         id: ct.id,
-        state: change[:state]
+        runtime_state: change[:state],
+        runtime_state_error: nil
       )
 
       if change[:state] == :running

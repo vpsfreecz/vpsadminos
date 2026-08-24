@@ -632,7 +632,7 @@ import ../../make-test.nix (
             "touch #{handoff_block}/release #{stopping_block}/release"
           )
           machine.wait_until_succeeds(
-            "test \"$(osctl ct show -H -o state #{stopping_ctid})\" = stopped",
+            "test \"$(osctl ct show -H -o runtime_state #{stopping_ctid})\" = stopped",
             timeout: 120
           )
           machine.wait_until_succeeds(
@@ -674,7 +674,7 @@ import ../../make-test.nix (
           expect(status.fetch('phase')).to eq('ready')
 
           after = machine.osctl_json("ct show #{ctid}")
-          expect(after.fetch('state')).to eq('running')
+          expect(after.fetch('runtime_state')).to eq('running')
           expect(after.fetch('init_pid')).to eq(before.fetch('init_pid'))
           expect(after.fetch('lifecycle_run_id')).not_to be_nil
           _, after_cgroup = machine.succeeds(
@@ -683,11 +683,11 @@ import ../../make-test.nix (
           expect(after_cgroup).to eq(before_cgroup)
           machine.wait_for_osctl_container(handoff_ctid)
           handoff_after = machine.osctl_json("ct show #{handoff_ctid}")
-          expect(handoff_after.fetch('state')).to eq('running')
+          expect(handoff_after.fetch('runtime_state')).to eq('running')
           expect(handoff_after.fetch('lifecycle_desired_state')).to eq('running')
           expect(handoff_after.fetch('lifecycle_residuals')).to eq(0)
           stopping_after = machine.osctl_json("ct show #{stopping_ctid}")
-          expect(stopping_after.fetch('state')).to eq('stopped')
+          expect(stopping_after.fetch('runtime_state')).to eq('stopped')
           expect(stopping_after.fetch('lifecycle_desired_state')).to eq('stopped')
           _, nodectld_events = machine.succeeds(
             'cat ${nodectldStateDir}/events'
@@ -833,7 +833,7 @@ import ../../make-test.nix (
             machine.osctl_json('daemon status').fetch('phase') == 'ready'
           end
           after = machine.osctl_json("ct show #{ctid}")
-          expect(after.fetch('state')).to eq('running')
+          expect(after.fetch('runtime_state')).to eq('running')
           expect(after.fetch('init_pid')).to eq(before.fetch('init_pid'))
           expect(after.fetch('lifecycle_run_id')).to eq(
             before.fetch('lifecycle_run_id')

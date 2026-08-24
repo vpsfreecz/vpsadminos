@@ -120,7 +120,6 @@ module OsCtld
 
     def update_state(ct)
       st = ContainerControl::Commands::State.run!(ct)
-      return if ct.state == :error
 
       run_id = ct.lifecycle.active_run_id
       return unless run_id

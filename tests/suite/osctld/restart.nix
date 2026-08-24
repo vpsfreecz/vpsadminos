@@ -54,8 +54,8 @@ import ../../make-test.nix (
         wait_osctld_ready
       end
 
-      def self.ct_state(ctid)
-        machine.osctl_json("ct show #{ctid}")['state']
+      def self.ct_runtime_state(ctid)
+        machine.osctl_json("ct show #{ctid}")['runtime_state']
       end
 
       def self.ct_rootfs(ctid)
@@ -68,7 +68,7 @@ import ../../make-test.nix (
 
       def self.wait_ct_running(ctid)
         wait_for_block(name: "#{ctid} becomes running", timeout: 120) do
-          state = ct_state(ctid)
+          state = ct_runtime_state(ctid)
           next false unless state == 'running'
 
           state
@@ -479,7 +479,7 @@ import ../../make-test.nix (
           wait_ct_running(ctid)
 
           after = machine.osctl_json("ct show #{ctid}")
-          expect(after.fetch('state')).to eq('running')
+          expect(after.fetch('runtime_state')).to eq('running')
           expect(after.fetch('lifecycle_desired_state')).to eq('running')
           expect(after.fetch('lifecycle_state')).to eq('running')
           expect(after.fetch('lifecycle_run_id')).not_to be_nil
@@ -669,7 +669,7 @@ import ../../make-test.nix (
           expect(machine.osctl_json('daemon status').fetch('phase')).to eq('ready')
           [first_ctid, second_ctid].each do |ctid|
             after = machine.osctl_json("ct show #{ctid}")
-            expect(after.fetch('state')).to eq('running')
+            expect(after.fetch('runtime_state')).to eq('running')
             expect(after.fetch('init_pid')).to eq(before.fetch(ctid).fetch('init_pid'))
             expect(after.fetch('lifecycle_run_id')).to eq(
               before.fetch(ctid).fetch('lifecycle_run_id')
@@ -802,13 +802,13 @@ import ../../make-test.nix (
             timeout: 240
           )
           machine.wait_until_succeeds(
-            "test \"$(osctl ct show -H -o state #{ctid})\" = stopped",
+            "test \"$(osctl ct show -H -o runtime_state #{ctid})\" = stopped",
             timeout: 120
           )
 
           after = machine.osctl_json("ct show #{ctid}")
           expect(after.fetch('lifecycle_desired_state')).to eq('stopped')
-          expect(after.fetch('state')).to eq('stopped')
+          expect(after.fetch('runtime_state')).to eq('stopped')
           expect(after.fetch('lifecycle_residuals')).to eq(0)
         end
       end
@@ -965,7 +965,7 @@ import ../../make-test.nix (
           wait_osctld_ready
 
           machine.wait_until_succeeds(
-            "test \"$(osctl ct show -H -o state #{ctid})\" = stopped",
+            "test \"$(osctl ct show -H -o runtime_state #{ctid})\" = stopped",
             timeout: 120
           )
 

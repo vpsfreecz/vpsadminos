@@ -127,14 +127,17 @@ RSpec.describe 'net_interface commands' do
     end
   end
 
-  def build_ct(id:, pool_name:, netifs:, state: :running)
+  def build_ct(id:, pool_name:, netifs:, runtime_state: :running)
     pool = Struct.new(:name).new(pool_name)
     lxc_config = Struct.new(:configured) do
       def configure_network
         self.configured = true
       end
     end.new(false)
-    Struct.new(:id, :pool, :netifs, :state, :lxc_config, :saved, keyword_init: true) do
+    Struct.new(
+      :id, :pool, :netifs, :runtime_state, :lxc_config, :saved,
+      keyword_init: true
+    ) do
       def inclusively
         yield
       end
@@ -154,7 +157,14 @@ RSpec.describe 'net_interface commands' do
       def can_dist_configure_network?
         true
       end
-    end.new(id:, pool:, netifs: FakeNetifs.new(netifs), state:, lxc_config:, saved: false)
+    end.new(
+      id:,
+      pool:,
+      netifs: FakeNetifs.new(netifs),
+      runtime_state:,
+      lxc_config:,
+      saved: false
+    )
   end
 
   before do
@@ -300,7 +310,10 @@ RSpec.describe 'net_interface commands' do
 
     it 'rejects runtime changes for parameters that require a stopped container' do
       netif = build_netif(name: 'eth0', type: :bridge)
-      ct = build_ct(id: 'ct1', pool_name: 'tank', netifs: [netif], state: :running)
+      ct = build_ct(
+        id: 'ct1', pool_name: 'tank', netifs: [netif],
+        runtime_state: :running
+      )
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
       end)
@@ -313,7 +326,10 @@ RSpec.describe 'net_interface commands' do
 
     it 'updates mutable attributes and persists network configuration' do
       netif = build_netif(name: 'eth0', type: :routed)
-      ct = build_ct(id: 'ct1', pool_name: 'tank', netifs: [netif], state: :running)
+      ct = build_ct(
+        id: 'ct1', pool_name: 'tank', netifs: [netif],
+        runtime_state: :running
+      )
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
       end)
@@ -372,7 +388,10 @@ RSpec.describe 'net_interface commands' do
       stub_const('OsCtld::NetInterface', Class.new do
         def self.for(_type); end
       end)
-      ct = build_ct(id: 'ct1', pool_name: 'tank', netifs: [], state: :stopped)
+      ct = build_ct(
+        id: 'ct1', pool_name: 'tank', netifs: [],
+        runtime_state: :stopped
+      )
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
       end)
@@ -392,7 +411,10 @@ RSpec.describe 'net_interface commands' do
     it 'deletes stopped interfaces and regenerates usernet rules' do
       usernet = stub_const('OsCtld::Commands::User::LxcUsernet', Class.new)
       netif = build_netif(name: 'eth0', type: :bridge)
-      ct = build_ct(id: 'ct1', pool_name: 'tank', netifs: [netif], state: :stopped)
+      ct = build_ct(
+        id: 'ct1', pool_name: 'tank', netifs: [netif],
+        runtime_state: :stopped
+      )
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
       end)
@@ -410,7 +432,10 @@ RSpec.describe 'net_interface commands' do
   describe OsCtld::Commands::NetInterface::Rename do
     it 'renames stopped interfaces and reconfigures network state' do
       netif = build_netif(name: 'eth0', type: :bridge)
-      ct = build_ct(id: 'ct1', pool_name: 'tank', netifs: [netif], state: :stopped)
+      ct = build_ct(
+        id: 'ct1', pool_name: 'tank', netifs: [netif],
+        runtime_state: :stopped
+      )
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
       end)

@@ -219,7 +219,7 @@ module OsCtld
 
         if opened?
           wake
-        elsif ct.state == :running
+        elsif ct.runtime_state == :running
           open
           wake
         end

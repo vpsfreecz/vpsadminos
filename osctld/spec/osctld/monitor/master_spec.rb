@@ -51,7 +51,8 @@ RSpec.describe OsCtld::Monitor::Master do
       :pool,
       :user,
       :group,
-      :state,
+      :config_state,
+      :runtime_state,
       :run_conf,
       :lifecycle,
       keyword_init: true
@@ -72,11 +73,20 @@ RSpec.describe OsCtld::Monitor::Master do
         return false unless run_conf
         return false unless run_conf.run_id == run_id
 
-        self.state = value
+        self.runtime_state = value
         run_conf.init_pid = init_pid if value == :running
         true
       end
-    end.new(id:, pool:, user:, group:, state: :stopped, run_conf:, lifecycle:)
+    end.new(
+      id:,
+      pool:,
+      user:,
+      group:,
+      config_state: :ready,
+      runtime_state: :stopped,
+      run_conf:,
+      lifecycle:
+    )
   end
 
   it 'creates one monitor thread per pool/user/group key' do
@@ -144,7 +154,7 @@ RSpec.describe OsCtld::Monitor::Master do
 
     master.send(:update_state, ct)
 
-    expect(ct.state).to eq(:running)
+    expect(ct.runtime_state).to eq(:running)
     expect(ct.ensure_run_conf.init_pid).to eq(4321)
     expect(eventd).to have_received(:report).with(
       :ct_init_pid,
@@ -155,9 +165,9 @@ RSpec.describe OsCtld::Monitor::Master do
     expect(ct.lifecycle.observations).to eq([['run-1', :running, 4321, 'state_query']])
   end
 
-  it 'does not clear an existing error state from container-control state' do
+  it 'keeps a configuration error while observing a running runtime' do
     ct = build_ct(id: 'ct1')
-    ct.state = :error
+    ct.config_state = :error
     state = Struct.new(:state, :init_pid).new(:running, 4321)
     state_class = stub_const('OsCtld::ContainerControl::Commands::State', Class.new do
       def self.run!(_ct); end
@@ -167,12 +177,21 @@ RSpec.describe OsCtld::Monitor::Master do
     end)
     allow(state_class).to receive(:run!).with(ct).and_return(state)
     allow(eventd).to receive(:report)
+    allow(OsCtld::CGroup).to receive(:get_tree_pids)
+      .with('/osctl/test/run-1')
+      .and_return([4321])
 
     master.send(:update_state, ct)
 
-    expect(ct.state).to eq(:error)
-    expect(ct.ensure_run_conf.init_pid).to be_nil
-    expect(eventd).not_to have_received(:report)
+    expect(ct.config_state).to eq(:error)
+    expect(ct.runtime_state).to eq(:running)
+    expect(ct.ensure_run_conf.init_pid).to eq(4321)
+    expect(eventd).to have_received(:report).with(
+      :ct_init_pid,
+      pool: 'tank',
+      id: 'ct1',
+      init_pid: 4321
+    )
   end
 
   it 'logs container-control failures instead of raising from update_state' do

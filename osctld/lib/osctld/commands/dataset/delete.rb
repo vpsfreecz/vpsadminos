@@ -66,7 +66,7 @@ module OsCtld
     end
 
     def delete_mounts(ct, mounts)
-      if ct.state == :running
+      if ct.runtime_state == :running
         mounts.each do |mnt|
           next unless Dir.exist?(File.join(ct.run_conf.runtime_rootfs, mnt.mountpoint))
 

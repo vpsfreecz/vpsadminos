@@ -14,7 +14,7 @@ module OsCtld
       return error("'#{opts[:type]}' is not supported") unless klass
 
       ret = manipulate(ct) do
-        if ct.state != :stopped
+        if ct.runtime_state != :stopped
           next error('the container must be stopped to add network interface')
 
         elsif ct.netifs.contains?(opts[:name])

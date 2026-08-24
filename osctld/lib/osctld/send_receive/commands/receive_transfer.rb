@@ -17,7 +17,7 @@ module OsCtld
       error!('the pool is disabled') unless ct.pool.active?
 
       ct.manipulate(self, block: true) do
-        error!('this container is not staged') if ct.state != :staged
+        error!('this container is not staged') if ct.config_state != :staged
 
         if !ct.send_log || !ct.send_log.can_receive_continue?(:transfer)
           error!('invalid send sequence')
@@ -33,7 +33,7 @@ module OsCtld
         validate_send_log_protocol!(ct)
 
         begin
-          ct.state = :complete
+          ct.complete_staging
 
           if opts[:start]
             call_cmd!(
@@ -73,11 +73,7 @@ module OsCtld
       end
 
       ct.stopped
-
-      ct.exclusively do
-        ct.state = :staged
-        ct.save_config
-      end
+      ct.stage
     end
   end
 end

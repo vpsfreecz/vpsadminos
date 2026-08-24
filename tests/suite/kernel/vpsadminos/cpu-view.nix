@@ -292,7 +292,7 @@ let
             it 'leaves no finite LXC-owned quota after pre-start aborts' do
               machine.fails("osctl ct start #{ctid}")
               machine.wait_until_succeeds(
-                "test \"$(osctl ct show -H -o state #{ctid})\" = stopped",
+                "test \"$(osctl ct show -H -o runtime_state #{ctid})\" = stopped",
                 timeout: 60
               )
 
@@ -393,7 +393,7 @@ let
 
                   it 'neutralizes the adopted payload before managed stop' do
                     info = machine.osctl_json("ct show #{ctid}")
-                    expect(info.fetch('state')).to eq('running')
+                    expect(info.fetch('runtime_state')).to eq('running')
                     expect(info.fetch('lifecycle_run_id')).not_to be_nil
 
                     _, adopted_payload_quota = machine.succeeds(<<~SH)

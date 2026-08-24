@@ -74,6 +74,9 @@ RSpec.describe OsVm::VpsadminosMachine do
       allow(machine).to receive(:sleep)
 
       expect(machine.wait_for_osctl_container('ct1')).to eq(machine)
+      expect(machine).to have_received(:wait_until_succeeds)
+        .with('osctl ct show -H -o runtime_state ct1', timeout: kind_of(Numeric))
+        .twice
     end
   end
 

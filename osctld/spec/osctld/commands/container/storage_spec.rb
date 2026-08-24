@@ -41,13 +41,13 @@ RSpec.describe 'container storage commands' do
     end)
   end
 
-  def build_ct(dataset_name: 'tank/ct1', state: :stopped)
+  def build_ct(dataset_name: 'tank/ct1', runtime_state: :stopped)
     dataset = Struct.new(:name).new(dataset_name)
-    Struct.new(:dataset, :state) do
+    Struct.new(:dataset, :runtime_state) do
       attr_accessor :mounts, :run_conf
 
-      def current_state
-        state
+      def current_runtime_state
+        runtime_state
       end
 
       def manipulate(_holder, block:, &)
@@ -66,7 +66,7 @@ RSpec.describe 'container storage commands' do
       def mount_calls
         @mount_calls ||= []
       end
-    end.new(dataset, state)
+    end.new(dataset, runtime_state)
   end
 
   before do
@@ -205,7 +205,7 @@ RSpec.describe 'container storage commands' do
 
   describe OsCtld::Commands::Container::MountActivate do
     it 'requires the container to be running' do
-      ct = build_ct(state: :stopped)
+      ct = build_ct(runtime_state: :stopped)
       ct.mounts = Struct.new do
         def activate(_mountpoint); end
       end.new
@@ -215,7 +215,7 @@ RSpec.describe 'container storage commands' do
     end
 
     it 'maps missing mounts to command failures' do
-      ct = build_ct(state: :running)
+      ct = build_ct(runtime_state: :running)
       ct.mounts = Struct.new do
         def activate(_mountpoint)
           raise OsCtld::MountNotFound

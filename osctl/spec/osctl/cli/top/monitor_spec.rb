@@ -28,7 +28,7 @@ RSpec.describe OsCtl::Cli::Top::Monitor do
       pool: 'tank',
       dataset: 'tank/ct1',
       group_path: '/grp',
-      state: 'running',
+      runtime_state: 'running',
       cpu_package_inuse: nil,
       init_pid: 10
     )
@@ -37,17 +37,35 @@ RSpec.describe OsCtl::Cli::Top::Monitor do
     allow(model).to receive(:add_ct_netif)
     monitor = described_class.new(model)
 
-    monitor.send(:process_event, :state, pool: 'tank', id: 'ct1', state: 'stopped', init_pid: 20)
+    monitor.send(:process_event, :runtime_state, pool: 'tank', id: 'ct1', runtime_state: 'stopped', init_pid: 20)
     monitor.send(:process_event, :ct_scheduled, pool: 'tank', id: 'ct1', cpu_package_inuse: 2)
     monitor.send(:process_event, :ct_init_pid, pool: 'tank', id: 'ct1', init_pid: 30)
     monitor.send(:process_event, :ct_netif, pool: 'tank', id: 'ct1', action: 'rename', name: 'eth0', new_name: 'lan0')
     monitor.send(:process_event, :ct_netif, pool: 'tank', id: 'ct1', action: 'down', name: 'lan0')
     monitor.send(:process_event, :ct_netif, pool: 'tank', id: 'ct1', action: 'remove', name: 'lan0')
 
-    expect(ct.state).to eq(:stopped)
+    expect(ct.runtime_state).to eq(:stopped)
     expect(ct.cpu_package_inuse).to eq(2)
     expect(ct.init_pid).to eq(30)
     expect(ct.netifs).to be_empty
+  end
+
+  it 'accepts legacy state events during an in-place upgrade' do
+    ct = OsCtl::Cli::Top::Container.new(
+      id: 'ct1',
+      pool: 'tank',
+      dataset: 'tank/ct1',
+      group_path: '/grp',
+      state: 'running',
+      cpu_package_inuse: nil,
+      init_pid: 10
+    )
+    allow(model).to receive(:find_ct).and_return(ct)
+    monitor = described_class.new(model)
+
+    monitor.send(:process_event, :state, pool: 'tank', id: 'ct1', state: 'stopped')
+
+    expect(ct.runtime_state).to eq(:stopped)
   end
 
   it 'adds and removes pools and containers from db events' do

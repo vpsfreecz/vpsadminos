@@ -90,7 +90,7 @@ module OsCtld
       v = addr.ipv4? ? 4 : 6
 
       ct.inclusively do
-        next if ct.state != :running
+        next if ct.runtime_state != :running
 
         # Add IP within the CT
         ct_syscmd(
@@ -107,7 +107,7 @@ module OsCtld
       v = addr.ipv4? ? 4 : 6
 
       ct.inclusively do
-        next if ct.state != :running
+        next if ct.runtime_state != :running
 
         # Remove IP from within the CT
         ct_syscmd(

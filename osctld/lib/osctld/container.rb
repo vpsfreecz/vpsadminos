@@ -16,7 +16,20 @@ module OsCtld
     include Utils::SwitchUser
 
     MAP_MODES = %w[native zfs].freeze
-    StateObservation = Struct.new(:id, :state, :init_pid)
+    RuntimeStateObservation = Struct.new(:id, :state, :init_pid)
+
+    CONFIG_STATES = %i[staged ready error].freeze
+    RUNTIME_STATES = %i[
+      unknown
+      stopped
+      starting
+      running
+      stopping
+      aborting
+      freezing
+      frozen
+      thawed
+    ].freeze
 
     DEFAULT_START_TIMEOUT = 120
     DEFAULT_STOP_TIMEOUT = 300
@@ -30,7 +43,8 @@ module OsCtld
                           :vendor, :variant, :autostart, :ephemeral, :hostname, :dns_resolvers,
                           :nesting, :prlimits, :mounts, :send_log, :local_transfer_log, :netifs,
                           :cgparams, :cpu_package, :devices, :seccomp_profile, :apparmor, :attrs,
-                          :state, :lxc_config,
+                          :config_state, :config_state_error, :runtime_state,
+                          :runtime_state_error, :lxc_config,
                           :init_cmd, :start_menu, :impermanence, :raw_configs, :run_conf, :next_run_conf,
                           :hints, :map_mode, :incarnation_id
 
@@ -64,7 +78,10 @@ module OsCtld
       @group = group
       @dataset = dataset
       @map_mode = opts[:map_mode]
-      @state = opts[:staged] ? :staged : :unknown
+      @config_state = opts[:staged] ? :staged : :ready
+      @config_state_error = nil
+      @runtime_state = :unknown
+      @runtime_state_error = nil
       @local_transfer_log = nil
       @ephemeral = false
       @netifs = NetInterface::Manager.new(self)
@@ -204,9 +221,9 @@ module OsCtld
 
     # Duplicate the container with a different ID
     #
-    # The returned container has `state` set to `:staged` and its assets will
-    # not exist, so the caller has to build the container and call
-    # `ct.state = :complete` for the container to become usable.
+    # The returned container has `config_state` set to `:staged` and its assets
+    # will not exist, so the caller has to build the container and call
+    # {#complete_staging} for the container to become usable.
     #
     # @param id [String] new container id
     # @param opts [Hash] options
@@ -388,22 +405,112 @@ module OsCtld
       configure_bashrc
     end
 
-    def state=(v)
-      if state == :staged
-        case v
-        when :complete
-          exclusively { @state = :stopped }
-          save_config
+    def complete_staging(runtime_state: :stopped)
+      changed = exclusively do
+        next false unless @config_state == :staged
 
-        when :running
-          exclusively { @state = v }
-          save_config
-        end
-
-        return
+        @config_state = :ready
+        @config_state_error = nil
+        @runtime_state = runtime_state
+        @runtime_state_error = nil
+        true
       end
 
-      exclusively { @state = v }
+      save_config if changed
+      if changed
+        report_config_state
+        report_runtime_state
+      end
+      changed
+    end
+
+    def stage
+      changed = exclusively do
+        next false if @config_state == :staged && @runtime_state == :unknown
+
+        @config_state = :staged
+        @config_state_error = nil
+        @runtime_state = :unknown
+        @runtime_state_error = nil
+        true
+      end
+
+      save_config if changed
+      if changed
+        report_config_state
+        report_runtime_state
+      end
+      changed
+    end
+
+    def set_config_ready
+      set_config_state(:ready)
+    end
+
+    def set_config_error(source:, message:)
+      set_config_state(
+        :error,
+        error: {
+          source: source.to_s,
+          message: message.to_s
+        }
+      )
+    end
+
+    def set_config_state(value, error: nil)
+      value = value.to_sym
+      raise ArgumentError, "invalid config state '#{value}'" unless CONFIG_STATES.include?(value)
+
+      changed = exclusively do
+        next false if @config_state == value && @config_state_error == error
+
+        @config_state = value
+        @config_state_error = error
+        true
+      end
+
+      report_config_state if changed
+      changed
+    end
+
+    def set_runtime_state(value, error: nil)
+      value = value.to_sym
+      raise ArgumentError, "invalid runtime state '#{value}'" unless RUNTIME_STATES.include?(value)
+
+      exclusively do
+        @runtime_state = value
+        @runtime_state_error = error
+      end
+    end
+
+    def set_runtime_state_unknown(source:, message:)
+      set_runtime_state(
+        :unknown,
+        error: {
+          source: source.to_s,
+          message: message.to_s
+        }
+      )
+    end
+
+    def report_config_state
+      Eventd.report(
+        :config_state,
+        pool: pool.name,
+        id:,
+        config_state:,
+        config_state_error:
+      )
+    end
+
+    def report_runtime_state
+      Eventd.report(
+        :runtime_state,
+        pool: pool.name,
+        id:,
+        runtime_state:,
+        runtime_state_error:
+      )
     end
 
     # Apply an LXC state observation only to the exact active run. The state,
@@ -411,61 +518,65 @@ module OsCtld
     # late monitor event cannot mutate a replacement generation.
     def observe_run_state(run_id, value, init_pid: nil)
       exclusively do
-        return false if @state == :error
         return false unless @run_conf
         return false unless @run_conf.run_id == run_id
 
-        @state = value
+        @runtime_state = value
+        @runtime_state_error = nil
         @run_conf.init_pid = init_pid if value.to_sym == :running && init_pid
         @run_conf.mark_aborted if %i[aborting aborted].include?(value.to_sym)
         true
       end
     end
 
-    # Fetch current container state and init PID by forking into it
+    # Fetch current container runtime state and init PID by forking into it
     # @return [#state, #init_pid]
-    def current_state_observation
+    def current_runtime_state_observation
       observation = ContainerControl::Commands::State.run!(self)
-      self.state = observation.state
+      set_runtime_state(observation.state)
       observation
-    rescue ContainerControl::Error
-      self.state = :error
-      StateObservation.new(id, :error, nil)
+    rescue ContainerControl::Error => e
+      set_runtime_state_unknown(
+        source: :lxc_state_observation,
+        message: e.message
+      )
+      RuntimeStateObservation.new(id, :unknown, nil)
     end
 
-    # Fetch current container state by forking into it
+    # Fetch current container runtime state by forking into it
     # @return [Symbol]
-    def current_state
-      current_state_observation.state
+    def current_runtime_state
+      current_runtime_state_observation.state
     end
 
-    # Fetch current state and init PID if state is not known, otherwise return
-    # the known observation.
+    # Fetch current runtime state and init PID if it is not known, otherwise
+    # return the known observation.
     # @return [#state, #init_pid]
-    def fresh_state_observation
-      if state == :unknown
-        current_state_observation
+    def fresh_runtime_state_observation
+      if runtime_state == :unknown
+        current_runtime_state_observation
       else
-        StateObservation.new(
+        RuntimeStateObservation.new(
           id,
-          state,
+          runtime_state,
           init_pid
         )
       end
     end
 
-    # Fetch current state if the state is not known, otherwise return the known state
+    # Fetch current runtime state if it is not known, otherwise return the known
+    # runtime state.
     # @return [Symbol]
-    def fresh_state
-      fresh_state_observation.state
+    def fresh_runtime_state
+      fresh_runtime_state_observation.state
     end
 
     def running?
-      state == :running
+      runtime_state == :running
     end
 
     def can_start?
-      inclusively { state != :staged && state != :error && pool.active? }
+      inclusively { config_state == :ready && pool.active? }
     end
 
     def init_pid
@@ -495,7 +606,8 @@ module OsCtld
           @run_conf = nil
         end
 
-        @state = :stopped
+        @runtime_state = :stopped
+        @runtime_state_error = nil
         true
       end
     end
@@ -837,8 +949,8 @@ module OsCtld
     end
 
     # Regenerate LXC config
-    def reconfigure
-      lxc_config.configure
+    def reconfigure(**)
+      lxc_config.configure(**)
     end
 
     def configure_bashrc
@@ -940,7 +1052,10 @@ module OsCtld
           arch: run_conf ? run_conf.arch : arch,
           vendor: run_conf ? run_conf.vendor : vendor,
           variant: run_conf ? run_conf.variant : variant,
-          state:,
+          config_state:,
+          config_state_error:,
+          runtime_state:,
+          runtime_state_error:,
           init_pid:,
           lifecycle_desired_state: lifecycle_record.fetch('desired_state'),
           lifecycle_state: lifecycle_run&.fetch('phase'),
@@ -1022,7 +1137,7 @@ module OsCtld
           'hints' => hints.dump
         }
 
-        data['state'] = 'staged' if state == :staged
+        data['config_state'] = 'staged' if config_state == :staged
         data['send_log'] = send_log.dump if send_log
         data['local_transfer_log'] = local_transfer_log.dump if local_transfer_log
 
@@ -1151,7 +1266,16 @@ module OsCtld
                 "container #{id}: incarnation_id cannot be changed"
         end
 
-        @state = cfg['state'].to_sym if cfg['state']
+        persisted_config_state = cfg['config_state']
+        persisted_config_state ||= 'staged' if cfg['state'] == 'staged'
+        if persisted_config_state
+          persisted_config_state = persisted_config_state.to_sym
+          unless CONFIG_STATES.include?(persisted_config_state)
+            raise ConfigError,
+                  "container #{id}: invalid config_state '#{persisted_config_state}'"
+          end
+          @config_state = persisted_config_state
+        end
         if cfg['incarnation_id']
           @incarnation_id = cfg['incarnation_id'] \
             unless preserve_incarnation_id
@@ -1252,7 +1376,10 @@ module OsCtld
       @pool = opts[:pool] if opts[:pool]
       @user = opts[:user] if opts[:user]
       @group = opts[:group] if opts[:group]
-      @state = :staged
+      @config_state = :staged
+      @config_state_error = nil
+      @runtime_state = :unknown
+      @runtime_state_error = nil
       @incarnation_id = SecureRandom.uuid
       @incarnation_id_persisted = false
       @send_log = nil

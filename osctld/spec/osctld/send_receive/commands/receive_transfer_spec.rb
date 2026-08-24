@@ -53,13 +53,14 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
 
       Class.new do
         attr_reader :pool, :id, :send_log, :save_config_calls, :stopped_calls, :mounts, :apparmor
-        attr_accessor :state, :closed_send_log
+        attr_accessor :config_state, :runtime_state, :closed_send_log
 
         define_method(:initialize) do |ct_pool, ct_send_log|
           @pool = ct_pool
           @send_log = ct_send_log
           @id = 'ct1'
-          @state = :staged
+          @config_state = :staged
+          @runtime_state = :unknown
           @closed_send_log = false
           @save_config_calls = 0
           @stopped_calls = 0
@@ -77,21 +78,16 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
           block.call
         end
 
-        def state=(value)
-          if state == :staged
-            case value
-            when :complete
-              @state = :stopped
-              save_config
-              return
-            when :running
-              @state = :running
-              save_config
-              return
-            end
-          end
+        def complete_staging
+          @config_state = :ready
+          @runtime_state = :stopped
+          save_config
+        end
 
-          @state = value
+        def stage
+          @config_state = :staged
+          @runtime_state = :unknown
+          save_config
         end
 
         def save_config
@@ -169,7 +165,8 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
     it 'finishes a staged transfer without start as a stopped container' do
       expect(command.execute).to eq(status: true, output: nil)
 
-      expect(ct.state).to eq(:stopped)
+      expect(ct.config_state).to eq(:ready)
+      expect(ct.runtime_state).to eq(:stopped)
       expect(send_log.state).to eq(:transfer)
       expect(send_log.snapshots).to eq([['tank/ct1', 'snap1']])
       expect(ct.save_config_calls).to eq(2)
@@ -238,7 +235,8 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
         command_with_start.execute
       end.to raise_error(OsCtld::CommandFailed, 'start failed')
 
-      expect(ct.state).to eq(:staged)
+      expect(ct.config_state).to eq(:staged)
+      expect(ct.runtime_state).to eq(:unknown)
       expect(ct.stopped_calls).to eq(1)
       expect(ct.unmount_calls).to eq(1)
       expect(ct.clear_start_menu_calls).to eq(1)

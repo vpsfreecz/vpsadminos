@@ -34,11 +34,15 @@ RSpec.describe OsctldRestart do
                     :test_svc, :test_target_nodectld_barrier,
                     :test_nodectld_unpaused, :test_service_process_identity,
                     :test_service_cgroup_empty
-      attr_reader :calls, :nodectld_calls, :svc_calls
+      attr_reader :calls, :json_calls, :nodectld_calls, :svc_calls
 
       protected
 
-      def osctl_json(*) = test_status
+      def osctl_json(*args)
+        @json_calls ||= []
+        @json_calls << args
+        test_status.is_a?(Array) ? test_status.shift : test_status
+      end
 
       def run_osctl(*args)
         @calls ||= []
@@ -730,14 +734,13 @@ RSpec.describe OsctldRestart do
 
   it 'prepares a legacy upgrade without waiting for absent nodectld' do
     restart = coordinator(
-      status: { 'initialized' => true, 'legacy' => true }
+      status: [
+        { 'initialized' => true, 'legacy' => true },
+        [],
+        []
+      ]
     )
     restart.test_service_supervised = false
-    allow(restart).to receive(:osctl_json).and_return(
-      { 'initialized' => true, 'legacy' => true },
-      [],
-      []
-    )
     allow(restart).to receive_messages(
       write_handoff: nil,
       wait_for_legacy_stability: nil,
@@ -750,6 +753,12 @@ RSpec.describe OsctldRestart do
     expect(restart).not_to have_received(:wait_for_legacy_nodectld_idle)
     expect(restart.nodectld_calls).to be_nil
     expect(restart.svc_calls).to be_nil
+    expect(restart.json_calls).to include(
+      [
+        'ct', 'list', '-o',
+        'pool,id,runtime_state,autostart,autostart_priority'
+      ]
+    )
   end
 
   it 'fails closed when a nodectld barrier outlives supervision' do
@@ -801,8 +810,12 @@ RSpec.describe OsctldRestart do
     restart.send(
       :replace_runtime_handoff,
       [
-        { 'pool' => 'tank', 'id' => '101', 'state' => 'running' },
-        { 'pool' => 'tank', 'id' => '102', 'state' => 'stopped' }
+        {
+          'pool' => 'tank', 'id' => '101', 'runtime_state' => 'running'
+        },
+        {
+          'pool' => 'tank', 'id' => '102', 'runtime_state' => 'stopped'
+        }
       ]
     )
     expect(restart.instance_variable_get(:@handoff_runtime)).to eq(
@@ -811,7 +824,9 @@ RSpec.describe OsctldRestart do
 
     restart.send(
       :replace_runtime_handoff,
-      [{ 'pool' => 'tank', 'id' => '101', 'state' => 'stopped' }]
+      [{
+        'pool' => 'tank', 'id' => '101', 'runtime_state' => 'stopped'
+      }]
     )
     expect(restart.instance_variable_get(:@handoff_runtime)).to be_empty
   end
@@ -824,11 +839,11 @@ RSpec.describe OsctldRestart do
     stopping = {
       'pool' => 'tank',
       'id' => '101',
-      'state' => 'stopping',
+      'runtime_state' => 'stopping',
       'autostart' => true,
       'autostart_priority' => 17
     }
-    stopped = stopping.merge('state' => 'stopped')
+    stopped = stopping.merge('runtime_state' => 'stopped')
     allow(restart).to receive(:osctl_json).and_return(
       [stopping],
       [stopped],

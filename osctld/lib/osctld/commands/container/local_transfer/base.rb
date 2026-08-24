@@ -47,7 +47,9 @@ module OsCtld
       ct = target_ct(log)
 
       ct.exclusively do
-        unless %i[staged stopped].include?(ct.state)
+        unless ct.config_state == :staged || (
+          ct.config_state == :ready && ct.runtime_state == :stopped
+        )
           error!('target container is not staged')
         end
       end
@@ -58,7 +60,7 @@ module OsCtld
     def complete_target!(log)
       ct = ensure_target_staged_or_complete!(log)
 
-      ct.state = :complete if ct.state == :staged
+      ct.complete_staging if ct.config_state == :staged
       ct
     end
 

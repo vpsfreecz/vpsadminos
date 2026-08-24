@@ -43,16 +43,16 @@ module LocalTransferSpec
   end
 
   FakeCt = Struct.new(
-    :id, :pool, :state, :dataset, :user, :group, :send_log,
-    :local_transfer_log, :save_config_calls, :closed_local_transfer_log,
-    :cleanup_calls, keyword_init: true
+    :id, :pool, :config_state, :config_state_error, :runtime_state, :dataset,
+    :user, :group, :send_log, :local_transfer_log, :save_config_calls,
+    :closed_local_transfer_log, :cleanup_calls, keyword_init: true
   ) do
     def datasets
       [dataset] + dataset.descendants
     end
 
     def running?
-      state == :running
+      runtime_state == :running
     end
 
     def exclusively
@@ -96,7 +96,8 @@ module LocalTransferSpec
       FakeCt.new(
         id: new_id,
         pool: pool || self.pool,
-        state: :staged,
+        config_state: :staged,
+        runtime_state: :unknown,
         dataset: Dataset.new(dataset || File.join((pool || self.pool).ct_ds, new_id), '/', []),
         user: user || self.user,
         group: group || self.group,
@@ -112,8 +113,16 @@ module LocalTransferSpec
       self
     end
 
-    def state=(v)
-      self[:state] = v == :complete ? :stopped : v
+    def complete_staging
+      self.config_state = :ready
+      self.runtime_state = :stopped
+      save_config
+    end
+
+    def stage
+      self.config_state = :staged
+      self.runtime_state = :unknown
+      save_config
     end
   end
 end
@@ -153,11 +162,16 @@ RSpec.describe 'local container transfer commands' do
     )
   end
 
-  def source_ct(state: :stopped, log: nil, descendants: [])
+  def source_ct(
+    config_state: :ready, config_state_error: nil, runtime_state: :stopped,
+    log: nil, descendants: []
+  )
     LocalTransferSpec::FakeCt.new(
       id: 'ct1',
       pool: LocalTransferSpec::Pool.new('tank', 'tank/ct'),
-      state:,
+      config_state:,
+      config_state_error:,
+      runtime_state:,
       dataset: LocalTransferSpec::Dataset.new('tank/ct/ct1', '/', descendants),
       user: LocalTransferSpec::User.new('alice'),
       group: LocalTransferSpec::Group.new('/default'),
@@ -169,13 +183,19 @@ RSpec.describe 'local container transfer commands' do
     )
   end
 
-  def target_ct(id: 'ct1-copy', state: :staged, pool_name: 'tank')
+  def target_ct(
+    id: 'ct1-copy', config_state: :staged, config_state_error: nil,
+    runtime_state: :unknown,
+    pool_name: 'tank'
+  )
     pool = LocalTransferSpec::Pool.new(pool_name, "#{pool_name}/ct")
 
     LocalTransferSpec::FakeCt.new(
       id:,
       pool:,
-      state:,
+      config_state:,
+      config_state_error:,
+      runtime_state:,
       dataset: LocalTransferSpec::Dataset.new("#{pool.ct_ds}/#{id}", '/', []),
       user: LocalTransferSpec::User.new('alice'),
       group: LocalTransferSpec::Group.new('/default'),
@@ -280,7 +300,7 @@ RSpec.describe 'local container transfer commands' do
       )
       expect(source.local_transfer_log.opts.from_snapshot).to eq('vpsadmin-replace')
       expect(created).to eq(%w[tank/ct/ct1-copy tank/ct/ct1-copy/data])
-      expect(target.state).to eq(:staged)
+      expect(target.config_state).to eq(:staged)
     end
 
     it 'refuses to start when a send transfer is in progress' do
@@ -563,10 +583,75 @@ RSpec.describe 'local container transfer commands' do
   end
 
   describe OsCtld::Commands::Container::CopyState do
+    it 'rejects a stopped target whose configuration is in error before mutation' do
+      log = local_log(state: :base, snapshots: ['snap-base'])
+      source = source_ct(runtime_state: :stopped, log:)
+      target = target_ct(
+        config_state: :error,
+        config_state_error: {
+          source: 'lxc_config',
+          message: 'rootfs path is not available'
+        },
+        runtime_state: :stopped
+      )
+      stub_target_lookup(target)
+      command = described_class.new(
+        { id: 'ct1', pool: 'tank', consistent: true, restart: false },
+        {}
+      )
+      allow(command).to receive(:snapshot_datasets)
+      allow(command).to receive(:transfer_dataset)
+      allow(command).to receive(:call_cmd!)
+
+      expect do
+        command.execute(source)
+      end.to raise_error(OsCtld::CommandFailed, 'target container is not staged')
+      expect(command).not_to have_received(:snapshot_datasets)
+      expect(command).not_to have_received(:transfer_dataset)
+      expect(command).not_to have_received(:call_cmd!)
+      expect(log.state_running).to be_nil
+      expect(log.state_snapshot).to be_nil
+      expect(source.save_config_calls).to eq(0)
+      expect(target.save_config_calls).to eq(0)
+    end
+
+    it 'does not stop a running source whose configuration is in error' do
+      stub_daemon
+      log = local_log(state: :base, snapshots: ['snap-base'])
+      source = source_ct(
+        config_state: :error,
+        config_state_error: {
+          source: 'lxc_config',
+          message: 'rootfs path is not available'
+        },
+        runtime_state: :running,
+        log:
+      )
+      command = described_class.new(
+        { id: 'ct1', pool: 'tank', consistent: true, restart: true },
+        {}
+      )
+      allow(command).to receive(:call_cmd!)
+      allow(command).to receive(:zfs)
+      allow(command).to receive(:transfer_dataset)
+
+      expect do
+        command.execute(source)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        'container configuration is not ready (state: error): rootfs path is not available'
+      )
+      expect(command).not_to have_received(:call_cmd!)
+      expect(command).not_to have_received(:zfs)
+      expect(command).not_to have_received(:transfer_dataset)
+      expect(log.state_running).to be_nil
+      expect(source.save_config_calls).to eq(0)
+    end
+
     it 'restarts the source after the final snapshot before transfer' do
       stub_daemon
       log = local_log(state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', consistent: true, restart: true }, {})
@@ -589,13 +674,14 @@ RSpec.describe 'local container transfer commands' do
       expect(start_event[2]).to eq(id: 'ct1', pool: 'tank', force: true)
       expect(log.state_snapshot).to eq('snap-state')
       expect(log.state).to eq(:transfer)
-      expect(target.state).to eq(:stopped)
+      expect(target.config_state).to eq(:ready)
+      expect(target.runtime_state).to eq(:stopped)
     end
 
     it 'does not stop a running source with no consistency requested' do
       stub_daemon
       log = local_log(state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', consistent: false, restart: true }, {})
@@ -612,7 +698,7 @@ RSpec.describe 'local container transfer commands' do
     it 'keeps the log open when stop fails' do
       stub_daemon
       log = local_log(state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', consistent: true }, {})
@@ -642,7 +728,7 @@ RSpec.describe 'local container transfer commands' do
     it 'keeps a retryable state snapshot when restart fails' do
       stub_daemon
       log = local_log(state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', consistent: true, restart: true }, {})
@@ -671,7 +757,7 @@ RSpec.describe 'local container transfer commands' do
     it 'keeps a retryable state snapshot when transfer fails' do
       stub_daemon
       log = local_log(state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :stopped, log:)
+      source = source_ct(runtime_state: :stopped, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new(
@@ -690,7 +776,7 @@ RSpec.describe 'local container transfer commands' do
 
       expect(log.state_snapshot).to eq('snap-state')
       expect(log.state).to eq(:base)
-      expect(target.state).to eq(:staged)
+      expect(target.config_state).to eq(:staged)
     end
 
     it 'clears a failed state snapshot before retrying' do
@@ -701,7 +787,7 @@ RSpec.describe 'local container transfer commands' do
         state_snapshot: 'snap-failed',
         state_running: true
       )
-      source = source_ct(state: :stopped, log:)
+      source = source_ct(runtime_state: :stopped, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', consistent: true, restart: false }, {})
@@ -726,7 +812,7 @@ RSpec.describe 'local container transfer commands' do
     it 'keeps the log open when stop fails' do
       stub_daemon
       log = local_log(operation: :move, state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', start: true }, {})
@@ -747,7 +833,7 @@ RSpec.describe 'local container transfer commands' do
     it 'does not snapshot a move when stop quarantines a residual' do
       stub_daemon
       log = local_log(operation: :move, state: :base)
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       run_id = OsCtld::Container::RunId.new(
@@ -783,7 +869,7 @@ RSpec.describe 'local container transfer commands' do
     it 'does not stop a healthy replacement when a residual already exists' do
       stub_daemon
       log = local_log(operation: :move, state: :base)
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       active_id = OsCtld::Container::RunId.new(
@@ -822,7 +908,7 @@ RSpec.describe 'local container transfer commands' do
     it 'stops the source and starts the completed target when requested' do
       stub_daemon
       log = local_log(operation: :move, state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', start: true }, {})
@@ -842,7 +928,7 @@ RSpec.describe 'local container transfer commands' do
     it 'keeps a retryable state snapshot when transfer fails' do
       stub_daemon
       log = local_log(operation: :move, state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :stopped, log:)
+      source = source_ct(runtime_state: :stopped, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new(
@@ -861,13 +947,13 @@ RSpec.describe 'local container transfer commands' do
 
       expect(log.state_snapshot).to eq('snap-state')
       expect(log.state).to eq(:base)
-      expect(target.state).to eq(:staged)
+      expect(target.config_state).to eq(:staged)
     end
 
     it 'keeps a retryable state snapshot when target start fails' do
       stub_daemon
       log = local_log(operation: :move, state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', start: true }, {})
@@ -893,7 +979,8 @@ RSpec.describe 'local container transfer commands' do
 
       expect(log.state_snapshot).to eq('snap-state')
       expect(log.state).to eq(:base)
-      expect(target.state).to eq(:stopped)
+      expect(target.config_state).to eq(:ready)
+      expect(target.runtime_state).to eq(:stopped)
     end
 
     it 'clears a failed state snapshot before retrying' do
@@ -905,8 +992,8 @@ RSpec.describe 'local container transfer commands' do
         state_snapshot: 'snap-failed',
         state_running: true
       )
-      source = source_ct(state: :stopped, log:)
-      target = target_ct(state: :stopped)
+      source = source_ct(runtime_state: :stopped, log:)
+      target = target_ct(config_state: :ready, runtime_state: :stopped)
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', start: false }, {})
       destroys = []
@@ -932,7 +1019,7 @@ RSpec.describe 'local container transfer commands' do
     it 'does not start the target with start disabled' do
       stub_daemon
       log = local_log(operation: :move, state: :base, snapshots: ['snap-base'])
-      source = source_ct(state: :running, log:)
+      source = source_ct(runtime_state: :running, log:)
       target = target_ct
       stub_target_lookup(target)
       command = described_class.new({ id: 'ct1', pool: 'tank', start: false }, {})

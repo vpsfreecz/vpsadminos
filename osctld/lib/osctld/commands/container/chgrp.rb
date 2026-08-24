@@ -21,7 +21,7 @@ module OsCtld
         error!('group not found')
       elsif ct.group == new_group
         error!("already in group #{new_group.name}")
-      elsif ct.state != :stopped
+      elsif ct.runtime_state != :stopped
         error!('container has to be stopped first')
       end
 
@@ -46,7 +46,7 @@ module OsCtld
         end
 
         # Double check state
-        error!('container has to be stopped first') if ct.state != :stopped
+        error!('container has to be stopped first') if ct.runtime_state != :stopped
         guard_no_runtime_generations!(ct, 'container group change')
 
         # Check that devices are available in the new group

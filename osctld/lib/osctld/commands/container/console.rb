@@ -13,7 +13,7 @@ module OsCtld
       return error('container not found') unless ct
 
       ct.inclusively do
-        next error('container not running') if ct.state != :running && opts[:tty] != 0
+        next error('container not running') if ct.runtime_state != :running && opts[:tty] != 0
 
         client.send("#{{ status: true, response: 'continue' }.to_json}\n", 0)
 

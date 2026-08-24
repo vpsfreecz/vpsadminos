@@ -561,7 +561,7 @@ module OsCtld
 
         cts = DB::Containers.get.each do |ct|
           ctrc = ct.run_conf
-          stopped = ct.state == :stopped
+          stopped = ct.runtime_state == :stopped
           should_unschedule = false
 
           exclusively do

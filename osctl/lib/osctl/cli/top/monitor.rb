@@ -49,14 +49,14 @@ module OsCtl::Cli
 
     def process_event(type, opts)
       case type
-      when :state
+      when :runtime_state, :state
         model.sync do
           ct = model.find_ct(opts[:pool], opts[:id])
           next unless ct
 
-          st = opts[:state].to_sym
+          st = (opts[:runtime_state] || opts[:state]).to_sym
 
-          ct.state = st
+          ct.runtime_state = st
           ct.init_pid = opts[:init_pid] if st == :running
         end
 

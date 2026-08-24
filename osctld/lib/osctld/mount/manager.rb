@@ -36,7 +36,7 @@ module OsCtld
       return if !mnt.automount? || mnt.type != 'bind'
 
       ct.exclusively do
-        next unless ct.fresh_state == :running
+        next unless ct.fresh_runtime_state == :running
 
         shared_dir.propagate(mnt)
       end
@@ -71,7 +71,7 @@ module OsCtld
         next unless mnt
 
         ct.exclusively do
-          next unless ct.fresh_state == :running
+          next unless ct.fresh_runtime_state == :running
 
           unmount(mnt)
         end
@@ -86,7 +86,7 @@ module OsCtld
     # Remove all mounts
     def clear
       exclusively do
-        if ct.fresh_state == :running
+        if ct.fresh_runtime_state == :running
           entries.reverse_each { |m| unmount(m) }
         end
 

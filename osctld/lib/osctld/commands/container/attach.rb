@@ -12,7 +12,7 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
-      error!('container not running') if ct.state != :running
+      error!('container not running') if ct.runtime_state != :running
 
       base_args = [
         'lxc-attach', '-P', ct.lxc_home,

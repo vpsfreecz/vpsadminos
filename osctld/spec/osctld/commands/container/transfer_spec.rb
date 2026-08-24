@@ -44,7 +44,11 @@ RSpec.describe 'container transfer commands' do
     end.new(name, descendants, File.basename(name))
   end
 
-  def build_send_ct(state: :running, snapshots: ['snap-base'], descendants: [], state_snapshot: nil, state_running: nil, lifecycle: build_lifecycle)
+  def build_send_ct(
+    runtime_state: :running, snapshots: ['snap-base'], descendants: [],
+    state_snapshot: nil, state_running: nil, lifecycle: build_lifecycle,
+    config_state: :ready, config_state_error: nil
+  )
     send_log_opts = Struct.new(:cloned, :snapshots).new(false, false)
     send_log = Struct.new(:state, :snapshots, :opts, :token, :state_snapshot, :state_running) do
       def can_send_continue?(stage)
@@ -61,8 +65,9 @@ RSpec.describe 'container transfer commands' do
     dataset = build_dataset('tank/ct1', descendants:)
 
     Struct.new(
-      :id, :pool, :state, :send_log, :dataset, :save_config_calls,
-      :closed_send_log, :lifecycle, keyword_init: true
+      :id, :pool, :config_state, :config_state_error, :runtime_state,
+      :send_log, :dataset, :save_config_calls, :closed_send_log, :lifecycle,
+      keyword_init: true
     ) do
       def manipulate(_cmd, block:, &)
         yield
@@ -87,7 +92,9 @@ RSpec.describe 'container transfer commands' do
     end.new(
       id: 'ct1',
       pool: Struct.new(:name, :send_receive_key_chain).new('tank', nil),
-      state:,
+      config_state:,
+      config_state_error:,
+      runtime_state:,
       send_log:,
       dataset:,
       save_config_calls: 0,
@@ -113,6 +120,48 @@ RSpec.describe 'container transfer commands' do
   end
 
   describe OsCtld::Commands::Container::Export do
+    it 'does not truncate output for a running container with a configuration error' do
+      stop_class = stub_const('OsCtld::Commands::Container::Stop', Class.new)
+      ct = Struct.new(
+        :id, :pool, :config_state, :config_state_error, :runtime_state,
+        keyword_init: true
+      ) do
+        def manipulate(_cmd, block:, &)
+          yield
+        end
+      end.new(
+        id: 'ct1',
+        pool: Struct.new(:name).new('tank'),
+        config_state: :error,
+        config_state_error: {
+          source: 'lxc_config',
+          message: 'rootfs path is not available'
+        },
+        runtime_state: :running
+      )
+      allow(OsCtl::Lib::Exporter::Zfs).to receive(:new)
+
+      with_tmpdir do |dir|
+        path = File.join(dir, 'ct1.tar')
+        File.write(path, 'existing export')
+        command = described_class.new(
+          { consistent: true, compression: nil, file: path },
+          {}
+        )
+        allow(command).to receive(:call_cmd!)
+
+        expect do
+          command.execute(ct)
+        end.to raise_error(
+          OsCtld::CommandFailed,
+          'container configuration is not ready (state: error): rootfs path is not available'
+        )
+        expect(File.read(path)).to eq('existing export')
+        expect(command).not_to have_received(:call_cmd!).with(stop_class, any_args)
+      end
+      expect(OsCtl::Lib::Exporter::Zfs).not_to have_received(:new)
+    end
+
     it 'aborts consistent exports when stopping the source container fails' do
       stop_class = Class.new
       stub_const('OsCtld::Commands::Container::Stop', stop_class)
@@ -120,10 +169,15 @@ RSpec.describe 'container transfer commands' do
         def self.list_all_scripts(_ct); end
       end
       stub_const('OsCtld::Hook::Manager', hook_manager)
-      ct = Struct.new(:id, :pool, :state, :lifecycle, keyword_init: true).new(
+      ct = Struct.new(
+        :id, :pool, :config_state, :config_state_error, :runtime_state,
+        :lifecycle, keyword_init: true
+      ).new(
         id: 'ct1',
         pool: Struct.new(:name).new('tank'),
-        state: :running,
+        config_state: :ready,
+        config_state_error: nil,
+        runtime_state: :running,
         lifecycle: build_lifecycle
       )
       exporter = instance_double(OsCtl::Lib::Exporter::Zfs)
@@ -162,10 +216,15 @@ RSpec.describe 'container transfer commands' do
       lifecycle = build_lifecycle(
         [{ 'id' => run_id.dump, 'role' => 'residual' }]
       )
-      ct = Struct.new(:id, :pool, :state, :lifecycle, keyword_init: true).new(
+      ct = Struct.new(
+        :id, :pool, :config_state, :config_state_error, :runtime_state,
+        :lifecycle, keyword_init: true
+      ).new(
         id: 'ct1',
         pool: Struct.new(:name).new('tank'),
-        state: :running,
+        config_state: :ready,
+        config_state_error: nil,
+        runtime_state: :running,
         lifecycle:
       )
       exporter = instance_double(OsCtl::Lib::Exporter::Zfs)
@@ -208,10 +267,15 @@ RSpec.describe 'container transfer commands' do
         def self.list_all_scripts(_ct); end
       end
       stub_const('OsCtld::Hook::Manager', hook_manager)
-      ct = Struct.new(:id, :pool, :state, :lifecycle, keyword_init: true).new(
+      ct = Struct.new(
+        :id, :pool, :config_state, :config_state_error, :runtime_state,
+        :lifecycle, keyword_init: true
+      ).new(
         id: 'ct1',
         pool: Struct.new(:name).new('tank'),
-        state: :running,
+        config_state: :ready,
+        config_state_error: nil,
+        runtime_state: :running,
         lifecycle: build_lifecycle
       )
       exporter = instance_double(OsCtl::Lib::Exporter::Zfs)
@@ -229,7 +293,7 @@ RSpec.describe 'container transfer commands' do
       allow(exporter).to receive(:dump_rootfs).and_yield
       allow(exporter).to receive(:dump_base) do
         events << :base
-        ct.state = :stopped
+        ct.runtime_state = :stopped
       end
       allow(exporter).to receive(:dump_incremental) do
         events << :incremental
@@ -249,13 +313,9 @@ RSpec.describe 'container transfer commands' do
         .with(start_class, id: 'ct1', pool: 'tank', force: true)
     end
 
-    it 'does not stop a healthy replacement when a residual already exists' do
+    it 'preserves output when a residual already blocks the export' do
       stop_class = Class.new
       stub_const('OsCtld::Commands::Container::Stop', stop_class)
-      hook_manager = Class.new do
-        def self.list_all_scripts(_ct); end
-      end
-      stub_const('OsCtld::Hook::Manager', hook_manager)
       active_id = OsCtld::Container::RunId.new(
         pool_name: 'tank',
         container_id: 'ct1'
@@ -272,36 +332,86 @@ RSpec.describe 'container transfer commands' do
         ],
         residuals: [residual]
       )
-      ct = Struct.new(:id, :pool, :state, :lifecycle, keyword_init: true).new(
+      ct = Struct.new(
+        :id, :pool, :config_state, :config_state_error, :runtime_state,
+        :lifecycle, keyword_init: true
+      ) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(
         id: 'ct1',
         pool: Struct.new(:name).new('tank'),
-        state: :running,
+        config_state: :ready,
+        config_state_error: nil,
+        runtime_state: :running,
         lifecycle:
       )
-      exporter = instance_double(OsCtl::Lib::Exporter::Zfs)
-      command = described_class.new(
-        { consistent: true, compression: nil },
-        {}
-      )
+      allow(OsCtl::Lib::Exporter::Zfs).to receive(:new)
 
-      allow(OsCtl::Lib::Exporter::Zfs).to receive(:new).and_return(exporter)
-      allow(OsCtld::Hook::Manager).to receive(:list_all_scripts).and_return([])
-      allow(exporter).to receive(:dump_metadata)
-      allow(exporter).to receive(:dump_configs)
-      allow(exporter).to receive(:dump_user_hook_scripts)
-      allow(exporter).to receive(:dump_rootfs).and_yield
-      allow(exporter).to receive(:dump_base)
-      allow(exporter).to receive(:close)
-      allow(command).to receive(:call_cmd!)
+      with_tmpdir do |dir|
+        path = File.join(dir, 'ct1.tar')
+        File.write(path, 'existing export')
+        command = described_class.new(
+          { consistent: true, compression: nil, file: path },
+          {}
+        )
+        allow(command).to receive(:call_cmd!)
 
-      expect do
-        command.send(:export, ct, StringIO.new)
-      end.to raise_error(
-        OsCtld::CommandFailed,
-        /consistent container export is blocked.*residual/
+        expect do
+          command.execute(ct)
+        end.to raise_error(
+          OsCtld::CommandFailed,
+          /consistent container export is blocked.*residual/
+        )
+        expect(File.read(path)).to eq('existing export')
+        expect(command).not_to have_received(:call_cmd!)
+      end
+      expect(OsCtl::Lib::Exporter::Zfs).not_to have_received(:new)
+    end
+
+    it 'preserves output when a stopped source has a runtime generation' do
+      run_id = OsCtld::Container::RunId.new(
+        pool_name: 'tank',
+        container_id: 'ct1'
       )
-      expect(command).not_to have_received(:call_cmd!)
-      expect(exporter).not_to have_received(:dump_base)
+      lifecycle = build_lifecycle(
+        [{ 'id' => run_id.dump, 'role' => 'active' }]
+      )
+      ct = Struct.new(
+        :id, :pool, :config_state, :config_state_error, :runtime_state,
+        :lifecycle, keyword_init: true
+      ) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(
+        id: 'ct1',
+        pool: Struct.new(:name).new('tank'),
+        config_state: :ready,
+        config_state_error: nil,
+        runtime_state: :stopped,
+        lifecycle:
+      )
+      allow(OsCtl::Lib::Exporter::Zfs).to receive(:new)
+
+      with_tmpdir do |dir|
+        path = File.join(dir, 'ct1.tar')
+        File.write(path, 'existing export')
+        command = described_class.new(
+          { consistent: true, compression: nil, file: path },
+          {}
+        )
+
+        expect do
+          command.execute(ct)
+        end.to raise_error(
+          OsCtld::CommandFailed,
+          /consistent container export is blocked.*active/
+        )
+        expect(File.read(path)).to eq('existing export')
+      end
+      expect(OsCtl::Lib::Exporter::Zfs).not_to have_received(:new)
     end
 
     it 'aborts consistent exports when restarting the source container fails' do
@@ -313,10 +423,15 @@ RSpec.describe 'container transfer commands' do
         def self.list_all_scripts(_ct); end
       end
       stub_const('OsCtld::Hook::Manager', hook_manager)
-      ct = Struct.new(:id, :pool, :state, :lifecycle, keyword_init: true).new(
+      ct = Struct.new(
+        :id, :pool, :config_state, :config_state_error, :runtime_state,
+        :lifecycle, keyword_init: true
+      ).new(
         id: 'ct1',
         pool: Struct.new(:name).new('tank'),
-        state: :running,
+        config_state: :ready,
+        config_state_error: nil,
+        runtime_state: :running,
         lifecycle: build_lifecycle
       )
       exporter = instance_double(OsCtl::Lib::Exporter::Zfs)
@@ -357,6 +472,48 @@ RSpec.describe 'container transfer commands' do
       end)
       stub_const('OsCtld::Commands::Container::Stop', Class.new)
       stub_const('OsCtld::Commands::Container::Start', Class.new)
+    end
+
+    [true, false].each do |consistent|
+      it "does not mutate a config-error clone source with consistent=#{consistent}" do
+        ct = build_send_ct(
+          config_state: :error,
+          config_state_error: {
+            source: 'lxc_config',
+            message: 'rootfs path is not available'
+          }
+        )
+        command = described_class.new(
+          {
+            id: 'ct1',
+            pool: 'tank',
+            clone: true,
+            consistent:,
+            restart: true,
+            start: false
+          },
+          {}
+        )
+
+        allow(OsCtld::DB::Containers).to receive(:find)
+          .with('ct1', 'tank')
+          .and_return(ct)
+        allow(command).to receive(:call_cmd!)
+        allow(command).to receive(:send_dataset)
+        allow(command).to receive(:zfs)
+
+        expect do
+          command.execute
+        end.to raise_error(
+          OsCtld::CommandFailed,
+          'container configuration is not ready (state: error): rootfs path is not available'
+        )
+        expect(command).not_to have_received(:call_cmd!)
+        expect(command).not_to have_received(:send_dataset)
+        expect(command).not_to have_received(:zfs)
+        expect(ct.send_log.state_running).to be_nil
+        expect(ct.save_config_calls).to eq(0)
+      end
     end
 
     it 'keeps the transfer open when stopping the source container fails' do
@@ -656,7 +813,11 @@ RSpec.describe 'container transfer commands' do
     end
 
     it 'retries the target handoff with start again when requested' do
-      ct = build_send_ct(state: :stopped, state_snapshot: 'snap-failed', state_running: true)
+      ct = build_send_ct(
+        runtime_state: :stopped,
+        state_snapshot: 'snap-failed',
+        state_running: true
+      )
       command = described_class.new(
         {
           id: 'ct1',
@@ -689,7 +850,11 @@ RSpec.describe 'container transfer commands' do
     end
 
     it 'restarts the source on clone retry when the original cutover stopped it' do
-      ct = build_send_ct(state: :stopped, state_snapshot: 'snap-failed', state_running: true)
+      ct = build_send_ct(
+        runtime_state: :stopped,
+        state_snapshot: 'snap-failed',
+        state_running: true
+      )
       command = described_class.new(
         {
           id: 'ct1',

@@ -14,8 +14,11 @@ module OsCtld
 
     def execute(ct)
       manipulate(ct) do
+        running_at_start = opts[:consistent] && ct.runtime_state == :running
+        preflight_export!(ct, running_at_start)
+
         File.open(opts[:file], 'w') do |f|
-          export(ct, f)
+          export(ct, f, running_at_start:)
         end
 
         ok
@@ -24,7 +27,17 @@ module OsCtld
 
     protected
 
-    def export(ct, io)
+    def preflight_export!(ct, running_at_start)
+      return unless opts[:consistent]
+
+      ensure_config_ready!(ct) if running_at_start
+      guard_residual_generations!(ct, 'consistent container export')
+      return if running_at_start
+
+      guard_no_runtime_generations!(ct, 'consistent container export')
+    end
+
+    def export(ct, io, running_at_start: opts[:consistent] && ct.runtime_state == :running)
       exporter = OsCtl::Lib::Exporter::Zfs.new(
         ct,
         io,
@@ -34,15 +47,6 @@ module OsCtld
       exporter.dump_configs
       exporter.dump_user_hook_scripts(Hook::Manager.list_all_scripts(ct))
       exporter.dump_rootfs do
-        running_at_start = opts[:consistent] && ct.state == :running
-
-        if opts[:consistent]
-          guard_residual_generations!(ct, 'consistent container export')
-          unless running_at_start
-            guard_no_runtime_generations!(ct, 'consistent container export')
-          end
-        end
-
         exporter.dump_base
 
         if running_at_start

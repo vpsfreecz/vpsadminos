@@ -132,7 +132,7 @@ import ../../make-test.nix (
       end
 
       # Runscript on a running container
-      _, output = machine.succeeds("osctl ct show -H -o state startedct")
+      _, output = machine.succeeds("osctl ct show -H -o runtime_state startedct")
 
       if output.strip != "running"
         fail "startedct is in an unexpected state: #{output.inspect}"
@@ -146,7 +146,7 @@ import ../../make-test.nix (
       )
 
       # Runscript on a stopped container
-      _, output = machine.succeeds("osctl ct show -H -o state stoppedct")
+      _, output = machine.succeeds("osctl ct show -H -o runtime_state stoppedct")
 
       if output.strip != "stopped"
         fail "stoppedct is in an unexpected state: #{output.inspect}"
@@ -161,7 +161,7 @@ import ../../make-test.nix (
 
 
       # Runscript on a running container with -r
-      _, output = machine.succeeds("osctl ct show -H -o state startedct")
+      _, output = machine.succeeds("osctl ct show -H -o runtime_state startedct")
 
       if output.strip != "running"
         fail "startedct is in an unexpected state: #{output.inspect}"
@@ -176,7 +176,7 @@ import ../../make-test.nix (
 
 
       # Runscript on a stopped container with networking
-      _, output = machine.succeeds("osctl ct show -H -o state startedct")
+      _, output = machine.succeeds("osctl ct show -H -o runtime_state startedct")
 
       if output.strip != "running"
         fail "startedct is in an unexpected state: #{output.inspect}"
@@ -190,7 +190,7 @@ import ../../make-test.nix (
       )
 
       # Runscript on a stopped container with networking
-      _, output = machine.succeeds("osctl ct show -H -o state stoppedct")
+      _, output = machine.succeeds("osctl ct show -H -o runtime_state stoppedct")
 
       if output.strip != "stopped"
         fail "stoppedct is in an unexpected state: #{output.inspect}"
@@ -204,7 +204,7 @@ import ../../make-test.nix (
 
 
       # Runscript on a running container with -rn
-      _, output = machine.succeeds("osctl ct show -H -o state startedct")
+      _, output = machine.succeeds("osctl ct show -H -o runtime_state startedct")
 
       if output.strip != "running"
         fail "startedct is in an unexpected state: #{output.inspect}"

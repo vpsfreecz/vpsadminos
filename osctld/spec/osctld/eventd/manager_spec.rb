@@ -77,12 +77,12 @@ RSpec.describe OsCtld::Eventd::Manager do
 
     manager = described_class.new
     manager.start(num_workers: 2)
-    manager.report(:state, pool: 'tank', id: 'ct1')
+    manager.report(:runtime_state, pool: 'tank', id: 'ct1')
 
     expect(reported.length).to eq(2)
     reported.each do |(_worker, event)|
       expect(event).to be_a(OsCtld::Eventd::Event)
-      expect(event.type).to eq(:state)
+      expect(event.type).to eq(:runtime_state)
       expect(event.opts).to eq(pool: 'tank', id: 'ct1')
     end
   end

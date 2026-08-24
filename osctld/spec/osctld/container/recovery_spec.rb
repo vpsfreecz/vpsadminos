@@ -141,11 +141,11 @@ RSpec.describe OsCtld::Container::Recovery do
     )
     allow(ct).to receive_messages(
       lifecycle:,
-      state: :running,
+      runtime_state: :running,
+      runtime_state_error: nil,
       run_conf: nil,
       get_past_run_conf: nil
     )
-    allow(ct).to receive(:state=)
     allow(ct).to receive(:observe_run_state).and_return(true)
     allow(OsCtld::ContainerControl::Commands::State).to receive(:run!)
       .with(ct)
@@ -159,12 +159,13 @@ RSpec.describe OsCtld::Container::Recovery do
 
     result = recovery.recover_state(run_id: run_id)
 
-    expect(result).to include(state: :running, run_id: run_id.to_s)
+    expect(result).to include(runtime_state: :running, run_id: run_id.to_s)
     expect(OsCtld::Eventd).to have_received(:report).with(
-      :state,
+      :runtime_state,
       pool: 'tank',
       id: 'ct1',
-      state: :running
+      runtime_state: :running,
+      runtime_state_error: nil
     )
     expect(OsCtld::Hook).to have_received(:run)
       .with(ct, :post_start, init_pid: 5678)
@@ -209,9 +210,8 @@ RSpec.describe OsCtld::Container::Recovery do
     allow(lifecycle).to receive(:observe_state)
     allow(ct).to receive_messages(
       lifecycle:,
-      state: :running
+      runtime_state: :running
     )
-    allow(ct).to receive(:state=)
     allow(OsCtld::ContainerControl::Commands::State).to receive(:run!)
       .with(ct)
       .and_return(double(state: :stopped, init_pid: nil))
@@ -219,11 +219,10 @@ RSpec.describe OsCtld::Container::Recovery do
     result = recovery.recover_state(run_id: run_id)
 
     expect(result).to include(
-      state: :stopped,
+      runtime_state: :stopped,
       run_id: run_id.to_s,
       yielded_to_callback: true
     )
-    expect(ct).not_to have_received(:state=)
     expect(lifecycle).not_to have_received(:observe_state)
     expect(lifecycle).to have_received(:finish_reconciliation).with(
       run_id,
@@ -231,7 +230,7 @@ RSpec.describe OsCtld::Container::Recovery do
     )
   end
 
-  it 'preserves an existing error state during LXC reconciliation' do
+  it 'preserves a configuration error during LXC reconciliation' do
     run_id = OsCtld::Container::RunId.new(
       pool_name: 'tank',
       container_id: 'ct1',
@@ -255,17 +254,23 @@ RSpec.describe OsCtld::Container::Recovery do
       observe_state: true,
       desired_state: :running,
       current_intent_id: 'intent-1',
+      claim_reconciliation_state_effects: false,
       finish_reconciliation: false,
       revision: 14
     )
+    runtime_state = :stopped
     allow(ct).to receive_messages(
       lifecycle:,
-      state: :error,
+      config_state: :error,
+      runtime_state_error: nil,
       run_conf: nil,
-      get_past_run_conf: nil,
-      observe_run_state: false
+      get_past_run_conf: nil
     )
-    allow(ct).to receive(:state=)
+    allow(ct).to receive(:runtime_state) { runtime_state }
+    allow(ct).to receive(:observe_run_state) do |_run_id, value, **_kwargs|
+      runtime_state = value
+      true
+    end
     allow(OsCtld::ContainerControl::Commands::State).to receive(:run!)
       .with(ct)
       .and_return(double(state: :running, init_pid: 5678))
@@ -274,12 +279,12 @@ RSpec.describe OsCtld::Container::Recovery do
 
     result = recovery.recover_state(run_id:)
 
-    expect(result).to include(state: :error, run_id: run_id.to_s)
-    expect(ct).not_to have_received(:state=)
+    expect(result).to include(runtime_state: :running, run_id: run_id.to_s)
+    expect(ct.config_state).to eq(:error)
     expect(OsCtld::Hook).not_to have_received(:run)
-    expect(OsCtld::Eventd).not_to have_received(:report).with(
-      :state,
-      hash_including(state: :running)
+    expect(OsCtld::Eventd).to have_received(:report).with(
+      :runtime_state,
+      hash_including(runtime_state: :running)
     )
   end
 
@@ -311,14 +316,17 @@ RSpec.describe OsCtld::Container::Recovery do
       finish_reconciliation: false,
       revision: 15
     )
-    logical_state = :running
+    logical_runtime_state = :running
     allow(ct).to receive_messages(
       lifecycle:,
       run_conf: nil,
       get_past_run_conf: nil
     )
-    allow(ct).to receive(:state) { logical_state }
-    allow(ct).to receive(:state=) { |value| logical_state = value }
+    allow(ct).to receive(:runtime_state) { logical_runtime_state }
+    allow(ct).to receive(:runtime_state_error).and_return(nil)
+    allow(ct).to receive(:set_runtime_state) do |value|
+      logical_runtime_state = value
+    end
     allow(OsCtld::ContainerControl::Commands::State).to receive(:run!)
       .with(ct)
       .and_return(double(state: :running, init_pid: 5678))
@@ -328,8 +336,8 @@ RSpec.describe OsCtld::Container::Recovery do
 
     result = recovery.recover_state(run_id:)
 
-    expect(result).to include(state: :stopped, run_id: run_id.to_s)
-    expect(ct).to have_received(:state=).with(:stopped)
+    expect(result).to include(runtime_state: :stopped, run_id: run_id.to_s)
+    expect(ct).to have_received(:set_runtime_state).with(:stopped)
     expect(OsCtld::Hook).not_to have_received(:run)
     expect(recovery).to have_received(:run_reconciliation_followup).with(
       [:stop, nil]
@@ -360,9 +368,9 @@ RSpec.describe OsCtld::Container::Recovery do
     )
     allow(ct).to receive_messages(
       lifecycle:,
-      state: :running
+      runtime_state: :running
     )
-    allow(ct).to receive(:state=)
+    allow(ct).to receive(:set_runtime_state_unknown)
     allow(OsCtld::ContainerControl::Commands::State).to receive(:run!)
       .with(ct)
       .and_raise(OsCtld::ContainerControl::Error, 'state query failed')
@@ -374,7 +382,7 @@ RSpec.describe OsCtld::Container::Recovery do
       'state query failed'
     )
 
-    expect(ct).not_to have_received(:state=)
+    expect(ct).not_to have_received(:set_runtime_state_unknown)
     expect(lifecycle).to have_received(:commit_reconciliation).with(
       run_id,
       'reconciliation-1'
@@ -432,7 +440,7 @@ RSpec.describe OsCtld::Container::Recovery do
         base_cgroup_path: '/osctl/ct.ct1',
         legacy_cgroup_path: '/osctl/ct.ct1/user-owned',
         legacy_wrapper_cgroup_path: '/osctl/ct.ct1/wrapper',
-        state: :stopped
+        runtime_state: :stopped
       )
     end
 
@@ -686,7 +694,7 @@ RSpec.describe OsCtld::Container::Recovery do
     end
 
     it 'blocks an active generation whose recovered state is not stopped' do
-      allow(ct).to receive(:state).and_return(:running)
+      allow(ct).to receive(:runtime_state).and_return(:running)
       state_command = OsCtld::ContainerControl::Commands::State
 
       result = recovery.cleanup(run_id: run_id, cleanup: ['cgroups'])

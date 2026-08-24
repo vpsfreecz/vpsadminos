@@ -95,12 +95,16 @@ RSpec.describe 'dataset commands' do
     end
   end
 
-  def build_ct(dataset:, mounts: FakeMounts.new([]), state: :stopped, map_mode: 'native')
+  def build_ct(
+    dataset:, mounts: FakeMounts.new([]), runtime_state: :stopped,
+    map_mode: 'native'
+  )
     uid_entry = Struct.new(:to_s).new('0:100000:65536')
     gid_entry = Struct.new(:to_s).new('0:200000:65536')
 
     Struct.new(
-      :id, :pool, :dataset, :mounts, :state, :run_conf, :map_mode, :uid_map, :gid_map,
+      :id, :pool, :dataset, :mounts, :runtime_state, :run_conf, :map_mode,
+      :uid_map, :gid_map,
       keyword_init: true
     ) do
       def manipulate(_holder, block:, &)
@@ -115,7 +119,7 @@ RSpec.describe 'dataset commands' do
       pool: Struct.new(:name).new('tank'),
       dataset:,
       mounts:,
-      state:,
+      runtime_state:,
       run_conf: Struct.new(:runtime_rootfs).new('/runtime'),
       map_mode:,
       uid_map: [uid_entry],
@@ -245,7 +249,11 @@ RSpec.describe 'dataset commands' do
                                 Struct.new(:dataset, :mountpoint).new(dataset, 'data'),
                                 Struct.new(:dataset, :mountpoint).new(child, 'data/sub')
                               ])
-      ct = build_ct(dataset: Struct.new(:name).new('tank/ct1'), mounts:, state: :running)
+      ct = build_ct(
+        dataset: Struct.new(:name).new('tank/ct1'),
+        mounts:,
+        runtime_state: :running
+      )
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
       end)

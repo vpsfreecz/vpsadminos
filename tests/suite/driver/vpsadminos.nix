@@ -237,7 +237,7 @@ import ../../make-test.nix (
         fail "wait_for_osctl_container() did not raise TimeoutError on stopped container"
       end
 
-      machine.wait_for_osctl_container(existing_ct, state: 'stopped', timeout: 10)
+      machine.wait_for_osctl_container(existing_ct, runtime_state: 'stopped', timeout: 10)
 
       machine.succeeds("osctl ct start --wait 0 #{existing_ct}")
 

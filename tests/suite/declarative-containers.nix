@@ -98,6 +98,32 @@ import ../make-test.nix (
           end
         end
       end
+
+      describe 'existing declarations', order: :defined do
+        %w[nixos-shared nixos-standalone].each do |testct|
+          it "reapplies #{testct} using its runtime state" do
+            service = "ct-tank-#{testct}"
+            done = "/run/service/#{service}/done"
+
+            machine.succeeds("rm -f #{done}")
+            machine.succeeds("sv once #{service}")
+            machine.wait_until_succeeds("test -f #{done}", timeout: 180)
+            machine.wait_until_succeeds(
+              "osctl ct exec #{testct} systemctl is-system-running",
+              timeout: 180
+            )
+          end
+        end
+
+        it 'sweeps the declarative pool without changing defined containers' do
+          machine.succeeds('gc-sweep-tank')
+
+          %w[nixos-shared nixos-standalone].each do |testct|
+            state = machine.osctl_json("ct show #{testct}")['runtime_state']
+            expect(state).to eq('running')
+          end
+        end
+      end
     '';
   }
 )

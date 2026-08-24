@@ -4,9 +4,7 @@ module OsCtld
   class Commands::Container::LocalTransfer::State < Commands::Container::LocalTransfer::Base
     def execute(ct)
       manipulate(ct) do
-        log = prepare_state!(ct)
-        running = log.state_running
-        stopped = stop_source_for_state?(running)
+        log, running, stopped = prepare_state!(ct)
 
         if stopped
           guard_residual_generations!(
@@ -57,28 +55,41 @@ module OsCtld
     protected
 
     def prepare_state!(ct)
-      log = ct.exclusively do
+      log, running, stopped, record_running = ct.exclusively do
         ret = require_local_transfer_log!(ct)
         unless %i[base incremental].include?(ret.state) && ret.can_local_continue?(:transfer)
           error!('invalid local transfer sequence')
         end
 
-        if ret.state_running.nil?
-          ret.state_running = ct.state == :running
-          ct.save_config
-        end
+        observed_running = if ret.state_running.nil?
+                             ct.runtime_state == :running
+                           else
+                             ret.state_running
+                           end
+        source_stopped = stop_source_for_state?(observed_running)
+        preflight_state!(ct, observed_running, source_stopped)
 
-        ret
+        [ret, observed_running, source_stopped, ret.state_running.nil?]
       end
 
       ensure_target_staged_or_complete!(log)
       validate_dataset_layout!(ct)
-      log
+
+      if record_running
+        ct.exclusively do
+          log.state_running = running
+          ct.save_config
+        end
+      end
+
+      [log, running, stopped]
     end
 
     def stop_source_for_state?(_running)
       raise NotImplementedError
     end
+
+    def preflight_state!(_ct, _running, _stopped); end
 
     def after_state_snapshot(_ct, _running, _stopped); end
 

@@ -28,14 +28,14 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveCancel do
 
   def build_ct(pool, send_log)
     Class.new do
-      attr_accessor :state
+      attr_accessor :config_state
       attr_reader :pool, :id, :send_log, :closed
 
       def initialize(pool, send_log)
         @pool = pool
         @send_log = send_log
         @id = 'ct1'
-        @state = :staged
+        @config_state = :staged
         @closed = false
       end
 

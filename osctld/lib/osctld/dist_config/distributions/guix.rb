@@ -64,11 +64,11 @@ module OsCtld
         break if event.nil?
 
         # Ignore irrelevant events
-        next if event.type != :state \
+        next if event.type != :runtime_state \
                 || event.opts[:pool] != ct.pool.name \
                 || event.opts[:id] != ct.id
 
-        if event.opts[:state] == :stopped
+        if event.opts[:runtime_state] == :stopped
           stopped = true
           break
         end

@@ -10,7 +10,7 @@ RSpec.describe OsCtl::Cli::Daemon do
   it 'prints structured status returned by a generation-aware daemon' do
     command = cmd(gopts: { json: true })
     allow(command).to receive(:osctld_call).with(:daemon_status).and_return(
-      schema: 1,
+      schema: 2,
       legacy: false,
       initialized: true,
       phase: 'ready',
@@ -21,7 +21,7 @@ RSpec.describe OsCtl::Cli::Daemon do
     output, = capture_output { command.status }
 
     expect(JSON.parse(output)).to include(
-      'schema' => 1,
+      'schema' => 2,
       'legacy' => false,
       'phase' => 'ready',
       'ready' => true

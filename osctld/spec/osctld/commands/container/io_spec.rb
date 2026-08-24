@@ -17,13 +17,16 @@ require 'osctld/commands/container/wall'
 require 'osctld/commands/container/runscript'
 
 RSpec.describe 'container io commands' do
-  def build_ct(id: 'ct1', state: :running, running: state == :running, init_pid: 4321)
+  def build_ct(
+    id: 'ct1', runtime_state: :running,
+    running: runtime_state == :running, init_pid: 4321
+  )
     pool = Struct.new(:name).new('tank')
     Struct.new(
       :id,
       :pool,
       :user,
-      :state,
+      :runtime_state,
       :running_state,
       :init_pid,
       :mount_calls,
@@ -54,7 +57,7 @@ RSpec.describe 'container io commands' do
       id:,
       pool:,
       user: Struct.new(:name).new('alice'),
-      state:,
+      runtime_state:,
       running_state: running,
       init_pid:,
       mount_calls: [],
@@ -95,7 +98,7 @@ RSpec.describe 'container io commands' do
     end
 
     it 'allows tty0 even when the container is not running' do
-      stopped = build_ct(state: :stopped, running: false)
+      stopped = build_ct(runtime_state: :stopped, running: false)
       allow(OsCtld::DB::Containers).to receive(:find).with('ct1', 'tank').and_return(stopped)
       tty0 = described_class.new({ id: 'ct1', pool: 'tank', tty: 0 }, { handler: })
 
@@ -103,7 +106,7 @@ RSpec.describe 'container io commands' do
     end
 
     it 'rejects non-console ttys when the container is not running' do
-      stopped = build_ct(state: :stopped, running: false)
+      stopped = build_ct(runtime_state: :stopped, running: false)
       allow(OsCtld::DB::Containers).to receive(:find).with('ct1', 'tank').and_return(stopped)
 
       expect(command.execute).to eq(status: false, message: 'container not running')
@@ -318,7 +321,7 @@ RSpec.describe 'container io commands' do
   describe OsCtld::Commands::Container::Wall do
     it 'iterates containers, skips stopped ones, logs errors, and still returns ok' do
       running = build_ct(id: 'running')
-      stopped = build_ct(id: 'stopped', state: :stopped, running: false)
+      stopped = build_ct(id: 'stopped', runtime_state: :stopped, running: false)
       failing = build_ct(id: 'failing')
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.each_by_ids(_ids, _pool); end

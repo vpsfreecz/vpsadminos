@@ -37,7 +37,19 @@ RSpec.describe OsCtl::Cli::Container do
     expect(command).to receive(:add_loadavgs).with(kind_of(Array))
     expect(command).to receive(:cg_add_raw_cgroup_params) { |data, *_args| data }
     expect(OsCtl::Cli::Bisect).to receive(:new) do |cts, suspend_action:, cols:|
-      expect(cts).to eq([{ pool: 'tank', id: 'ct1', group_path: '/grp', state: 'running' }])
+      expect(cts).to eq(
+        [
+          {
+            pool: 'tank',
+            id: 'ct1',
+            group_path: '/grp',
+            config_state: 'ready',
+            config_state_error: nil,
+            runtime_state: 'running',
+            runtime_state_error: nil
+          }
+        ]
+      )
       expect(suspend_action).to eq(:freeze)
       expect(cols).to be_a(Array)
     end.and_return(bisect)
@@ -137,8 +149,8 @@ RSpec.describe OsCtl::Cli::Container do
   end
 
   it 'adds load averages for running containers and tolerates reader failures' do
-    running = { pool: 'tank', id: 'ct1', state: 'running' }
-    stopped = { pool: 'tank', id: 'ct2', state: 'stopped' }
+    running = { pool: 'tank', id: 'ct1', runtime_state: 'running' }
+    stopped = { pool: 'tank', id: 'ct2', runtime_state: 'stopped' }
     allow(OsCtl::Lib::LoadAvgReader).to receive(:read_for).and_return(
       'tank:ct1' => double(averages: [0.1, 0.2, 0.3])
     )

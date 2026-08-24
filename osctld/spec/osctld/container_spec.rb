@@ -32,6 +32,10 @@ RSpec.describe OsCtld::Container do
         Struct.new(:state).new(:running)
       end
     end)
+    stub_const('OsCtld::Eventd', Class.new do
+      def self.report(_type, **_opts); end
+    end)
+    allow(OsCtld::Eventd).to receive(:report)
   end
 
   def build_container(root:, **opts)
@@ -520,10 +524,10 @@ RSpec.describe OsCtld::Container do
         ct = build_container(root: dir)
         replacement = run_conf_class.new(ct, load_conf: false)
         ct.instance_variable_set('@run_conf', replacement)
-        ct.state = :running
+        ct.set_runtime_state(:running)
 
         expect(ct.stopped('stale-run')).to be(false)
-        expect(ct.state).to eq(:running)
+        expect(ct.runtime_state).to eq(:running)
         expect(ct.run_conf).to eq(replacement)
         expect(ct.get_past_run_conf).to be_nil
       end
@@ -651,29 +655,57 @@ RSpec.describe OsCtld::Container do
     end
   end
 
-  describe 'state transitions and runtime freshness' do
-    it 'persists staged complete and running transitions' do
+  describe 'configuration and runtime states' do
+    it 'persists completed staging with the observed runtime state' do
       with_tmpdir do |dir|
         ct = build_container(root: dir, staged: true)
         ct.configure('almalinux', '9', 'x86_64')
-        ct.instance_variable_set('@state', :staged)
 
-        ct.state = :complete
-        expect(ct.state).to eq(:stopped)
+        ct.complete_staging
+        expect(ct.config_state).to eq(:ready)
+        expect(ct.runtime_state).to eq(:stopped)
 
-        ct.instance_variable_set('@state', :staged)
-        ct.state = :running
-        expect(ct.state).to eq(:running)
+        ct.stage
+        ct.complete_staging(runtime_state: :running)
+        expect(ct.config_state).to eq(:ready)
+        expect(ct.runtime_state).to eq(:running)
       end
     end
 
-    it 'updates non-staged state directly and reports running?' do
+    it 'updates runtime state independently and reports running?' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
 
-        ct.state = :running
+        ct.set_runtime_state(:running)
 
         expect(ct.running?).to be(true)
+      end
+    end
+
+    it 'reports configuration and runtime state dimensions separately' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+
+        ct.set_config_error(source: :lxc_config, message: 'broken config')
+        ct.stage
+
+        expect(OsCtld::Eventd).to have_received(:report).with(
+          :config_state,
+          pool: 'tank',
+          id: 'ct1',
+          config_state: :error,
+          config_state_error: {
+            source: 'lxc_config',
+            message: 'broken config'
+          }
+        )
+        expect(OsCtld::Eventd).to have_received(:report).with(
+          :runtime_state,
+          pool: 'tank',
+          id: 'ct1',
+          runtime_state: :unknown,
+          runtime_state_error: nil
+        )
       end
     end
 
@@ -683,7 +715,7 @@ RSpec.describe OsCtld::Container do
         errored = build_container(root: File.join(dir, 'error'))
         inactive = build_container(root: File.join(dir, 'inactive'))
 
-        errored.state = :error
+        errored.set_config_error(source: :lxc_config, message: 'broken config')
         allow(inactive.pool).to receive(:active?).and_return(false)
 
         expect(staged.can_start?).to be(false)
@@ -692,27 +724,27 @@ RSpec.describe OsCtld::Container do
       end
     end
 
-    it 'queries runtime state only when state is unknown' do
+    it 'queries runtime state only when runtime state is unknown' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
         allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
           Struct.new(:state, :init_pid).new(:running, 4321)
         )
 
-        observation = ct.fresh_state_observation
+        observation = ct.fresh_runtime_state_observation
         expect(observation.state).to eq(:running)
         expect(observation.init_pid).to eq(4321)
         expect(OsCtld::ContainerControl::Commands::State).to have_received(:run!).once
 
-        ct.state = :stopped
-        observation = ct.fresh_state_observation
+        ct.set_runtime_state(:stopped)
+        observation = ct.fresh_runtime_state_observation
         expect(observation.state).to eq(:stopped)
         expect(observation.init_pid).to be_nil
         expect(OsCtld::ContainerControl::Commands::State).to have_received(:run!).once
       end
     end
 
-    it 'stores :error when current_state raises ContainerControl::Error' do
+    it 'stores a structured runtime observation error' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
         allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_raise(
@@ -720,8 +752,27 @@ RSpec.describe OsCtld::Container do
           'boom'
         )
 
-        expect(ct.current_state).to eq(:error)
-        expect(ct.state).to eq(:error)
+        expect(ct.current_runtime_state).to eq(:unknown)
+        expect(ct.runtime_state).to eq(:unknown)
+        expect(ct.runtime_state_error).to eq(
+          source: 'lxc_state_observation',
+          message: 'boom'
+        )
+      end
+    end
+
+    it 'observes a running runtime while its configuration is in error' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.set_config_error(source: :lxc_config, message: 'rootfs is missing')
+        allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
+          Struct.new(:state, :init_pid).new(:running, 4321)
+        )
+
+        expect(ct.current_runtime_state).to eq(:running)
+        expect(ct.config_state).to eq(:error)
+        expect(ct.runtime_state).to eq(:running)
+        expect(ct.runtime_state_error).to be_nil
       end
     end
   end

@@ -267,7 +267,7 @@ RSpec.describe 'heavy system commands' do
         end
       end)
       stub_const('OsCtld::Container', Class.new do
-        attr_accessor :pool, :ident, :state
+        attr_accessor :pool, :ident, :config_state, :runtime_state
 
         def unregister; end
       end)
@@ -374,7 +374,8 @@ RSpec.describe 'heavy system commands' do
       ct = lockable(container_class.new).tap do |c|
         c.pool = pool
         c.ident = 'tank:ct1'
-        c.state = :stopped
+        c.config_state = :ready
+        c.runtime_state = :stopped
       end
       repo = repo_class.new.tap do |r|
         r.pool = pool

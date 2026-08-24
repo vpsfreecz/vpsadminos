@@ -8,8 +8,14 @@ module OsCtl::Exporter
     include OsCtl::Lib::Utils::Log
     include OsCtl::Cli::CGroupParams
 
-    STATES = %i[
+    CONFIG_STATES = %i[
       staged
+      ready
+      error
+    ].freeze
+
+    RUNTIME_STATES = %i[
+      unknown
       stopped
       starting
       running
@@ -18,7 +24,6 @@ module OsCtl::Exporter
       frozen
       thawed
       aborting
-      error
     ].freeze
 
     DATASET_PROPERTY_METRICS = [
@@ -140,15 +145,21 @@ module OsCtl::Exporter
       @mutex = Mutex.new
       @last_container_data = nil
 
-      STATES.each do |s|
-        add_metric(
-          "state_#{s}",
-          :gauge,
-          :"osctl_container_state_#{s}",
-          docstring: "Set if the container is in state #{s}",
-          labels: %i[pool id]
-        )
-      end
+      add_metric(
+        :config_state,
+        :gauge,
+        :osctl_container_config_state,
+        docstring: 'Container configuration state',
+        labels: %i[pool id state]
+      )
+
+      add_metric(
+        :runtime_state,
+        :gauge,
+        :osctl_container_runtime_state,
+        docstring: 'Container runtime state',
+        labels: %i[pool id state]
+      )
 
       add_metric(
         :memory_used_bytes,
@@ -321,10 +332,16 @@ module OsCtl::Exporter
       pool_ct_procs = parse_processes
 
       cts.each do |ct|
-        STATES.each do |s|
-          metrics["state_#{s}"].set(
-            s == ct[:state].to_sym ? 1 : 0,
-            labels: { pool: ct[:pool], id: ct[:id] }
+        CONFIG_STATES.each do |state|
+          config_state.set(
+            state == ct[:config_state].to_sym ? 1 : 0,
+            labels: { pool: ct[:pool], id: ct[:id], state: }
+          )
+        end
+        RUNTIME_STATES.each do |state|
+          runtime_state.set(
+            state == ct[:runtime_state].to_sym ? 1 : 0,
+            labels: { pool: ct[:pool], id: ct[:id], state: }
           )
         end
         memory_used_bytes.set(
@@ -429,7 +446,7 @@ module OsCtl::Exporter
           labels: { pool: ct[:pool], id: ct[:id] }
         )
 
-        next if ct[:state] != 'running' || !ct[:init_pid]
+        next if ct[:runtime_state] != 'running' || !ct[:init_pid]
 
         read_from_container_netns(ct)
       end
@@ -441,7 +458,8 @@ module OsCtl::Exporter
 
     protected
 
-    attr_reader :memory_total_bytes, :memory_used_bytes, :cpu_us_total,
+    attr_reader :config_state, :runtime_state,
+                :memory_total_bytes, :memory_used_bytes, :cpu_us_total,
                 :proc_pids, :proc_state, :dataset_used, :dataset_referenced,
                 :dataset_avail, :dataset_quota, :dataset_refquota, :dataset_bytes_written,
                 :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read,

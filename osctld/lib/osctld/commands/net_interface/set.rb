@@ -14,7 +14,7 @@ module OsCtld
 
     def execute(ct)
       manipulate(ct) do
-        if ct.state != :stopped
+        if ct.runtime_state != :stopped
           opts.each_key do |k|
             if UNCHANGEABLE_AT_RUNTIME.include?(k)
               error!('the container must be stopped to change network interface')

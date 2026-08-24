@@ -1197,7 +1197,9 @@ RSpec.describe OsCtld::Daemon do
 
         def id; end
 
-        def state; end
+        def config_state; end
+
+        def runtime_state; end
 
         def init_pid; end
       end
@@ -1208,7 +1210,8 @@ RSpec.describe OsCtld::Daemon do
         lifecycle:,
         pool: instance_double(pool_class, name: 'tank'),
         id: '101',
-        state: :running,
+        config_state: :ready,
+        runtime_state: :running,
         init_pid: 4321
       )
       containers = stub_const('OsCtld::DB::Containers', Class.new do
@@ -1262,8 +1265,8 @@ RSpec.describe OsCtld::Daemon do
       ct = FakeObjects::FakeRuntimeContainer.new(
         pool:,
         id: '101',
-        fresh_state: :frozen,
-        state: :frozen,
+        fresh_runtime_state: :frozen,
+        runtime_state: :frozen,
         init_pid: 4321,
         base_cgroup_path: 'osctl/pool.tank/user.root/ct.101'
       )
@@ -1281,7 +1284,7 @@ RSpec.describe OsCtld::Daemon do
           type: 'unowned_container_runtime',
           pool: 'tank',
           id: '101',
-          state: 'frozen',
+          runtime_state: 'frozen',
           reason: 'adopted legacy manager identity is not alive'
         )
       )
@@ -1300,7 +1303,7 @@ RSpec.describe OsCtld::Daemon do
       ct = FakeObjects::FakeRuntimeContainer.new(
         pool:,
         id: '101',
-        state: :stopped,
+        runtime_state: :stopped,
         base_cgroup_path: 'osctl/pool.tank/user.root/ct.101'
       )
       ct.lifecycle = Struct.new(:runtime_generations).new([])
@@ -1333,7 +1336,7 @@ RSpec.describe OsCtld::Daemon do
           type: 'configured_container_unowned_processes',
           pool: 'tank',
           id: '101',
-          state: 'stopped',
+          runtime_state: 'stopped',
           pids: [4321]
         )
       )
@@ -1364,7 +1367,7 @@ RSpec.describe OsCtld::Daemon do
       ct = FakeObjects::FakeRuntimeContainer.new(
         pool:,
         id: '101',
-        state: :running,
+        runtime_state: :running,
         base_cgroup_path: 'osctl/pool.tank/user.root/ct.101'
       )
       ct.lifecycle = lifecycle
@@ -1419,7 +1422,7 @@ RSpec.describe OsCtld::Daemon do
       ct = FakeObjects::FakeRuntimeContainer.new(
         pool:,
         id: '101',
-        state: :running,
+        runtime_state: :running,
         base_cgroup_path: 'osctl/pool.tank/user.root/ct.101'
       )
       ct.lifecycle = lifecycle
@@ -1473,7 +1476,7 @@ RSpec.describe OsCtld::Daemon do
       ct = FakeObjects::FakeRuntimeContainer.new(
         pool:,
         id: '101',
-        state: :stopped,
+        runtime_state: :stopped,
         base_cgroup_path: 'osctl/pool.tank/user.root/ct.101'
       )
       ct.lifecycle = Struct.new(:runtime_generations).new([])

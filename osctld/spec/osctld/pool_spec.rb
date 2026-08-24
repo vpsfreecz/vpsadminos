@@ -10,6 +10,8 @@ require 'osctld/utils/switch_user'
 require 'osctld/container'
 require 'osctld/container/builder'
 require 'osctld/container/lifecycle'
+require 'osctld/container/run_configuration'
+require 'osctld/daemon'
 require 'osctld/net_interface/base'
 require 'osctld/monitor'
 require 'osctld/monitor/master'
@@ -90,7 +92,7 @@ RSpec.describe OsCtld::Pool do
         OsCtld::Container,
         get_run_conf: run_conf,
         reconfigure: nil,
-        current_state_observation: runtime_observation,
+        current_runtime_state_observation: runtime_observation,
         ensure_run_conf: run_conf,
         lifecycle:,
         run_conf:,
@@ -119,7 +121,9 @@ RSpec.describe OsCtld::Pool do
       loaded = pool.send(:load_ct_inventory, 'ct1', nil)
 
       expect(loaded).to equal(ct)
-      expect(ct).to have_received(:current_state_observation)
+      expect(ct).to have_received(:reconfigure)
+        .with(raise_on_error: false).twice
+      expect(ct).to have_received(:current_runtime_state_observation)
       expect(netif).to have_received(:observe_runtime)
       expect(run_conf.init_pid).to eq(4321)
       expect(lifecycle).to have_received(:adopt_legacy).with(
@@ -192,7 +196,7 @@ RSpec.describe OsCtld::Pool do
         :adopt_legacy_run_conf,
         ct,
         lifecycle,
-        :error
+        :unknown
       )
 
       expect(result).to eq(:uncertain_completed)
@@ -201,7 +205,7 @@ RSpec.describe OsCtld::Pool do
         'tank:ct1:runtime-state',
         'unable to authoritatively observe a completed container generation',
         run_id: 'tank:ct1:run-1',
-        observed_state: 'error'
+        observed_state: 'unknown'
       )
     end
   end
@@ -426,6 +430,56 @@ RSpec.describe OsCtld::Pool do
     end
   end
 
+  it 'keeps a live container running when missing-veth recovery lacks a ready configuration' do
+    with_tmpdir do |dir|
+      pool = build_pool(root: dir)
+      missing = { status: 'missing', name: 'eth0', veth: 'veth-test' }
+      netif = instance_double(
+        Class.new do
+          def reconcile_runtime(legacy_runtime: false); end
+        end,
+        reconcile_runtime: missing
+      )
+      ct = FakeObjects::FakeRuntimeContainer.new(
+        pool:,
+        id: 'ct1',
+        running: true,
+        config_state: :error,
+        netifs: [netif]
+      )
+      ct.lifecycle = Struct.new(:running_intent_id).new('intent-1')
+      daemon = instance_double(
+        Class.new do
+          def record_recovery_failure(*); end
+
+          def upgrade_handoff_runtime?(*); end
+        end,
+        record_recovery_failure: nil,
+        upgrade_handoff_runtime?: false
+      )
+      containers = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.get; end
+      end)
+      daemon_class = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(containers).to receive(:get).and_return([ct])
+      allow(daemon_class).to receive(:get).and_return(daemon)
+      allow(pool).to receive(:schedule_runtime_network_recovery)
+      allow(pool).to receive(:log)
+
+      pool.send(:reconcile_container_runtime)
+
+      expect(daemon).to have_received(:record_recovery_failure).with(
+        'tank:ct1:runtime-network',
+        'host network state requires a restart, but container configuration is not ready',
+        [missing]
+      )
+      expect(pool).not_to have_received(:schedule_runtime_network_recovery)
+      expect(ct.runtime_state).to eq(:running)
+    end
+  end
+
   it 'reconciles host networking for a frozen live container' do
     with_tmpdir do |dir|
       pool = build_pool(root: dir)
@@ -441,8 +495,8 @@ RSpec.describe OsCtld::Pool do
         pool:,
         id: 'ct1',
         running: false,
-        fresh_state: :frozen,
-        state: :frozen,
+        fresh_runtime_state: :frozen,
+        runtime_state: :frozen,
         netifs: [netif]
       )
       ct.lifecycle = lifecycle

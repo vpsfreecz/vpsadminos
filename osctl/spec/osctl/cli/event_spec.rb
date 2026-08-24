@@ -14,7 +14,7 @@ RSpec.describe OsCtl::Cli::Event do
     allow(command).to receive(:osctld_open).and_return(client)
     allow(command).to receive(:monitor_loop)
 
-    expect(command).to receive(:osctld_call).with(:ct_show, id: 'ct1', pool: 'tank').and_return(state: 'running')
+    expect(command).to receive(:osctld_call).with(:ct_show, id: 'ct1', pool: 'tank').and_return(runtime_state: 'running')
 
     command.wait_ct
 
@@ -26,21 +26,29 @@ RSpec.describe OsCtl::Cli::Event do
     allow(command).to receive(:osctld_open).and_return(client)
     allow(command).to receive(:monitor_loop)
 
-    expect(command).to receive(:osctld_call).with(:ct_show, id: 'ct1', pool: 'tank').and_return(state: 'running')
+    expect(command).to receive(:osctld_call).with(:ct_show, id: 'ct1', pool: 'tank').and_return(runtime_state: 'running')
 
     command.wait_ct
   end
 
   it 'subscribes with the parsed pool and id' do
     command = cmd(args: %w[tank:ct1 running])
-    allow(command).to receive_messages(osctld_open: client, osctld_call: { state: 'stopped' })
+    allow(command).to receive_messages(osctld_open: client, osctld_call: { runtime_state: 'stopped' })
     allow(command).to receive(:monitor_loop)
 
     command.wait_ct
 
     expect(client.calls).to include(
-      [:cmd_data!, :event_subscribe, { type: 'state', opts: { id: 'ct1', pool: 'tank' } }]
+      [:cmd_data!, :event_subscribe, { type: %w[runtime_state state], opts: { id: 'ct1', pool: 'tank' } }]
     )
     expect(command).to have_received(:monitor_loop).with(client)
+  end
+
+  it 'maps legacy staged and error states to an unknown runtime state' do
+    command = cmd
+
+    expect(command.send(:runtime_state_of, state: 'staged')).to eq('unknown')
+    expect(command.send(:runtime_state_of, state: 'error')).to eq('unknown')
+    expect(command.send(:runtime_state_of, state: 'running')).to eq('running')
   end
 end

@@ -41,7 +41,10 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveBase do
     end.new(nil, [], send_log_opts)
     dataset = instance_double(OsCtl::Lib::Zfs::Dataset, name: 'tank/ct1')
 
-    Struct.new(:state, :send_log, :dataset, :save_config_calls, keyword_init: true) do
+    Struct.new(
+      :config_state, :send_log, :dataset, :save_config_calls,
+      keyword_init: true
+    ) do
       def manipulate(_cmd, block:, &)
         yield
       end
@@ -53,7 +56,7 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveBase do
       def save_config
         self.save_config_calls += 1
       end
-    end.new(state: :staged, send_log:, dataset:, save_config_calls: 0)
+    end.new(config_state: :staged, send_log:, dataset:, save_config_calls: 0)
   end
 
   let(:ct) { build_ct }

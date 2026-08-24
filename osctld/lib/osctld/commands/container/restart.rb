@@ -1,4 +1,5 @@
 require 'osctld/commands/logged'
+require 'osctld/utils/container'
 
 module OsCtld
   class Commands::Container::Restart < Commands::Logged
@@ -6,6 +7,7 @@ module OsCtld
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include Utils::Container
     include Utils::SwitchUser
 
     def find
@@ -24,6 +26,8 @@ module OsCtld
         begin
           loop do
             request = manipulate(ct, lifecycle: true) do
+              ensure_config_ready!(ct)
+
               admission = daemon.with_lifecycle_admission(**admission_opts) do
                 ct.lifecycle.request_control_reboot
               end
@@ -67,6 +71,8 @@ module OsCtld
         expected_intent_id = opts[:lifecycle_expected_intent_id]
         loop do
           request = manipulate(ct, lifecycle: true) do
+            ensure_config_ready!(ct)
+
             daemon.with_lifecycle_admission(**admission_opts) do
               ct.lifecycle.request_restart(
                 source: opts[:lifecycle_source] || 'external',

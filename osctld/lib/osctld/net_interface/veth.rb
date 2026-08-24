@@ -144,7 +144,7 @@ module OsCtld
     end
 
     def observe_runtime
-      return unless %i[running frozen].include?(ct.fresh_state)
+      return unless %i[running frozen].include?(ct.fresh_runtime_state)
 
       @veth = fetch_veth_name
       if host_link_exists?(@veth)

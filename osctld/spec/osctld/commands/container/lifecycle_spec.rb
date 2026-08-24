@@ -40,6 +40,12 @@ RSpec.describe 'container lifecycle commands' do
     end)
   end
 
+  def mark_config_ready(ct)
+    ct.define_singleton_method(:config_state) { :ready }
+    ct.define_singleton_method(:config_state_error) { nil }
+    ct
+  end
+
   before do
     allow(OsCtl::Lib::Logger).to receive(:log)
     allow(build_history).to receive(:log)
@@ -114,11 +120,60 @@ RSpec.describe 'container lifecycle commands' do
     end
 
     it 'rejects starts when the container cannot start' do
-      container = Struct.new(:can_start?, :state).new(false, :stopped)
+      container = Struct.new(
+        :can_start?, :config_state, :config_state_error
+      ) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(false, :ready, nil)
       command = described_class.new({ wait: 'infinity' }, {})
 
       expect { command.execute(container) }
         .to raise_error(OsCtld::CommandFailed, 'start not available')
+    end
+
+    it 'reports the configuration error before admitting a start' do
+      container = Struct.new(
+        :config_state, :config_state_error
+      ) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(
+        :error,
+        { source: 'lxc_config', message: 'rootfs path is not available' }
+      )
+      command = described_class.new({ wait: 'infinity' }, {})
+
+      expect { command.execute(container) }.to raise_error(
+        OsCtld::CommandFailed,
+        'container configuration is not ready (state: error): rootfs path is not available'
+      )
+    end
+
+    it 'checks configuration readiness after acquiring the manipulation lock' do
+      lifecycle = double
+      container = Struct.new(
+        :can_start?, :config_state, :config_state_error, :lifecycle
+      ) do
+        def manipulate(_holder, block:, &)
+          self.config_state = :error
+          self.config_state_error = {
+            source: 'lxc_config',
+            message: 'rootfs path is not available'
+          }
+          yield
+        end
+      end.new(true, :ready, nil, lifecycle)
+      command = described_class.new({ wait: 'infinity' }, {})
+      allow(lifecycle).to receive(:request_start)
+
+      expect { command.execute(container) }.to raise_error(
+        OsCtld::CommandFailed,
+        'container configuration is not ready (state: error): rootfs path is not available'
+      )
+      expect(lifecycle).not_to have_received(:request_start)
     end
 
     it 'joins the active lifecycle run when the container is already running' do
@@ -137,6 +192,7 @@ RSpec.describe 'container lifecycle commands' do
           yield
         end
       end.new(true, lifecycle)
+      mark_config_ready(container)
       command = described_class.new({ wait: 'infinity' }, {})
 
       expect(command.execute(container)).to eq(
@@ -172,6 +228,7 @@ RSpec.describe 'container lifecycle commands' do
           yield
         end
       end.new(true, lifecycle, group, pool)
+      mark_config_ready(container)
       command = described_class.new({ wait: false }, {})
       lock_held = false
       call_order = []
@@ -423,7 +480,9 @@ RSpec.describe 'container lifecycle commands' do
 
     let(:pool) { Struct.new(:name, :autostart_plan).new('tank', autostart_plan) }
 
-    def build_stop_container(state: :running, running: true, ephemeral: false, promise: nil)
+    def build_stop_container(
+      runtime_state: :running, running: true, ephemeral: false, promise: nil
+    )
       run_conf = Struct.new(:init_pid, :promise, :run_id) do
         def get_exit_promise
           promise
@@ -488,7 +547,7 @@ RSpec.describe 'container lifecycle commands' do
       Struct.new(
         :id,
         :pool,
-        :state,
+        :runtime_state,
         :cgparams,
         :run_conf,
         :cgroup_path,
@@ -523,7 +582,7 @@ RSpec.describe 'container lifecycle commands' do
       end.new(
         id: 'ct1',
         pool:,
-        state:,
+        runtime_state:,
         cgparams:,
         run_conf:,
         cgroup_path: '/sys/fs/cgroup/osctl/ct.ct1',
@@ -571,7 +630,7 @@ RSpec.describe 'container lifecycle commands' do
     end
 
     it 'switches shutdown_or_kill to kill for frozen containers' do
-      ct = build_stop_container(state: :frozen)
+      ct = build_stop_container(runtime_state: :frozen)
       command = described_class.new({ timeout: 10, method: 'shutdown_or_kill' }, {})
 
       command.execute(ct)
@@ -586,7 +645,7 @@ RSpec.describe 'container lifecycle commands' do
     end
 
     it 'rejects pure shutdown for frozen containers' do
-      ct = build_stop_container(state: :frozen)
+      ct = build_stop_container(runtime_state: :frozen)
       command = described_class.new({ timeout: 10, method: 'shutdown_or_fail' }, {})
 
       expect(command.execute(ct)).to eq(
@@ -819,6 +878,49 @@ RSpec.describe 'container lifecycle commands' do
   end
 
   describe OsCtld::Commands::Container::Restart do
+    it 'does not stop a running container whose configuration is in error' do
+      ct = Struct.new(:config_state, :config_state_error) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(
+        :error,
+        { source: 'lxc_config', message: 'rootfs path is not available' }
+      )
+      command = described_class.new({ reboot: false }, {})
+      allow(command).to receive(:call_cmd!)
+
+      expect { command.execute(ct) }.to raise_error(
+        OsCtld::CommandFailed,
+        'container configuration is not ready (state: error): rootfs path is not available'
+      )
+      expect(command).not_to have_received(:call_cmd!)
+    end
+
+    it 'checks configuration readiness while holding the manipulation lock' do
+      lifecycle = double
+      ct = Struct.new(:config_state, :config_state_error, :lifecycle) do
+        def manipulate(_holder, block:, &)
+          self.config_state = :error
+          self.config_state_error = {
+            source: 'lxc_config',
+            message: 'rootfs path is not available'
+          }
+          yield
+        end
+      end.new(:ready, nil, lifecycle)
+      command = described_class.new({ reboot: false }, {})
+      allow(lifecycle).to receive(:request_restart)
+      allow(command).to receive(:call_cmd!)
+
+      expect { command.execute(ct) }.to raise_error(
+        OsCtld::CommandFailed,
+        'container configuration is not ready (state: error): rootfs path is not available'
+      )
+      expect(lifecycle).not_to have_received(:request_restart)
+      expect(command).not_to have_received(:call_cmd!)
+    end
+
     it 'reboots through container-control when requested' do
       reboot = stub_const('OsCtld::ContainerControl::Commands::Reboot', Class.new do
         def self.run!(_ct); end
@@ -831,6 +933,7 @@ RSpec.describe 'container lifecycle commands' do
           yield
         end
       end.new(Struct.new(:name).new('tank'), lifecycle)
+      mark_config_ready(ct)
       command = described_class.new({ reboot: true }, {})
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
@@ -856,6 +959,7 @@ RSpec.describe 'container lifecycle commands' do
           yield
         end
       end.new(Struct.new(:name).new('tank'), lifecycle)
+      mark_config_ready(ct)
       command = described_class.new({ reboot: true }, {})
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
@@ -874,6 +978,7 @@ RSpec.describe 'container lifecycle commands' do
           yield
         end
       end.new(Struct.new(:name).new('tank'), lifecycle)
+      mark_config_ready(ct)
       command = described_class.new({ reboot: true }, {})
 
       expect { command.execute(ct) }.to raise_error(
@@ -908,6 +1013,7 @@ RSpec.describe 'container lifecycle commands' do
           yield
         end
       end.new(Struct.new(:name).new('tank'), lifecycle)
+      mark_config_ready(ct)
       command = described_class.new({ reboot: true }, {})
 
       expect { command.execute(ct) }.to raise_error(
@@ -935,6 +1041,7 @@ RSpec.describe 'container lifecycle commands' do
           yield
         end
       end.new('ct1', Struct.new(:name).new('tank'), lifecycle)
+      mark_config_ready(ct)
       command = described_class.new(
         { reboot: false, stop_timeout: 15, stop_method: 'kill', message: 'bye', wait: false },
         {}
@@ -976,6 +1083,7 @@ RSpec.describe 'container lifecycle commands' do
           yield
         end
       end.new('ct1', Struct.new(:name).new('tank'), lifecycle)
+      mark_config_ready(ct)
       command = described_class.new(
         {
           reboot: false,
@@ -1035,6 +1143,7 @@ RSpec.describe 'container lifecycle commands' do
           yield
         end
       end.new('ct1', Struct.new(:name).new('tank'), lifecycle)
+      mark_config_ready(ct)
       command = described_class.new(
         {
           reboot: false,
@@ -1115,6 +1224,7 @@ RSpec.describe 'container lifecycle commands' do
         ct.running_state = false
         ct.events = []
         ct.new_run_conf_obj = run_conf
+        mark_config_ready(ct)
       end
     end
 
@@ -1123,6 +1233,32 @@ RSpec.describe 'container lifecycle commands' do
         def initialize(*); end
       end)
       allow(mount_entry).to receive(:new).and_call_original
+    end
+
+    it 'does not replace runtime data when the configuration is in error' do
+      pool = Struct.new(:name).new('tank')
+      ct = build_boot_container(pool:, run_conf: double('RunConf'))
+      ct.running_state = true
+      ct.define_singleton_method(:config_state) { :error }
+      ct.define_singleton_method(:config_state_error) do
+        { source: 'lxc_config', message: 'rootfs path is not available' }
+      end
+      command = described_class.new(
+        { force: true, type: 'image', path: '/tmp/image.tar' },
+        {}
+      )
+      allow(command).to receive(:with_image_path)
+      allow(command).to receive(:call_cmd!)
+
+      expect do
+        command.execute(ct)
+      end.to raise_error(
+        OsCtld::CommandFailed,
+        'container configuration is not ready (state: error): rootfs path is not available'
+      )
+      expect(command).not_to have_received(:with_image_path)
+      expect(command).not_to have_received(:call_cmd!)
+      expect(ct.events).to eq(%i[manipulate_enter manipulate_exit])
     end
 
     it 'rejects rootfs mount conflicts with persistent mounts' do
@@ -1478,7 +1614,7 @@ RSpec.describe 'container lifecycle commands' do
       freeze_cmd = stub_const('OsCtld::ContainerControl::Commands::Freeze', Class.new do
         def self.run!(_ct); end
       end)
-      ct = Struct.new(:state) do
+      ct = Struct.new(:runtime_state) do
         def manipulate(_holder, block:, &)
           yield
         end
@@ -1497,7 +1633,7 @@ RSpec.describe 'container lifecycle commands' do
       thaw_cmd = stub_const('OsCtld::ContainerControl::Commands::Unfreeze', Class.new do
         def self.run!(_ct); end
       end)
-      ct = Struct.new(:state) do
+      ct = Struct.new(:runtime_state) do
         def manipulate(_holder, block:, &)
           yield
         end

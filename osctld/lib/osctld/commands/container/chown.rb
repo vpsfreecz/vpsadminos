@@ -21,7 +21,7 @@ module OsCtld
         error!('user not found')
       elsif ct.user == new_user
         error!("already owned by #{new_user.name}")
-      elsif ct.state != :stopped
+      elsif ct.runtime_state != :stopped
         error!('container has to be stopped first')
       end
 
@@ -31,7 +31,7 @@ module OsCtld
 
       manipulate([ct, new_user, old_user]) do
         # Double check state
-        error!('container has to be stopped first') if ct.state != :stopped
+        error!('container has to be stopped first') if ct.runtime_state != :stopped
         guard_no_runtime_generations!(ct, 'container ownership change')
 
         progress('Moving LXC configuration')

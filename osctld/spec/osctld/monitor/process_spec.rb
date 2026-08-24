@@ -88,8 +88,8 @@ RSpec.describe OsCtld::Monitor::Process do
     end.new(false)
 
     Struct.new(
-      :id, :pool, :user, :group, :state, :run_conf, :mounts, :lxc_home,
-      :lifecycle,
+      :id, :pool, :user, :group, :config_state, :runtime_state, :run_conf,
+      :mounts, :lxc_home, :lifecycle,
       keyword_init: true
     ) do
       def ident
@@ -112,7 +112,7 @@ RSpec.describe OsCtld::Monitor::Process do
         return false unless run_conf
         return false unless run_conf.run_id == run_id
 
-        self.state = value
+        self.runtime_state = value
         run_conf.init_pid = init_pid if value == :running
         run_conf.mark_aborted if %i[aborting aborted].include?(value)
         true
@@ -122,7 +122,8 @@ RSpec.describe OsCtld::Monitor::Process do
       pool:,
       user:,
       group:,
-      state: :stopped,
+      config_state: :ready,
+      runtime_state: :stopped,
       run_conf:,
       mounts:,
       lxc_home: '/var/lib/lxc/alice',
@@ -174,10 +175,16 @@ RSpec.describe OsCtld::Monitor::Process do
     process.send(:update_state, pool: 'tank', ctid: 'ct1', state: :running)
     process.send(:update_state, pool: 'tank', ctid: 'ct1', state: :running)
 
-    expect(ct.state).to eq(:running)
+    expect(ct.runtime_state).to eq(:running)
     expect(ct.ensure_run_conf.init_pid).to eq(5678)
     expect(eventd).to have_received(:report)
-      .with(:state, pool: 'tank', id: 'ct1', state: :running)
+      .with(
+        :runtime_state,
+        pool: 'tank',
+        id: 'ct1',
+        runtime_state: :running,
+        runtime_state_error: nil
+      )
       .once
     expect(eventd).to have_received(:report)
       .with(:ct_init_pid, pool: 'tank', id: 'ct1', init_pid: 5678)
@@ -227,7 +234,7 @@ RSpec.describe OsCtld::Monitor::Process do
       state: :running
     )
 
-    expect(ct.state).to eq(:stopped)
+    expect(ct.runtime_state).to eq(:stopped)
     expect(eventd).not_to have_received(:report)
     expect(hook).not_to have_received(:run)
     expect(ct.lifecycle.observations).to eq(
@@ -235,9 +242,9 @@ RSpec.describe OsCtld::Monitor::Process do
     )
   end
 
-  it 'does not clear an existing error state from lxc-monitor events' do
+  it 'keeps a configuration error while applying lxc-monitor events' do
     ct = build_ct
-    ct.state = :error
+    ct.config_state = :error
     db = stub_const('OsCtld::DB::Containers', Class.new do
       def self.find(_id, _pool); end
     end)
@@ -253,15 +260,27 @@ RSpec.describe OsCtld::Monitor::Process do
     allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
     allow(eventd).to receive(:report)
     allow(hook).to receive(:run)
-    allow(state_class).to receive(:run!)
+    allow(state_class).to receive(:run!).with(ct).and_return(
+      Struct.new(:state, :init_pid).new(:running, 5678)
+    )
+    allow(OsCtld::CGroup).to receive(:get_tree_pids)
+      .with('/osctl/test/run-1')
+      .and_return([5678])
 
     process.send(:update_state, pool: 'tank', ctid: 'ct1', state: :running)
 
-    expect(ct.state).to eq(:error)
-    expect(ct.ensure_run_conf.init_pid).to be_nil
-    expect(eventd).not_to have_received(:report)
-    expect(hook).not_to have_received(:run)
-    expect(state_class).not_to have_received(:run!)
+    expect(ct.config_state).to eq(:error)
+    expect(ct.runtime_state).to eq(:running)
+    expect(ct.ensure_run_conf.init_pid).to eq(5678)
+    expect(eventd).to have_received(:report).with(
+      :runtime_state,
+      pool: 'tank',
+      id: 'ct1',
+      runtime_state: :running,
+      runtime_state_error: nil
+    )
+    expect(hook).to have_received(:run).with(ct, :post_start, init_pid: 5678)
+    expect(state_class).to have_received(:run!).once
   end
 
   it 'marks an exact aborting generation without pruning on terminal monitor events' do
@@ -354,7 +373,7 @@ RSpec.describe OsCtld::Monitor::Process do
 
     process.send(:update_state, pool: 'tank', ctid: 'ct1', state: :stopping)
 
-    expect(ct.state).to eq(:stopped)
+    expect(ct.runtime_state).to eq(:stopped)
     expect(hook).not_to have_received(:run)
     expect(eventd).not_to have_received(:report)
     expect(ct.mounts.pruned).to be(false)

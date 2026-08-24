@@ -22,12 +22,19 @@ module OsCtld
             error!('invalid send sequence')
           end
 
-          if ct.send_log.state_running.nil?
-            ct.send_log.state_running = ct.state == :running
-            ct.save_config
+          running = if ct.send_log.state_running.nil?
+                      ct.runtime_state == :running
+                    else
+                      ct.send_log.state_running
+                    end
+          if restart_source_after_cutover?(running)
+            ensure_config_ready!(ct)
           end
 
-          running = ct.send_log.state_running
+          if ct.send_log.state_running.nil?
+            ct.send_log.state_running = running
+            ct.save_config
+          end
         end
 
         if !opts[:clone] || opts[:consistent]
@@ -103,6 +110,10 @@ module OsCtld
     end
 
     protected
+
+    def restart_source_after_cutover?(running)
+      running && opts[:clone] && opts[:restart]
+    end
 
     def clear_failed_state_snapshot(ct)
       snap = ct.send_log.state_snapshot

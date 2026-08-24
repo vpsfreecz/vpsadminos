@@ -34,7 +34,10 @@ RSpec.describe OsCtld::Container::LxcConfig do
       netifs: ['eth0'],
       mounts: mounts,
       raw_configs: raw_configs,
-      lifecycle: double(active_run_id: run_id)
+      lifecycle: double(active_run_id: run_id),
+      config_state: :ready,
+      set_config_ready: nil,
+      set_config_error: nil
     )
   end
 
@@ -79,20 +82,23 @@ RSpec.describe OsCtld::Container::LxcConfig do
     ).twice
   end
 
-  it 'marks the container as errored when the rootfs path is unavailable' do
+  it 'marks container configuration as errored when rootfs is unavailable' do
     unavailable_run_conf = double(distribution: 'alpine', version: '3.20', rootfs: nil)
     unavailable_ct = double(
       lxc_dir: '/var/lib/lxc/ct1',
       get_run_conf: unavailable_run_conf,
-      state: :stopped
+      config_state: :ready,
+      set_config_error: nil
     )
     config = described_class.new(unavailable_ct)
 
-    allow(unavailable_ct).to receive(:state=)
     allow(config).to receive(:log)
 
     expect(config.configure).to be(false)
-    expect(unavailable_ct).to have_received(:state=).with(:error)
+    expect(unavailable_ct).to have_received(:set_config_error).with(
+      source: :lxc_config,
+      message: 'rootfs path is not available'
+    )
     expect(OsCtld::ErbTemplate).not_to have_received(:render_to)
     expect(config).to have_received(:log).with(
       :warn,
@@ -106,21 +112,51 @@ RSpec.describe OsCtld::Container::LxcConfig do
     staged_ct = double(
       lxc_dir: '/var/lib/lxc/ct1',
       get_run_conf: unavailable_run_conf,
-      state: :staged
+      config_state: :staged,
+      set_config_error: nil
     )
     config = described_class.new(staged_ct)
 
-    allow(staged_ct).to receive(:state=)
     allow(config).to receive(:log)
 
     expect(config.configure).to be(false)
-    expect(staged_ct).not_to have_received(:state=)
+    expect(staged_ct).not_to have_received(:set_config_error)
     expect(OsCtld::ErbTemplate).not_to have_received(:render_to)
     expect(config).to have_received(:log).with(
       :warn,
       staged_ct,
       'Skipping LXC config generation: rootfs path is not available'
     )
+  end
+
+  it 'can preserve startup inventory after an unexpected generation failure' do
+    config = described_class.new(ct)
+    allow(config).to receive(:log)
+    allow(OsCtld::ErbTemplate).to receive(:render_to).and_raise(
+      Errno::EIO,
+      'template write failed'
+    )
+
+    expect(config.configure(raise_on_error: false)).to be(false)
+    expect(ct).to have_received(:set_config_error).with(
+      source: :lxc_config,
+      message: include('template write failed')
+    )
+    expect(config).to have_received(:log).with(
+      :warn,
+      ct,
+      match(/template write failed.*Errno::EIO/)
+    )
+  end
+
+  it 'raises generation failures outside startup inventory' do
+    allow(OsCtld::ErbTemplate).to receive(:render_to).and_raise(
+      Errno::EIO,
+      'template write failed'
+    )
+
+    expect { described_class.new(ct).configure }
+      .to raise_error(Errno::EIO, /template write failed/)
   end
 
   it 'duplicates itself for another container' do

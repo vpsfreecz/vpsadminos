@@ -2,6 +2,16 @@ require 'zlib'
 
 module OsCtld
   module Utils::Container
+    def ensure_config_ready!(ct)
+      return if ct.config_state == :ready
+
+      message = "container configuration is not ready (state: #{ct.config_state})"
+      if ct.config_state_error
+        message = "#{message}: #{ct.config_state_error[:message]}"
+      end
+      error!(message)
+    end
+
     def guard_residual_generations!(ct, operation)
       residuals = ct.lifecycle.residuals
       return if residuals.empty?

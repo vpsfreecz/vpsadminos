@@ -39,17 +39,18 @@ module OsCtld
       )
     end
 
-    def configure(run_conf: nil)
+    def configure(run_conf: nil, raise_on_error: true)
       exclusively do
         run_conf ||= ct.get_run_conf
         rootfs = run_conf.rootfs
 
         unless rootfs
-          if ct.state == :staged
+          if ct.config_state == :staged
             log(:warn, ct, 'Skipping LXC config generation: rootfs path is not available')
           else
-            ct.state = :error
-            log(:warn, ct, 'Unable to generate LXC config: rootfs path is not available')
+            message = 'rootfs path is not available'
+            ct.set_config_error(source: :lxc_config, message:)
+            log(:warn, ct, "Unable to generate LXC config: #{message}")
           end
 
           next false
@@ -80,8 +81,20 @@ module OsCtld
           ErbTemplate.render_to('ct/config', render_opts, config_path)
         end
 
+        ct.set_config_ready unless ct.config_state == :staged
         true
       end
+    rescue StandardError => e
+      ct.set_config_error(source: :lxc_config, message: e.message) \
+        unless ct.config_state == :staged
+      raise if raise_on_error
+
+      log(
+        :warn,
+        ct,
+        "Unable to generate LXC config: #{e.message} (#{e.class})"
+      )
+      false
     end
 
     alias configure_base configure

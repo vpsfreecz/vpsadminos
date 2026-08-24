@@ -579,8 +579,11 @@ module OsCtl::Cli
           ls.desc 'Filter by distribution variant, comma separated'
           ls.flag :variant, arg_name: 'variant'
 
-          ls.desc 'Filter by state, comma separated'
-          ls.flag %i[S state], arg_name: 'state'
+          ls.desc 'Filter by configuration state, comma separated'
+          ls.flag :config_state, arg_name: 'state'
+
+          ls.desc 'Filter by runtime state, comma separated'
+          ls.flag %i[S runtime_state], arg_name: 'state'
 
           ls.desc 'Filter ephemeral containers'
           ls.switch %i[e ephemeral], negatable: false
@@ -1567,14 +1570,14 @@ module OsCtl::Cli
           end
         end
 
-        ct.desc 'Monitor container state changes'
+        ct.desc 'Monitor container configuration and runtime state changes'
         ct.arg_name '[ctid...]'
         ct.command :monitor do |c|
           c.action(&Command.run(Event, :monitor_ct))
         end
 
-        ct.desc 'Wait for container for container to enter state'
-        ct.arg_name '<ctid> <state...>'
+        ct.desc 'Wait for a container to enter a runtime state'
+        ct.arg_name '<ctid> <runtime-state...>'
         ct.command :wait do |c|
           c.action(&Command.run(Event, :wait_ct))
         end

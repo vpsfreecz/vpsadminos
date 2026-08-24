@@ -17,9 +17,14 @@ module OsCtld
 
     def execute(ct)
       daemon = Daemon.get
-      return start_queued(ct) if opts[:queue]
 
-      error!('start not available') unless ct.can_start?
+      if opts[:queue]
+        manipulate(ct, lifecycle: true) do
+          ensure_config_ready!(ct)
+          error!('start not available') unless ct.can_start?
+        end
+        return start_queued(ct)
+      end
 
       deadline = wait_deadline
       intent_id = opts[:lifecycle_intent_id]
@@ -31,6 +36,9 @@ module OsCtld
 
       loop do
         request, preflight_error = manipulate(ct, lifecycle: true) do
+          ensure_config_ready!(ct)
+          error!('start not available') unless ct.can_start?
+
           daemon.with_lifecycle_admission_context(**admission_opts) do
             if ct.lifecycle.active_run_id.nil?
               ret = call_cmd(

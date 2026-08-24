@@ -378,7 +378,7 @@ class OsctldRestart
     pools = osctl_json('pool', 'list', '-o', 'name').map { |pool| pool.fetch('name') }
     containers = osctl_json(
       'ct', 'list',
-      '-o', 'pool,id,state,autostart,autostart_priority'
+      '-o', 'pool,id,runtime_state,autostart,autostart_priority'
     )
     @legacy_started_before = pools.to_h do |pool|
       [pool, legacy_started_containers(pool)]
@@ -523,16 +523,18 @@ class OsctldRestart
     loop do
       containers = osctl_json(
         'ct', 'list',
-        '-o', 'pool,id,state,autostart,autostart_priority'
+        '-o', 'pool,id,runtime_state,autostart,autostart_priority'
       )
       nonterminal = containers.reject do |ct|
-        STABLE_STATES.include?(ct.fetch('state'))
+        STABLE_STATES.include?(ct.fetch('runtime_state'))
       end
       nonterminal.each { |ct| remember_legacy_start_handoff(ct) }
       replace_runtime_handoff(containers)
       write_handoff
       signature = [
-        containers.map { |ct| [ct['pool'], ct['id'], ct['state']] }.sort,
+        containers.map do |ct|
+          [ct['pool'], ct['id'], ct['runtime_state']]
+        end.sort,
         legacy_manager_signature
       ]
 
@@ -545,7 +547,9 @@ class OsctldRestart
       end
 
       if monotonic_now >= deadline
-        ids = nonterminal.map { |ct| "#{ct['pool']}:#{ct['id']}:#{ct['state']}" }
+        ids = nonterminal.map do |ct|
+          "#{ct['pool']}:#{ct['id']}:#{ct['runtime_state']}"
+        end
         raise "legacy osctld did not reach a stable lifecycle state: #{ids.join(', ')}"
       end
 
@@ -1186,7 +1190,7 @@ class OsctldRestart
 
   def replace_runtime_handoff(containers)
     @handoff_runtime = containers.filter_map do |ct|
-      next unless %w[running frozen].include?(ct.fetch('state'))
+      next unless %w[running frozen].include?(ct.fetch('runtime_state'))
 
       [ct.fetch('pool'), ct.fetch('id')]
     end.uniq
@@ -1202,7 +1206,7 @@ class OsctldRestart
   end
 
   def remember_legacy_start_handoff(ct)
-    return unless LEGACY_START_STATES.include?(ct.fetch('state'))
+    return unless LEGACY_START_STATES.include?(ct.fetch('runtime_state'))
 
     pool = ct.fetch('pool')
     id = ct.fetch('id')

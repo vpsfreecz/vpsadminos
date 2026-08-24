@@ -9,10 +9,16 @@ RSpec.describe OsCtl::Cli::Top::Container do
       pool: 'tank',
       dataset: 'tank/ct1',
       group_path: '/tank/ct1',
-      state: 'running',
+      runtime_state: 'running',
       cpu_package_inuse: 1,
       init_pid: 123
     }
+  end
+
+  it 'accepts legacy runtime states during an in-place upgrade' do
+    ct = described_class.new(attrs.merge(runtime_state: nil, state: 'running'))
+
+    expect(ct.runtime_state).to eq(:running)
   end
 
   it 'initializes container fields and supports [] lookups' do

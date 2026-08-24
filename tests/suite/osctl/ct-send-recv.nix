@@ -131,7 +131,11 @@ let
     end
 
     def self.ct_state(machine, ctid)
-      machine.osctl_json("ct show #{ctid}")['state']
+      machine.osctl_json("ct show #{ctid}")['runtime_state']
+    end
+
+    def self.ct_config_state(machine, ctid)
+      machine.osctl_json("ct show #{ctid}")['config_state']
     end
 
     def self.ct_config_path(ctid)
@@ -413,13 +417,15 @@ import ../../make-test.nix (
               restart_transfer_daemons
 
               expect(send_log_present?(node1, ctid)).to be(true)
-              expect(ct_state(node2, ctid)).to eq('staged')
+              expect(ct_config_state(node2, ctid)).to eq('staged')
+              expect(ct_state(node2, ctid)).to eq('stopped')
 
               node1.succeeds("osctl ct send rootfs #{ctid}")
               restart_transfer_daemons
 
               expect(send_log_present?(node1, ctid)).to be(true)
-              expect(ct_state(node2, ctid)).to eq('staged')
+              expect(ct_config_state(node2, ctid)).to eq('staged')
+              expect(ct_state(node2, ctid)).to eq('stopped')
 
               write_ct_file(
                 node1,
@@ -431,7 +437,8 @@ import ../../make-test.nix (
               restart_transfer_daemons
 
               expect(send_log_present?(node1, ctid)).to be(true)
-              expect(ct_state(node2, ctid)).to eq('staged')
+              expect(ct_config_state(node2, ctid)).to eq('staged')
+              expect(ct_state(node2, ctid)).to eq('stopped')
 
               write_ct_file(
                 node1,
@@ -630,7 +637,8 @@ import ../../make-test.nix (
             end
 
             it 'keeps the staged target container' do
-              expect(ct_state(node2, ctid)).to eq('staged')
+              expect(ct_config_state(node2, ctid)).to eq('staged')
+              expect(ct_state(node2, ctid)).to eq('unknown')
             end
 
             it 'can complete the migration with another send state attempt' do
@@ -690,7 +698,8 @@ import ../../make-test.nix (
 
             it 'keeps the transfer state open' do
               expect(send_log_present?(node1, ctid)).to be(true)
-              expect(ct_state(node2, ctid)).to eq('staged')
+              expect(ct_config_state(node2, ctid)).to eq('staged')
+              expect(ct_state(node2, ctid)).to eq('unknown')
             end
 
             it 'can finish with another send state attempt' do
@@ -754,7 +763,8 @@ import ../../make-test.nix (
 
             it 'keeps the transfer state open' do
               expect(send_log_present?(node1, ctid)).to be(true)
-              expect(ct_state(node2, ctid)).to eq('staged')
+              expect(ct_config_state(node2, ctid)).to eq('staged')
+              expect(ct_state(node2, ctid)).to eq('unknown')
             end
 
             it 'can finish with another send state attempt' do
@@ -817,7 +827,8 @@ import ../../make-test.nix (
             end
 
             it 'keeps the staged target container' do
-              expect(ct_state(node2, ctid)).to eq('staged')
+              expect(ct_config_state(node2, ctid)).to eq('staged')
+              expect(ct_state(node2, ctid)).to eq('unknown')
             end
 
             it 'can complete the migration with another send state attempt' do

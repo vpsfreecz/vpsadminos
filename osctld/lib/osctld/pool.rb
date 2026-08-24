@@ -740,14 +740,14 @@ module OsCtld
       builder = Container::Builder.new(ct.get_run_conf)
       builder.setup_lxc_home
       builder.setup_log_file
-      ct.reconfigure
+      ct.reconfigure(raise_on_error: false)
       DB::Containers.add(ct)
 
       # The persisted state can describe the last event seen by the previous
       # daemon. Always inventory LXC itself so a restart also discovers a
       # frozen runtime's init PID and a runtime whose last state transition was
       # interrupted before it reached the container config.
-      runtime_observation = ct.current_state_observation
+      runtime_observation = ct.current_runtime_state_observation
       runtime_state = runtime_observation.state
       live = runtime_live_state?(runtime_state)
       ct.netifs.each(&:observe_runtime)
@@ -764,7 +764,7 @@ module OsCtld
       if ct.run_conf && lifecycle.active_run_id.nil?
         adopt_legacy_run_conf(ct, lifecycle, runtime_state)
       end
-      ct.reconfigure
+      ct.reconfigure(raise_on_error: false)
 
       legacy_run_id = lifecycle.adopted_legacy_callback_run_id
       if live && legacy_run_id
@@ -900,7 +900,7 @@ module OsCtld
 
     def reconcile_container_runtime
       DB::Containers.get.select do |ct|
-        ct.pool == self && runtime_live_state?(ct.state)
+        ct.pool == self && runtime_live_state?(ct.runtime_state)
       end.each do |ct|
         legacy_runtime = Daemon.get.upgrade_handoff_runtime?(ct)
         results = ct.netifs.map do |netif|
@@ -916,7 +916,18 @@ module OsCtld
         if missing.any? || restart_required.any?
           recovery_details = missing + restart_required
           intent_id = ct.lifecycle.running_intent_id
-          if intent_id
+          if ct.config_state != :ready
+            Daemon.get.record_recovery_failure(
+              key,
+              'host network state requires a restart, but container configuration is not ready',
+              recovery_details
+            )
+            log(
+              :warn,
+              ct,
+              'Host network state requires repair, but the running container cannot be restarted safely'
+            )
+          elsif intent_id
             Daemon.get.record_recovery_failure(
               key,
               'host network state requires an exact generation restart',

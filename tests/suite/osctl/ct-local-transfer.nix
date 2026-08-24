@@ -72,7 +72,11 @@ import ../../make-test.nix (
       end
 
       def self.ct_state(ctid, pool: nil)
-        machine.osctl_json("#{osctl_pool_arg(pool)}ct show #{ctid}")['state']
+        machine.osctl_json("#{osctl_pool_arg(pool)}ct show #{ctid}")['runtime_state']
+      end
+
+      def self.ct_config_state(ctid, pool: nil)
+        machine.osctl_json("#{osctl_pool_arg(pool)}ct show #{ctid}")['config_state']
       end
 
       def self.ct_rootfs(ctid, pool: nil)
@@ -390,14 +394,16 @@ import ../../make-test.nix (
           restart_osctld
 
           wait_ct_running(ctid)
-          expect(ct_state(target)).to eq('staged')
+          expect(ct_config_state(target)).to eq('staged')
+          expect(ct_state(target)).to eq('stopped')
           expect(local_transfer_log_present?(ctid)).to be(true)
 
           machine.succeeds("osctl --pool tank ct cp rootfs #{ctid}")
           restart_osctld
 
           wait_ct_running(ctid)
-          expect(ct_state(target)).to eq('staged')
+          expect(ct_config_state(target)).to eq('staged')
+          expect(ct_state(target)).to eq('stopped')
           expect(local_transfer_log_present?(ctid)).to be(true)
 
           write_ct_file(ctid, 'tmp/local-transfer/copy-restart-sync', 'copy-restart-sync')
@@ -405,7 +411,8 @@ import ../../make-test.nix (
           restart_osctld
 
           wait_ct_running(ctid)
-          expect(ct_state(target)).to eq('staged')
+          expect(ct_config_state(target)).to eq('staged')
+          expect(ct_state(target)).to eq('stopped')
           expect(local_transfer_log_present?(ctid)).to be(true)
 
           write_ct_file(ctid, 'tmp/local-transfer/copy-restart-state', 'copy-restart-state')
@@ -474,7 +481,8 @@ import ../../make-test.nix (
           machine.fails("osctl --pool tank ct cp state #{ctid}")
 
           expect(ct_state(ctid)).to eq('running')
-          expect(ct_state(target)).to eq('staged')
+          expect(ct_config_state(target)).to eq('staged')
+          expect(ct_state(target)).to eq('unknown')
           expect(local_transfer_log_present?(ctid)).to be(true)
 
           remove_hook(ctid, 'pre-stop')
@@ -570,14 +578,16 @@ import ../../make-test.nix (
           restart_osctld
 
           wait_ct_running(ctid)
-          expect(ct_state(target)).to eq('staged')
+          expect(ct_config_state(target)).to eq('staged')
+          expect(ct_state(target)).to eq('stopped')
           expect(local_transfer_log_present?(ctid)).to be(true)
 
           machine.succeeds("osctl --pool tank ct mv rootfs #{ctid}")
           restart_osctld
 
           wait_ct_running(ctid)
-          expect(ct_state(target)).to eq('staged')
+          expect(ct_config_state(target)).to eq('staged')
+          expect(ct_state(target)).to eq('stopped')
           expect(local_transfer_log_present?(ctid)).to be(true)
 
           write_ct_file(ctid, 'tmp/local-transfer/move-restart-sync', 'move-restart-sync')
@@ -585,7 +595,8 @@ import ../../make-test.nix (
           restart_osctld
 
           wait_ct_running(ctid)
-          expect(ct_state(target)).to eq('staged')
+          expect(ct_config_state(target)).to eq('staged')
+          expect(ct_state(target)).to eq('stopped')
           expect(local_transfer_log_present?(ctid)).to be(true)
 
           write_ct_file(ctid, 'tmp/local-transfer/move-restart-state', 'move-restart-state')

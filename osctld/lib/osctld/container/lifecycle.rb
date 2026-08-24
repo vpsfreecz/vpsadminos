@@ -3003,12 +3003,7 @@ module OsCtld
     end
 
     def inherited_group_policy_state_locked
-      return unless ct.respond_to?(:group)
-
-      group = ct.group
-      return unless group.respond_to?(:inherited_cgroup_policy_state)
-
-      group.inherited_cgroup_policy_state
+      ct.group.inherited_cgroup_policy_state
     end
 
     def policy_taint_blocks_callback_locked?(name)

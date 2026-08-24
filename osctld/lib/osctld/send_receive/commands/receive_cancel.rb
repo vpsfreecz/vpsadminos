@@ -13,7 +13,7 @@ module OsCtld
       error!('container not found') unless ct
 
       ct.manipulate(self, block: true) do
-        error!('this container is not staged') if ct.state != :staged
+        error!('this container is not staged') if ct.config_state != :staged
 
         if !ct.send_log || !ct.send_log.can_receive_cancel?
           error!('invalid send sequence')

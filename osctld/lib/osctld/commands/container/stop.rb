@@ -139,7 +139,7 @@ module OsCtld
       ensure_effect!(ct, run_id, effect_id)
       mode = stop_mode
 
-      if %i[freezing frozen].include?(ct.state)
+      if %i[freezing frozen].include?(ct.runtime_state)
         if mode == :stop
           mode = :kill
         elsif mode == :shutdown

@@ -22,7 +22,8 @@ RSpec.describe OsCtld::NetInterface::Bridge do
       ct.send(:init_lock)
       ct.instance_variable_set(:@pool, pool)
       ct.instance_variable_set(:@id, 'ct1')
-      ct.instance_variable_set(:@state, :running)
+      ct.instance_variable_set(:@config_state, :ready)
+      ct.instance_variable_set(:@runtime_state, :running)
       ct.instance_variable_set(:@lifecycle, lifecycle)
     end
   end

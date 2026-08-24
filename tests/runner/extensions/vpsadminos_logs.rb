@@ -68,7 +68,11 @@ module VpsadminosFailureLogs
       if command -v osctl >/dev/null 2>&1; then
         run_sh 'timeout 10 osctl pool ls'
         run_sh 'timeout 10 osctl ct ls'
-        run_sh 'timeout 10 osctl ct ls -H -o pool,id,state,init-pid,log-file 2>/dev/null || true'
+        run_sh(
+          'timeout 10 osctl ct ls -H ' \
+          '-o pool,id,config-state,runtime-state,init-pid,log-file ' \
+          '2>/dev/null || true'
+        )
       fi
 
       run_sh 'ls -la /run/osctl /run/osctl/pools /service/osctld /var/log /tank/log /tank/log/ct 2>/dev/null'

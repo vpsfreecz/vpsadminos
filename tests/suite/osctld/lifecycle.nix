@@ -151,7 +151,7 @@ import ../../make-test.nix (
               '/var/log/messages'
           )
 
-          expect(ct_info(ctid).fetch('state')).to eq('stopped')
+          expect(ct_info(ctid).fetch('runtime_state')).to eq('stopped')
           expect(lifecycle_record(ctid).fetch('active_run_id')).to be_nil
         end
       end
@@ -270,7 +270,7 @@ import ../../make-test.nix (
             "osctl ct recover state --no-lock --run-id " \
               "#{Shellwords.escape(@old_run_id)} #{Shellwords.escape(ctid)} " \
               ">/dev/null && " \
-              "test \"$(osctl ct show -H -o state #{ctid})\" = stopped",
+              "test \"$(osctl ct show -H -o runtime_state #{ctid})\" = stopped",
             timeout: 120
           )
 
@@ -367,7 +367,7 @@ import ../../make-test.nix (
           expect(io_status).not_to eq(0)
 
           final_info = ct_info(ctid)
-          expect(final_info.fetch('state')).to eq('running')
+          expect(final_info.fetch('runtime_state')).to eq('running')
           expect(final_info.fetch('lifecycle_run_id')).to eq(replacement_run_id)
           expect(final_info.fetch('lifecycle_residuals')).to eq(0)
           machine.succeeds(
@@ -433,7 +433,7 @@ import ../../make-test.nix (
 
         it 'adopts a deliberately reconstructed legacy runtime' do
           drained = ct_info(ctid)
-          expect(drained.fetch('state')).to eq('stopped')
+          expect(drained.fetch('runtime_state')).to eq('stopped')
           expect(drained.fetch('lifecycle_run_id')).to be_nil
           expect(drained.fetch('lifecycle_residuals')).to eq(0)
           expect(drained.fetch('lifecycle_policy_tainted')).to be(false)
@@ -497,7 +497,7 @@ import ../../make-test.nix (
           expect(legacy_veth).not_to be_empty
           machine.succeeds("osctl ct freeze #{ctid}")
           machine.wait_until_succeeds(
-            "test \"$(osctl ct show -H -o state #{ctid})\" = frozen",
+            "test \"$(osctl ct show -H -o runtime_state #{ctid})\" = frozen",
             timeout: 60
           )
           legacy_frozen = ct_info(ctid)
@@ -518,7 +518,7 @@ import ../../make-test.nix (
           machine.wait_for_osctl_pool('tank')
 
           adopted = ct_info(ctid)
-          expect(adopted.fetch('state')).to eq('frozen')
+          expect(adopted.fetch('runtime_state')).to eq('frozen')
           expect(adopted.fetch('init_pid')).to eq(
             legacy_frozen.fetch('init_pid')
           )
@@ -562,7 +562,7 @@ import ../../make-test.nix (
           )
           machine.succeeds("osctl ct unfreeze #{ctid}")
           machine.wait_until_succeeds(
-            "test \"$(osctl ct show -H -o state #{ctid})\" = running",
+            "test \"$(osctl ct show -H -o runtime_state #{ctid})\" = running",
             timeout: 60
           )
           machine.succeeds("osctl ct exec #{ctid} true")
@@ -598,7 +598,7 @@ import ../../make-test.nix (
           expect(stop_status).to eq(0), stop_output
 
           finalized = ct_info(ctid)
-          expect(finalized.fetch('state')).to eq('stopped')
+          expect(finalized.fetch('runtime_state')).to eq('stopped')
           expect(finalized.fetch('lifecycle_run_id')).to be_nil
           expect(finalized.fetch('lifecycle_residuals')).to eq(0)
         end
