@@ -215,111 +215,169 @@ in
             #!/bin/sh
             set -u
 
+            profile=essential
+
+            case "''${1:-}" in
+              --full)
+                profile=full
+                shift
+                ;;
+              -h|--help)
+                echo "usage: crash-collect [--full] [OUTDIR]"
+                exit 0
+                ;;
+              -*)
+                echo "crash-collect: unknown option: $1" >&2
+                exit 2
+                ;;
+            esac
+
+            if [ "$#" -gt 1 ] ; then
+              echo "usage: crash-collect [--full] [OUTDIR]" >&2
+              exit 2
+            fi
+
             outdir=''${1:-/tmp/crash-inspect}
-            tmpdir=$(mktemp -d /tmp/crash-collect.XXXXXX)
-            status=0
+            tmpdir=$(mktemp -d /tmp/crash-collect.XXXXXX) || exit 1
+            overall_status=0
             trap 'rm -rf "$tmpdir"' EXIT
 
-            mkdir -p "$outdir"
-            : > "$outdir/status"
+            mkdir -p "$outdir" || exit 1
+            outdir=$(cd "$outdir" && pwd -P) || exit 1
 
             cat > "$outdir/README" <<'EOF_COLLECT_README'
-            Files written by crash-collect:
+            Usage: crash-collect [--full] [OUTDIR]
+
+            The default essential profile prioritizes evidence needed to
+            diagnose the panic and active CPUs. The --full profile appends
+            expensive whole-task-table reports after essential collection.
+
+            Files written by both profiles:
               manifest                        basic metadata about the collected vmcore
-              status                          exit status of each crash command
+              status                          collection and output status
+              timings                         start, end and duration of each report
+              session.log                     crash(8) initialization and command log
               sys.txt                         sys, sys -t, kmem -i
               log.txt                         log -m
-              ps.txt                          ps
               ps-summary.txt                  ps -S
+              tasks.txt                       lightweight task identity and state inventory
+              bt-panic.txt                    bt -p
+              bt-active.txt                   bt -a -n idle
+              bt-sleeping-uninterruptible.txt foreach UN bt
+
+            Additional files written by --full:
+              ps.txt                          ps
               ps-last-run.txt                 ps -m
               ps-active.txt                   ps -A
-              bt-panic.txt                    bt -p
-              bt-active.txt                   bt -a
-              bt-active-nonidle.txt           bt -a -n idle
               bt-sleeping-interruptible.txt   foreach IN bt
-              bt-sleeping-uninterruptible.txt foreach UN bt
             EOF_COLLECT_README
 
             cat > "$outdir/manifest" <<EOF_COLLECT_MANIFEST
             vmlinux=''${CRASH_VMLINUX:-/.crash/vmlinux.gz}
             vmcore=/proc/vmcore
             crash_binary=$(readlink -f "$(command -v crash)")
+            profile=$profile
             EOF_COLLECT_MANIFEST
 
-            run_crash() {
-              local name rc cmdfile
-              name="$1"
-              cmdfile="$tmpdir/$1.cmd"
-              cat > "$cmdfile"
-              echo "crash-collect: $name"
-              if crash-vmcore -i "$cmdfile" > "$outdir/$name" 2>&1 ; then
-                rc=0
+            cmdfile="$tmpdir/collect.cmd"
+            cat > "$cmdfile" <<'EOF_CRASH_ESSENTIAL'
+            !date +%s > .sys.txt.start
+            sys > sys.txt
+            sys -t >> sys.txt
+            kmem -i >> sys.txt
+            !date +%s > .sys.txt.end
+
+            !date +%s > .log.txt.start
+            log -m > log.txt
+            !date +%s > .log.txt.end
+
+            !date +%s > .bt-panic.txt.start
+            bt -p > bt-panic.txt
+            !date +%s > .bt-panic.txt.end
+
+            !date +%s > .bt-active.txt.start
+            bt -a -n idle > bt-active.txt
+            !date +%s > .bt-active.txt.end
+
+            !date +%s > .bt-sleeping-uninterruptible.txt.start
+            foreach UN bt > bt-sleeping-uninterruptible.txt
+            !date +%s > .bt-sleeping-uninterruptible.txt.end
+
+            !date +%s > .ps-summary.txt.start
+            ps -S > ps-summary.txt
+            !date +%s > .ps-summary.txt.end
+
+            !date +%s > .tasks.txt.start
+            foreach task -R __state,real_parent > tasks.txt
+            !date +%s > .tasks.txt.end
+            EOF_CRASH_ESSENTIAL
+
+            reports="sys.txt log.txt bt-panic.txt bt-active.txt bt-sleeping-uninterruptible.txt ps-summary.txt tasks.txt"
+
+            if [ "$profile" = full ] ; then
+              cat >> "$cmdfile" <<'EOF_CRASH_FULL'
+
+            !date +%s > .ps.txt.start
+            ps > ps.txt
+            !date +%s > .ps.txt.end
+
+            !date +%s > .ps-last-run.txt.start
+            ps -m > ps-last-run.txt
+            !date +%s > .ps-last-run.txt.end
+
+            !date +%s > .ps-active.txt.start
+            ps -A > ps-active.txt
+            !date +%s > .ps-active.txt.end
+
+            !date +%s > .bt-sleeping-interruptible.txt.start
+            foreach IN bt > bt-sleeping-interruptible.txt
+            !date +%s > .bt-sleeping-interruptible.txt.end
+            EOF_CRASH_FULL
+
+              reports="$reports ps.txt ps-last-run.txt ps-active.txt bt-sleeping-interruptible.txt"
+            fi
+
+            echo quit >> "$cmdfile"
+
+            echo "crash-collect: profile $profile"
+            session_start=$(date +%s)
+            if (cd "$outdir" && crash-vmcore -i "$cmdfile") > "$outdir/session.log" 2>&1 ; then
+              session_rc=0
+            else
+              session_rc=$?
+              overall_status=1
+            fi
+            session_end=$(date +%s)
+
+            : > "$outdir/status"
+            echo "session $session_rc" >> "$outdir/status"
+
+            : > "$outdir/timings"
+            echo "session start=$session_start end=$session_end duration=$((session_end - session_start))s" \
+              >> "$outdir/timings"
+
+            for name in $reports ; do
+              if [ -s "$outdir/$name" ] ; then
+                echo "$name 0" >> "$outdir/status"
               else
-                rc=$?
-                status=1
+                echo "$name 1" >> "$outdir/status"
+                overall_status=1
               fi
-              echo "$name $rc" >> "$outdir/status"
-              return 0
-            }
 
-            run_crash sys.txt <<'EOF_CRASH_SYS'
-            sys
-            sys -t
-            kmem -i
-            quit
-            EOF_CRASH_SYS
+              if [ -s "$outdir/.$name.start" ] && [ -s "$outdir/.$name.end" ] ; then
+                start=$(cat "$outdir/.$name.start")
+                end=$(cat "$outdir/.$name.end")
+                echo "$name start=$start end=$end duration=$((end - start))s" \
+                  >> "$outdir/timings"
+              else
+                echo "$name timing=incomplete" >> "$outdir/timings"
+                overall_status=1
+              fi
 
-            run_crash log.txt <<'EOF_CRASH_LOG'
-            log -m
-            quit
-            EOF_CRASH_LOG
+              rm -f "$outdir/.$name.start" "$outdir/.$name.end"
+            done
 
-            run_crash ps.txt <<'EOF_CRASH_PS'
-            ps
-            quit
-            EOF_CRASH_PS
-
-            run_crash ps-summary.txt <<'EOF_CRASH_PS_SUMMARY'
-            ps -S
-            quit
-            EOF_CRASH_PS_SUMMARY
-
-            run_crash ps-last-run.txt <<'EOF_CRASH_PS_LAST_RUN'
-            ps -m
-            quit
-            EOF_CRASH_PS_LAST_RUN
-
-            run_crash ps-active.txt <<'EOF_CRASH_PS_ACTIVE'
-            ps -A
-            quit
-            EOF_CRASH_PS_ACTIVE
-
-            run_crash bt-panic.txt <<'EOF_CRASH_BT_PANIC'
-            bt -p
-            quit
-            EOF_CRASH_BT_PANIC
-
-            run_crash bt-active.txt <<'EOF_CRASH_BT_ACTIVE'
-            bt -a
-            quit
-            EOF_CRASH_BT_ACTIVE
-
-            run_crash bt-active-nonidle.txt <<'EOF_CRASH_BT_ACTIVE_NONIDLE'
-            bt -a -n idle
-            quit
-            EOF_CRASH_BT_ACTIVE_NONIDLE
-
-            run_crash bt-sleeping-interruptible.txt <<'EOF_CRASH_BT_SLEEPING_INTERRUPTIBLE'
-            foreach IN bt
-            quit
-            EOF_CRASH_BT_SLEEPING_INTERRUPTIBLE
-
-            run_crash bt-sleeping-uninterruptible.txt <<'EOF_CRASH_BT_SLEEPING_UNINTERRUPTIBLE'
-            foreach UN bt
-            quit
-            EOF_CRASH_BT_SLEEPING_UNINTERRUPTIBLE
-
-            exit $status
+            exit $overall_status
             EOF_CRASH_COLLECT
             chmod +x $out/bin/crash-collect
           ''}

@@ -204,7 +204,8 @@ import ../../make-test.nix (
           test -f "$target/inspect.exit-status"
           test -f "$target/inspect/status"
           test -f "$target/inspect/manifest"
-          test -f "$target/inspect/ps-active.txt"
+          test -f "$target/inspect/timings"
+          test -f "$target/inspect/tasks.txt"
           test -f "$target/inspect/bt-active.txt"
         CMD
       end
@@ -278,8 +279,15 @@ import ../../make-test.nix (
 
             server.succeeds("grep -F #{Shellwords.escape(message)} #{Shellwords.escape(target)}/dmesg")
             server.succeeds("grep -F 'vmcore=/proc/vmcore' #{Shellwords.escape(target)}/inspect/manifest")
-            server.succeeds("grep -F 'ps-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
+            server.succeeds("grep -F 'profile=essential' #{Shellwords.escape(target)}/inspect/manifest")
+            server.succeeds("grep -F 'session 0' #{Shellwords.escape(target)}/inspect/status")
+            server.succeeds("grep -F 'tasks.txt 0' #{Shellwords.escape(target)}/inspect/status")
             server.succeeds("grep -F 'bt-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
+            server.succeeds("grep -E '^session start=[0-9]+ end=[0-9]+ duration=[0-9]+s$' #{Shellwords.escape(target)}/inspect/timings")
+            server.fails("test -e #{Shellwords.escape(target)}/inspect/ps.txt")
+            server.fails("test -e #{Shellwords.escape(target)}/inspect/ps-active.txt")
+            server.fails("test -e #{Shellwords.escape(target)}/inspect/ps-last-run.txt")
+            server.fails("test -e #{Shellwords.escape(target)}/inspect/bt-sleeping-interruptible.txt")
           end
         end
       end

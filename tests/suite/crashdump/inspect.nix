@@ -28,8 +28,8 @@ import ../../make-test.nix (
                 echo "/proc/vmcore is missing"
               fi
 
-              echo "Running crash-collect"
-              crash-collect inspect
+              echo "Running crash-collect --full"
+              crash-collect --full inspect
               rc=$?
               echo "crash-collect exited with $rc"
 
@@ -39,6 +39,8 @@ import ../../make-test.nix (
                 inspect/README \
                 inspect/manifest \
                 inspect/status \
+                inspect/timings \
+                inspect/tasks.txt \
                 inspect/ps-active.txt \
                 inspect/bt-active.txt \
                 inspect/bt-sleeping-interruptible.txt \
@@ -47,9 +49,21 @@ import ../../make-test.nix (
                   echo "=== $f ==="
                   sed -n '1,80p' "$f"
                 else
-                  echo "$f is missing"
+                  fail "$f is missing"
                 fi
               done
+
+              grep -F 'profile=full' inspect/manifest \
+                || fail "Full profile is not recorded in the manifest"
+              grep -F 'session 0' inspect/status \
+                || fail "The consolidated crash session failed"
+              grep -F 'tasks.txt 0' inspect/status \
+                || fail "The lightweight task inventory failed"
+              grep -F 'ps-active.txt 0' inspect/status \
+                || fail "The full profile active-task report failed"
+              grep -E '^session start=[0-9]+ end=[0-9]+ duration=[0-9]+s$' inspect/timings \
+                || fail "The consolidated session timing is missing"
+              echo "Full crash inspection profile verified"
 
               echo "Dumping dmesg"
               makedumpfile --dump-dmesg /proc/vmcore dmesg.log
@@ -168,13 +182,16 @@ import ../../make-test.nix (
             machine.wait_for_console_text(/sysrq: Trigger a crash/, timeout:)
             machine.wait_for_console_text(/Kernel panic - not syncing: sysrq triggered crash/, timeout:)
             machine.wait_for_console_text(/This is a crash kernel/, timeout:)
-            machine.wait_for_console_text(/Running crash-collect/, timeout:)
+            machine.wait_for_console_text(/Running crash-collect --full/, timeout:)
             machine.wait_for_console_text(/crash-collect exited with 0/, timeout:)
             machine.wait_for_console_text(/inspect\/README/, timeout:)
+            machine.wait_for_console_text(/inspect\/timings/, timeout:)
+            machine.wait_for_console_text(/inspect\/tasks.txt/, timeout:)
             machine.wait_for_console_text(/inspect\/ps-active.txt/, timeout:)
             machine.wait_for_console_text(/inspect\/bt-active.txt/, timeout:)
             machine.wait_for_console_text(/inspect\/bt-sleeping-interruptible.txt/, timeout:)
             machine.wait_for_console_text(/inspect\/bt-sleeping-uninterruptible.txt/, timeout:)
+            machine.wait_for_console_text(/Full crash inspection profile verified/, timeout:)
             machine.wait_for_console_text(/Dumping dmesg/, timeout:)
             machine.wait_for_console_text(/#{Regexp.escape(message)}/, timeout:)
           end
