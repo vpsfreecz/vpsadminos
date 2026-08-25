@@ -21,9 +21,10 @@ require 'osctld/commands/user/delete'
 require 'osctld/commands/user/subugids'
 
 RSpec.describe 'heavy system commands' do
-  def lockable(obj)
+  def lockable(obj, event_log: nil, lock_event: nil)
     obj.define_singleton_method(:manipulated_by) { @manipulated_by }
     obj.define_singleton_method(:acquire_manipulation_lock) do |holder, block: false|
+      event_log << lock_event if event_log
       @manipulated_by = holder
       true
     end
@@ -54,8 +55,9 @@ RSpec.describe 'heavy system commands' do
     it 'grabs pools and containers, autostops multiple pools, and exports them with the wall message' do
       tracker_class = stub_const('OsCtld::ProgressTracker', Class.new)
       allow(tracker_class).to receive(:new).and_return(double('Tracker'))
+      event_log = []
       pool1 = lockable(
-        Struct.new(:name) do
+        Struct.new(:name, :event_log) do
           attr_reader :disabled, :begin_stop_calls, :autostop_calls, :wait_calls
 
           def initialize(*)
@@ -75,6 +77,7 @@ RSpec.describe 'heavy system commands' do
           end
 
           def begin_stop
+            event_log << :pool1_begin_stop
             @begin_stop_calls += 1
           end
 
@@ -85,10 +88,10 @@ RSpec.describe 'heavy system commands' do
           def wait_for_autostop
             @wait_calls += 1
           end
-        end.new('tank')
+        end.new('tank', event_log)
       )
       pool2 = lockable(
-        Struct.new(:name) do
+        Struct.new(:name, :event_log) do
           attr_reader :disabled, :begin_stop_calls, :autostop_calls, :wait_calls
 
           def initialize(*)
@@ -108,6 +111,7 @@ RSpec.describe 'heavy system commands' do
           end
 
           def begin_stop
+            event_log << :pool2_begin_stop
             @begin_stop_calls += 1
           end
 
@@ -118,10 +122,18 @@ RSpec.describe 'heavy system commands' do
           def wait_for_autostop
             @wait_calls += 1
           end
-        end.new('pool2')
+        end.new('pool2', event_log)
       )
-      ct1 = lockable(Struct.new(:pool).new(pool1))
-      ct2 = lockable(Struct.new(:pool).new(pool2))
+      ct1 = lockable(
+        Struct.new(:pool).new(pool1),
+        event_log:,
+        lock_event: :ct1_lock
+      )
+      ct2 = lockable(
+        Struct.new(:pool).new(pool2),
+        event_log:,
+        lock_event: :ct2_lock
+      )
       db_pools = stub_const('OsCtld::DB::Pools', Class.new do
         def self.get; end
       end)
@@ -136,6 +148,11 @@ RSpec.describe 'heavy system commands' do
       ).to eq(status: true, output: nil)
       expect(daemon).to have_received(:begin_shutdown)
       expect(daemon).to have_received(:confirm_shutdown)
+      expect(pool1.begin_stop_calls).to eq(1)
+      expect(pool2.begin_stop_calls).to eq(1)
+      expect(event_log).to eq(
+        %i[pool1_begin_stop pool2_begin_stop ct1_lock ct2_lock]
+      )
       expect(pool1.autostop_calls.first[:message]).to eq('Shutting down')
       expect(pool2.autostop_calls.first[:message]).to eq('Shutting down')
       expect(OsCtld::Commands::Pool::Export).to have_received(:run).with(

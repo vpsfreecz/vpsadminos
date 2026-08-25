@@ -28,6 +28,13 @@ module OsCtld
       end
       check_abort!
 
+      # Drain auto-start executors before grabbing container manipulation
+      # locks. A retry may already be waiting to manipulate a container; if
+      # shutdown held that lock while joining the executor, both sides would
+      # wait for each other indefinitely.
+      DB::Pools.get.each(&:begin_stop)
+      check_abort!
+
       # Grab manipulation locks of all containers
       grabbed_cts = grab_all_cts
 
@@ -47,7 +54,6 @@ module OsCtld
         stop_pools.each do |pool|
           break if check_abort?
 
-          pool.begin_stop
           pool.autostop_no_wait(message: wall_msg, client_handler:, progress_tracker:)
         end
 
