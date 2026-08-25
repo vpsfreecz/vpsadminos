@@ -3112,6 +3112,23 @@ RSpec.describe OsCtld::Container::Lifecycle do
     end
   end
 
+  it 'ignores cancellation after an old run was pruned' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      old_request = lifecycle.request_start
+      lifecycle.request_stop
+      lifecycle.request_start
+
+      expect(lifecycle.run(old_request.run_id)).to be_nil
+      expect(
+        lifecycle.cancel_unlaunched(
+          old_request.run_id,
+          'cancelled after retry completion'
+        )
+      ).to be(false)
+    end
+  end
+
   it 'can cancel an operator-cleared queued start and its desired state atomically' do
     with_tmpdir do |root|
       lifecycle = described_class.new(build_container(root))

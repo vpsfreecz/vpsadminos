@@ -1766,7 +1766,8 @@ module OsCtld
       source: 'lifecycle-cancel'
     )
       sync do
-        run = require_run_locked(run_id)
+        run = find_run_locked(run_id)
+        return false unless run
         return false unless active_run_locked.equal?(run)
         return false unless run['phase'] == 'preparing'
         return false if run['effect']
