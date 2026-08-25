@@ -325,12 +325,6 @@ let
         fi
       ''}
       ${moduleWaitGen { moduleName = guardModuleName; }}
-      ${optionalString (transitionBootstrap != null) ''
-        if ! transition_bootstrap_cleanup; then
-          exit 1
-        fi
-        trap - EXIT
-      ''}
     '';
 
   moduleUnloadGen =

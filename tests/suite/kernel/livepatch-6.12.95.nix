@@ -4,9 +4,20 @@ let
   transitionBootstrapModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_TRANSITION_BOOTSTRAP_MODULE";
   releasedV1ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V1_MODULE";
   releasedV5ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE";
+  releasedV6ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V6_MODULE";
   predecessorModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE";
   exampleFilter = builtins.getEnv "VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER";
   scaleValidation = builtins.getEnv "VPSADMINOS_LIVEPATCH_SCALE_VALIDATION" == "1";
+  v6Reproduction = builtins.getEnv "VPSADMINOS_LIVEPATCH_V6_REPRODUCTION" == "1";
+  scaleTaskCountEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SCALE_TASK_COUNT";
+  scaleRunnableEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SCALE_RUNNABLE";
+  scaleWakingEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SCALE_WAKING";
+  scaleChurnEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SCALE_CHURN";
+  scaleChurnCyclesEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SCALE_CHURN_CYCLES";
+  scaleCpuCountEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SCALE_CPUS";
+  scaleMemoryMiBEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SCALE_MEMORY_MIB";
+  scaleNfsWorkersEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SCALE_NFS_WORKERS";
+  bootDiag = builtins.getEnv "VPSADMINOS_LIVEPATCH_BOOT_DIAG" == "1";
 in
 assert correctedModuleEnv != "";
 assert transitionGuardModuleEnv != "";
@@ -14,6 +25,7 @@ assert transitionBootstrapModuleEnv != "";
 assert releasedV1ModuleEnv != "";
 assert releasedV5ModuleEnv != "";
 assert predecessorModuleEnv != "";
+assert !v6Reproduction || releasedV6ModuleEnv != "";
 import ../../make-test.nix (
   { pkgs }:
   let
@@ -22,12 +34,16 @@ import ../../make-test.nix (
     transitionBootstrapModule = builtins.storePath transitionBootstrapModuleEnv;
     releasedV1Module = builtins.storePath releasedV1ModuleEnv;
     releasedV5Module = builtins.storePath releasedV5ModuleEnv;
+    releasedV6Module =
+      if releasedV6ModuleEnv == "" then null else builtins.storePath releasedV6ModuleEnv;
     predecessorModule = builtins.storePath predecessorModuleEnv;
     correctedSha256 = builtins.hashFile "sha256" correctedModule;
     transitionGuardSha256 = builtins.hashFile "sha256" transitionGuardModule;
     transitionBootstrapSha256 = builtins.hashFile "sha256" transitionBootstrapModule;
     releasedV1Sha256 = builtins.hashFile "sha256" releasedV1Module;
     releasedV5Sha256 = builtins.hashFile "sha256" releasedV5Module;
+    releasedV6Sha256 =
+      if releasedV6Module == null then null else builtins.hashFile "sha256" releasedV6Module;
     predecessorSha256 = builtins.hashFile "sha256" predecessorModule;
     expectedCorrectedSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_SHA256";
     expectedTransitionGuardSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_TRANSITION_GUARD_SHA256";
@@ -35,7 +51,28 @@ import ../../make-test.nix (
       builtins.getEnv "VPSADMINOS_LIVEPATCH_TRANSITION_BOOTSTRAP_SHA256";
     expectedReleasedV1Sha256 = "a3f79b223f1ad1eba764ed10e687b5800aea28b42eb1cc9fffb95f43d6260a30";
     expectedReleasedV5Sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
+    expectedReleasedV6Sha256 = "960b13f1b461b95e29cccff58ddf0d3f3badf151046eb46eba36a9c8c7e5efe3";
     expectedPredecessorSha256 = "70f22f6f2a1a5b0eaf57d09fdd8e988561adbea6c77fb59dcdf89b2415a9f79e";
+    scaleTaskCount =
+      if scaleTaskCountEnv == "" then 100000 else builtins.fromJSON scaleTaskCountEnv;
+    scaleRunnable =
+      if scaleRunnableEnv == "" then 8192 else builtins.fromJSON scaleRunnableEnv;
+    scaleWaking =
+      if scaleWakingEnv == "" then 1024 else builtins.fromJSON scaleWakingEnv;
+    scaleChurn =
+      if scaleChurnEnv == "" then 256 else builtins.fromJSON scaleChurnEnv;
+    scaleChurnCycles =
+      if scaleChurnCyclesEnv == "" then 0 else builtins.fromJSON scaleChurnCyclesEnv;
+    scaleCpuCount =
+      if scaleCpuCountEnv == "" then 128 else builtins.fromJSON scaleCpuCountEnv;
+    scaleMemoryMiB =
+      if scaleMemoryMiBEnv == "" then 24 * 1024 else builtins.fromJSON scaleMemoryMiBEnv;
+    scaleNfsWorkers =
+      if scaleNfsWorkersEnv == "" then 32 else builtins.fromJSON scaleNfsWorkersEnv;
+    bootDiagKernelParams = pkgs.lib.optionals bootDiag [
+      "ignore_loglevel"
+      "earlycon=uart8250,io,0x3f8,115200n8"
+    ];
 
     perfTransition = pkgs.stdenv.mkDerivation {
       pname = "livepatch-test-perf-transition";
@@ -68,6 +105,23 @@ import ../../make-test.nix (
 
       installPhase = ''
         install -Dm755 task_fleet "$out/bin/task_fleet"
+      '';
+    };
+
+    dlSentinel = pkgs.stdenv.mkDerivation {
+      pname = "livepatch-test-dl-sentinel";
+      version = "1";
+      src = ./livepatch-6.12.95;
+
+      dontConfigure = true;
+
+      buildPhase = ''
+        "$CC" -std=gnu11 -O2 -Wall -Wextra -Werror \
+          -o dl_sentinel dl_sentinel.c
+      '';
+
+      installPhase = ''
+        install -Dm755 dl_sentinel "$out/bin/dl_sentinel"
       '';
     };
 
@@ -410,12 +464,13 @@ import ../../make-test.nix (
       {
         boot.kernelVersion = lib.mkForce "6.12.95";
         boot.qemu = lib.mkIf scaleValidation {
-          memory = lib.mkForce (24 * 1024);
-          cpus = lib.mkForce 128;
-          cpu.cores = lib.mkForce 128;
+          memory = lib.mkForce scaleMemoryMiB;
+          cpus = lib.mkForce scaleCpuCount;
+          cpu.cores = lib.mkForce scaleCpuCount;
           cpu.sockets = lib.mkForce 1;
           cpu.threads = lib.mkForce 1;
         };
+        boot.kernelParams = lib.mkAfter bootDiagKernelParams;
         services.live-patches.enable = false;
         services.nfs.server = {
           enable = true;
@@ -446,6 +501,7 @@ import ../../make-test.nix (
           "livepatch-test/transition-guard.ko".source = transitionGuardModule;
           "livepatch-test/transition-bootstrap.ko".source = transitionBootstrapModule;
           "livepatch-test/task-fleet".source = "${taskFleet}/bin/task_fleet";
+          "livepatch-test/dl-sentinel".source = "${dlSentinel}/bin/dl_sentinel";
           "livepatch-test/released-v1.ko".source = releasedV1Module;
           "livepatch-test/released-v5.ko".source = releasedV5Module;
           "livepatch-test/predecessor.ko".source = predecessorModule;
@@ -464,6 +520,8 @@ import ../../make-test.nix (
             "${livepatchTestModules}/lib/modules/${kernel.modDirVersion}/extra/livepatch_test_pernet_hold.ko";
           "livepatch-test/probe.ko".source =
             "${livepatchTestModules}/lib/modules/${kernel.modDirVersion}/extra/livepatch_test_probe.ko";
+        } // pkgs.lib.optionalAttrs (releasedV6Module != null) {
+          "livepatch-test/released-v6.ko".source = releasedV6Module;
         };
       };
   in
@@ -472,6 +530,7 @@ import ../../make-test.nix (
   assert transitionBootstrapSha256 == expectedTransitionBootstrapSha256;
   assert releasedV1Sha256 == expectedReleasedV1Sha256;
   assert releasedV5Sha256 == expectedReleasedV5Sha256;
+  assert !v6Reproduction || releasedV6Sha256 == expectedReleasedV6Sha256;
   assert predecessorSha256 == expectedPredecessorSha256;
   {
     name = "kernel-livepatch-6.12.95";
@@ -506,10 +565,27 @@ import ../../make-test.nix (
       TRANSITION_GUARD_MODULE = "/etc/livepatch-test/transition-guard.ko"
       TRANSITION_BOOTSTRAP_MODULE = "/etc/livepatch-test/transition-bootstrap.ko"
       TASK_FLEET = "/etc/livepatch-test/task-fleet"
+      DL_SENTINEL = "/etc/livepatch-test/dl-sentinel"
+      DL_SENTINEL_STATE = "/run/livepatch-dl-sentinel"
       TASK_FLEET_STATE = "/run/livepatch-task-fleet"
+      TASK_FLEET_COUNT = ${toString scaleTaskCount}
+      TASK_FLEET_RUNNABLE = ${toString scaleRunnable}
+      TASK_FLEET_WAKING = ${toString scaleWaking}
+      TASK_FLEET_CHURN = ${toString scaleChurn}
+      TASK_FLEET_MAX_CHURN_CYCLES = ${toString scaleChurnCycles}
+      SCALE_NFS_WORKERS = ${toString scaleNfsWorkers}
+      FAIR_TASK_FLEET_STATE = "/run/livepatch-fair-task-fleet"
+      FAIR_TASK_FLEET_PARENT = "/sys/fs/cgroup/livepatch-fair"
+      FAIR_TASK_FLEET_CGROUP = "#{FAIR_TASK_FLEET_PARENT}/fleet"
+      FAIR_TASK_FLEET_QUOTA = "10000 100000"
+      FAIR_SERVER_DEBUGFS = "/sys/kernel/debug/sched/fair_server"
       SCALE_VALIDATION = ${if scaleValidation then "true" else "false"}
+      V6_REPRODUCTION = ${if v6Reproduction then "true" else "false"}
       RELEASED_V1_MODULE = "/etc/livepatch-test/released-v1.ko"
       RELEASED_V5_MODULE = "/etc/livepatch-test/released-v5.ko"
+      RELEASED_V6_MODULE = ${builtins.toJSON (
+        if releasedV6Module == null then null else "/etc/livepatch-test/released-v6.ko"
+      )}
       PREDECESSOR_MODULE = "/etc/livepatch-test/predecessor.ko"
       PERF_TRANSITION = "/etc/livepatch-test/perf-transition"
       CBPF_CHURN = "/etc/livepatch-test/cbpf-churn"
@@ -530,12 +606,14 @@ import ../../make-test.nix (
       TRANSITION_BOOTSTRAP_NAME = "livepatch_transition_bootstrap"
       RELEASED_V1_NAME = "livepatch_1"
       RELEASED_V5_NAME = "livepatch_5"
+      RELEASED_V6_NAME = "livepatch_6"
       PREDECESSOR_NAME = "livepatch_predecessor_1"
       CORRECTED_SHA256 = ${builtins.toJSON expectedCorrectedSha256}
       TRANSITION_GUARD_SHA256 = ${builtins.toJSON expectedTransitionGuardSha256}
       TRANSITION_BOOTSTRAP_SHA256 = ${builtins.toJSON expectedTransitionBootstrapSha256}
       RELEASED_V1_SHA256 = ${builtins.toJSON expectedReleasedV1Sha256}
       RELEASED_V5_SHA256 = ${builtins.toJSON expectedReleasedV5Sha256}
+      RELEASED_V6_SHA256 = ${builtins.toJSON expectedReleasedV6Sha256}
       PREDECESSOR_SHA256 = ${builtins.toJSON expectedPredecessorSha256}
       # Exact GCC 15.2 disassembly places the fuse_copy_finish() call in the
       # inlined fuse_ref_page() at this offset in the boot, predecessor, and
@@ -697,16 +775,24 @@ import ../../make-test.nix (
             "printf '%s=' \"$attribute\"; " \
             "cat #{dir}/$attribute 2>/dev/null || printf 'missing\\n'; " \
             "done; " \
+            "pending=0; shown=0; " \
             "for state_file in /proc/[0-9]*/patch_state; do " \
             "test -r \"$state_file\" || continue; " \
             "read state < \"$state_file\" || continue; " \
             "test \"$state\" = #{enabled} && continue; " \
             "pid=''${state_file#/proc/}; pid=''${pid%/patch_state}; " \
+            "pending=$((pending + 1)); " \
+            "test \"$shown\" -lt 64 || continue; " \
             "read comm < /proc/$pid/comm 2>/dev/null || comm=gone; " \
-            "printf 'pending pid=%s comm=%s patch_state=%s\\n' " \
-            "\"$pid\" \"$comm\" \"$state\"; " \
-            "cat /proc/$pid/stack 2>&1 || true; " \
+            "state_line=$(sed -n 's/^State:\\s*//p' /proc/$pid/status " \
+            "2>/dev/null | head -n 1); " \
+            "read wchan < /proc/$pid/wchan 2>/dev/null || wchan=unknown; " \
+            "printf 'pending pid=%s comm=%s patch_state=%s state=%s " \
+            "wchan=%s\\n' \"$pid\" \"$comm\" \"$state\" \"$state_line\" " \
+            "\"$wchan\"; " \
+            "shown=$((shown + 1)); " \
             "done; " \
+            "printf 'pending_total=%s shown=%s\\n' \"$pending\" \"$shown\"; " \
             "printf '%s\\n' '--- livepatch dmesg tail ---'; " \
             "dmesg | tail -n 300"
           )
@@ -714,7 +800,14 @@ import ../../make-test.nix (
         end
       end
 
-      def self.ensure_transition_guard(machine, timeout: 180)
+      def self.cleanup_transition_bootstrap(machine)
+        return unless machine.execute("test -d /sys/module/#{TRANSITION_BOOTSTRAP_NAME}")[0] == 0
+
+        machine.succeeds("rmmod #{TRANSITION_BOOTSTRAP_NAME}")
+        machine.fails("test -d /sys/module/#{TRANSITION_BOOTSTRAP_NAME}")
+      end
+
+      def self.ensure_transition_guard(machine, timeout: 180, keep_bootstrap: false)
         guard_dir = patch_dir(TRANSITION_GUARD_NAME)
 
         if machine.execute("test -d /sys/module/#{TRANSITION_GUARD_NAME}")[0] == 0 &&
@@ -742,14 +835,15 @@ import ../../make-test.nix (
         end
 
         wait_for_patch(machine, TRANSITION_GUARD_NAME, 1, timeout: timeout)
-        if machine.execute("test -d /sys/module/#{TRANSITION_BOOTSTRAP_NAME}")[0] == 0
-          machine.succeeds("rmmod #{TRANSITION_BOOTSTRAP_NAME}")
-        end
+        cleanup_transition_bootstrap(machine) unless keep_bootstrap
       end
 
       def self.load_corrected(machine, timeout: 180)
-        ensure_transition_guard(machine, timeout: timeout)
+        ensure_transition_guard(machine, timeout: timeout, keep_bootstrap: true)
         machine.succeeds("insmod #{CORRECTED_MODULE}")
+        wait_for_patch(machine, CORRECTED_NAME, 1, timeout: timeout)
+        wait_for_patch(machine, TRANSITION_GUARD_NAME, 0, timeout: timeout)
+        cleanup_transition_bootstrap(machine)
       end
 
       def self.wait_for_object(machine, patch, object, patched)
@@ -944,7 +1038,11 @@ import ../../make-test.nix (
         return unless machine.execute("test -e #{dir}/enabled")[0] == 0
 
         if name == CORRECTED_NAME
-          ensure_transition_guard(machine, timeout: timeout)
+          ensure_transition_guard(
+            machine,
+            timeout: timeout,
+            keep_bootstrap: true
+          )
         end
 
         machine.succeeds("sh -c 'echo 0 > #{dir}/enabled'")
@@ -956,6 +1054,10 @@ import ../../make-test.nix (
 
         machine.succeeds("rmmod #{name}")
         machine.fails("test -d /sys/module/#{name}")
+
+        if name == TRANSITION_GUARD_NAME
+          cleanup_transition_bootstrap(machine)
+        end
 
         return unless name == CORRECTED_NAME
 
@@ -1017,11 +1119,176 @@ import ../../make-test.nix (
         )[1].to_i
       end
 
+      def self.wait_for_task_fleet_cycle_progress(machine, previous_cycles, timeout: 120)
+        started_at = Time.now
+        last_cycles = nil
+        last_progress = ""
+        last_ready = ""
+        last_output_tail = ""
+
+        loop do
+          machine.raise_if_kernel_failed!
+
+          progress = machine.execute(
+            "cat #{TASK_FLEET_STATE}/progress 2>/dev/null || true"
+          )[1]
+          ready = machine.execute(
+            "test -s #{TASK_FLEET_STATE}/ready && " \
+            "cat #{TASK_FLEET_STATE}/ready || true"
+          )[1]
+          output_tail = machine.execute(
+            "tail -n 20 #{TASK_FLEET_STATE}/output.log 2>/dev/null || true"
+          )[1]
+          match = progress.match(/^cycles=(\d+) /)
+
+          last_progress = progress
+          last_ready = ready
+          last_output_tail = output_tail
+          last_cycles = match.nil? ? nil : match[1].to_i
+
+          return if !last_cycles.nil? && last_cycles > previous_cycles
+
+          pid_live = machine.execute(
+            "test -s #{TASK_FLEET_STATE}/pid && " \
+            "kill -0 \"$(cat #{TASK_FLEET_STATE}/pid)\" 2>/dev/null"
+          )[0] == 0
+          if !pid_live
+            raise(
+              "task fleet exited before cycle progress > #{previous_cycles}; " \
+              "last_cycles=#{last_cycles.inspect} progress=#{last_progress.inspect} " \
+              "ready=#{last_ready.inspect} output_tail=#{last_output_tail.inspect}"
+            )
+          end
+
+          remaining = timeout - (Time.now - started_at)
+          if remaining <= 0
+            raise(
+              "timeout waiting for task fleet cycles > #{previous_cycles}; " \
+              "last_cycles=#{last_cycles.inspect} progress=#{last_progress.inspect} " \
+              "ready=#{last_ready.inspect} output_tail=#{last_output_tail.inspect}"
+            )
+          end
+
+          sleep([ remaining, 1 ].min)
+        end
+      end
+
+      def self.task_fleet_spawned(machine)
+        progress = machine.execute(
+          "cat #{TASK_FLEET_STATE}/progress 2>/dev/null || true"
+        )[1]
+        ready = machine.execute(
+          "test -s #{TASK_FLEET_STATE}/ready && " \
+          "cat #{TASK_FLEET_STATE}/ready || true"
+        )[1]
+        output_tail = machine.execute(
+          "tail -n 20 #{TASK_FLEET_STATE}/output.log 2>/dev/null || true"
+        )[1]
+        match = progress.match(/^phase=(?:spawn|spawn-stopped) spawned=(\d+) /)
+        spawned = match.nil? ? nil : match[1].to_i
+        spawned = TASK_FLEET_COUNT if spawned.nil? && !ready.empty?
+
+        [ spawned, progress, ready, output_tail ]
+      end
+
+      def self.wait_for_task_fleet_spawned(machine, minimum, timeout: 300)
+        started_at = Time.now
+        last_progress = ""
+        last_ready = ""
+        last_output_tail = ""
+        last_spawned = nil
+
+        loop do
+          machine.raise_if_kernel_failed!
+
+          spawned, progress, ready, output_tail =
+            task_fleet_spawned(machine)
+          last_spawned = spawned
+          last_progress = progress
+          last_ready = ready
+          last_output_tail = output_tail
+
+          return if !spawned.nil? && spawned >= minimum
+
+          pid_live = machine.execute(
+            "test -s #{TASK_FLEET_STATE}/pid && " \
+            "kill -0 \"$(cat #{TASK_FLEET_STATE}/pid)\" 2>/dev/null"
+          )[0] == 0
+          if !pid_live
+            raise(
+              "task fleet exited before spawn threshold #{minimum}; " \
+              "last_spawned=#{last_spawned.inspect} " \
+              "progress=#{last_progress.inspect} ready=#{last_ready.inspect} " \
+              "output_tail=#{last_output_tail.inspect}"
+            )
+          end
+
+          remaining = timeout - (Time.now - started_at)
+          if remaining <= 0
+            raise(
+              "timeout waiting for task fleet spawn >= #{minimum}; " \
+              "last_spawned=#{last_spawned.inspect} " \
+              "progress=#{last_progress.inspect} ready=#{last_ready.inspect} " \
+              "output_tail=#{last_output_tail.inspect}"
+            )
+          end
+
+          sleep([ remaining, 1 ].min)
+        end
+      end
+
+      def self.wait_for_task_fleet_ready(machine, timeout: 300)
+        started_at = Time.now
+        last_progress = ""
+        last_ready = ""
+        last_output_tail = ""
+        last_spawned = nil
+
+        loop do
+          machine.raise_if_kernel_failed!
+
+          spawned, progress, ready, output_tail =
+            task_fleet_spawned(machine)
+          last_spawned = spawned
+          last_progress = progress
+          last_ready = ready
+          last_output_tail = output_tail
+
+          pid_live = machine.execute(
+            "test -s #{TASK_FLEET_STATE}/pid && " \
+            "kill -0 \"$(cat #{TASK_FLEET_STATE}/pid)\" 2>/dev/null"
+          )[0] == 0
+          return if pid_live && !last_progress.empty? && !last_ready.empty?
+
+          if !pid_live
+            raise(
+              "task fleet exited before ready; " \
+              "last_spawned=#{last_spawned.inspect} " \
+              "progress=#{last_progress.inspect} ready=#{last_ready.inspect} " \
+              "output_tail=#{last_output_tail.inspect}"
+            )
+          end
+
+          remaining = timeout - (Time.now - started_at)
+          if remaining <= 0
+            raise(
+              "timeout waiting for task fleet ready; " \
+              "last_spawned=#{last_spawned.inspect} " \
+              "progress=#{last_progress.inspect} ready=#{last_ready.inspect} " \
+              "output_tail=#{last_output_tail.inspect}"
+            )
+          end
+
+          sleep([ remaining, 1 ].min)
+        end
+      end
+
       def self.start_task_fleet(machine)
         machine.succeeds(
           "rm -rf #{TASK_FLEET_STATE}; " \
           "mkdir -p #{TASK_FLEET_STATE}; " \
-          "#{TASK_FLEET} 100000 128 1024 256 " \
+          "#{TASK_FLEET} #{TASK_FLEET_COUNT} #{TASK_FLEET_RUNNABLE} " \
+          "#{TASK_FLEET_WAKING} #{TASK_FLEET_CHURN} " \
           "#{TASK_FLEET_STATE}/ready #{TASK_FLEET_STATE}/stop " \
           "#{TASK_FLEET_STATE}/progress " \
           ">#{TASK_FLEET_STATE}/output.log 2>&1 & " \
@@ -1034,12 +1301,87 @@ import ../../make-test.nix (
           timeout: 900
         )
         machine.all_succeed(
-          "test \"$(getconf _NPROCESSORS_ONLN)\" = 128",
-          "grep -F 'tasks=100000 runnable_pinned=128' " \
+          "test \"$(getconf _NPROCESSORS_ONLN)\" = ${toString scaleCpuCount}",
+          "grep -F 'tasks=#{TASK_FLEET_COUNT} runnable_pinned=#{TASK_FLEET_RUNNABLE}' " \
           "#{TASK_FLEET_STATE}/ready",
-          "awk '{ split($4, tasks, \"/\"); exit tasks[2] >= 100000 ? 0 : 1 }' " \
+          "awk '{ split($4, tasks, \"/\"); exit tasks[2] >= #{TASK_FLEET_COUNT} ? 0 : 1 }' " \
           "/proc/loadavg",
         )
+      end
+
+      def self.prepare_fair_task_fleet(machine)
+        machine.all_succeed(
+          "test -f /sys/fs/cgroup/cgroup.controllers",
+          "grep -qw cpu /sys/fs/cgroup/cgroup.controllers",
+          "grep -qw cpu /sys/fs/cgroup/cgroup.subtree_control || " \
+          "echo +cpu > /sys/fs/cgroup/cgroup.subtree_control",
+          "mkdir -p #{FAIR_TASK_FLEET_PARENT}",
+          "grep -qw cpu #{FAIR_TASK_FLEET_PARENT}/cgroup.subtree_control || " \
+          "echo +cpu > #{FAIR_TASK_FLEET_PARENT}/cgroup.subtree_control",
+          "mkdir -p #{FAIR_TASK_FLEET_CGROUP}",
+          "test -w #{FAIR_TASK_FLEET_CGROUP}/cpu.max",
+          "printf '%s\\n' '#{FAIR_TASK_FLEET_QUOTA}' > " \
+          "#{FAIR_TASK_FLEET_CGROUP}/cpu.max",
+          "mountpoint -q /sys/kernel/debug || mount -t debugfs none /sys/kernel/debug",
+          "test -d #{FAIR_SERVER_DEBUGFS}"
+        )
+      end
+
+      def self.launch_fair_task_fleet(machine)
+        prepare_fair_task_fleet(machine)
+        machine.succeeds(
+          "rm -rf #{TASK_FLEET_STATE} #{FAIR_TASK_FLEET_STATE}; " \
+          "mkdir -p #{TASK_FLEET_STATE} #{FAIR_TASK_FLEET_STATE}; " \
+          "cat #{FAIR_TASK_FLEET_CGROUP}/cpu.max > " \
+          "#{FAIR_TASK_FLEET_STATE}/cpu.max; " \
+          "#{TASK_FLEET} #{TASK_FLEET_COUNT} #{TASK_FLEET_RUNNABLE} " \
+          "#{TASK_FLEET_WAKING} #{TASK_FLEET_CHURN} " \
+          "#{TASK_FLEET_STATE}/ready #{TASK_FLEET_STATE}/stop " \
+          "#{TASK_FLEET_STATE}/progress #{FAIR_TASK_FLEET_CGROUP}/cgroup.procs " \
+          ">#{TASK_FLEET_STATE}/output.log 2>&1 & " \
+          "echo $! > #{TASK_FLEET_STATE}/pid"
+        )
+      end
+
+      def self.wait_for_fair_task_fleet_pressure(
+        machine,
+        minimum_spawned: TASK_FLEET_RUNNABLE + TASK_FLEET_WAKING,
+        minimum_nr_throttled: 32,
+        timeout: 180
+      )
+        wait_for_task_fleet_spawned(
+          machine,
+          minimum_spawned,
+          timeout: timeout
+        )
+        machine.wait_until_succeeds(
+          "test -s #{TASK_FLEET_STATE}/pid && " \
+          "kill -0 \"$(cat #{TASK_FLEET_STATE}/pid)\" && " \
+          "test \"$(sed -n 's/^nr_throttled //p' " \
+          "#{FAIR_TASK_FLEET_CGROUP}/cpu.stat)\" -ge #{minimum_nr_throttled}",
+          timeout: timeout
+        )
+        machine.wait_until_succeeds(
+          "for runtime in #{FAIR_SERVER_DEBUGFS}/cpu*/runtime; do " \
+          "test -r \"$runtime\" || continue; " \
+          "test \"$(cat \"$runtime\")\" != 0 && exit 0; " \
+          "done; exit 1",
+          timeout: timeout
+        )
+      end
+
+      def self.start_fair_task_fleet(machine)
+        launch_fair_task_fleet(machine)
+        wait_for_task_fleet_ready(machine, timeout: 900)
+        machine.all_succeed(
+          "test \"$(getconf _NPROCESSORS_ONLN)\" = ${toString scaleCpuCount}",
+          "grep -F 'tasks=#{TASK_FLEET_COUNT} runnable_pinned=#{TASK_FLEET_RUNNABLE}' " \
+          "#{TASK_FLEET_STATE}/ready",
+          "grep -F '#{FAIR_TASK_FLEET_QUOTA}' #{FAIR_TASK_FLEET_STATE}/cpu.max",
+          "awk '{ split($4, tasks, \"/\"); exit tasks[2] >= #{TASK_FLEET_COUNT} ? 0 : 1 }' " \
+          "/proc/loadavg",
+        )
+        wait_for_fair_task_fleet_pressure(machine, minimum_nr_throttled: 1)
       end
 
       def self.stop_task_fleet(machine)
@@ -1048,11 +1390,153 @@ import ../../make-test.nix (
         )[0] == 0
 
         machine.succeeds("touch #{TASK_FLEET_STATE}/stop")
-        machine.wait_until_succeeds(
-          "! kill -0 \"$(cat #{TASK_FLEET_STATE}/pid)\" 2>/dev/null",
-          timeout: 900
-        )
+        begin
+          machine.wait_until_succeeds(
+            "pid=$(cat #{TASK_FLEET_STATE}/pid); " \
+            "test ! -e /proc/$pid/stat && exit 0; " \
+            "line=$(cat /proc/$pid/stat 2>/dev/null) || exit 0; " \
+            "rest=''${line##*) }; set -- $rest; test \"$1\" = Z",
+            timeout: 60
+          )
+        rescue OsVm::TimeoutError
+          machine.execute(
+            "pid=$(cat #{TASK_FLEET_STATE}/pid); " \
+            "kill -TERM \"$pid\" >/dev/null 2>&1 || true"
+          )
+          begin
+            machine.wait_until_succeeds(
+              "pid=$(cat #{TASK_FLEET_STATE}/pid); " \
+              "test ! -e /proc/$pid/stat && exit 0; " \
+              "line=$(cat /proc/$pid/stat 2>/dev/null) || exit 0; " \
+              "rest=''${line##*) }; set -- $rest; test \"$1\" = Z",
+              timeout: 30
+            )
+          rescue OsVm::TimeoutError
+            machine.execute(
+              "pid=$(cat #{TASK_FLEET_STATE}/pid); " \
+              "kill -KILL \"$pid\" >/dev/null 2>&1 || true"
+            )
+            machine.wait_until_succeeds(
+              "pid=$(cat #{TASK_FLEET_STATE}/pid); " \
+              "test ! -e /proc/$pid/stat && exit 0; " \
+              "line=$(cat /proc/$pid/stat 2>/dev/null) || exit 0; " \
+              "rest=''${line##*) }; set -- $rest; test \"$1\" = Z",
+              timeout: 10
+            )
+          end
+        end
         machine.succeeds("rm -rf #{TASK_FLEET_STATE}")
+      end
+
+      def self.start_dl_sentinel(machine, label)
+        state = "#{DL_SENTINEL_STATE}/#{label}"
+        machine.succeeds(
+          "rm -rf #{state}; " \
+          "mkdir -p #{state}; " \
+          "setsid sh -ec 'exec #{DL_SENTINEL} #{state}/ready #{state}/stop' " \
+          ">#{state}/output.log 2>&1 & " \
+          "echo $! > #{state}/pid"
+        )
+        machine.wait_until_succeeds(
+          "test -s #{state}/pid || { " \
+          "echo 'missing dl sentinel pid' >&2; " \
+          "ls -la #{state} >&2 || true; false; }; " \
+          "pid=$(cat #{state}/pid); " \
+          "kill -0 \"$pid\" 2>/dev/null || { " \
+          "echo \"dl sentinel pid $pid is not alive\" >&2; " \
+          "ps -eo pid,ppid,pgid,stat,comm,args | sed -n '1p;/dl_sentinel/p;/sh -ec exec \\/etc\\/livepatch-test\\/dl-sentinel/p' >&2 || true; " \
+          "cat #{state}/output.log >&2 || true; false; }; " \
+          "test -s #{state}/ready || { " \
+          "echo \"dl sentinel pid $pid has no ready file yet\" >&2; " \
+          "ps -o pid,ppid,pgid,psr,stat,wchan:32,comm,args -g \"$pid\" >&2 || true; " \
+          "ls -la #{state} >&2 || true; " \
+          "tail -n 50 #{state}/output.log >&2 || true; false; }",
+          timeout: 60
+        )
+        state
+      end
+
+      def self.cleanup_dl_sentinel(machine)
+        machine.execute(
+          "for pidfile in #{DL_SENTINEL_STATE}/*/pid; do " \
+          "test -s \"$pidfile\" || continue; " \
+          "dir=''${pidfile%/pid}; " \
+          "pid=$(cat \"$pidfile\"); " \
+          "touch \"$dir/stop\" >/dev/null 2>&1 || true; " \
+          "kill -TERM -- \"-$pid\" >/dev/null 2>&1 || true; " \
+          "done; " \
+          "rm -rf #{DL_SENTINEL_STATE}"
+        )
+      end
+
+      def self.stop_fair_task_fleet(machine)
+        stop_task_fleet(machine)
+        machine.execute(
+          "rmdir #{FAIR_TASK_FLEET_CGROUP} >/dev/null 2>&1 || true; " \
+          "rmdir #{FAIR_TASK_FLEET_PARENT} >/dev/null 2>&1 || true; " \
+          "rm -rf #{FAIR_TASK_FLEET_STATE}"
+        )
+      end
+
+      def self.wait_for_runtime_text_after(
+        machine,
+        dmesg_start_line,
+        console_start_offset,
+        regex,
+        timeout:
+      )
+        started_at = Time.now
+        last_dmesg = ""
+        last_shell_error = nil
+
+        loop do
+          machine.raise_if_kernel_failed!
+
+          if machine.running? && machine.can_execute?
+            begin
+              shell_timeout =
+                [
+                  [ (timeout - (Time.now - started_at)).ceil, 1 ].max,
+                  5
+                ].min
+              last_dmesg = machine.succeeds(
+                "dmesg | tail -n +#{dmesg_start_line}",
+                timeout: shell_timeout
+              )[1]
+              return if regex =~ last_dmesg
+              last_shell_error = nil
+            rescue OsVm::MachineShellClosed, OsVm::TimeoutError, IOError => e
+              last_shell_error = e
+            end
+          end
+
+          if regex =~ machine.console_output.byteslice(console_start_offset..)
+            return
+          end
+
+          remaining = timeout - (Time.now - started_at)
+          if remaining <= 0
+            shell_note =
+              if last_shell_error
+                " last shell error=#{last_shell_error.class}: #{last_shell_error.message.inspect}"
+              else
+                ""
+              end
+            raise(
+              "Timeout occurred while waiting for #{regex.inspect} " \
+              "after dmesg line #{dmesg_start_line} and console offset " \
+              "#{console_start_offset}.#{shell_note} " \
+              "Last dmesg tail:\n#{last_dmesg}"
+            )
+          end
+          raise(
+            "Machine is not running while waiting for #{regex.inspect} " \
+            "after dmesg line #{dmesg_start_line} and console offset " \
+            "#{console_start_offset}"
+          ) unless machine.running?
+
+          sleep([ remaining, 1 ].min)
+        end
       end
 
       def self.stress_counts(machine)
@@ -1156,6 +1640,8 @@ import ../../make-test.nix (
         )
 
         [
+          :cleanup_dl_sentinel,
+          :stop_fair_task_fleet,
           :stop_task_fleet,
           :stop_stress,
           :stop_bpf_churn,
@@ -1228,7 +1714,7 @@ import ../../make-test.nix (
 
         machine.execute(
           "for name in #{CORRECTED_NAME} #{RELEASED_V1_NAME} " \
-          "#{RELEASED_V5_NAME} #{PREDECESSOR_NAME} " \
+          "#{RELEASED_V5_NAME} #{RELEASED_V6_NAME} #{PREDECESSOR_NAME} " \
           "#{TRANSITION_GUARD_NAME}; do " \
           "dir=/sys/kernel/livepatch/$name; " \
           "if test \"$name\" = #{CORRECTED_NAME} && " \
@@ -1275,6 +1761,96 @@ import ../../make-test.nix (
           "nf_nat_sip sctp_diag vxlan vsock_loopback xfrm_user; do " \
           "modprobe \"$module\" >/dev/null 2>&1 || true; " \
           "done"
+        )
+      end
+
+      def self.initialize_livepatch_machine(machine, require_released_v6: false)
+        machine.wait_until_online
+
+        machine.succeeds("test \"$(uname -r)\" = 6.12.95")
+        machine.succeeds(
+          "test \"$(sha256sum #{CORRECTED_MODULE} | cut -d' ' -f1)\" = #{CORRECTED_SHA256}"
+        )
+        machine.succeeds(
+          "test \"$(sha256sum #{TRANSITION_GUARD_MODULE} | cut -d' ' -f1)\" = #{TRANSITION_GUARD_SHA256}"
+        )
+        machine.succeeds(
+          "test \"$(sha256sum #{TRANSITION_BOOTSTRAP_MODULE} | cut -d' ' -f1)\" = #{TRANSITION_BOOTSTRAP_SHA256}"
+        )
+        machine.succeeds(
+          "test \"$(sha256sum #{RELEASED_V1_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V1_SHA256}"
+        )
+        machine.succeeds(
+          "test \"$(sha256sum #{RELEASED_V5_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V5_SHA256}"
+        )
+        machine.succeeds(
+          "test \"$(sha256sum #{PREDECESSOR_MODULE} | cut -d' ' -f1)\" = #{PREDECESSOR_SHA256}"
+        )
+        if require_released_v6
+          raise "released v6 module is not configured" if RELEASED_V6_MODULE.nil?
+
+          machine.succeeds(
+            "test \"$(sha256sum #{RELEASED_V6_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V6_SHA256}"
+          )
+        end
+        # The production live-patches loader publishes a module-directory
+        # alias for the active uname suffix before inserting each patch.
+        # This test deliberately disables that service and inserts the
+        # released fixtures itself, so reproduce the same aliases here and
+        # keep post-activation module loading on the ordinary modprobe path.
+        machine.all_succeed(
+          "mkdir -p /lib/modules",
+          "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
+          "/lib/modules/6.12.95.5",
+          "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
+          "/lib/modules/6.12.95.6",
+          "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
+          "/lib/modules/6.12.95.7",
+        )
+        machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
+        machine.fails("test -d /sys/module/#{TRANSITION_GUARD_NAME}")
+        machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
+        machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
+        machine.fails("test -d /sys/module/#{RELEASED_V6_NAME}")
+        machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
+
+        machine.all_succeed(
+          "modprobe fuse",
+          "mountpoint -q /sys/fs/fuse/connections || " \
+          "mount -t fusectl fusectl /sys/fs/fuse/connections",
+          "modprobe nfsv4",
+          "modprobe l2tp_ppp",
+          "modprobe af_packet",
+          "modprobe sctp",
+          "modprobe libceph",
+          "modprobe nf_tables",
+          "modprobe nfnetlink_queue",
+          "modprobe nft_queue",
+          "modprobe ip_set_hash_ip",
+          "modprobe ip_vs",
+          "modprobe bridge",
+          "modprobe br_netfilter",
+          "modprobe nf_conntrack_sip",
+          "modprobe nf_nat_sip",
+          "modprobe sctp_diag",
+          "modprobe vsock_loopback",
+          "modprobe xfrm_user",
+          "insmod #{PERNET_HOLD_MODULE}",
+          "insmod #{PROBE_MODULE}",
+        )
+        machine.wait_until_succeeds(
+          "rpcinfo -t 127.0.0.1 nfs 4",
+          timeout: 60
+        )
+        machine.fails("pgrep -x tlshd")
+      end
+
+      def self.reset_livepatch_machine(machine, require_released_v6: false)
+        machine.kill if machine.running?
+        machine.start
+        initialize_livepatch_machine(
+          machine,
+          require_released_v6: require_released_v6
         )
       end
 
@@ -1514,6 +2090,39 @@ import ../../make-test.nix (
           "! kill -0 \"$(cat #{state}/pid)\" 2>/dev/null",
           timeout: 60
         )
+      end
+
+      def self.start_nfs_traffic(machine, label, workers: 8)
+        state = "#{NFS_STATE}/#{label}"
+        machine.succeeds(
+          "rm -rf #{state}; " \
+          "mkdir -p #{state}; " \
+          "for idx in $(seq 1 #{workers}); do " \
+          "worker=#{state}/w$idx; " \
+          "mkdir -p \"$worker\"; " \
+          "setsid sh -ec 'file=#{NFS_STATE}/mnt/traffic-$idx.dat; " \
+          "lock=#{NFS_STATE}/mnt/traffic-$idx.lock; " \
+          ": > \"$file\"; : > \"$lock\"; count=0; " \
+          "while ! test -e #{state}/stop; do " \
+          "exec 9>\"$lock\"; flock -x 9; " \
+          "printf \"%s\\n\" \"$count\" >> \"$file\"; " \
+          "cat \"$file\" >/dev/null 2>&1 || true; " \
+          "flock -u 9; exec 9>&-; " \
+          "count=$((count + 1)); " \
+          "test $count -lt 128 || { : > \"$file\"; count=0; }; " \
+          "done' >\"$worker/output.log\" 2>&1 & " \
+          "echo $! > \"$worker/pid\"; " \
+          "done"
+        )
+        machine.wait_until_succeeds(
+          "for idx in $(seq 1 #{workers}); do " \
+          "pidfile=#{state}/w$idx/pid; " \
+          "test -s \"$pidfile\" || exit 1; " \
+          "kill -0 \"$(cat \"$pidfile\")\" 2>/dev/null || exit 1; " \
+          "done",
+          timeout: 60
+        )
+        state
       end
 
       def self.add_xfrm_states(machine)
@@ -2147,91 +2756,34 @@ import ../../make-test.nix (
       describe "6.12.95 cumulative livepatch", order: :defined do
         before(:suite) do
           machine.start
-          machine.wait_until_online
-
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95")
-          machine.succeeds(
-            "test \"$(sha256sum #{CORRECTED_MODULE} | cut -d' ' -f1)\" = #{CORRECTED_SHA256}"
+          initialize_livepatch_machine(
+            machine,
+            require_released_v6: V6_REPRODUCTION
           )
-          machine.succeeds(
-            "test \"$(sha256sum #{TRANSITION_GUARD_MODULE} | cut -d' ' -f1)\" = #{TRANSITION_GUARD_SHA256}"
-          )
-          machine.succeeds(
-            "test \"$(sha256sum #{TRANSITION_BOOTSTRAP_MODULE} | cut -d' ' -f1)\" = #{TRANSITION_BOOTSTRAP_SHA256}"
-          )
-          machine.succeeds(
-            "test \"$(sha256sum #{RELEASED_V1_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V1_SHA256}"
-          )
-          machine.succeeds(
-            "test \"$(sha256sum #{RELEASED_V5_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V5_SHA256}"
-          )
-          machine.succeeds(
-            "test \"$(sha256sum #{PREDECESSOR_MODULE} | cut -d' ' -f1)\" = #{PREDECESSOR_SHA256}"
-          )
-          # The production live-patches loader publishes a module-directory
-          # alias for the active uname suffix before inserting each patch.
-          # This test deliberately disables that service and inserts the
-          # released fixtures itself, so reproduce the same aliases here and
-          # keep post-activation module loading on the ordinary modprobe path.
-          machine.all_succeed(
-            "mkdir -p /lib/modules",
-            "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
-            "/lib/modules/6.12.95.5",
-            "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
-            "/lib/modules/6.12.95.7",
-          )
-          machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
-          machine.fails("test -d /sys/module/#{TRANSITION_GUARD_NAME}")
-          machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
-          machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
-          machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
-
-          machine.all_succeed(
-            "modprobe fuse",
-            "mountpoint -q /sys/fs/fuse/connections || " \
-            "mount -t fusectl fusectl /sys/fs/fuse/connections",
-            "modprobe nfsv4",
-            "modprobe l2tp_ppp",
-            "modprobe af_packet",
-            "modprobe sctp",
-            "modprobe libceph",
-            "modprobe nf_tables",
-            "modprobe nfnetlink_queue",
-            "modprobe nft_queue",
-            "modprobe ip_set_hash_ip",
-            "modprobe ip_vs",
-            "modprobe bridge",
-            "modprobe br_netfilter",
-            "modprobe nf_conntrack_sip",
-            "modprobe nf_nat_sip",
-            "modprobe sctp_diag",
-            "modprobe vsock_loopback",
-            "modprobe xfrm_user",
-            "insmod #{PERNET_HOLD_MODULE}",
-            "insmod #{PROBE_MODULE}",
-          )
-          machine.wait_until_succeeds(
-            "rpcinfo -t 127.0.0.1 nfs 4",
-            timeout: 60
-          )
-          machine.fails("pgrep -x tlshd")
           @dmesg_start = machine.succeeds("dmesg | wc -l")[1].to_i + 1
         end
 
         before(:example) do
+          @skip_example_health_check = false
+          unless machine.running? && machine.can_execute?
+            reset_livepatch_machine(
+              machine,
+              require_released_v6: V6_REPRODUCTION
+            )
+          end
           @example_dmesg_start =
             machine.succeeds("dmesg | wc -l")[1].to_i + 1
         end
 
         after(:example) do
-          if machine.running?
+          if !@skip_example_health_check && machine.running? && machine.can_execute?
             cleanup_example_state(machine)
             assert_kernel_healthy(machine, @example_dmesg_start)
           end
         end
 
         after(:suite) do
-          if machine.running?
+          if machine.running? && machine.can_execute?
             cleanup_example_state(machine)
             machine.execute("rmmod livepatch_test_pernet_hold >/dev/null 2>&1 || true")
             machine.execute("rmmod livepatch_test_probe >/dev/null 2>&1 || true")
@@ -2239,13 +2791,89 @@ import ../../make-test.nix (
         end
 
         if SCALE_VALIDATION
-          it "bootstraps v7 with every CPU kept runnable across 100000 tasks" do
+          it "keeps released v5 healthy under the same NFS-backed 128-CPU task fleet" do
+            reset_livepatch_machine(machine)
             machine.succeeds("insmod #{RELEASED_V5_MODULE}")
             wait_for_patch(machine, RELEASED_V5_NAME, 1)
             machine.succeeds("test \"$(uname -r)\" = 6.12.95.5")
 
-            start_task_fleet(machine)
-            cycles_before = task_fleet_cycles(machine)
+            prepare_nfs_workload(machine)
+            start_nfs_traffic(machine, "scale-v5", workers: SCALE_NFS_WORKERS)
+            start_fair_task_fleet(machine)
+          end
+
+          if V6_REPRODUCTION
+            it "reproduces the shipped v6 transition failure under the 128-CPU task fleet" do
+              reset_livepatch_machine(
+                machine,
+                require_released_v6: true
+              )
+              machine.succeeds("insmod #{RELEASED_V5_MODULE}")
+              wait_for_patch(machine, RELEASED_V5_NAME, 1)
+              machine.succeeds("test \"$(uname -r)\" = 6.12.95.5")
+
+              prepare_nfs_workload(machine)
+              start_nfs_traffic(machine, "scale-v6", workers: SCALE_NFS_WORKERS)
+              start_fair_task_fleet(machine)
+              transition_dmesg_start =
+                machine.succeeds("dmesg | wc -l")[1].to_i + 1
+              transition_console_start = machine.console_output.bytesize
+
+              begin
+                machine.execute("insmod #{RELEASED_V6_MODULE}", timeout: 30)
+              rescue OsVm::MachineShellClosed, OsVm::TimeoutError
+                # Expected when the exact shipped v6 transition wedges or
+                # panics the guest during activation under scale load.
+              end
+
+              wait_for_runtime_text_after(
+                machine,
+                transition_dmesg_start,
+                transition_console_start,
+                /livepatch: enabling patch 'livepatch_6'/,
+                timeout: 60
+              )
+              wait_for_runtime_text_after(
+                machine,
+                transition_dmesg_start,
+                transition_console_start,
+                /sched: DL replenish lagged too much|rcu: INFO: rcu_preempt detected stalls on CPUs\/tasks:/,
+                timeout: 180
+              )
+              runtime_output =
+                begin
+                  machine.succeeds(
+                    "dmesg | tail -n +#{transition_dmesg_start}"
+                  )[1]
+                rescue OsVm::MachineShellClosed, OsVm::TimeoutError, IOError
+                  ""
+                end
+              runtime_output += "\n"
+              runtime_output +=
+                machine.console_output.byteslice(transition_console_start..) || ""
+
+              if runtime_output =~ /sched: DL replenish lagged too much/
+                wait_for_runtime_text_after(
+                  machine,
+                  transition_dmesg_start,
+                  transition_console_start,
+                  /hard LOCKUP|soft lockup|Kernel panic - not syncing: softlockup: hung tasks/,
+                  timeout: 180
+                )
+              end
+              @skip_example_health_check = true
+            end
+          end
+
+          it "bootstraps v7 and completes forward and reverse transition under the same 128-CPU task fleet" do
+            reset_livepatch_machine(machine)
+            machine.succeeds("insmod #{RELEASED_V5_MODULE}")
+            wait_for_patch(machine, RELEASED_V5_NAME, 1)
+            machine.succeeds("test \"$(uname -r)\" = 6.12.95.5")
+
+            prepare_nfs_workload(machine)
+            nfs_state = start_nfs_traffic(machine, "scale-v7", workers: SCALE_NFS_WORKERS)
+            start_fair_task_fleet(machine)
             transition_log_start =
               machine.succeeds("dmesg | wc -l")[1].to_i + 1
 
@@ -2256,25 +2884,51 @@ import ../../make-test.nix (
 
             machine.all_succeed(
               "test \"$(uname -r)\" = 6.12.95.7",
-              "test \"$(getconf _NPROCESSORS_ONLN)\" = 128",
+              "test \"$(getconf _NPROCESSORS_ONLN)\" = ${toString scaleCpuCount}",
               "awk '{ split($4, tasks, \"/\"); " \
-              "exit tasks[2] >= 100000 ? 0 : 1 }' /proc/loadavg",
+              "exit tasks[2] >= #{TASK_FLEET_COUNT} ? 0 : 1 }' /proc/loadavg",
+              "for pidfile in #{nfs_state}/w*/pid; do " \
+              "test -s \"$pidfile\" || exit 1; " \
+              "kill -0 \"$(cat \"$pidfile\")\" 2>/dev/null || exit 1; " \
+              "done",
               "dmesg | tail -n +#{transition_log_start} | " \
               "grep -F \"'livepatch_transition_guard': patching complete\"",
               "dmesg | tail -n +#{transition_log_start} | " \
               "grep -F \"'livepatch_7': patching complete\"",
             )
-            machine.wait_until_succeeds(
-              "test \"$(sed -n 's/^cycles=\\([0-9][0-9]*\\).*/\\1/p' " \
-              "#{TASK_FLEET_STATE}/progress)\" -gt #{cycles_before}",
-              timeout: 120
-            )
 
+            reverse_log_start =
+              machine.succeeds("dmesg | wc -l")[1].to_i + 1
             machine.succeeds("rmmod #{RELEASED_V5_NAME}")
             remove_module(machine, TRANSITION_GUARD_NAME)
             disable_patch(machine, CORRECTED_NAME, timeout: 900)
             remove_module(machine, CORRECTED_NAME, timeout: 900)
-            machine.succeeds("test \"$(uname -r)\" = 6.12.95")
+            machine.all_succeed(
+              "test \"$(uname -r)\" = 6.12.95",
+              "test -s #{TASK_FLEET_STATE}/pid && " \
+              "kill -0 \"$(cat #{TASK_FLEET_STATE}/pid)\" 2>/dev/null",
+              "awk '{ split($4, tasks, \"/\"); " \
+              "exit tasks[2] >= #{TASK_FLEET_COUNT} ? 0 : 1 }' /proc/loadavg",
+              "for pidfile in #{nfs_state}/w*/pid; do " \
+              "test -s \"$pidfile\" || exit 1; " \
+              "kill -0 \"$(cat \"$pidfile\")\" 2>/dev/null || exit 1; " \
+              "done",
+            )
+            reverse_output = machine.succeeds(
+              "dmesg | tail -n +#{reverse_log_start}"
+            )[1]
+            reverse_markers = [
+              "'#{TRANSITION_GUARD_NAME}': patching complete",
+              "'#{CORRECTED_NAME}': unpatching complete",
+              "'#{TRANSITION_GUARD_NAME}': unpatching complete",
+            ]
+            reverse_positions = reverse_markers.map do |marker|
+              reverse_output.index(marker)
+            end
+            unless reverse_positions.none?(&:nil?) &&
+                   reverse_positions == reverse_positions.sort
+              raise "unsafe reverse livepatch ordering:\n#{reverse_output}"
+            end
             stop_task_fleet(machine)
           end
         end

@@ -17,6 +17,7 @@ pkgs.stdenv.mkDerivation rec {
     ./0001-kpatch-build-register-system-states.patch
     ./0002-kpatch-build-group-module-targets.patch
     ./0003-kpatch-build-sort-diff-objects.patch
+    ./0004-kpatch-build-track-local-shared-text-funcs.patch
   ];
   postPatch = ''
     substituteInPlace ./kpatch-build/kpatch-build --replace /bin/bash "${pkgs.bashInteractive}/bin/bash"

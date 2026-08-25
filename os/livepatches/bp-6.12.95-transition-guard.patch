@@ -1,18 +1,82 @@
 diff --git a/kernel/livepatch/transition.c b/kernel/livepatch/transition.c
-index ba069459c1017b815101cc3aeb186d9407f7bd10..7286b0bd1771a14c0cebac862cf8ee88d2a62ea9 100644
+index ba069459c1017..163d7449a7a52 100644
 --- a/kernel/livepatch/transition.c
 +++ b/kernel/livepatch/transition.c
-@@ -10,0 +11,3 @@
+@@ -8,6 +8,9 @@
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+ #include <linux/cpu.h>
 +#include <linux/overflow.h>
 +#include <linux/slab.h>
 +#include <linux/smp.h>
-@@ -23,0 +27,2 @@ static DEFINE_PER_CPU(unsigned long[MAX_STACK_ENTRIES], klp_stack_entries);
+ #include <linux/stacktrace.h>
+ #include <linux/static_call.h>
+ #include "core.h"
+@@ -14,2 +17,6 @@
+ #include "patch.h"
+ #include "transition.h"
++
++#ifdef CONFIG_LIVEPATCH
++#include "kpatch-macros.h"
++#endif
+@@ -21,6 +24,8 @@ static DEFINE_PER_CPU(unsigned long[MAX_STACK_ENTRIES], klp_stack_entries);
+ 
+ #define SIGNALS_TIMEOUT 15
+ 
 +#define KLP_TASK_BATCH_SIZE 256
 +
-@@ -316,0 +322,2 @@ static bool klp_try_switch_task(struct task_struct *task)
+ struct klp_patch *klp_transition_patch;
+ 
+ static int klp_target_state = KLP_TRANSITION_IDLE;
+@@ -29,22 +37,23 @@ static unsigned int klp_signals_cnt;
+ 
+ /*
+  * When a livepatch is in progress, enable klp stack checking in
+- * cond_resched().  This helps CPU-bound kthreads get patched.
++ * schedule().  This helps CPU-bound kthreads get patched.
+  */
+-#if defined(CONFIG_PREEMPT_DYNAMIC) && defined(CONFIG_HAVE_PREEMPT_DYNAMIC_CALL)
+-
+-#define klp_cond_resched_enable() sched_dynamic_klp_enable()
+-#define klp_cond_resched_disable() sched_dynamic_klp_disable()
+-
+-#else /* !CONFIG_PREEMPT_DYNAMIC || !CONFIG_HAVE_PREEMPT_DYNAMIC_CALL */
+-
+ DEFINE_STATIC_KEY_FALSE(klp_sched_try_switch_key);
+ EXPORT_SYMBOL(klp_sched_try_switch_key);
+-
++
++#ifdef CONFIG_LIVEPATCH
++/*
++ * Keep the legacy exports for Module.symvers parity with the base kernel, but
++ * let the livepatch replace only the transition code and not this object's
++ * export metadata.
++ */
++KPATCH_IGNORE_SECTION(".export_symbol")
++#endif
++
+-#define klp_cond_resched_enable() static_branch_enable(&klp_sched_try_switch_key)
+-#define klp_cond_resched_disable() static_branch_disable(&klp_sched_try_switch_key)
+ 
+-#endif /* CONFIG_PREEMPT_DYNAMIC && CONFIG_HAVE_PREEMPT_DYNAMIC_CALL */
++#define klp_resched_enable() static_branch_enable(&klp_sched_try_switch_key)
++#define klp_resched_disable() static_branch_disable(&klp_sched_try_switch_key)
+ 
+ /*
+  * This work can be performed periodically to finish patching or unpatching any
+@@ -314,6 +309,8 @@ static int klp_check_and_switch_task(struct task_struct *task, void *arg)
+ static bool klp_try_switch_task(struct task_struct *task)
+ {
+ 	const char *old_name;
 +	unsigned long flags;
 +	unsigned int state;
-@@ -335 +342,6 @@ static bool klp_try_switch_task(struct task_struct *task)
+ 	int ret;
+ 
+ 	/* check if this task has already switched over */
+@@ -332,10 +329,55 @@ static bool klp_try_switch_task(struct task_struct *task)
+ 	 * functions.  If all goes well, switch the task to the target patch
+ 	 * state.
+ 	 */
 -	if (task == current)
 +	if (task == current) {
 +		/*
@@ -20,7 +84,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..7286b0bd1771a14c0cebac862cf8ee88
 +		 * task IPI callback from reusing that storage on this CPU.
 +		 */
 +		local_irq_save(flags);
-@@ -337,2 +349,42 @@ static bool klp_try_switch_task(struct task_struct *task)
+ 		ret = klp_check_and_switch_task(current, &old_name);
 -	else
 -		ret = task_call_func(task, klp_check_and_switch_task, &old_name);
 +		local_irq_restore(flags);
@@ -65,7 +129,14 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..7286b0bd1771a14c0cebac862cf8ee88
 +unlock:
 +		raw_spin_unlock_irqrestore(&task->pi_lock, flags);
 +	}
-@@ -365,0 +418,37 @@ static bool klp_try_switch_task(struct task_struct *task)
+ 
+ 	switch (ret) {
+ 	case 0:		/* success */
+@@ -363,28 +405,57 @@ static bool klp_try_switch_task(struct task_struct *task)
+ 	return !ret;
+ }
+ 
+-void __klp_sched_try_switch(void)
 +/*
 + * Try to switch this CPU's idle task while execution on the target CPU makes
 + * its stack stable.  Idle tasks always have TASK_RUNNING state, even when
@@ -75,15 +146,26 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..7286b0bd1771a14c0cebac862cf8ee88
 + * from becoming runnable until its inactive stack walk has finished.
 + */
 +static void klp_try_switch_idle_task(void *unused)
-+{
+ {
+-	if (likely(!klp_patch_pending(current)))
 +	struct task_struct *task = idle_task(smp_processor_id());
 +	const char *old_name;
 +	int ret;
 +
 +	if (task->patch_state == klp_target_state ||
 +	    !klp_have_reliable_stack())
-+		return;
-+
+ 		return;
+ 
+-	/*
+-	 * This function is called from cond_resched() which is called in many
+-	 * places throughout the kernel.  Using the klp_mutex here might
+-	 * deadlock.
+-	 *
+-	 * Instead, disable preemption to prevent racing with other callers of
+-	 * klp_try_switch_task().  Thanks to task_call_func() they won't be
+-	 * able to switch this task while it's running.
+-	 */
+-	preempt_disable();
 +	ret = klp_check_and_switch_task(task, &old_name);
 +	switch (ret) {
 +	case 0:
@@ -102,27 +184,66 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..7286b0bd1771a14c0cebac862cf8ee88
 +		break;
 +	}
 +}
-+
-@@ -377,2 +466,2 @@ void __klp_sched_try_switch(void)
--	 * klp_try_switch_task().  Thanks to task_call_func() they won't be
--	 * able to switch this task while it's running.
+ 
++void __klp_sched_try_switch(void)
++{
+ 	/*
+-	 * Make sure current didn't get patched between the above check and
+-	 * preempt_disable().
++	 * This function is called from __schedule() while a context switch is
++	 * about to happen. Preemption is already disabled and klp_mutex
++	 * can't be acquired.
++	 * Disabled preemption is used to prevent racing with other callers of
 +	 * klp_try_switch_task().  Its non-current path leaves runnable and
 +	 * on-CPU tasks pending, so they cannot switch this task while it runs.
-@@ -454,0 +544 @@ void klp_try_complete_transition(void)
+ 	 */
+-	if (unlikely(!klp_patch_pending(current)))
+-		goto out;
++	lockdep_assert_preemption_disabled();
++
++	if (likely(!klp_patch_pending(current)))
++		return;
+ 
+ 	/*
+ 	 * Enforce the order of the TIF_PATCH_PENDING read above and the
+@@ -395,11 +466,8 @@ void __klp_sched_try_switch(void)
+ 	smp_rmb();
+ 
+ 	klp_try_switch_task(current);
+-
+-out:
+-	preempt_enable();
+ }
+ EXPORT_SYMBOL(__klp_sched_try_switch);
+
+ /*
+ * Sends a fake signal to all non-kthread tasks with TIF_PATCH_PENDING set.
+@@ -452,7 +519,9 @@ void klp_try_complete_transition(void)
+ {
+ 	unsigned int cpu;
+ 	struct task_struct *g, *task;
 +	struct task_struct **tasks = NULL;
-@@ -455,0 +546 @@ void klp_try_complete_transition(void)
+ 	struct klp_patch *patch;
 +	size_t capacity = 0, nr_tasks = 0, slack, i;
-@@ -468,0 +560,5 @@ void klp_try_complete_transition(void)
+ 	bool complete = true;
+ 
+ 	WARN_ON_ONCE(klp_target_state == KLP_TRANSITION_IDLE);
+@@ -466,29 +535,87 @@ void klp_try_complete_transition(void)
+ 	 * Usually this will transition most (or all) of the tasks on a system
+ 	 * unless the patch includes changes to a very common function.
+ 	 */
 +	/*
 +	 * Keep tasklist_lock coverage to pointer collection.  Stack walking and
 +	 * cumulative function comparison can be expensive on large systems and
 +	 * must remain preemptible and outside this global lock.
 +	 */
-@@ -471,2 +567 @@ void klp_try_complete_transition(void)
+ 	read_lock(&tasklist_lock);
+ 	for_each_process_thread(g, task)
 -		if (!klp_try_switch_task(task))
 -			complete = false;
 +		capacity++;
-@@ -474,0 +570,44 @@ void klp_try_complete_transition(void)
+ 	read_unlock(&tasklist_lock);
+ 
 +	if (capacity) {
 +		/*
 +		 * Leave room for forks between the count and fill passes.  Requiring
@@ -167,9 +288,11 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..7286b0bd1771a14c0cebac862cf8ee88
 +		kvfree(tasks);
 +	}
 +
-@@ -477,0 +617 @@ void klp_try_complete_transition(void)
+ 	/*
+ 	 * Ditto for the idle "swapper" tasks.
+ 	 */
 +idle_tasks:
-@@ -478,0 +619,13 @@ void klp_try_complete_transition(void)
+ 	cpus_read_lock();
 +	for_each_online_cpu(cpu) {
 +		/*
 +		 * Execute on the idle task's own CPU so it is either current or
@@ -183,7 +306,8 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..7286b0bd1771a14c0cebac862cf8ee88
 +	}
 +
 +	/* Verify every idle task after all target-CPU callbacks have returned. */
-@@ -481,7 +634 @@ void klp_try_complete_transition(void)
+ 	for_each_possible_cpu(cpu) {
+ 		task = idle_task(cpu);
 -		if (cpu_online(cpu)) {
 -			if (!klp_try_switch_task(task)) {
 -				complete = false;
@@ -192,6 +316,75 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..7286b0bd1771a14c0cebac862cf8ee88
 -			}
 -		} else if (task->patch_state != klp_target_state) {
 +		if (!cpu_online(cpu) && task->patch_state != klp_target_state) {
-@@ -491,0 +639,2 @@ void klp_try_complete_transition(void)
+ 			/* offline idle tasks can be switched immediately */
+ 			clear_tsk_thread_flag(task, TIF_PATCH_PENDING);
+ 			task->patch_state = klp_target_state;
+ 		}
 +		if (task->patch_state != klp_target_state)
 +			complete = false;
+ 	}
+ 	cpus_read_unlock();
+ 
+@@ -508,7 +635,7 @@ void klp_try_complete_transition(void)
+ 	}
+ 
+ 	/* Done!  Now cleanup the data structures. */
+-	klp_cond_resched_disable();
++	klp_resched_disable();
+ 	patch = klp_transition_patch;
+ 	klp_complete_transition();
+ 
+@@ -560,7 +687,7 @@ void klp_start_transition(void)
+ 			set_tsk_thread_flag(task, TIF_PATCH_PENDING);
+ 	}
+ 
+-	klp_cond_resched_enable();
++	klp_resched_enable();
+ 
+ 	klp_signals_cnt = 0;
+ }
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 1515562168900edc1594bdb018659e11814b97ff..040251c920a5da07f6df129dd4ee552f5fb7e2a6 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -67,6 +67,9 @@
+ #include <linux/wait_api.h>
+ #include <linux/workqueue_api.h>
+ #include <linux/user_namespace.h>
+ #include <linux/vpsadminos.h>
++#ifdef CONFIG_LIVEPATCH
++#include "kpatch-macros.h"
++#endif
+ 
+ #ifdef CONFIG_PREEMPT_DYNAMIC
+ # ifdef CONFIG_GENERIC_ENTRY
+@@ -77,0 +78,13 @@
++#ifdef CONFIG_LIVEPATCH
++DECLARE_STATIC_KEY_FALSE(klp_sched_try_switch_key);
++
++static __always_inline void klp_sched_try_switch_prev(struct task_struct *prev)
++{
++	if (static_branch_unlikely(&klp_sched_try_switch_key) &&
++	    READ_ONCE(prev->__state) & TASK_FREEZABLE)
++		__klp_sched_try_switch();
++}
++#else
++static __always_inline void klp_sched_try_switch_prev(struct task_struct *prev) {}
++#endif
++
+@@ -6639,0 +6653,2 @@ static void __sched notrace __schedule(int sched_mode)
++	klp_sched_try_switch_prev(prev);
++
+@@ -6917,8 +6934,12 @@ static void __sched notrace preempt_schedule_common(void)
+ 		 * Check again in case we missed a preemption opportunity
+ 		 * between schedule and now.
+ 		 */
+ 	} while (need_resched());
+ }
+ 
++#ifdef CONFIG_LIVEPATCH
++KPATCH_IGNORE_FUNCTION(preempt_schedule_common)
++#endif
++
+ #ifdef CONFIG_PREEMPTION
+ /*

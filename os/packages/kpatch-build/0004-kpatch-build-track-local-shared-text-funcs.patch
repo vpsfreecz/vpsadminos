@@ -1,0 +1,72 @@
+From: Pavel Snajdr <snajpa@snajpa.net>
+Date: Mon, 24 Aug 2026 00:00:00 +0200
+Subject: [PATCH] kpatch-build: track local functions in shared text sections
+
+The v6.16 livepatch transition backport changes static scheduler functions
+such as `__schedule()`.  Those functions live in the shared `.sched.text`
+section because `__sched` overrides `-ffunction-sections`, so
+create-diff-object's bundled-section model leaves the whole section marked as
+changed while none of its local functions are selected for inclusion.
+
+Detect byte or size changes for correlated local text functions even when
+their section is shared, so the affected function is marked changed and the
+section becomes livepatch-buildable.
+
+Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
+---
+ kpatch-build/create-diff-object.c | 33 +++++++++++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/kpatch-build/create-diff-object.c b/kpatch-build/create-diff-object.c
+index 5dc625f..dbeb60f 100644
+--- a/kpatch-build/create-diff-object.c
++++ b/kpatch-build/create-diff-object.c
+@@ -1004,6 +1004,32 @@ static bool kpatch_subsection_changed(struct section *sec1, struct section *sec2
+ 	return kpatch_subsection_type(sec1) != kpatch_subsection_type(sec2);
+ }
+ 
++static bool kpatch_shared_text_func_changed(struct symbol *sym1,
++					    struct symbol *sym2)
++{
++	size_t size1, size2, cmp_size;
++	void *buf1, *buf2;
++
++	if (sym1->type != STT_FUNC || sym1->bind != STB_LOCAL ||
++	    !sym1->sec || !sym2->sec ||
++	    !is_text_section(sym1->sec) || !is_text_section(sym2->sec) ||
++	    sym1->sec->sym || sym2->sec->sym)
++		return false;
++
++	size1 = sym1->sym.st_size;
++	size2 = sym2->sym.st_size;
++	if (size1 != size2)
++		return true;
++
++	cmp_size = size1;
++	if (!cmp_size)
++		return false;
++
++	buf1 = sym1->sec->data->d_buf + sym1->sym.st_value;
++	buf2 = sym2->sec->data->d_buf + sym2->sym.st_value;
++	return memcmp(buf1, buf2, cmp_size) != 0;
++}
++
+ static struct symbol *kpatch_get_correlated_parent(struct symbol *sym)
+ {
+ 	while (sym->parent && !sym->parent->twin)
+@@ -1043,6 +1069,15 @@ static void kpatch_compare_correlated_symbol(struct symbol *sym)
+ 	if (sym1->sym.st_shndx == SHN_UNDEF ||
+ 	     sym1->sym.st_shndx == SHN_ABS)
+ 		sym1->status = SAME;
++
++	/*
++	 * Local functions inside shared text sections such as .sched.text
++	 * are not covered by the one-symbol-per-section status propagation
++	 * below.  Detect their code changes directly so the changed function
++	 * can pull in the shared text section.
++	 */
++	if (kpatch_shared_text_func_changed(sym1, sym2))
++		sym1->status = CHANGED;
+ 
+ 	/*
+ 	 * The status of LOCAL symbols is dependent on the status of their

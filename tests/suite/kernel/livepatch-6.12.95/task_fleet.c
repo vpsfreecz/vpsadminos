@@ -41,14 +41,32 @@ static void die(const char *what)
 	exit(EXIT_FAILURE);
 }
 
-static size_t parse_count(const char *text, const char *name)
+static size_t parse_count(const char *text, const char *name, bool allow_zero)
 {
 	char *end = NULL;
 	unsigned long value;
 
 	errno = 0;
 	value = strtoul(text, &end, 10);
-	if (errno || !end || *end || !value) {
+	if (errno || !end || *end || (!allow_zero && !value)) {
+		fprintf(stderr, "invalid %s: %s\n", name, text);
+		exit(EXIT_FAILURE);
+	}
+
+	return value;
+}
+
+static unsigned long parse_limit_or_zero(const char *text, const char *name)
+{
+	char *end = NULL;
+	unsigned long value;
+
+	if (!text || !*text)
+		return 0;
+
+	errno = 0;
+	value = strtoul(text, &end, 10);
+	if (errno || !end || *end) {
 		fprintf(stderr, "invalid %s: %s\n", name, text);
 		exit(EXIT_FAILURE);
 	}
@@ -151,33 +169,69 @@ static void terminate_fleet(pid_t process_group, pid_t *children, size_t count)
 	}
 }
 
+static bool stop_requested_during_spawn(const char *stop_path)
+{
+	return stop_requested || access(stop_path, F_OK) == 0;
+}
+
+static int attach_child_to_cgroup(const char *cgroup_procs_path, pid_t pid)
+{
+	int fd;
+
+	if (!cgroup_procs_path)
+		return 0;
+
+	fd = open(cgroup_procs_path, O_WRONLY | O_CLOEXEC);
+	if (fd < 0)
+		return -1;
+	if (dprintf(fd, "%ld\n", (long)pid) < 0) {
+		int saved_errno = errno;
+
+		close(fd);
+		errno = saved_errno;
+		return -1;
+	}
+	if (close(fd))
+		return -1;
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	struct sigaction action = {
 		.sa_handler = request_stop,
 	};
 	const char *ready_path, *stop_path, *progress_path;
-	size_t count, runnable, waking, churn, i, churn_cursor = 0;
+	const char *child_cgroup_procs_path = NULL;
+	size_t count, runnable, waking, churn, i, churn_cursor = 0, spawned = 0;
 	cpu_set_t allowed_cpus;
-	int allowed_cpu_count, next_cpu = -1;
+	int allowed_cpu_count;
+	int allowed_cpu_ids[CPU_SETSIZE];
+	int allowed_cpu_index = 0;
+	unsigned long max_churn_cycles = 0;
 	pid_t process_group = 0;
 	pid_t *children;
 	unsigned long cycles = 0;
 
-	if (argc != 8) {
+	if (argc != 8 && argc != 9) {
 		fprintf(stderr,
-			"usage: %s COUNT RUNNABLE WAKING CHURN READY STOP PROGRESS\n",
+			"usage: %s COUNT RUNNABLE WAKING CHURN READY STOP PROGRESS [CGROUP_PROCS]\n",
 			argv[0]);
 		return EXIT_FAILURE;
 	}
 
-	count = parse_count(argv[1], "count");
-	runnable = parse_count(argv[2], "runnable count");
-	waking = parse_count(argv[3], "waking count");
-	churn = parse_count(argv[4], "churn count");
+	count = parse_count(argv[1], "count", false);
+	runnable = parse_count(argv[2], "runnable count", false);
+	waking = parse_count(argv[3], "waking count", false);
+	churn = parse_count(argv[4], "churn count", true);
 	ready_path = argv[5];
 	stop_path = argv[6];
 	progress_path = argv[7];
+	if (argc == 9)
+		child_cgroup_procs_path = argv[8];
+	max_churn_cycles = parse_limit_or_zero(getenv("TASK_FLEET_MAX_CHURN_CYCLES"),
+					       "max churn cycles");
 	if (runnable + waking + churn >= count) {
 		fprintf(stderr, "role counts must leave sleeping tasks\n");
 		return EXIT_FAILURE;
@@ -185,10 +239,14 @@ int main(int argc, char **argv)
 	if (sched_getaffinity(0, sizeof(allowed_cpus), &allowed_cpus))
 		die("sched_getaffinity");
 	allowed_cpu_count = CPU_COUNT(&allowed_cpus);
-	if (allowed_cpu_count <= 0 || runnable > (size_t)allowed_cpu_count) {
-		fprintf(stderr, "cannot pin %zu runnable tasks across %d CPUs\n",
-			runnable, allowed_cpu_count);
+	if (allowed_cpu_count <= 0) {
+		fprintf(stderr, "no allowed CPUs available\n");
 		return EXIT_FAILURE;
+	}
+	for (i = 0; i < CPU_SETSIZE; i++) {
+		if (!CPU_ISSET(i, &allowed_cpus))
+			continue;
+		allowed_cpu_ids[allowed_cpu_index++] = i;
 	}
 
 	children = calloc(count, sizeof(*children));
@@ -198,27 +256,29 @@ int main(int argc, char **argv)
 	    sigaction(SIGINT, &action, NULL))
 		die("sigaction");
 
+	write_state(progress_path, "phase=spawn spawned=%lu tasks=%lu\n",
+		    0, count);
+
 	for (i = 0; i < count; i++) {
 		enum child_role role = ROLE_SLEEPING;
+
+		if (stop_requested_during_spawn(stop_path)) {
+			write_state(progress_path,
+				    "phase=spawn-stopped spawned=%lu tasks=%lu\n",
+				    spawned, count);
+			terminate_fleet(process_group, children, spawned);
+			return EXIT_SUCCESS;
+		}
 
 		if (i < runnable)
 			role = ROLE_RUNNABLE;
 		else if (i < runnable + waking)
 			role = ROLE_WAKING;
-		if (role == ROLE_RUNNABLE) {
-			do {
-				next_cpu++;
-			} while (next_cpu < CPU_SETSIZE &&
-				 !CPU_ISSET(next_cpu, &allowed_cpus));
-			if (next_cpu == CPU_SETSIZE) {
-				fprintf(stderr, "allowed CPU set changed unexpectedly\n");
-				terminate_fleet(process_group, children, i);
-				return EXIT_FAILURE;
-			}
-		}
 
 		children[i] = spawn_child(role, process_group,
-					   role == ROLE_RUNNABLE ? next_cpu : -1);
+					   role == ROLE_RUNNABLE ?
+					   allowed_cpu_ids[i % (size_t)allowed_cpu_count] :
+					   -1);
 		if (children[i] < 0) {
 			fprintf(stderr, "fork failed at child %zu of %zu: %s\n",
 				i, count, strerror(errno));
@@ -227,6 +287,19 @@ int main(int argc, char **argv)
 		}
 		if (!process_group)
 			process_group = children[i];
+		if (attach_child_to_cgroup(child_cgroup_procs_path, children[i])) {
+			fprintf(stderr,
+				"failed to move child %ld into %s: %s\n",
+				(long)children[i], child_cgroup_procs_path,
+				strerror(errno));
+			terminate_fleet(process_group, children, i + 1);
+			return EXIT_FAILURE;
+		}
+		spawned++;
+		if (!(spawned & 0xff) || spawned == count)
+			write_state(progress_path,
+				    "phase=spawn spawned=%lu tasks=%lu\n",
+				    spawned, count);
 	}
 
 	write_state(ready_path, "tasks=%lu runnable_pinned=%lu\n",
@@ -236,7 +309,9 @@ int main(int argc, char **argv)
 		struct timespec delay = {
 			.tv_nsec = 100000000,
 		};
-		size_t replacements = churn < 32 ? churn : 32;
+		bool churn_active = !max_churn_cycles || cycles < max_churn_cycles;
+		size_t replacements =
+			churn_active ? (churn < 32 ? churn : 32) : 0;
 
 		for (i = runnable; i < runnable + waking; i++)
 			kill(children[i], SIGUSR1);
@@ -250,6 +325,21 @@ int main(int argc, char **argv)
 				;
 			replacement = spawn_child(ROLE_SLEEPING, process_group, -1);
 			if (replacement < 0) {
+				stop_requested = 1;
+				children[slot] = 0;
+				break;
+			}
+			if (attach_child_to_cgroup(child_cgroup_procs_path,
+						   replacement)) {
+				fprintf(stderr,
+					"failed to move replacement %ld into %s: %s\n",
+					(long)replacement, child_cgroup_procs_path,
+					strerror(errno));
+				kill(replacement, SIGKILL);
+				while (waitpid(replacement, NULL, 0) < 0 &&
+				       errno == EINTR)
+					;
+				children[slot] = 0;
 				stop_requested = 1;
 				break;
 			}
