@@ -270,6 +270,11 @@ import ../../make-test.nix (
               fail 'Expected machine shell to be closed'
             end
 
+            crasher.wait_for_console_text(/crash-collect: synced sys\.txt/, timeout: 5 * 60)
+            target = latest_crash_dir
+            server.succeeds("test -s #{Shellwords.escape(target)}/inspect/sys.txt")
+
+            crasher.wait_for_console_text(/crash-collect: synced tasks\.txt/, timeout: 5 * 60)
             wait_for_uploaded_crash
             target = latest_crash_dir
 

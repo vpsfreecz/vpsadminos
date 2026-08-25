@@ -252,6 +252,10 @@ in
             diagnose the panic and active CPUs. The --full profile appends
             expensive whole-task-table reports after essential collection.
 
+            A "crash-collect: synced FILE" console message is printed only
+            after FILE and all earlier output have been flushed. Reports after
+            the last such message can still be incomplete after a hard reset.
+
             Files written by both profiles:
               manifest                        basic metadata about the collected vmcore
               status                          collection and output status
@@ -286,30 +290,37 @@ in
             sys -t >> sys.txt
             kmem -i >> sys.txt
             !date +%s > .sys.txt.end
+            !sync && echo "crash-collect: synced sys.txt" >&3
 
             !date +%s > .log.txt.start
             log -m > log.txt
             !date +%s > .log.txt.end
+            !sync && echo "crash-collect: synced log.txt" >&3
 
             !date +%s > .bt-panic.txt.start
             bt -p > bt-panic.txt
             !date +%s > .bt-panic.txt.end
+            !sync && echo "crash-collect: synced bt-panic.txt" >&3
 
             !date +%s > .bt-active.txt.start
             bt -a -n idle > bt-active.txt
             !date +%s > .bt-active.txt.end
+            !sync && echo "crash-collect: synced bt-active.txt" >&3
 
             !date +%s > .bt-sleeping-uninterruptible.txt.start
             foreach UN bt > bt-sleeping-uninterruptible.txt
             !date +%s > .bt-sleeping-uninterruptible.txt.end
+            !sync && echo "crash-collect: synced bt-sleeping-uninterruptible.txt" >&3
 
             !date +%s > .ps-summary.txt.start
             ps -S > ps-summary.txt
             !date +%s > .ps-summary.txt.end
+            !sync && echo "crash-collect: synced ps-summary.txt" >&3
 
             !date +%s > .tasks.txt.start
             foreach task -R __state,real_parent > tasks.txt
             !date +%s > .tasks.txt.end
+            !sync && echo "crash-collect: synced tasks.txt" >&3
             EOF_CRASH_ESSENTIAL
 
             reports="sys.txt log.txt bt-panic.txt bt-active.txt bt-sleeping-uninterruptible.txt ps-summary.txt tasks.txt"
@@ -320,18 +331,22 @@ in
             !date +%s > .ps.txt.start
             ps > ps.txt
             !date +%s > .ps.txt.end
+            !sync && echo "crash-collect: synced ps.txt" >&3
 
             !date +%s > .ps-last-run.txt.start
             ps -m > ps-last-run.txt
             !date +%s > .ps-last-run.txt.end
+            !sync && echo "crash-collect: synced ps-last-run.txt" >&3
 
             !date +%s > .ps-active.txt.start
             ps -A > ps-active.txt
             !date +%s > .ps-active.txt.end
+            !sync && echo "crash-collect: synced ps-active.txt" >&3
 
             !date +%s > .bt-sleeping-interruptible.txt.start
             foreach IN bt > bt-sleeping-interruptible.txt
             !date +%s > .bt-sleeping-interruptible.txt.end
+            !sync && echo "crash-collect: synced bt-sleeping-interruptible.txt" >&3
             EOF_CRASH_FULL
 
               reports="$reports ps.txt ps-last-run.txt ps-active.txt bt-sleeping-interruptible.txt"
@@ -340,6 +355,7 @@ in
             echo quit >> "$cmdfile"
 
             echo "crash-collect: profile $profile"
+            exec 3>&1
             session_start=$(date +%s)
             if (cd "$outdir" && crash-vmcore -i "$cmdfile") > "$outdir/session.log" 2>&1 ; then
               session_rc=0
@@ -376,6 +392,13 @@ in
 
               rm -f "$outdir/.$name.start" "$outdir/.$name.end"
             done
+
+            if sync ; then
+              echo "crash-collect: synced status and timings"
+            else
+              echo "crash-collect: final sync failed" >&2
+              overall_status=1
+            fi
 
             exit $overall_status
             EOF_CRASH_COLLECT

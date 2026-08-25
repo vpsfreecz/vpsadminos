@@ -183,6 +183,15 @@ import ../../make-test.nix (
             machine.wait_for_console_text(/Kernel panic - not syncing: sysrq triggered crash/, timeout:)
             machine.wait_for_console_text(/This is a crash kernel/, timeout:)
             machine.wait_for_console_text(/Running crash-collect --full/, timeout:)
+            machine.wait_for_console_text(/crash-collect: synced sys\.txt/, timeout:)
+            machine.wait_for_console_text(/crash-collect: synced bt-panic\.txt/, timeout:)
+            machine.wait_for_console_text(/crash-collect: synced tasks\.txt/, timeout:)
+            machine.wait_for_console_text(/crash-collect: synced ps-active\.txt/, timeout:)
+            machine.wait_for_console_text(
+              /crash-collect: synced bt-sleeping-interruptible\.txt/,
+              timeout:
+            )
+            machine.wait_for_console_text(/crash-collect: synced status and timings/, timeout:)
             machine.wait_for_console_text(/crash-collect exited with 0/, timeout:)
             machine.wait_for_console_text(/inspect\/README/, timeout:)
             machine.wait_for_console_text(/inspect\/timings/, timeout:)
