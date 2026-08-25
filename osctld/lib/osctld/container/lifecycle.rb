@@ -158,7 +158,9 @@ module OsCtld
           'pre_start_consumed' => false,
           'pre_start_completed' => false,
           'pre_start_callback_id' => nil,
+          'start_host_completed' => false,
           'lxc_start_authorized' => false,
+          'exit_event' => nil,
           'observer' => nil,
           'reconciliation' => nil,
           'callbacks' => {},
@@ -287,7 +289,9 @@ module OsCtld
           'pre_start_consumed' => false,
           'pre_start_completed' => false,
           'pre_start_callback_id' => nil,
+          'start_host_completed' => false,
           'lxc_start_authorized' => false,
+          'exit_event' => nil,
           'observer' => nil,
           'reconciliation' => nil,
           'callbacks' => {},
@@ -928,6 +932,31 @@ module OsCtld
       end
     end
 
+    # Persist the last successful host-side launch boundary before LXC starts
+    # the container init. A post-stop callback can arrive before lxc-monitor
+    # reports RUNNING or ABORTING, so those observations cannot distinguish a
+    # failed launch hook from a guest which actually ran and then exited.
+    def complete_start_host(run_id, callback_id:)
+      sync do
+        run = find_run_locked(run_id)
+        return false unless run
+        return false unless active_run_locked.equal?(run)
+        return false if run['recovery']
+        return false if run['post_stop']
+        return false unless run.fetch('pre_start_completed', false)
+
+        callback = run.fetch('callbacks', {})[callback_id]
+        return false unless callback
+        return false unless callback['name'] == 'CtOnStart'
+        return false unless callback['status'] == 'running'
+        return true if run.fetch('start_host_completed', false)
+
+        run['start_host_completed'] = true
+        commit
+        true
+      end
+    end
+
     def observe_state(run_id, state, init_pid: nil, source: 'monitor')
       sync do
         run = find_run_locked(run_id)
@@ -1545,24 +1574,56 @@ module OsCtld
         return false unless active_run_locked.equal?(run)
         return false if run['recovery']
 
+        return claim_finalize_locked(run) if run['post_stop']
+
         control_reboot =
           run.dig('effect', 'type') == 'control_reboot'
+        stop_effect = run.dig('effect', 'type') == 'stop'
         reboot ||= control_reboot
         run['effect'] = nil if control_reboot
         run['post_stop'] = true
-        run['aborted'] = aborted
+        reached_runtime = runtime_started_locked?(run)
+        start_aborted = container_run_locked?(run) && !reached_runtime
+        aborted ||= run.fetch('aborted', false)
+        run['aborted'] = aborted || start_aborted
+        run['exit_event'] = nil
         if container_run_locked?(run)
           restart_interrupted_start =
             run.dig('daemon_restart_handoff', 'effect_type') == 'start'
           run['reboot'] = true if reboot
-          if reboot
+
+          explicit_transition =
+            stop_effect \
+            || control_reboot \
+            || record['desired_state'] == 'stopped' \
+            || pending_running_intent?(run)
+          guest_exit =
+            reached_runtime \
+            && !aborted \
+            && !restart_interrupted_start \
+            && !explicit_transition \
+            && current_intent_id_locked == run['launch_intent_id']
+          if guest_exit
+            run['exit_event'] = reboot ? 'reboot' : 'halt'
+          end
+
+          if restart_interrupted_start \
+              && record['desired_state'] == 'running' \
+              && current_intent_id_locked == run['launch_intent_id']
+            update_intent('running', 'restart_interrupted', 'lifecycle')
+          elsif reboot && reached_runtime
             if record['desired_state'] != 'stopped' && !pending_running_intent?(run)
-              update_intent('running', 'reboot', 'container')
+              update_intent(
+                'running',
+                'reboot',
+                control_reboot ? 'control' : 'container'
+              )
             end
-          elsif current_intent_id_locked == run['launch_intent_id']
-            if restart_interrupted_start && record['desired_state'] == 'running'
-              update_intent('running', 'restart_interrupted', 'lifecycle')
-            else
+          elsif current_intent_id_locked == run['launch_intent_id'] \
+              && !start_aborted
+            if aborted
+              update_intent('stopped', 'runtime_aborted', 'lifecycle')
+            elsif guest_exit
               update_intent('stopped', 'halt', 'container')
             end
           end
@@ -2004,6 +2065,13 @@ module OsCtld
       sync do
         run = find_run_locked(run_id)
         run && execution_run_locked?(run)
+      end
+    end
+
+    def exit_event(run_id)
+      sync do
+        run = find_run_locked(run_id)
+        run && run['exit_event']&.to_sym
       end
     end
 
@@ -2543,7 +2611,9 @@ module OsCtld
           'pre_start_consumed' => true,
           'pre_start_completed' => true,
           'pre_start_callback_id' => nil,
+          'start_host_completed' => live,
           'lxc_start_authorized' => true,
+          'exit_event' => nil,
           'legacy_callbacks' => true,
           'legacy_managers' => deep_copy(managers),
           'observer' => nil,
@@ -3220,6 +3290,14 @@ module OsCtld
 
     def execution_run_locked?(run)
       run.fetch('kind', 'container') == 'execution'
+    end
+
+    def runtime_started_locked?(run)
+      return true if run.fetch('start_host_completed', false)
+      return true if %w[running frozen].include?(run['phase'])
+      return true if %w[running frozen].include?(run['reported_state'])
+
+      run.fetch('running_effects_started', false)
     end
 
     def restart_intent_id_locked(run)

@@ -163,13 +163,14 @@ module OsCtld
       end
 
       execution_run = lifecycle.execution_run?(run_conf.run_id)
-      unless execution_run
+      exit_event = lifecycle.exit_event(run_conf.run_id)
+      if exit_event
         Eventd.report(
           :ct_exit,
           pool: ct.pool.name,
           id: ct.id,
           run_id: run_conf.run_id.to_s,
-          exit_type: run_conf.reboot? ? 'reboot' : 'halt'
+          exit_type: exit_event.to_s
         )
         return unless current_effect?
       end

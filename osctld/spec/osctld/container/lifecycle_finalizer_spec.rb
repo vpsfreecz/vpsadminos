@@ -308,7 +308,10 @@ RSpec.describe OsCtld::Container::LifecycleFinalizer do
     allow(lifecycle).to receive(:effect_worker_exited)
     allow(lifecycle).to receive(:effect_current?) { current }
     allow(lifecycle).to receive(:complete_run)
-    allow(lifecycle).to receive(:execution_run?).and_return(false)
+    allow(lifecycle).to receive_messages(
+      execution_run?: false,
+      exit_event: :halt
+    )
     allow(finalizer).to receive(:run_finalizer_hook)
     allow(finalizer).to receive(:prune_mounts)
     allow(finalizer).to receive(:update_hints)
@@ -324,6 +327,58 @@ RSpec.describe OsCtld::Container::LifecycleFinalizer do
     expect(lifecycle).not_to have_received(:complete_run)
   end
 
+  it 'does not report a container exit for an aborted start' do
+    lifecycle = instance_double(
+      OsCtld::Container::Lifecycle,
+      set_effect_worker: true,
+      effect_worker_exited: true,
+      effect_current?: true,
+      complete_run: [true, nil],
+      execution_run?: false,
+      exit_event: nil,
+      other_runtime_generation?: false
+    )
+    lxc_config = instance_double(
+      OsCtld::Container::LxcConfig,
+      run_config_path: '/run/lxc/config.run-1',
+      remove_run_hooks: nil
+    )
+    run_conf = instance_double(
+      OsCtld::Container::RunConfiguration,
+      run_id: 'run-1',
+      aborted?: true,
+      destroy_dataset_on_stop?: false,
+      fulfil_exit: nil,
+      destroy: nil
+    )
+    ct = instance_double(
+      OsCtld::Container,
+      lifecycle:,
+      lxc_config:,
+      ephemeral?: false,
+      forget_past_run_conf: true
+    )
+    finalizer = described_class.new(ct, run_conf, 'effect-1')
+
+    allow(finalizer).to receive(:run_finalizer_hook)
+    allow(finalizer).to receive(:prune_mounts)
+    allow(finalizer).to receive(:update_hints)
+    allow(finalizer).to receive(:cleanup_cgroups)
+    allow(finalizer).to receive(:cleanup_apparmor)
+    allow(finalizer).to receive(:writeout_dataset)
+    allow(OsCtld::Eventd).to receive(:report)
+    allow(File).to receive(:unlink).with('/run/lxc/config.run-1')
+
+    finalizer.execute
+
+    expect(OsCtld::Eventd).not_to have_received(:report)
+    expect(run_conf).to have_received(:fulfil_exit)
+    expect(lifecycle).to have_received(:complete_run).with(
+      run_conf.run_id,
+      'effect-1'
+    )
+  end
+
   it 'deletes an ephemeral container only after its exact run is complete' do
     lifecycle = instance_double(
       OsCtld::Container::Lifecycle,
@@ -333,6 +388,7 @@ RSpec.describe OsCtld::Container::LifecycleFinalizer do
       complete_run: [true, nil],
       residuals: [],
       execution_run?: false,
+      exit_event: :halt,
       other_runtime_generation?: false
     )
     pool = Struct.new(:name).new('tank')

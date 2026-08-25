@@ -46,6 +46,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
       activate_lxc_start: false,
       consume_pre_start: false,
       complete_pre_start: false,
+      complete_start_host: false,
       reserve_callback: 'callback-1',
       activate_callback: 'callback-1',
       finish_callback: false
@@ -341,6 +342,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
       apply_cpuset_for_start: nil
     )
     allow(ct).to receive(:cgparams).and_return(cgparams)
+    allow(lifecycle).to receive(:complete_start_host).and_return(true)
     allow(OsCtld::DistConfig).to receive(:run)
     allow(OsCtld::Hook).to receive(:run)
     command = OsCtld::UserControl::Commands::CtOnStart.new(
@@ -349,10 +351,41 @@ RSpec.describe OsCtld::UserControl::Commands::CtWrapperStart do
       pool: 'tank',
       run_id: 'tank:ct1:run-1'
     )
+    command.instance_variable_set(:@lifecycle_callback_id, 'callback-1')
 
     expect(command.execute).to eq(status: true, output: nil)
     expect(cgparams).to have_received(:apply_cpuset_for_start).with(run_id:)
     expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :start)
+    expect(lifecycle).to have_received(:complete_start_host).with(
+      run_id,
+      callback_id: 'callback-1'
+    )
+  end
+
+  it 'aborts start-host when its lifecycle completion cannot be persisted' do
+    cgparams = instance_double(
+      OsCtld::CGroup::ContainerParams,
+      apply_cpuset_for_start: nil
+    )
+    allow(ct).to receive(:cgparams).and_return(cgparams)
+    allow(OsCtld::DistConfig).to receive(:run)
+    allow(OsCtld::Hook).to receive(:run)
+    command = OsCtld::UserControl::Commands::CtOnStart.new(
+      user,
+      id: 'ct1',
+      pool: 'tank',
+      run_id: 'tank:ct1:run-1'
+    )
+    command.instance_variable_set(:@lifecycle_callback_id, 'callback-1')
+
+    expect(command.execute).to eq(
+      status: false,
+      message: 'managed lifecycle run changed during start-host'
+    )
+    expect(lifecycle).to have_received(:complete_start_host).with(
+      run_id,
+      callback_id: 'callback-1'
+    )
   end
 
   it 'aborts pre-start when a strict non-cpuset write is rejected' do

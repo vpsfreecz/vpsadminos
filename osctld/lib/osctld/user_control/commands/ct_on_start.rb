@@ -28,6 +28,13 @@ module OsCtld
       DistConfig.run(run_conf, :start)
 
       Hook.run(ct, :on_start)
+      unless ct.lifecycle.complete_start_host(
+        run_conf.run_id,
+        callback_id: lifecycle_callback_id
+      )
+        return error('managed lifecycle run changed during start-host')
+      end
+
       ok
     rescue HookFailed => e
       error(e.message)

@@ -80,6 +80,7 @@ RSpec.describe OsCtld::Container::Lifecycle do
   def leave_completed_cleanup_worker(lifecycle)
     start = lifecycle.request_start
     start_effect = lifecycle.claim_effect(start.run_id, :start)
+    lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
     lifecycle.finish_effect(start.run_id, start_effect)
     lifecycle.observe_wrapper_gone(start.run_id)
     cleanup_effect = lifecycle.observe_post_stop(start.run_id)
@@ -88,6 +89,28 @@ RSpec.describe OsCtld::Container::Lifecycle do
       lifecycle.complete_run(start.run_id, cleanup_effect)
     end.join
     start.run_id
+  end
+
+  def prepare_start_host(lifecycle, request, effect_type: :start)
+    effect_id = lifecycle.claim_effect(request.run_id, effect_type)
+    lifecycle.mark_launching(request.run_id, effect_id, Process.pid)
+    lifecycle.authorize_lxc_start(request.run_id, Process.pid)
+    lifecycle.activate_lxc_start(request.run_id, Process.pid)
+    pre_start_id = lifecycle.begin_callback(
+      request.run_id,
+      name: 'CtPreStart'
+    )
+    lifecycle.consume_pre_start(
+      request.run_id,
+      client_pid: Process.pid,
+      callback_id: pre_start_id
+    )
+    lifecycle.complete_pre_start(
+      request.run_id,
+      callback_id: pre_start_id
+    )
+    lifecycle.finish_callback(request.run_id, pre_start_id)
+    lifecycle.begin_callback(request.run_id, name: 'CtOnStart')
   end
 
   it 'persists intents and exact generation resources across daemon instances' do
@@ -1766,6 +1789,7 @@ RSpec.describe OsCtld::Container::Lifecycle do
       lifecycle = described_class.new(build_container(root))
       start = lifecycle.request_start
       start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
       lifecycle.finish_effect(start.run_id, start_effect)
       lifecycle.observe_wrapper_gone(start.run_id)
       cleanup_effect = lifecycle.observe_post_stop(start.run_id)
@@ -2798,8 +2822,8 @@ RSpec.describe OsCtld::Container::Lifecycle do
       lifecycle = described_class.new(build_container(root))
       start = lifecycle.request_start
       start_effect = lifecycle.claim_effect(start.run_id, :start)
-      lifecycle.finish_effect(start.run_id, start_effect)
       lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
       lifecycle.observe_wrapper_gone(start.run_id)
 
       cleanup_effect = lifecycle.observe_post_stop(start.run_id, reboot: false)
@@ -2843,6 +2867,199 @@ RSpec.describe OsCtld::Container::Lifecycle do
       expect(restart_intent_id).not_to eq(start.intent_id)
       expect(restart_intent_id).to eq(lifecycle.current_intent_id)
       expect(lifecycle.desired_state).to eq(:running)
+    end
+  end
+
+  it 'classifies a failed start before a delayed aborting observation' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      on_start_id = prepare_start_host(lifecycle, start)
+
+      lifecycle.observe_wrapper_gone(start.run_id)
+      expect(
+        lifecycle.observe_post_stop(start.run_id, aborted: false)
+      ).to be(false)
+
+      run = lifecycle.run(start.run_id)
+      expect(run).to include(
+        'start_host_completed' => false,
+        'post_stop' => true,
+        'aborted' => true,
+        'exit_event' => nil
+      )
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.current_intent_id).to eq(start.intent_id)
+
+      lifecycle.observe_state(start.run_id, :aborting)
+      expect(lifecycle.exit_event(start.run_id)).to be_nil
+      expect(
+        lifecycle.finish_callback(start.run_id, on_start_id)
+      ).to be_a(String)
+    end
+  end
+
+  it 'preserves a newer stop intent when a start aborts during pre-start' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.mark_launching(start.run_id, start_effect, Process.pid)
+      lifecycle.authorize_lxc_start(start.run_id, Process.pid)
+      lifecycle.activate_lxc_start(start.run_id, Process.pid)
+      stop = lifecycle.request_stop
+
+      lifecycle.observe_wrapper_gone(start.run_id)
+      expect(lifecycle.observe_post_stop(start.run_id)).to be(false)
+      expect(lifecycle.finish_effect(start.run_id, start_effect)).to be(true)
+
+      expect(lifecycle.exit_event(start.run_id)).to be_nil
+      expect(lifecycle.desired_state).to eq(:stopped)
+      expect(lifecycle.current_intent_id).to eq(stop.intent_id)
+      expect(lifecycle.claim_finalization(start.run_id)).to be_a(String)
+    end
+  end
+
+  it 'does not report an explicit stop as a guest halt' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+      stop = lifecycle.request_stop
+      stop_effect = lifecycle.claim_effect(stop.run_id, :stop)
+
+      lifecycle.observe_wrapper_gone(start.run_id)
+      expect(lifecycle.observe_post_stop(start.run_id)).to be(false)
+
+      expect(lifecycle.exit_event(start.run_id)).to be_nil
+      expect(lifecycle.desired_state).to eq(:stopped)
+      expect(lifecycle.current_intent_id).to eq(stop.intent_id)
+      lifecycle.finish_effect(start.run_id, stop_effect)
+    end
+  end
+
+  it 'does not report an explicit restart as a guest halt' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+      restart = lifecycle.request_restart
+      stop = lifecycle.request_stop(expected_intent_id: restart.intent_id)
+      stop_effect = lifecycle.claim_effect(stop.run_id, :stop)
+
+      lifecycle.observe_wrapper_gone(start.run_id)
+      expect(lifecycle.observe_post_stop(start.run_id)).to be(false)
+
+      expect(lifecycle.exit_event(start.run_id)).to be_nil
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.current_intent_id).to eq(restart.intent_id)
+      lifecycle.finish_effect(start.run_id, stop_effect)
+    end
+  end
+
+  it 'does not report a direct control reboot as a guest reboot' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+      reboot = lifecycle.request_control_reboot
+
+      lifecycle.observe_wrapper_gone(start.run_id)
+      expect(lifecycle.observe_post_stop(start.run_id)).to be_a(String)
+
+      expect(lifecycle.exit_event(start.run_id)).to be_nil
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.current_intent_id).not_to eq(reboot.intent_id)
+    end
+  end
+
+  it 'reports a qualified guest halt without waiting for monitor RUNNING' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      on_start_id = prepare_start_host(lifecycle, start)
+      expect(
+        lifecycle.complete_start_host(
+          start.run_id,
+          callback_id: on_start_id
+        )
+      ).to be(true)
+      lifecycle.finish_callback(start.run_id, on_start_id)
+
+      lifecycle.observe_wrapper_gone(start.run_id)
+      expect(lifecycle.observe_post_stop(start.run_id)).to be_a(String)
+
+      expect(lifecycle.exit_event(start.run_id)).to eq(:halt)
+      expect(lifecycle.desired_state).to eq(:stopped)
+    end
+  end
+
+  it 'reports a qualified guest reboot and preserves restart intent' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      on_start_id = prepare_start_host(lifecycle, start)
+      lifecycle.complete_start_host(
+        start.run_id,
+        callback_id: on_start_id
+      )
+      lifecycle.finish_callback(start.run_id, on_start_id)
+
+      lifecycle.observe_wrapper_gone(start.run_id)
+      expect(
+        lifecycle.observe_post_stop(start.run_id, reboot: true)
+      ).to be_a(String)
+
+      expect(lifecycle.exit_event(start.run_id)).to eq(:reboot)
+      expect(lifecycle.desired_state).to eq(:running)
+      expect(lifecycle.current_intent_id).not_to eq(start.intent_id)
+    end
+  end
+
+  it 'never reports a stopped execution as a guest exit' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      execution = lifecycle.request_execution
+      effect = lifecycle.claim_effect(execution.run_id, :execute)
+      lifecycle.observe_state(
+        execution.run_id,
+        :running,
+        init_pid: Process.pid
+      )
+      lifecycle.finish_effect(execution.run_id, effect)
+
+      lifecycle.observe_wrapper_gone(execution.run_id)
+      expect(lifecycle.observe_post_stop(execution.run_id)).to be_a(String)
+
+      expect(lifecycle.exit_event(execution.run_id)).to be_nil
+      expect(lifecycle.desired_state).to eq(:stopped)
+    end
+  end
+
+  it 'does not infer a guest exit while recovering a previously running run' do
+    with_tmpdir do |root|
+      lifecycle = described_class.new(build_container(root))
+      start = lifecycle.request_start
+      start_effect = lifecycle.claim_effect(start.run_id, :start)
+      lifecycle.observe_state(start.run_id, :running, init_pid: Process.pid)
+      lifecycle.finish_effect(start.run_id, start_effect)
+
+      lifecycle.observe_wrapper_gone(start.run_id)
+      expect(
+        lifecycle.observe_post_stop(start.run_id, aborted: true)
+      ).to be_a(String)
+
+      expect(lifecycle.exit_event(start.run_id)).to be_nil
+      expect(lifecycle.desired_state).to eq(:stopped)
+      expect(lifecycle.snapshot.dig('intent', 'kind')).to eq(
+        'runtime_aborted'
+      )
     end
   end
 
