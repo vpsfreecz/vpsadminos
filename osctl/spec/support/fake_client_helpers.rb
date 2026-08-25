@@ -49,7 +49,7 @@ module FakeClientHelpers
 
     def cmd_response!(cmd, **, &)
       ret = cmd_response(cmd, **, &)
-      raise OsCtl::Client::Error, ret.message if ret.error?
+      raise OsCtl::Client::CommandError, ret.message if ret.error?
 
       ret
     end

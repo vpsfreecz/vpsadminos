@@ -6,6 +6,8 @@ module OsCtl
     SOCKET = '/run/osctl/osctld.sock'.freeze
 
     class Error < StandardError; end
+    class ConnectionError < Error; end
+    class CommandError < Error; end
 
     class Response
       def initialize(resp)
@@ -67,7 +69,7 @@ module OsCtl
 
       loop do
         m = @sock.recv(1024)
-        raise Error, 'osctld closed connection' if m.nil? || m.empty?
+        raise ConnectionError, 'osctld closed connection' if m.nil? || m.empty?
 
         buf += m
         break if m.end_with?("\n")
@@ -75,7 +77,7 @@ module OsCtl
 
       buf.split("\n")
     rescue Errno::ECONNRESET
-      raise Error, 'osctld closed connection'
+      raise ConnectionError, 'osctld closed connection'
     end
 
     def receive_version
@@ -110,7 +112,7 @@ module OsCtl
 
     def response!(&)
       ret = receive_resp(&)
-      raise Error, ret.message if ret.error?
+      raise CommandError, ret.message if ret.error?
 
       ret
     end
@@ -122,7 +124,7 @@ module OsCtl
 
     def cmd_response!(cmd, **, &)
       ret = cmd_response(cmd, **, &)
-      raise Error, ret.message if ret.error?
+      raise CommandError, ret.message if ret.error?
 
       ret
     end

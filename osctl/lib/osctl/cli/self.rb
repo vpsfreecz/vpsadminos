@@ -103,7 +103,7 @@ module OsCtl::Cli
           message: opts[:message]
         })
         return
-      rescue OsCtl::Client::Error => e
+      rescue OsCtl::Client::ConnectionError => e
         warn "Lost connection to osctld: #{e.message}"
       rescue Errno::ENOENT
         warn 'Unable to connect to osctld: socket not found'

@@ -61,7 +61,7 @@ RSpec.describe OsCtl::Cli::Self do
     stub_const("#{described_class}::SHUTDOWN_MARKER", marker)
     command = cmd(opts: { force: true, wall: true, message: 'bye' })
     allow(File).to receive(:new).with(marker, 'w', 0o000).and_return(double(close: nil))
-    allow(command).to receive(:osctld_fmt).and_raise(OsCtl::Client::Error, 'lost')
+    allow(command).to receive(:osctld_fmt).and_raise(OsCtl::Client::ConnectionError, 'lost')
     allow(File).to receive(:stat).with(marker).and_return(double(mode: 0o100))
     allow(command).to receive(:sleep)
 
@@ -69,6 +69,19 @@ RSpec.describe OsCtl::Cli::Self do
 
     expect(out).to include('Waiting for osctld to prepare for shutdown...')
     expect(err).to include('Lost connection to osctld: lost', ' ok')
+  end
+
+  it 'propagates daemon command errors without waiting for the marker' do
+    marker = '/tmp/osctl-shutdown-marker'
+    stub_const("#{described_class}::SHUTDOWN_MARKER", marker)
+    command = cmd(opts: { force: true, wall: true, message: 'bye' })
+    allow(File).to receive(:new).with(marker, 'w', 0o000).and_return(double(close: nil))
+    allow(command).to receive(:osctld_fmt).and_raise(OsCtl::Client::CommandError, 'internal error')
+
+    expect(File).not_to receive(:stat)
+    expect do
+      command.shutdown
+    end.to raise_error(OsCtl::Client::CommandError, 'internal error')
   end
 
   it 'loads scripts from disk and reports missing scripts' do

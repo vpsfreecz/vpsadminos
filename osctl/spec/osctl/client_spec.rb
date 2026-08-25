@@ -55,14 +55,14 @@ RSpec.describe OsCtl::Client do
     socket = FakeSocketHelpers::LineSocketDouble.new([''])
     client = build_client(socket)
 
-    expect { client.receive }.to raise_error(OsCtl::Client::Error, 'osctld closed connection')
+    expect { client.receive }.to raise_error(OsCtl::Client::ConnectionError, 'osctld closed connection')
   end
 
   it 'raises when the daemon closes the socket with nil EOF' do
     socket = instance_double(UNIXSocket, recv: nil)
     client = build_client(socket)
 
-    expect { client.receive }.to raise_error(OsCtl::Client::Error, 'osctld closed connection')
+    expect { client.receive }.to raise_error(OsCtl::Client::ConnectionError, 'osctld closed connection')
   end
 
   it 'raises when the daemon resets the socket' do
@@ -70,7 +70,7 @@ RSpec.describe OsCtl::Client do
     allow(socket).to receive(:recv).and_raise(Errno::ECONNRESET)
     client = build_client(socket)
 
-    expect { client.receive }.to raise_error(OsCtl::Client::Error, 'osctld closed connection')
+    expect { client.receive }.to raise_error(OsCtl::Client::ConnectionError, 'osctld closed connection')
   end
 
   it 'raises from response wait when the daemon closes after progress' do
@@ -84,7 +84,7 @@ RSpec.describe OsCtl::Client do
 
     expect do
       client.receive_resp { |msg| progress << msg }
-    end.to raise_error(OsCtl::Client::Error, 'osctld closed connection')
+    end.to raise_error(OsCtl::Client::ConnectionError, 'osctld closed connection')
 
     expect(progress).to eq(['step 1'])
   end
@@ -115,7 +115,7 @@ RSpec.describe OsCtl::Client do
     socket = FakeSocketHelpers::LineSocketDouble.new(["{\"status\":false,\"message\":\"invalid\"}\n"])
     client = build_client(socket)
 
-    expect { client.response! }.to raise_error(OsCtl::Client::Error, 'invalid')
+    expect { client.response! }.to raise_error(OsCtl::Client::CommandError, 'invalid')
   end
 
   it 'returns response data from data!' do
