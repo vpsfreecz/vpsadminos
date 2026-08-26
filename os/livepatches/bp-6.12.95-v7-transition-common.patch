@@ -939,7 +939,7 @@ index 077e078032e05..eaa94c11b0c15 100644
  
  	klp_init_transition(patch, KLP_TRANSITION_UNPATCHED);
  
-@@ -1025,6 +1929,10 @@ static int __klp_enable_patch(struct klp_patch *patch)
+@@ -1025,6 +1929,12 @@ static int __klp_enable_patch(struct klp_patch *patch)
  
  	pr_notice("enabling patch '%s'\n", patch->mod->name);
  
@@ -952,7 +952,7 @@ index 077e078032e05..eaa94c11b0c15 100644
  	klp_init_transition(patch, KLP_TRANSITION_PATCHED);
  
  	/*
-@@ -1246,6 +2154,10 @@ int klp_module_coming(struct module *mod)
+@@ -1246,6 +2154,12 @@ int klp_module_coming(struct module *mod)
  	}
  
  	mutex_lock(&klp_mutex);
@@ -965,7 +965,7 @@ index 077e078032e05..eaa94c11b0c15 100644
  	/*
  	 * Each module has to know that klp_module_coming()
  	 * has been called. We never know what module will
-@@ -1307,6 +2219,7 @@ int klp_module_coming(struct module *mod)
+@@ -1307,6 +2219,9 @@ int klp_module_coming(struct module *mod)
  	mod->klp_alive = false;
  	obj->mod = NULL;
  	klp_cleanup_module_patches_limited(mod, patch);
@@ -975,7 +975,7 @@ index 077e078032e05..eaa94c11b0c15 100644
  	mutex_unlock(&klp_mutex);
  
  	return ret;
-@@ -1327,6 +2240,7 @@ void klp_module_going(struct module *mod)
+@@ -1327,6 +2240,9 @@ void klp_module_going(struct module *mod)
  	mod->klp_alive = false;
  
  	klp_cleanup_module_patches_limited(mod, NULL);
@@ -2629,7 +2629,7 @@ index ba069459c1017..ea3ddfb81a3bc 100644
  	patch = klp_transition_patch;
  	klp_complete_transition();
  
-@@ -533,6 +1959,7 @@ void klp_start_transition(void)
+@@ -533,6 +1959,9 @@ void klp_start_transition(void)
  	unsigned int cpu;
  
  	WARN_ON_ONCE(klp_target_state == KLP_TRANSITION_IDLE);
@@ -2639,7 +2639,7 @@ index ba069459c1017..ea3ddfb81a3bc 100644
  
  	pr_notice("'%s': starting %s transition\n",
  		  klp_transition_patch->mod->name,
-@@ -560,7 +1987,7 @@ void klp_start_transition(void)
+@@ -560,7 +1987,10 @@ void klp_start_transition(void)
  			set_tsk_thread_flag(task, TIF_PATCH_PENDING);
  	}
  
