@@ -2,7 +2,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     base64 (0.3.0)
-    curses (1.6.0)
+    curses (1.7.0)
     fiddle (1.1.8)
     filelock (1.1.1)
     gli (2.22.2)

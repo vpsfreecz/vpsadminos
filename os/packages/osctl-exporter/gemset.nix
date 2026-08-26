@@ -14,10 +14,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.org" ];
-      sha256 = "1qkq83izdj0lzqwwf8c53b6dzcfcx47mzh5902yg9l1sabyjgkr6";
+      sha256 = "0mvh67ijv03cvnwbkjxh6vrg9nhyndii4wyjd1ni7gabf0qgy965";
       type = "gem";
     };
-    version = "1.6.0";
+    version = "1.7.0";
   };
   fiddle = {
     groups = [ "default" ];
