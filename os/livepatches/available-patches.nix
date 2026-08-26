@@ -290,6 +290,165 @@ let
         "net/vmw_vsock/vmw_vsock_virtio_transport_common.ko"
         ];
       };
+      drafts = {
+        v8FromCorrectedV7 = {
+          status = "draft";
+          releaseIdentity = "6.12.95.8";
+          predecessorIdentity = "6.12.95.7";
+          predecessorInventory = [
+            "livepatch_transition_guard"
+            "lp61295_foundation"
+            "lp7_sctp_correct"
+          ];
+          notes = [
+            "Corrected-v7 supported-anchor draft only; v5-supported v8 path remains unresolved."
+            "Self-contract freeze-back for the new v8 artifacts still needs a first successful build."
+          ];
+          correctedV7Online = {
+            role = "generation-final";
+            moduleName = "lp8_from_v7";
+            buildPatches = [
+              "bp-6.12.95-v7-headers"
+              "bp-6.12.95-v7-transition-common"
+              "bp-6.12.95-v7-sctp-corrective"
+              "bp-6.12.95-v7-generation"
+              "bp-6.12.95-v8-generation"
+            ];
+            targets = [
+              "vmlinux"
+              "lib/libcrc32c.ko"
+              "net/ipv4/udp_tunnel.ko"
+              "net/ipv6/ip6_udp_tunnel.ko"
+              "net/sctp/sctp.ko"
+              "net/ceph/libceph.ko"
+              "fs/ceph/ceph.ko"
+              "arch/x86/kvm/kvm.ko"
+            ];
+            nonReplace = true;
+            expectedSha256 = null;
+            selfContract = {
+              functionCount = null;
+              inventoryId = null;
+            };
+            coverageState = {
+              id = "0x6129500000000002";
+              version = 8;
+              complete = true;
+            };
+            publishedIdentity = "6.12.95.8";
+            buildDefines = {
+              VPSADMINOS_KLP_RELEASE_GENERATION = "8";
+              VPSADMINOS_KLP_RELEASE_IDENTITY = "\"6.12.95.8\"";
+              VPSADMINOS_KLP_ONLINE_PREDECESSOR_IDENTITY = "\"6.12.95.7\"";
+              VPSADMINOS_KLP_ONLINE_EXPECT_PREDECESSOR_COVERAGE = "1";
+              VPSADMINOS_KLP_ONLINE_PREDECESSOR_GENERATION = "7";
+              VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_IDENTITY = "\"6.12.95.7\"";
+              VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_ID_HI = "VPSADMINOS_KLP_V7_FINAL_ID_HI";
+              VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_ID_LO = "VPSADMINOS_KLP_V7_FINAL_ID_LO";
+              VPSADMINOS_KLP_ANCHOR_MODULE_NAME = "\"lp7_sctp_correct\"";
+              VPSADMINOS_KLP_ANCHOR_ID_HI = "VPSADMINOS_KLP_V7_FINAL_ID_HI";
+              VPSADMINOS_KLP_ANCHOR_ID_LO = "VPSADMINOS_KLP_V7_FINAL_ID_LO";
+              VPSADMINOS_KLP_ONLINE_ANCHOR_CLASS = "VPSADMINOS_KLP_ANCHOR_SUPPORTED";
+              VPSADMINOS_KLP_ONLINE_ANCHOR_IDENTITY = "\"6.12.95.7\"";
+              VPSADMINOS_KLP_GUARD_MODULE_NAME = "\"livepatch_transition_guard\"";
+              VPSADMINOS_KLP_GUARD_ID_HI = "VPSADMINOS_KLP_V7_GUARD_ID_HI";
+              VPSADMINOS_KLP_GUARD_ID_LO = "VPSADMINOS_KLP_V7_GUARD_ID_LO";
+              VPSADMINOS_KLP_FOUNDATION_MODULE_NAME = "\"lp61295_foundation\"";
+              VPSADMINOS_KLP_FOUNDATION_ID_HI = "VPSADMINOS_KLP_V7_FOUNDATION_ID_HI";
+              VPSADMINOS_KLP_FOUNDATION_ID_LO = "VPSADMINOS_KLP_V7_FOUNDATION_ID_LO";
+              VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_MODULE_NAME = "\"lp61295_foundation\"";
+              VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_ID_HI = "VPSADMINOS_KLP_V7_FOUNDATION_ID_HI";
+              VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_ID_LO = "VPSADMINOS_KLP_V7_FOUNDATION_ID_LO";
+              VPSADMINOS_KLP_FINAL_MODULE_NAME = "\"lp8_from_v7\"";
+              VPSADMINOS_KLP_FINAL_ID_HI = "0x176066a537034e8dULL";
+              VPSADMINOS_KLP_FINAL_ID_LO = "0x9aa9df491bbb03e6ULL";
+              VPSADMINOS_KLP_CHECKPOINT_GUARD_MODULE_NAME = "\"lp8_checkpoint_guard\"";
+              VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_HI = "0x289c89a6778a45ccULL";
+              VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_LO = "0xaf57c74ac6aea6a8ULL";
+              VPSADMINOS_KLP_REVERSE_GUARD_MODULE_NAME = "\"lp8_reverse_guard\"";
+              VPSADMINOS_KLP_REVERSE_GUARD_ID_HI = "0x6f83c80f3c024e4dULL";
+              VPSADMINOS_KLP_REVERSE_GUARD_ID_LO = "0xa31ef8a35057d560ULL";
+              VPSADMINOS_KLP_CHECKPOINT_MODULE_NAME = "\"livepatch_8\"";
+              VPSADMINOS_KLP_CHECKPOINT_ID_HI = "0x0004ec996c174d51ULL";
+              VPSADMINOS_KLP_CHECKPOINT_ID_LO = "0x9410368bdba2dee9ULL";
+            };
+          };
+          checkpointGuard = {
+            role = "checkpoint-guard";
+            moduleName = "lp8_checkpoint_guard";
+            buildPatches = [
+              "bp-6.12.95-v7-headers"
+              "bp-6.12.95-v7-transition-common"
+              "bp-6.12.95-v7-sctp-corrective"
+              "bp-6.12.95-v7-generation"
+              "bp-6.12.95-v8-generation"
+            ];
+            targets = [ "vmlinux" ];
+            nonReplace = true;
+            expectedSha256 = null;
+            buildDefines = {
+              VPSADMINOS_KLP_RELEASE_GENERATION = "8";
+              VPSADMINOS_KLP_RELEASE_IDENTITY = "\"6.12.95.8\"";
+              VPSADMINOS_KLP_CHECKPOINT_GUARD_MODULE_NAME = "\"lp8_checkpoint_guard\"";
+              VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_HI = "0x289c89a6778a45ccULL";
+              VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_LO = "0xaf57c74ac6aea6a8ULL";
+              VPSADMINOS_KLP_CHECKPOINT_MODULE_NAME = "\"livepatch_8\"";
+              VPSADMINOS_KLP_CHECKPOINT_ID_HI = "0x0004ec996c174d51ULL";
+              VPSADMINOS_KLP_CHECKPOINT_ID_LO = "0x9410368bdba2dee9ULL";
+            };
+          };
+          reverseValidation = {
+            role = "reverse-guard";
+            moduleName = "lp8_reverse_guard";
+            buildPatches = [
+              "bp-6.12.95-v7-headers"
+              "bp-6.12.95-v7-transition-common"
+              "bp-6.12.95-v7-sctp-corrective"
+              "bp-6.12.95-v7-generation"
+              "bp-6.12.95-v8-generation"
+            ];
+            targets = [ "vmlinux" ];
+            nonReplace = true;
+            expectedSha256 = null;
+            buildDefines = {
+              VPSADMINOS_KLP_RELEASE_GENERATION = "8";
+              VPSADMINOS_KLP_RELEASE_IDENTITY = "\"6.12.95.8\"";
+              VPSADMINOS_KLP_CHECKPOINT_MODULE_NAME = "\"livepatch_8\"";
+              VPSADMINOS_KLP_CHECKPOINT_ID_HI = "0x0004ec996c174d51ULL";
+              VPSADMINOS_KLP_CHECKPOINT_ID_LO = "0x9410368bdba2dee9ULL";
+              VPSADMINOS_KLP_REVERSE_GUARD_MODULE_NAME = "\"lp8_reverse_guard\"";
+              VPSADMINOS_KLP_REVERSE_GUARD_ID_HI = "0x6f83c80f3c024e4dULL";
+              VPSADMINOS_KLP_REVERSE_GUARD_ID_LO = "0xa31ef8a35057d560ULL";
+            };
+          };
+          checkpoint = {
+            role = "checkpoint";
+            moduleName = "livepatch_8";
+            buildPatches = [
+              "bp-6.12.95-cumulative-v8"
+            ];
+            expectedSha256 = null;
+            nonReplace = false;
+            selfContract = {
+              functionCount = null;
+              inventoryId = null;
+            };
+            coverageState = {
+              id = "0x6129500000000002";
+              version = 8;
+              complete = true;
+            };
+            publishedIdentity = "6.12.95.8";
+            buildDefines = {
+              VPSADMINOS_KLP_RELEASE_GENERATION = "8";
+              VPSADMINOS_KLP_RELEASE_IDENTITY = "\"6.12.95.8\"";
+              VPSADMINOS_KLP_CHECKPOINT_MODULE_NAME = "\"livepatch_8\"";
+              VPSADMINOS_KLP_CHECKPOINT_ID_HI = "0x0004ec996c174d51ULL";
+              VPSADMINOS_KLP_CHECKPOINT_ID_LO = "0x9410368bdba2dee9ULL";
+            };
+          };
+        };
+      };
     }
     {
       name = "bp-6.12.48-6.12.89-cumulative";
