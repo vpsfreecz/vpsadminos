@@ -10,26 +10,232 @@ let
   availablePatches = [
     {
       name = "bp-6.12.95-cumulative";
-      buildPatches = [
-        "bp-6.12.95-cumulative"
-        "bp-6.12.95-uname"
-      ];
-      transitionGuard = {
-        moduleName = "livepatch_transition_guard";
-        buildPatches = [ "bp-6.12.95-transition-guard" ];
-        targets = [ "vmlinux" ];
-        nonReplace = true;
-        bootstrap = {
-          moduleName = "livepatch_transition_bootstrap";
-          sourceDir = "transition-bootstrap";
-          kickParameter = "kick_idle";
-        };
-      };
       filterFn = availableFor "6.12.95";
       version = 7;
-      # kpatch-build groups these .ko targets into one modpost pass. Include
-      # direct module dependencies so modpost sees their exported symbols.
-      targets = [
+      autoLoad = false;
+      contract = {
+        anchor = {
+          moduleName = "livepatch_6";
+          functionCount = 204;
+          inventoryId = {
+            high = "0xe3cfa2e6f8aaa28eULL";
+            low = "0x4a8aade1e48e06a0ULL";
+          };
+        };
+        guard = {
+          moduleName = "livepatch_transition_guard";
+          functionCount = 1;
+          inventoryId = {
+            high = "0x1ULL";
+            low = "0x1ULL";
+          };
+        };
+        checkpointGuard = {
+          moduleName = "lp7_checkpoint_guard";
+          functionCount = 1;
+          inventoryId = {
+            high = "0x1ULL";
+            low = "0x1ULL";
+          };
+        };
+        reverseGuard = {
+          moduleName = "lp7_reverse_guard";
+          functionCount = 1;
+          inventoryId = {
+            high = "0x1ULL";
+            low = "0x1ULL";
+          };
+        };
+        foundation = {
+          moduleName = "lp61295_foundation";
+          functionCount = 11;
+          inventoryId = {
+            high = "0x990643c95072c2c1ULL";
+            low = "0xcdb753719b7f7b9fULL";
+          };
+        };
+        final = {
+          moduleName = "lp7_sctp_correct";
+          functionCount = 4;
+          inventoryId = {
+            high = "0xb004f0281bdcc99dULL";
+            low = "0xda6e93443e222b83ULL";
+          };
+        };
+        checkpoint = {
+          moduleName = "livepatch_7";
+          functionCount = 1;
+          inventoryId = {
+            high = "0x1ULL";
+            low = "0x1ULL";
+          };
+        };
+      };
+      anchors = {
+        v6Remediation = {
+          class = "remediation";
+          bootKernelVersion = "6.12.95";
+          publishedIdentity = "6.12.95.6";
+          moduleName = "livepatch_6";
+          moduleFile =
+            "/nix/store/ncq9v28a2ddp4875mbw5ql7hr6rkyh0w-livepatch_6-6.12.95/"
+            + "lib/modules/6.12.95/extra/livepatch_6.ko";
+          moduleSha256 = "960b13f1b461b95e29cccff58ddf0d3f3badf151046eb46eba36a9c8c7e5efe3";
+          moduleBuildId = "568e29221e0fa98cfec22ab8cf17a280e6db330e";
+          replace = true;
+          replacementCount = 204;
+          isolationMarker = "/run/vpsadminos/livepatches/v6-remediation-isolated";
+          allowedBootBzImageSha256 = [
+            "244ec9f7277617885cce47c564210f560ec9e6cfcdbfaf503626a2236f1b911e"
+            "58390aa25aae9d8b3c313ebcb60b7a1bef30fae4759f704a7c2baacff6e9e29f"
+            "3d208a0208a6d45ce9bc25a69fa9a29515c0f89fd9e6e9f6aef80ffe94872ee3"
+          ];
+          allowedSystemMapSha256 = [
+            "38fdabb177fcfd9ca11e52d2a118a55347192ecf446428ceeead1ea384412be9"
+          ];
+          path = "v7Corrective";
+        };
+        cleanBoot = {
+          class = "supported";
+          bootKernelVersion = "6.12.95";
+          publishedIdentity = "6.12.95";
+          allowedBootBzImageSha256 = [
+            "244ec9f7277617885cce47c564210f560ec9e6cfcdbfaf503626a2236f1b911e"
+            "58390aa25aae9d8b3c313ebcb60b7a1bef30fae4759f704a7c2baacff6e9e29f"
+            "3d208a0208a6d45ce9bc25a69fa9a29515c0f89fd9e6e9f6aef80ffe94872ee3"
+          ];
+          allowedSystemMapSha256 = [
+            "38fdabb177fcfd9ca11e52d2a118a55347192ecf446428ceeead1ea384412be9"
+          ];
+          path = "v7CheckpointBootstrap";
+        };
+        checkpointComplete = {
+          class = "supported";
+          bootKernelVersion = "6.12.95";
+          publishedIdentity = "6.12.95.7";
+          moduleName = "livepatch_7";
+          path = "v7ReverseValidation";
+        };
+      };
+      paths.v7Corrective = [
+        {
+          role = "bootstrap-guard";
+          moduleName = "livepatch_transition_guard";
+          buildPatches = [
+            "bp-6.12.95-v7-headers"
+            "bp-6.12.95-v7-transition-common"
+          ];
+          targets = [ "vmlinux" ];
+          nonReplace = true;
+          expectedSha256 = null;
+          bootstrap = {
+            moduleName = "livepatch_transition_bootstrap";
+            sourceDir = "transition-bootstrap";
+            kickParameter = "kick_idle";
+            expectedSha256 = "5883b23743b5194fd5094e73912009ce67d84d414f4f725e082ac54733bdbc5f";
+          };
+        }
+        {
+          role = "foundation";
+          moduleName = "lp61295_foundation";
+          buildPatches = [
+            "bp-6.12.95-v7-headers"
+            "bp-6.12.95-v7-transition-common"
+          ];
+          targets = [ "vmlinux" ];
+          nonReplace = true;
+          expectedSha256 = "4dc14a6a8675e1ea37e17169237b482d32b87dd005f540b0a81793bd5be0db08";
+          foundationState = {
+            id = "0x6129500000000001";
+            version = 1;
+          };
+        }
+        {
+          role = "generation-final";
+          moduleName = "lp7_sctp_correct";
+          buildPatches = [
+            "bp-6.12.95-v7-headers"
+            "bp-6.12.95-v7-sctp-corrective"
+            "bp-6.12.95-v7-generation"
+          ];
+          # kpatch-build groups these .ko targets into one modpost pass. Include
+          # direct module dependencies so modpost sees their exported symbols.
+          targets = [
+            "vmlinux"
+            "lib/libcrc32c.ko"
+            "net/ipv4/udp_tunnel.ko"
+            "net/ipv6/ip6_udp_tunnel.ko"
+            "net/sctp/sctp.ko"
+          ];
+          nonReplace = true;
+          expectedSha256 = "eef6bba12a15262cd352e6b2dcffd0fae8914520bb339ecb7090cac14b31b659";
+          coverageState = {
+            id = "0x6129500000000002";
+            version = 7;
+            complete = true;
+          };
+          publishedIdentity = "6.12.95.7";
+        }
+      ];
+      paths.v7CheckpointBootstrap = [
+        {
+          role = "checkpoint-guard";
+          moduleName = "lp7_checkpoint_guard";
+          buildPatches = [
+            "bp-6.12.95-v7-headers"
+            "bp-6.12.95-v7-transition-common"
+          ];
+          targets = [ "vmlinux" ];
+          nonReplace = true;
+          expectedSha256 = null;
+          bootstrap = {
+            moduleName = "livepatch_transition_bootstrap";
+            sourceDir = "transition-bootstrap";
+            kickParameter = "kick_idle";
+            expectedSha256 = "5883b23743b5194fd5094e73912009ce67d84d414f4f725e082ac54733bdbc5f";
+          };
+        }
+      ];
+      paths.v7ReverseValidation = [
+        {
+          role = "reverse-guard";
+          moduleName = "lp7_reverse_guard";
+          buildPatches = [
+            "bp-6.12.95-v7-headers"
+            "bp-6.12.95-v7-transition-common"
+          ];
+          targets = [ "vmlinux" ];
+          nonReplace = true;
+          expectedSha256 = null;
+          bootstrap = {
+            moduleName = "livepatch_transition_bootstrap";
+            sourceDir = "transition-bootstrap";
+            kickParameter = "kick_idle";
+            expectedSha256 = "5883b23743b5194fd5094e73912009ce67d84d414f4f725e082ac54733bdbc5f";
+          };
+        }
+      ];
+      checkpoint = {
+        role = "checkpoint";
+        moduleName = "livepatch_7";
+        buildPatches = [
+          "bp-6.12.95-cumulative-v7"
+        ];
+        expectedSha256 = null;
+        nonReplace = false;
+        publishedIdentity = "6.12.95.7";
+        foundationState = {
+          id = "0x6129500000000001";
+          version = 1;
+        };
+        coverageState = {
+          id = "0x6129500000000002";
+          version = 7;
+          complete = true;
+        };
+        # kpatch-build groups these .ko targets into one modpost pass. Include
+        # direct module dependencies so modpost sees their exported symbols.
+        targets = [
         "vmlinux"
         "fs/fuse/fuse.ko"
         "net/dns_resolver/dns_resolver.ko"
@@ -82,7 +288,8 @@ let
         "arch/x86/kvm/kvm-amd.ko"
         "net/vmw_vsock/vsock.ko"
         "net/vmw_vsock/vmw_vsock_virtio_transport_common.ko"
-      ];
+        ];
+      };
     }
     {
       name = "bp-6.12.48-6.12.89-cumulative";
@@ -123,12 +330,18 @@ let
     concatMap (patch: optional (patch ? transitionGuard) patch.transitionGuard) (
       filterPatches kernelVersion
     );
+  releaseForVersion = kernelVersion:
+    let
+      releases = filterPatches kernelVersion;
+    in
+    if length releases == 1 then head releases else null;
 in
 {
   getPatchVersion = getPatchVersion;
   patchList = patchListForVersion version;
   patchTargets = patchTargetsForVersion version;
   transitionGuards = transitionGuardsForVersion version;
+  release = releaseForVersion version;
   patchVersion = filterPatchesVersionsSum version;
   filteredPatches = filterPatches version;
   allPatches = availablePatches;
