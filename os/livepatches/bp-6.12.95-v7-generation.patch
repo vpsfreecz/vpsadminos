@@ -2,19 +2,21 @@ diff --git a/kernel/livepatch/state.c b/kernel/livepatch/state.c
 index 2565d039ade0a..e170ff0c28f88 100644
 --- a/kernel/livepatch/state.c
 +++ b/kernel/livepatch/state.c
-@@ -8,6 +8,11 @@
+@@ -8,6 +8,13 @@
  #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
  
  #include <linux/livepatch.h>
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
 +#include <linux/moduleparam.h>
 +#include <linux/string.h>
 +#include <linux/utsname.h>
 +#include <linux/vpsadminos-livepatch-build.h>
 +#include <linux/vpsadminos-livepatch-foundation.h>
++#endif
  #include "core.h"
  #include "state.h"
  #include "transition.h"
-@@ -15,6 +20,578 @@
+@@ -15,6 +22,581 @@
  #define klp_for_each_state(patch, state)		\
  	for (state = patch->states; state && state->id; state++)
  
@@ -459,11 +461,14 @@ index 2565d039ade0a..e170ff0c28f88 100644
 +		return -EINVAL;
 +	record = klp_get_prev_state(VPSADMINOS_KLP_DEPENDENCY_STATE_ID);
 +	old_dependency = record ? record->data : NULL;
-+	record = klp_get_state(patch, VPSADMINOS_KLP_DEPENDENCY_STATE_ID);
++	record = vpsadminos_klp_patch_state(patch,
++					    VPSADMINOS_KLP_DEPENDENCY_STATE_ID);
 +	dependency = record ? record->data : NULL;
-+	record = klp_get_state(patch, VPSADMINOS_KLP_FOUNDATION_STATE_ID);
++	record = vpsadminos_klp_patch_state(patch,
++					    VPSADMINOS_KLP_FOUNDATION_STATE_ID);
 +	foundation = record ? record->data : NULL;
-+	record = klp_get_state(patch, VPSADMINOS_KLP_COVERAGE_STATE_ID);
++	record = vpsadminos_klp_patch_state(patch,
++					    VPSADMINOS_KLP_COVERAGE_STATE_ID);
 +	coverage = record ? record->data : NULL;
 +	if (!old_dependency ||
 +	    old_dependency->magic != VPSADMINOS_KLP_DEPENDENCY_MAGIC ||

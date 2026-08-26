@@ -150,6 +150,29 @@ let
       #define LIVEPATCH_ORIG_KERNEL_VERSION        "${kernel.modDirVersion}"
       #define LIVEPATCH_NAME                       "${patchName}"
       #define LIVEPATCH_ARTIFACT_ROLE              "${artifact.role}"
+      #ifdef __GENKSYMS__
+      #define LIVEPATCH_IS_GUARD                   0
+      #define LIVEPATCH_IS_CHECKPOINT_GUARD        0
+      #define LIVEPATCH_IS_REVERSE_GUARD           0
+      #define LIVEPATCH_IS_FOUNDATION              0
+      #define LIVEPATCH_IS_GENERATION_FINAL        0
+      #define LIVEPATCH_IS_CHECKPOINT              0
+      #define LIVEPATCH_EXPECTED_FUNCTIONS         0
+      #define LIVEPATCH_INVENTORY_ID_HI            0ULL
+      #define LIVEPATCH_INVENTORY_ID_LO            0ULL
+      #define LIVEPATCH_ANCHOR_FUNCTIONS           0
+      #define LIVEPATCH_ANCHOR_INVENTORY_ID_HI     0ULL
+      #define LIVEPATCH_ANCHOR_INVENTORY_ID_LO     0ULL
+      #define LIVEPATCH_GUARD_FUNCTIONS            0
+      #define LIVEPATCH_GUARD_INVENTORY_ID_HI      0ULL
+      #define LIVEPATCH_GUARD_INVENTORY_ID_LO      0ULL
+      #define LIVEPATCH_FOUNDATION_FUNCTIONS       0
+      #define LIVEPATCH_FOUNDATION_INVENTORY_ID_HI 0ULL
+      #define LIVEPATCH_FOUNDATION_INVENTORY_ID_LO 0ULL
+      #define LIVEPATCH_FINAL_FUNCTIONS            0
+      #define LIVEPATCH_FINAL_INVENTORY_ID_HI      0ULL
+      #define LIVEPATCH_FINAL_INVENTORY_ID_LO      0ULL
+      #else
       #define LIVEPATCH_IS_GUARD                   ${if flags.isGuard then "1" else "0"}
       #define LIVEPATCH_IS_CHECKPOINT_GUARD        ${if flags.isCheckpointGuard then "1" else "0"}
       #define LIVEPATCH_IS_REVERSE_GUARD           ${if flags.isReverseGuard then "1" else "0"}
@@ -171,6 +194,7 @@ let
       #define LIVEPATCH_FINAL_FUNCTIONS            ${if finalContract == null then "0" else contractFunctionCount artifact "release.contract.final" finalContract}
       #define LIVEPATCH_FINAL_INVENTORY_ID_HI      ${if finalContract == null then "0ULL" else contractInventoryLiteral artifact "release.contract.final" "high" finalContract}
       #define LIVEPATCH_FINAL_INVENTORY_ID_LO      ${if finalContract == null then "0ULL" else contractInventoryLiteral artifact "release.contract.final" "low" finalContract}
+      #endif
       #endif
     '';
 

@@ -126,10 +126,10 @@ index 0000000000000..ea154cfdacc57
 +#endif
 diff --git a/include/linux/vpsadminos-livepatch-foundation.h b/include/linux/vpsadminos-livepatch-foundation.h
 new file mode 100644
-index 0000000000000..57d95e95d41ce
+index 0000000000000..538fb47d57448
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch-foundation.h
-@@ -0,0 +1,226 @@
+@@ -0,0 +1,315 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_VPSADMINOS_LIVEPATCH_FOUNDATION_H
 +#define _LINUX_VPSADMINOS_LIVEPATCH_FOUNDATION_H
@@ -222,6 +222,73 @@ index 0000000000000..57d95e95d41ce
 +typedef void (*vpsadminos_klp_terminal_fn)(struct module *owner,
 +					    bool enabled, void *data);
 +
++#ifdef __GENKSYMS__
++struct vpsadminos_klp_dependency_state {
++	u64 magic;
++	u32 abi_version;
++	bool active;
++	bool absorbing;
++	struct module *owner;
++	struct vpsadminos_klp_id owner_id;
++	void *foundation;
++
++	int (*begin)();
++	int (*acquire)();
++	void (*release)();
++	void (*abort)();
++	void (*activate)();
++	void (*deactivate)();
++	int (*install_foundation)();
++	void (*complete_transition)();
++	int (*prepare_absorb)();
++	void (*abort_absorb)();
++	void (*commit_absorb)();
++};
++
++struct vpsadminos_klp_foundation_state {
++	u64 magic;
++	u32 abi_version;
++	bool active;
++	bool absorbing;
++	struct module *owner;
++	struct vpsadminos_klp_id owner_id;
++	void *dependency;
++	void *artifact;
++
++	int (*register_completion)();
++	void (*cancel_completion)();
++	int (*prepare_transition)();
++	void (*complete_transition)();
++	void (*deactivate)();
++	int (*target_claim)();
++	void (*target_release)();
++	u64 (*target_generation)();
++	void (*target_retire)();
++	int (*target_import)();
++	int (*prepare_absorb)();
++	void (*abort_absorb)();
++	void (*commit_absorb)();
++};
++
++struct vpsadminos_klp_coverage_state {
++	u64 magic;
++	u32 abi_version;
++	u32 generation;
++	u32 expected_artifacts;
++	u64 completed_artifacts;
++	struct vpsadminos_klp_id owner_token;
++	struct vpsadminos_klp_id anchor_token;
++	struct vpsadminos_klp_id final_token;
++	enum vpsadminos_klp_anchor_class anchor_class;
++	bool active;
++	bool complete;
++	bool failed;
++	struct module *owner;
++	void *lifetime;
++	char anchor_identity[32];
++	char final_identity[32];
++};
++#else
 +struct vpsadminos_klp_dependency_state {
 +	u64 magic;
 +	u32 abi_version;
@@ -324,7 +391,13 @@ index 0000000000000..57d95e95d41ce
 +	char anchor_identity[32];
 +	char final_identity[32];
 +};
++#endif
 +
++#ifdef __GENKSYMS__
++struct klp_patch *vpsadminos_klp_object_patch(struct klp_object *obj);
++struct klp_state *vpsadminos_klp_patch_state(struct klp_patch *patch,
++					     unsigned long id);
++#else
 +static inline struct klp_patch *
 +vpsadminos_klp_object_patch(struct klp_object *obj)
 +{
@@ -332,6 +405,22 @@ index 0000000000000..57d95e95d41ce
 +		return NULL;
 +	return container_of(obj->kobj.parent, struct klp_patch, kobj);
 +}
++
++static inline struct klp_state *
++vpsadminos_klp_patch_state(struct klp_patch *patch, unsigned long id)
++{
++	struct klp_state *state;
++
++	if (!patch)
++		return NULL;
++
++	for (state = patch->states; state && state->id; state++)
++		if (state->id == id)
++			return state;
++
++	return NULL;
++}
++#endif
 +
 +struct vpsadminos_klp_callback_int {
 +	int (*fn)(struct klp_object *obj);
