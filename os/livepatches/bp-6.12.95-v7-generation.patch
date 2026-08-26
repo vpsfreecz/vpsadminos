@@ -1,0 +1,595 @@
+diff --git a/kernel/livepatch/state.c b/kernel/livepatch/state.c
+index 2565d039ade0a..e170ff0c28f88 100644
+--- a/kernel/livepatch/state.c
++++ b/kernel/livepatch/state.c
+@@ -8,6 +8,11 @@
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+ #include <linux/livepatch.h>
++#include <linux/moduleparam.h>
++#include <linux/string.h>
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch-build.h>
++#include <linux/vpsadminos-livepatch-foundation.h>
+ #include "core.h"
+ #include "state.h"
+ #include "transition.h"
+@@ -15,6 +20,578 @@
+ #define klp_for_each_state(patch, state)		\
+ 	for (state = patch->states; state && state->id; state++)
+ 
++#if LIVEPATCH_IS_GENERATION_FINAL || LIVEPATCH_IS_CHECKPOINT
++static struct vpsadminos_klp_coverage_state vpsadminos_coverage = {
++	.magic = VPSADMINOS_KLP_COVERAGE_MAGIC,
++	.abi_version = 1,
++	.generation = 7,
++	.expected_artifacts = 1,
++#if LIVEPATCH_IS_CHECKPOINT
++	.anchor_token = VPSADMINOS_KLP_ID(0, 0),
++	.anchor_class = VPSADMINOS_KLP_ANCHOR_NONE,
++	.anchor_identity = LIVEPATCH_ORIG_KERNEL_VERSION,
++#else
++	.anchor_token = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V6_ANCHOR_ID_HI,
++					  VPSADMINOS_KLP_V6_ANCHOR_ID_LO),
++	.anchor_class = VPSADMINOS_KLP_ANCHOR_REMEDIATION,
++	.anchor_identity = "6.12.95.6",
++#endif
++	.final_identity = "6.12.95.7",
++};
++
++static struct klp_state vpsadminos_coverage_klp_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_KLP_COVERAGE_STATE_ID,
++	.version = 7,
++	.data = &vpsadminos_coverage,
++};
++
++static bool vpsadminos_generation_active;
++static bool vpsadminos_generation_complete;
++module_param_named(generation_active, vpsadminos_generation_active, bool, 0444);
++module_param_named(generation_complete, vpsadminos_generation_complete, bool,
++		   0444);
++
++static char vpsadminos_previous_release[__NEW_UTS_LEN + 1];
++static char vpsadminos_prepared_release[__NEW_UTS_LEN + 1];
++static bool vpsadminos_identity_prepared;
++
++static int vpsadminos_prepare_identity(const char *expected,
++				       const char *replacement,
++				       const char *restore)
++{
++	int ret = 0;
++
++	if (!expected || !replacement || !restore ||
++	    strscpy(vpsadminos_prepared_release, replacement,
++		    sizeof(vpsadminos_prepared_release)) < 0 ||
++	    strscpy(vpsadminos_previous_release, restore,
++		    sizeof(vpsadminos_previous_release)) < 0)
++		return -EINVAL;
++	down_read(&uts_sem);
++	if (strcmp(init_uts_ns.name.release, expected))
++		ret = -EINVAL;
++	up_read(&uts_sem);
++	if (!ret)
++		vpsadminos_identity_prepared = true;
++	return ret;
++}
++
++static void vpsadminos_publish_identity(void)
++{
++	if (WARN_ON_ONCE(!vpsadminos_identity_prepared))
++		return;
++	down_write(&uts_sem);
++	strscpy(init_uts_ns.name.release, vpsadminos_prepared_release,
++		sizeof(init_uts_ns.name.release));
++	up_write(&uts_sem);
++	uts_proc_notify(UTS_PROC_OSRELEASE);
++}
++
++static void vpsadminos_restore_identity(void)
++{
++	if (WARN_ON_ONCE(!vpsadminos_identity_prepared))
++		return;
++	down_write(&uts_sem);
++	strscpy(init_uts_ns.name.release, vpsadminos_previous_release,
++		sizeof(init_uts_ns.name.release));
++	up_write(&uts_sem);
++	uts_proc_notify(UTS_PROC_OSRELEASE);
++	vpsadminos_identity_prepared = false;
++}
++
++static const struct vpsadminos_klp_artifact_spec
++vpsadminos_v7_anchor_spec = {
++	.module_name = "livepatch_6",
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V6_ANCHOR_ID_HI,
++					 VPSADMINOS_KLP_V6_ANCHOR_ID_LO),
++	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_ANCHOR_INVENTORY_ID_HI,
++					  LIVEPATCH_ANCHOR_INVENTORY_ID_LO),
++	.function_count = LIVEPATCH_ANCHOR_FUNCTIONS,
++	.order = 0,
++	.replace = true,
++};
++
++static const struct vpsadminos_klp_artifact_spec
++vpsadminos_v7_guard_spec = {
++	.module_name = "livepatch_transition_guard",
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_GUARD_ID_HI,
++					 VPSADMINOS_KLP_V7_GUARD_ID_LO),
++	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_GUARD_INVENTORY_ID_HI,
++					  LIVEPATCH_GUARD_INVENTORY_ID_LO),
++	.function_count = LIVEPATCH_GUARD_FUNCTIONS,
++	.order = 1,
++	.replace = false,
++};
++
++static const struct vpsadminos_klp_artifact_spec
++vpsadminos_v7_foundation_spec = {
++	.module_name = "lp61295_foundation",
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_FOUNDATION_ID_HI,
++					 VPSADMINOS_KLP_V7_FOUNDATION_ID_LO),
++	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_FOUNDATION_INVENTORY_ID_HI,
++					  LIVEPATCH_FOUNDATION_INVENTORY_ID_LO),
++	.function_count = LIVEPATCH_FOUNDATION_FUNCTIONS,
++	.order = 2,
++	.replace = false,
++};
++
++static const struct vpsadminos_klp_artifact_spec
++vpsadminos_v7_final_spec = {
++	.module_name = "lp7_sctp_correct",
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_FINAL_ID_HI,
++					 VPSADMINOS_KLP_V7_FINAL_ID_LO),
++	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_INVENTORY_ID_HI,
++					  LIVEPATCH_INVENTORY_ID_LO),
++	.function_count = LIVEPATCH_EXPECTED_FUNCTIONS,
++	.order = 3,
++	.replace = false,
++};
++
++static struct vpsadminos_klp_dependency_state *vpsadminos_final_dependency;
++static struct vpsadminos_klp_foundation_state *vpsadminos_final_foundation;
++static struct vpsadminos_klp_artifact_token *vpsadminos_final_artifact;
++
++static bool vpsadminos_dependency_contract_valid(
++		struct vpsadminos_klp_dependency_state *dependency)
++{
++	return dependency &&
++	       dependency->magic == VPSADMINOS_KLP_DEPENDENCY_MAGIC &&
++	       dependency->abi_version == VPSADMINOS_KLP_DEPENDENCY_STATE_VERSION &&
++	       smp_load_acquire(&dependency->active) && !dependency->absorbing &&
++	       dependency->begin && dependency->acquire && dependency->abort &&
++	       dependency->activate && dependency->deactivate &&
++	       dependency->prepare_absorb && dependency->abort_absorb &&
++	       dependency->commit_absorb;
++}
++
++static bool vpsadminos_foundation_contract_valid(
++		struct vpsadminos_klp_foundation_state *foundation)
++{
++	struct vpsadminos_klp_id expected =
++		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_FOUNDATION_ID_HI,
++				  VPSADMINOS_KLP_V7_FOUNDATION_ID_LO);
++
++	return foundation && foundation->magic == VPSADMINOS_KLP_FOUNDATION_MAGIC &&
++	       foundation->abi_version == VPSADMINOS_KLP_FOUNDATION_STATE_VERSION &&
++	       smp_load_acquire(&foundation->active) && !foundation->absorbing &&
++	       vpsadminos_klp_id_equal(&foundation->owner_id, &expected) &&
++	       foundation->owner &&
++	       !strcmp(foundation->owner->name, "lp61295_foundation") &&
++	       foundation->register_completion && foundation->cancel_completion &&
++	       foundation->complete_transition && foundation->deactivate &&
++	       foundation->prepare_absorb && foundation->abort_absorb &&
++	       foundation->commit_absorb;
++}
++
++static void vpsadminos_v7_final_terminal(struct module *owner, bool enabled,
++						 void *data)
++{
++	struct vpsadminos_klp_coverage_state *coverage = data;
++
++	if (WARN_ON_ONCE(!owner || coverage != &vpsadminos_coverage ||
++			 !vpsadminos_final_dependency ||
++			 !vpsadminos_final_artifact))
++		return;
++	if (enabled) {
++		vpsadminos_final_dependency->activate(
++			vpsadminos_final_dependency, vpsadminos_final_artifact);
++		coverage->owner = owner;
++		coverage->lifetime = vpsadminos_final_artifact;
++		coverage->owner_token =
++			VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_FINAL_ID_HI,
++					  VPSADMINOS_KLP_V7_FINAL_ID_LO);
++		coverage->final_token = coverage->owner_token;
++		WRITE_ONCE(coverage->completed_artifacts, BIT_ULL(0));
++		smp_store_release(&coverage->active, true);
++		smp_store_release(&coverage->complete, true);
++		WRITE_ONCE(vpsadminos_generation_active, true);
++		WRITE_ONCE(vpsadminos_generation_complete, true);
++		vpsadminos_publish_identity();
++		return;
++	}
++	vpsadminos_restore_identity();
++	WRITE_ONCE(vpsadminos_generation_complete, false);
++	WRITE_ONCE(vpsadminos_generation_active, false);
++	smp_store_release(&coverage->complete, false);
++	smp_store_release(&coverage->active, false);
++	coverage->owner = NULL;
++	coverage->lifetime = NULL;
++	vpsadminos_final_dependency->deactivate(vpsadminos_final_dependency,
++						vpsadminos_final_artifact);
++	vpsadminos_final_artifact = NULL;
++	vpsadminos_final_dependency = NULL;
++	vpsadminos_final_foundation = NULL;
++}
++
++static int __maybe_unused
++vpsadminos_v7_final_pre_patch(struct klp_object *obj)
++{
++	struct vpsadminos_klp_dependency_token *dependency_token;
++	struct vpsadminos_klp_dependency_state *dependency;
++	struct vpsadminos_klp_foundation_state *foundation;
++	struct klp_patch *patch = vpsadminos_klp_object_patch(obj);
++	struct klp_state *record;
++	int ret;
++
++	if (!patch || patch != klp_transition_patch ||
++	    klp_get_prev_state(VPSADMINOS_KLP_COVERAGE_STATE_ID))
++		return -EINVAL;
++	record = klp_get_prev_state(VPSADMINOS_KLP_DEPENDENCY_STATE_ID);
++	dependency = record ? record->data : NULL;
++	record = klp_get_prev_state(VPSADMINOS_KLP_FOUNDATION_STATE_ID);
++	foundation = record ? record->data : NULL;
++	if (!vpsadminos_dependency_contract_valid(dependency) ||
++	    !vpsadminos_foundation_contract_valid(foundation) ||
++	    foundation->dependency != dependency ||
++	    dependency->foundation != foundation)
++		return -EINVAL;
++	ret = dependency->begin(dependency, patch->mod, &vpsadminos_v7_final_spec,
++				&vpsadminos_final_artifact);
++	if (ret)
++		return ret;
++	ret = dependency->acquire(dependency, vpsadminos_final_artifact,
++				  &vpsadminos_v7_anchor_spec, &dependency_token);
++	if (ret)
++		goto abort;
++	ret = dependency->acquire(dependency, vpsadminos_final_artifact,
++				  &vpsadminos_v7_guard_spec, &dependency_token);
++	if (ret)
++		goto abort;
++	ret = dependency->acquire(dependency, vpsadminos_final_artifact,
++				  &vpsadminos_v7_foundation_spec,
++				  &dependency_token);
++	if (ret)
++		goto abort;
++	ret = vpsadminos_prepare_identity("6.12.95.6", "6.12.95.7",
++					  "6.12.95.6");
++	if (ret)
++		goto abort;
++	ret = foundation->register_completion(
++		foundation, patch->mod, &vpsadminos_v7_final_spec.artifact_id,
++		vpsadminos_v7_final_terminal, &vpsadminos_coverage);
++	if (ret)
++		goto abort_identity;
++	vpsadminos_final_dependency = dependency;
++	vpsadminos_final_foundation = foundation;
++	return 0;
++
++abort_identity:
++	vpsadminos_identity_prepared = false;
++abort:
++	dependency->abort(dependency, vpsadminos_final_artifact);
++	vpsadminos_final_artifact = NULL;
++	return ret;
++}
++
++static void __maybe_unused
++vpsadminos_v7_final_post_patch(struct klp_object *obj)
++{
++	/* Generation and identity publication are terminal-completion work. */
++	(void)obj;
++}
++
++static void __maybe_unused
++vpsadminos_v7_final_post_unpatch(struct klp_object *obj)
++{
++	struct klp_patch *patch = vpsadminos_klp_object_patch(obj);
++
++	if (!patch || vpsadminos_coverage.active || !vpsadminos_final_foundation)
++		return;
++	vpsadminos_final_foundation->cancel_completion(
++		vpsadminos_final_foundation, patch->mod);
++	vpsadminos_final_dependency->abort(vpsadminos_final_dependency,
++					  vpsadminos_final_artifact);
++	vpsadminos_final_artifact = NULL;
++	vpsadminos_final_dependency = NULL;
++	vpsadminos_final_foundation = NULL;
++	vpsadminos_identity_prepared = false;
++}
++
++#if LIVEPATCH_IS_GENERATION_FINAL
++static struct vpsadminos_klp_callback_int vpsadminos_v7_final_pre_patch_data
++__section(".kpatch.callbacks.pre_patch") __used = {
++	.fn = vpsadminos_v7_final_pre_patch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_klp_callback_void
++vpsadminos_v7_final_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_v7_final_post_patch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_klp_callback_void
++vpsadminos_v7_final_post_unpatch_data
++__section(".kpatch.callbacks.post_unpatch") __used = {
++	.fn = vpsadminos_v7_final_post_unpatch,
++	.objname = NULL,
++};
++#endif
++
++#if LIVEPATCH_IS_CHECKPOINT
++static const struct vpsadminos_klp_artifact_spec
++vpsadminos_v7_checkpoint_spec = {
++	.module_name = "livepatch_7",
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_ID_HI,
++					 VPSADMINOS_KLP_V7_CHECKPOINT_ID_LO),
++	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_INVENTORY_ID_HI,
++					  LIVEPATCH_INVENTORY_ID_LO),
++	.function_count = LIVEPATCH_EXPECTED_FUNCTIONS,
++	.order = 1,
++	.replace = true,
++};
++
++static const struct vpsadminos_klp_graph_entry
++vpsadminos_v7_checkpoint_predecessors[] = {
++	{
++		.artifact_id = VPSADMINOS_KLP_ID(
++			VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_HI,
++			VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_LO),
++		.required_mask = 0,
++	},
++};
++
++static struct vpsadminos_klp_dependency_state *vpsadminos_checkpoint_old_dependency;
++static struct vpsadminos_klp_dependency_state *vpsadminos_checkpoint_dependency;
++static struct vpsadminos_klp_foundation_state *vpsadminos_checkpoint_foundation;
++static struct vpsadminos_klp_artifact_token *vpsadminos_checkpoint_artifact;
++static struct vpsadminos_klp_dependency_absorb *vpsadminos_checkpoint_absorb;
++static bool vpsadminos_checkpoint_committed;
++
++static void vpsadminos_v7_checkpoint_terminal(struct module *owner,
++					       bool enabled, void *data)
++{
++	struct vpsadminos_klp_dependency_state *dependency;
++	struct vpsadminos_klp_foundation_state *foundation;
++	struct klp_patch *patch = data;
++
++	if (WARN_ON_ONCE(!owner || !patch || patch->mod != owner))
++		return;
++	if (enabled && vpsadminos_checkpoint_committed)
++		return;
++	if (enabled) {
++		if (WARN_ON_ONCE(!vpsadminos_checkpoint_old_dependency ||
++				 !vpsadminos_checkpoint_absorb ||
++				 !vpsadminos_checkpoint_dependency ||
++				 !vpsadminos_checkpoint_foundation ||
++				 !vpsadminos_checkpoint_artifact))
++			return;
++		dependency = vpsadminos_checkpoint_old_dependency;
++		dependency->commit_absorb(vpsadminos_checkpoint_absorb);
++		vpsadminos_checkpoint_absorb = NULL;
++		vpsadminos_checkpoint_old_dependency = NULL;
++		if (WARN_ON_ONCE(!vpsadminos_checkpoint_dependency->active ||
++				 vpsadminos_checkpoint_dependency->owner != owner ||
++				 vpsadminos_checkpoint_dependency->foundation !=
++					vpsadminos_checkpoint_foundation ||
++				 vpsadminos_checkpoint_foundation->dependency !=
++					vpsadminos_checkpoint_dependency ||
++				 vpsadminos_checkpoint_foundation->artifact !=
++					vpsadminos_checkpoint_artifact))
++			return;
++		vpsadminos_checkpoint_foundation->owner = owner;
++		vpsadminos_checkpoint_foundation->owner_id =
++			vpsadminos_v7_checkpoint_spec.artifact_id;
++		/* Publish the completed checkpoint foundation contract. */
++		smp_store_release(&vpsadminos_checkpoint_foundation->active, true);
++		vpsadminos_coverage.owner = owner;
++		vpsadminos_coverage.lifetime = vpsadminos_checkpoint_artifact;
++		vpsadminos_coverage.owner_token =
++			VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_ID_HI,
++					  VPSADMINOS_KLP_V7_CHECKPOINT_ID_LO);
++		vpsadminos_coverage.final_token =
++			vpsadminos_coverage.owner_token;
++		WRITE_ONCE(vpsadminos_coverage.completed_artifacts, BIT_ULL(0));
++		smp_store_release(&vpsadminos_coverage.active, true);
++		smp_store_release(&vpsadminos_coverage.complete, true);
++		WRITE_ONCE(vpsadminos_generation_active, true);
++		WRITE_ONCE(vpsadminos_generation_complete, true);
++		vpsadminos_publish_identity();
++		vpsadminos_checkpoint_committed = true;
++		return;
++	}
++
++	if (!vpsadminos_checkpoint_committed ||
++	    WARN_ON_ONCE(!vpsadminos_checkpoint_dependency ||
++			 !vpsadminos_checkpoint_foundation ||
++			 !vpsadminos_checkpoint_artifact))
++		return;
++	dependency = vpsadminos_checkpoint_dependency;
++	foundation = vpsadminos_checkpoint_foundation;
++	vpsadminos_restore_identity();
++	WRITE_ONCE(vpsadminos_generation_complete, false);
++	WRITE_ONCE(vpsadminos_generation_active, false);
++	smp_store_release(&vpsadminos_coverage.complete, false);
++	smp_store_release(&vpsadminos_coverage.active, false);
++	vpsadminos_coverage.owner = NULL;
++	vpsadminos_coverage.lifetime = NULL;
++	foundation->deactivate(foundation);
++	if (WARN_ON_ONCE(foundation->active))
++		return;
++	/* Retire the checkpoint dependency contract after foundation teardown. */
++	smp_store_release(&dependency->active, false);
++	dependency->foundation = NULL;
++	dependency->owner = NULL;
++	dependency->owner_id = VPSADMINOS_KLP_ID(0, 0);
++	vpsadminos_checkpoint_artifact = NULL;
++	vpsadminos_checkpoint_foundation = NULL;
++	vpsadminos_checkpoint_dependency = NULL;
++	vpsadminos_checkpoint_committed = false;
++}
++
++int vpsadminos_v7_checkpoint_pre_patch(struct klp_object *obj)
++{
++	struct vpsadminos_klp_dependency_state *old_dependency, *dependency;
++	struct vpsadminos_klp_foundation_state *foundation;
++	struct vpsadminos_klp_coverage_state *coverage;
++	struct vpsadminos_klp_id checkpoint_guard_id =
++		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_HI,
++				  VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_LO);
++	struct klp_patch *patch = vpsadminos_klp_object_patch(obj);
++	struct klp_state *record;
++	int ret;
++
++	if (!patch || patch != klp_transition_patch || !patch->replace ||
++	    list_is_singular(&klp_patches) ||
++	    klp_get_prev_state(VPSADMINOS_KLP_FOUNDATION_STATE_ID) ||
++	    klp_get_prev_state(VPSADMINOS_KLP_COVERAGE_STATE_ID))
++		return -EINVAL;
++	record = klp_get_prev_state(VPSADMINOS_KLP_DEPENDENCY_STATE_ID);
++	old_dependency = record ? record->data : NULL;
++	record = klp_get_state(patch, VPSADMINOS_KLP_DEPENDENCY_STATE_ID);
++	dependency = record ? record->data : NULL;
++	record = klp_get_state(patch, VPSADMINOS_KLP_FOUNDATION_STATE_ID);
++	foundation = record ? record->data : NULL;
++	record = klp_get_state(patch, VPSADMINOS_KLP_COVERAGE_STATE_ID);
++	coverage = record ? record->data : NULL;
++	if (!old_dependency ||
++	    old_dependency->magic != VPSADMINOS_KLP_DEPENDENCY_MAGIC ||
++	    old_dependency->abi_version != VPSADMINOS_KLP_DEPENDENCY_STATE_VERSION ||
++	    /* Pairs with clean checkpoint-guard activation. */
++	    !smp_load_acquire(&old_dependency->active) ||
++	    old_dependency->absorbing || !old_dependency->owner ||
++	    strcmp(old_dependency->owner->name, "lp7_checkpoint_guard") ||
++	    !vpsadminos_klp_id_equal(&old_dependency->owner_id,
++				     &checkpoint_guard_id) ||
++	    old_dependency->foundation || !old_dependency->prepare_absorb ||
++	    !old_dependency->abort_absorb || !old_dependency->commit_absorb ||
++	    !dependency || !foundation || coverage != &vpsadminos_coverage ||
++	    dependency->magic != VPSADMINOS_KLP_DEPENDENCY_MAGIC ||
++	    dependency->abi_version != VPSADMINOS_KLP_DEPENDENCY_STATE_VERSION ||
++	    !dependency->begin || !dependency->abort || !dependency->activate ||
++	    !dependency->deactivate || !dependency->complete_transition ||
++	    foundation->magic != VPSADMINOS_KLP_FOUNDATION_MAGIC ||
++	    foundation->abi_version != VPSADMINOS_KLP_FOUNDATION_STATE_VERSION ||
++	    !foundation->register_completion || !foundation->cancel_completion ||
++	    !foundation->complete_transition || !foundation->deactivate ||
++	    !foundation->target_claim || !foundation->target_release ||
++	    !foundation->target_generation || dependency->active ||
++	    dependency->absorbing || dependency->owner || dependency->foundation ||
++	    foundation->active || foundation->absorbing || foundation->owner ||
++	    foundation->dependency || foundation->artifact || coverage->active ||
++	    coverage->complete || coverage->failed || coverage->owner ||
++	    coverage->lifetime || vpsadminos_checkpoint_dependency ||
++	    vpsadminos_checkpoint_foundation || vpsadminos_checkpoint_artifact ||
++	    vpsadminos_checkpoint_old_dependency || vpsadminos_checkpoint_absorb ||
++	    vpsadminos_checkpoint_committed)
++		return -EINVAL;
++	ret = vpsadminos_prepare_identity(LIVEPATCH_ORIG_KERNEL_VERSION,
++					  "6.12.95.7",
++					  LIVEPATCH_ORIG_KERNEL_VERSION);
++	if (ret)
++		return ret;
++	ret = old_dependency->prepare_absorb(old_dependency, patch->mod,
++		&vpsadminos_v7_checkpoint_spec,
++		vpsadminos_v7_checkpoint_predecessors,
++		ARRAY_SIZE(vpsadminos_v7_checkpoint_predecessors), dependency,
++		&vpsadminos_checkpoint_absorb, &vpsadminos_checkpoint_artifact);
++	if (ret)
++		goto clear_identity;
++	dependency->foundation = foundation;
++	foundation->owner = patch->mod;
++	foundation->owner_id = vpsadminos_v7_checkpoint_spec.artifact_id;
++	foundation->dependency = dependency;
++	foundation->artifact = vpsadminos_checkpoint_artifact;
++	ret = foundation->register_completion(foundation, patch->mod,
++		&vpsadminos_v7_checkpoint_spec.artifact_id,
++		vpsadminos_v7_checkpoint_terminal, patch);
++	if (ret)
++		goto clear_contracts;
++	vpsadminos_checkpoint_old_dependency = old_dependency;
++	vpsadminos_checkpoint_dependency = dependency;
++	vpsadminos_checkpoint_foundation = foundation;
++	return 0;
++
++clear_contracts:
++	foundation->artifact = NULL;
++	foundation->dependency = NULL;
++	foundation->owner = NULL;
++	foundation->owner_id = VPSADMINOS_KLP_ID(0, 0);
++	dependency->foundation = NULL;
++	old_dependency->abort_absorb(vpsadminos_checkpoint_absorb);
++	vpsadminos_checkpoint_absorb = NULL;
++	vpsadminos_checkpoint_artifact = NULL;
++clear_identity:
++	vpsadminos_identity_prepared = false;
++	return ret;
++}
++
++void vpsadminos_v7_checkpoint_post_unpatch(struct klp_object *obj)
++{
++	struct vpsadminos_klp_dependency_state *dependency, *old_dependency;
++	struct vpsadminos_klp_foundation_state *foundation;
++	struct klp_patch *patch = vpsadminos_klp_object_patch(obj);
++
++	if (!patch)
++		return;
++	if (vpsadminos_checkpoint_committed) {
++		if (WARN_ON_ONCE(!vpsadminos_checkpoint_foundation ||
++				 !vpsadminos_checkpoint_foundation->complete_transition))
++			return;
++		/* The generated checkpoint keeps vmlinux last in callback order. */
++		foundation = vpsadminos_checkpoint_foundation;
++		foundation->complete_transition(foundation, patch);
++		return;
++	}
++	if (!vpsadminos_checkpoint_old_dependency ||
++	    !vpsadminos_checkpoint_dependency ||
++	    !vpsadminos_checkpoint_foundation ||
++	    !vpsadminos_checkpoint_absorb)
++		return;
++	old_dependency = vpsadminos_checkpoint_old_dependency;
++	dependency = vpsadminos_checkpoint_dependency;
++	foundation = vpsadminos_checkpoint_foundation;
++	foundation->cancel_completion(foundation, patch->mod);
++	foundation->artifact = NULL;
++	foundation->dependency = NULL;
++	foundation->owner = NULL;
++	foundation->owner_id = VPSADMINOS_KLP_ID(0, 0);
++	dependency->foundation = NULL;
++	old_dependency->abort_absorb(vpsadminos_checkpoint_absorb);
++	vpsadminos_checkpoint_absorb = NULL;
++	vpsadminos_checkpoint_artifact = NULL;
++	vpsadminos_checkpoint_foundation = NULL;
++	vpsadminos_checkpoint_dependency = NULL;
++	vpsadminos_checkpoint_old_dependency = NULL;
++	vpsadminos_identity_prepared = false;
++}
++#else
++int vpsadminos_v7_checkpoint_pre_patch(struct klp_object *obj)
++{
++	(void)obj;
++	return 0;
++}
++
++void vpsadminos_v7_checkpoint_post_unpatch(struct klp_object *obj)
++{
++	(void)obj;
++}
++#endif /* LIVEPATCH_IS_CHECKPOINT */
++#endif /* LIVEPATCH_IS_GENERATION_FINAL || LIVEPATCH_IS_CHECKPOINT */
++
+ /**
+  * klp_get_state() - get information about system state modified by
+  *	the given patch
