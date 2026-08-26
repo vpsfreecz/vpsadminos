@@ -1,5 +1,5 @@
 diff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c
-index 8804686fe1805c78292bc12c1745cfa758f4692d..aeaddd6ceb48a5fe61d1b6a2940994103f97113c 100644
+index 8804686fe1805..aeaddd6ceb48a 100644
 --- a/arch/x86/kvm/svm/svm.c
 +++ b/arch/x86/kvm/svm/svm.c
 @@ -28,8 +28,14 @@
@@ -90,7 +90,7 @@ index 8804686fe1805c78292bc12c1745cfa758f4692d..aeaddd6ceb48a5fe61d1b6a294099410
  
  /*
 diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
-index 21c10a87eed5b2ca3a181b5d4d6af2d6c1a70abf..ea3d7a059604d754382593bb66fb4c48297f9684 100644
+index 21c10a87eed5b..ea3d7a059604d 100644
 --- a/arch/x86/kvm/x86.c
 +++ b/arch/x86/kvm/x86.c
 @@ -12985,6 +12985,19 @@ EXPORT_SYMBOL_GPL(__x86_set_memory_region);
@@ -114,7 +114,7 @@ index 21c10a87eed5b2ca3a181b5d4d6af2d6c1a70abf..ea3d7a059604d754382593bb66fb4c48
  }
  
 diff --git a/fs/ceph/mds_client.c b/fs/ceph/mds_client.c
-index 7188378df704312b958fb2f8db810de702f5f6a7..5f2b70b846e71e6790c58fde80f637410437bab3 100644
+index 7188378df7043..5f2b70b846e71 100644
 --- a/fs/ceph/mds_client.c
 +++ b/fs/ceph/mds_client.c
 @@ -6,6 +6,7 @@
@@ -157,7 +157,7 @@ index 7188378df704312b958fb2f8db810de702f5f6a7..5f2b70b846e71e6790c58fde80f63741
  
  	up_read(&mdsc->snap_rwsem);
 diff --git a/fs/nfs/nfs4proc.c b/fs/nfs/nfs4proc.c
-index 5dd28be5dc9c7f03110b8213d2f5cb6e0e628aa7..4093b7572fe774d5fd8ae56e67c007c57c0daa37 100644
+index 5dd28be5dc9c7..4093b7572fe77 100644
 --- a/fs/nfs/nfs4proc.c
 +++ b/fs/nfs/nfs4proc.c
 @@ -55,9 +55,11 @@
@@ -266,7 +266,7 @@ index 5dd28be5dc9c7f03110b8213d2f5cb6e0e628aa7..4093b7572fe774d5fd8ae56e67c007c5
  
  struct vpsadminos_nfs_pre_patch_callback {
 diff --git a/include/linux/netfilter/nf_conntrack_sip.h b/include/linux/netfilter/nf_conntrack_sip.h
-index aafa0c04f917ebec565be614e226aaeee96934c4..26d83654fc846ec52afd857b22d4e59002fd9e46 100644
+index aafa0c04f917e..26d83654fc846 100644
 --- a/include/linux/netfilter/nf_conntrack_sip.h
 +++ b/include/linux/netfilter/nf_conntrack_sip.h
 @@ -114,8 +114,13 @@ struct nf_nat_sip_hooks {
@@ -285,7 +285,7 @@ index aafa0c04f917ebec565be614e226aaeee96934c4..26d83654fc846ec52afd857b22d4e590
  			       unsigned int protoff,
 diff --git a/include/linux/vpsadminos-livepatch-build.h b/include/linux/vpsadminos-livepatch-build.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..acce2d5f99c7e448d6e9b5395da893851d9f312f
+index 0000000000000..acce2d5f99c7e
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch-build.h
 @@ -0,0 +1,150 @@
@@ -441,10 +441,10 @@ index 0000000000000000000000000000000000000000..acce2d5f99c7e448d6e9b5395da89385
 +#endif /* _LINUX_VPSADMINOS_LIVEPATCH_BUILD_H */
 diff --git a/include/linux/vpsadminos-livepatch-foundation.h b/include/linux/vpsadminos-livepatch-foundation.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..538fb47d5744827509f3dba045d2abdd673a073e
+index 0000000000000..a4f2a200d07c3
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch-foundation.h
-@@ -0,0 +1,315 @@
+@@ -0,0 +1,451 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_VPSADMINOS_LIVEPATCH_FOUNDATION_H
 +#define _LINUX_VPSADMINOS_LIVEPATCH_FOUNDATION_H
@@ -485,6 +485,142 @@ index 0000000000000000000000000000000000000000..538fb47d5744827509f3dba045d2abdd
 +#define VPSADMINOS_KLP_V7_FINAL_ID_LO		0xdd5f39796b9a4288ULL
 +#define VPSADMINOS_KLP_V7_CHECKPOINT_ID_HI	0x6d9f368676415fc9ULL
 +#define VPSADMINOS_KLP_V7_CHECKPOINT_ID_LO	0x6adff04023728e41ULL
++
++#ifndef VPSADMINOS_KLP_RELEASE_GENERATION
++#define VPSADMINOS_KLP_RELEASE_GENERATION	7
++#endif
++
++#ifndef VPSADMINOS_KLP_RELEASE_IDENTITY
++#define VPSADMINOS_KLP_RELEASE_IDENTITY		"6.12.95.7"
++#endif
++
++#ifndef VPSADMINOS_KLP_ONLINE_PREDECESSOR_IDENTITY
++#define VPSADMINOS_KLP_ONLINE_PREDECESSOR_IDENTITY "6.12.95.6"
++#endif
++
++#ifndef VPSADMINOS_KLP_ONLINE_EXPECT_PREDECESSOR_COVERAGE
++#define VPSADMINOS_KLP_ONLINE_EXPECT_PREDECESSOR_COVERAGE 0
++#endif
++
++#ifndef VPSADMINOS_KLP_ONLINE_PREDECESSOR_GENERATION
++#define VPSADMINOS_KLP_ONLINE_PREDECESSOR_GENERATION 0
++#endif
++
++#ifndef VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_IDENTITY
++#define VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_IDENTITY ""
++#endif
++
++#ifndef VPSADMINOS_KLP_ANCHOR_MODULE_NAME
++#define VPSADMINOS_KLP_ANCHOR_MODULE_NAME	"livepatch_6"
++#endif
++
++#ifndef VPSADMINOS_KLP_ANCHOR_ID_HI
++#define VPSADMINOS_KLP_ANCHOR_ID_HI		VPSADMINOS_KLP_V6_ANCHOR_ID_HI
++#endif
++
++#ifndef VPSADMINOS_KLP_ANCHOR_ID_LO
++#define VPSADMINOS_KLP_ANCHOR_ID_LO		VPSADMINOS_KLP_V6_ANCHOR_ID_LO
++#endif
++
++#ifndef VPSADMINOS_KLP_ONLINE_ANCHOR_CLASS
++#define VPSADMINOS_KLP_ONLINE_ANCHOR_CLASS	VPSADMINOS_KLP_ANCHOR_REMEDIATION
++#endif
++
++#ifndef VPSADMINOS_KLP_ONLINE_ANCHOR_IDENTITY
++#define VPSADMINOS_KLP_ONLINE_ANCHOR_IDENTITY	VPSADMINOS_KLP_ONLINE_PREDECESSOR_IDENTITY
++#endif
++
++#ifndef VPSADMINOS_KLP_GUARD_MODULE_NAME
++#define VPSADMINOS_KLP_GUARD_MODULE_NAME	"livepatch_transition_guard"
++#endif
++
++#ifndef VPSADMINOS_KLP_GUARD_ID_HI
++#define VPSADMINOS_KLP_GUARD_ID_HI		VPSADMINOS_KLP_V7_GUARD_ID_HI
++#endif
++
++#ifndef VPSADMINOS_KLP_GUARD_ID_LO
++#define VPSADMINOS_KLP_GUARD_ID_LO		VPSADMINOS_KLP_V7_GUARD_ID_LO
++#endif
++
++#ifndef VPSADMINOS_KLP_CHECKPOINT_GUARD_MODULE_NAME
++#define VPSADMINOS_KLP_CHECKPOINT_GUARD_MODULE_NAME "lp7_checkpoint_guard"
++#endif
++
++#ifndef VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_HI
++#define VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_HI VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_HI
++#endif
++
++#ifndef VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_LO
++#define VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_LO VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_LO
++#endif
++
++#ifndef VPSADMINOS_KLP_REVERSE_GUARD_MODULE_NAME
++#define VPSADMINOS_KLP_REVERSE_GUARD_MODULE_NAME "lp7_reverse_guard"
++#endif
++
++#ifndef VPSADMINOS_KLP_REVERSE_GUARD_ID_HI
++#define VPSADMINOS_KLP_REVERSE_GUARD_ID_HI	VPSADMINOS_KLP_V7_REVERSE_GUARD_ID_HI
++#endif
++
++#ifndef VPSADMINOS_KLP_REVERSE_GUARD_ID_LO
++#define VPSADMINOS_KLP_REVERSE_GUARD_ID_LO	VPSADMINOS_KLP_V7_REVERSE_GUARD_ID_LO
++#endif
++
++#ifndef VPSADMINOS_KLP_FOUNDATION_MODULE_NAME
++#define VPSADMINOS_KLP_FOUNDATION_MODULE_NAME	"lp61295_foundation"
++#endif
++
++#ifndef VPSADMINOS_KLP_FOUNDATION_ID_HI
++#define VPSADMINOS_KLP_FOUNDATION_ID_HI		VPSADMINOS_KLP_V7_FOUNDATION_ID_HI
++#endif
++
++#ifndef VPSADMINOS_KLP_FOUNDATION_ID_LO
++#define VPSADMINOS_KLP_FOUNDATION_ID_LO		VPSADMINOS_KLP_V7_FOUNDATION_ID_LO
++#endif
++
++#ifndef VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_MODULE_NAME
++#define VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_MODULE_NAME VPSADMINOS_KLP_FOUNDATION_MODULE_NAME
++#endif
++
++#ifndef VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_ID_HI
++#define VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_ID_HI VPSADMINOS_KLP_FOUNDATION_ID_HI
++#endif
++
++#ifndef VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_ID_LO
++#define VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_ID_LO VPSADMINOS_KLP_FOUNDATION_ID_LO
++#endif
++
++#ifndef VPSADMINOS_KLP_FINAL_MODULE_NAME
++#define VPSADMINOS_KLP_FINAL_MODULE_NAME	"lp7_sctp_correct"
++#endif
++
++#ifndef VPSADMINOS_KLP_FINAL_ID_HI
++#define VPSADMINOS_KLP_FINAL_ID_HI		VPSADMINOS_KLP_V7_FINAL_ID_HI
++#endif
++
++#ifndef VPSADMINOS_KLP_FINAL_ID_LO
++#define VPSADMINOS_KLP_FINAL_ID_LO		VPSADMINOS_KLP_V7_FINAL_ID_LO
++#endif
++
++#ifndef VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_ID_HI
++#define VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_ID_HI 0ULL
++#endif
++
++#ifndef VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_ID_LO
++#define VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_ID_LO 0ULL
++#endif
++
++#ifndef VPSADMINOS_KLP_CHECKPOINT_MODULE_NAME
++#define VPSADMINOS_KLP_CHECKPOINT_MODULE_NAME	"livepatch_7"
++#endif
++
++#ifndef VPSADMINOS_KLP_CHECKPOINT_ID_HI
++#define VPSADMINOS_KLP_CHECKPOINT_ID_HI		VPSADMINOS_KLP_V7_CHECKPOINT_ID_HI
++#endif
++
++#ifndef VPSADMINOS_KLP_CHECKPOINT_ID_LO
++#define VPSADMINOS_KLP_CHECKPOINT_ID_LO		VPSADMINOS_KLP_V7_CHECKPOINT_ID_LO
++#endif
 +
 +struct vpsadminos_klp_id {
 +	u64 high;
@@ -761,7 +897,7 @@ index 0000000000000000000000000000000000000000..538fb47d5744827509f3dba045d2abdd
 +
 +#endif /* _LINUX_VPSADMINOS_LIVEPATCH_FOUNDATION_H */
 diff --git a/include/net/ip_vs.h b/include/net/ip_vs.h
-index 80110ec025002a99c274803203c2217d0fed055f..b61eb464b05a8af189ace5c9529577cebaeac20f 100644
+index 80110ec025002..b61eb464b05a8 100644
 --- a/include/net/ip_vs.h
 +++ b/include/net/ip_vs.h
 @@ -516,10 +516,16 @@ struct ip_vs_protocol {
@@ -841,7 +977,7 @@ index 80110ec025002a99c274803203c2217d0fed055f..b61eb464b05a8af189ace5c9529577ce
  static inline __wsum ip_vs_check_diff4(__be32 old, __be32 new, __wsum oldsum)
  {
 diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
-index ae3f75f61238e3492c72044f03dca3a43ae0fbfc..9c44cde729d34ff1edb23a60a3ce4146348a8c0f 100644
+index ae3f75f61238e..9c44cde729d34 100644
 --- a/kernel/bpf/core.c
 +++ b/kernel/bpf/core.c
 @@ -41,6 +41,8 @@
@@ -893,7 +1029,7 @@ index ae3f75f61238e3492c72044f03dca3a43ae0fbfc..9c44cde729d34ff1edb23a60a3ce4146
  
  static struct vpsadminos_pre_patch_callback vpsadminos_pre_patch_data
 diff --git a/kernel/events/core.c b/kernel/events/core.c
-index 6fdae4f923f3e333135849df4775178aff6fd7de..14ca8c4f7a974f04e203ac87d9a551450b900c30 100644
+index 6fdae4f923f3e..14ca8c4f7a974 100644
 --- a/kernel/events/core.c
 +++ b/kernel/events/core.c
 @@ -2206,6 +2206,34 @@ static inline struct list_head *get_event_list(struct perf_event *event)
@@ -1168,7 +1304,7 @@ index 6fdae4f923f3e333135849df4775178aff6fd7de..14ca8c4f7a974f04e203ac87d9a55145
  
  void perf_event_delayed_put(struct task_struct *task)
 diff --git a/kernel/livepatch/core.c b/kernel/livepatch/core.c
-index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb75630300c4c0 100644
+index 077e078032e05..20d4982ce9e48 100644
 --- a/kernel/livepatch/core.c
 +++ b/kernel/livepatch/core.c
 @@ -20,12 +20,22 @@
@@ -1194,7 +1330,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
  /*
   * klp_mutex is a coarse lock which serializes access to klp data.  All
   * accesses to klp-related variables and structures must have mutex protection,
-@@ -46,6 +56,901 @@ LIST_HEAD(klp_patches);
+@@ -46,6 +56,902 @@ LIST_HEAD(klp_patches);
  
  static struct kobject *klp_root_kobj;
  
@@ -1800,9 +1936,9 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_klp_v6_anchor_spec = {
-+	.module_name = "livepatch_6",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V6_ANCHOR_ID_HI,
-+					 VPSADMINOS_KLP_V6_ANCHOR_ID_LO),
++	.module_name = VPSADMINOS_KLP_ANCHOR_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_ANCHOR_ID_HI,
++					 VPSADMINOS_KLP_ANCHOR_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_ANCHOR_INVENTORY_ID_HI,
 +					  LIVEPATCH_ANCHOR_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_ANCHOR_FUNCTIONS,
@@ -1812,9 +1948,9 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_klp_v7_guard_spec = {
-+	.module_name = "livepatch_transition_guard",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_GUARD_ID_HI,
-+					 VPSADMINOS_KLP_V7_GUARD_ID_LO),
++	.module_name = VPSADMINOS_KLP_GUARD_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_GUARD_ID_HI,
++					 VPSADMINOS_KLP_GUARD_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_INVENTORY_ID_HI,
 +					  LIVEPATCH_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_EXPECTED_FUNCTIONS,
@@ -1824,9 +1960,9 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_klp_v7_checkpoint_guard_spec = {
-+	.module_name = "lp7_checkpoint_guard",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_HI,
-+					 VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_LO),
++	.module_name = VPSADMINOS_KLP_CHECKPOINT_GUARD_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_HI,
++					 VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_INVENTORY_ID_HI,
 +					  LIVEPATCH_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_EXPECTED_FUNCTIONS,
@@ -1836,9 +1972,9 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_klp_v7_checkpoint_anchor_spec = {
-+	.module_name = "livepatch_7",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_ID_HI,
-+					 VPSADMINOS_KLP_V7_CHECKPOINT_ID_LO),
++	.module_name = VPSADMINOS_KLP_CHECKPOINT_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_CHECKPOINT_ID_HI,
++					 VPSADMINOS_KLP_CHECKPOINT_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_ANCHOR_INVENTORY_ID_HI,
 +					  LIVEPATCH_ANCHOR_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_ANCHOR_FUNCTIONS,
@@ -1848,9 +1984,9 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_klp_v7_reverse_guard_spec = {
-+	.module_name = "lp7_reverse_guard",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_REVERSE_GUARD_ID_HI,
-+					 VPSADMINOS_KLP_V7_REVERSE_GUARD_ID_LO),
++	.module_name = VPSADMINOS_KLP_REVERSE_GUARD_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_REVERSE_GUARD_ID_HI,
++					 VPSADMINOS_KLP_REVERSE_GUARD_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_INVENTORY_ID_HI,
 +					  LIVEPATCH_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_EXPECTED_FUNCTIONS,
@@ -1895,8 +2031,8 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +	struct vpsadminos_klp_foundation_state *predecessor_foundation;
 +	struct vpsadminos_klp_coverage_state *predecessor_coverage;
 +	struct vpsadminos_klp_id checkpoint_id =
-+		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_ID_HI,
-+				  VPSADMINOS_KLP_V7_CHECKPOINT_ID_LO);
++		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_CHECKPOINT_ID_HI,
++				  VPSADMINOS_KLP_CHECKPOINT_ID_LO);
 +	struct klp_state *record;
 +#endif
 +	struct klp_patch *owner_patch;
@@ -1925,7 +2061,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +	anchor_patch = vpsadminos_klp_find_patch(anchor_spec->module_name);
 +	ret = vpsadminos_klp_verify_patch(anchor_patch, anchor_spec);
 +	if (ret || !anchor_patch->enabled ||
-+	    !vpsadminos_klp_release_is("6.12.95.7"))
++	    !vpsadminos_klp_release_is(VPSADMINOS_KLP_RELEASE_IDENTITY))
 +		return -EINVAL;
 +	record = klp_get_prev_state(VPSADMINOS_KLP_DEPENDENCY_STATE_ID);
 +	predecessor_dependency = record ? record->data : NULL;
@@ -1959,7 +2095,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +	    !predecessor_coverage ||
 +	    predecessor_coverage->magic != VPSADMINOS_KLP_COVERAGE_MAGIC ||
 +	    predecessor_coverage->abi_version != 1 ||
-+	    predecessor_coverage->generation != 7 ||
++	    predecessor_coverage->generation != VPSADMINOS_KLP_RELEASE_GENERATION ||
 +	    /* Pairs with checkpoint coverage publication. */
 +	    !smp_load_acquire(&predecessor_coverage->active) ||
 +	    /* Pairs with checkpoint completion publication. */
@@ -1971,7 +2107,8 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +				     &checkpoint_id) ||
 +	    !vpsadminos_klp_id_equal(&predecessor_coverage->final_token,
 +				     &checkpoint_id) ||
-+	    strcmp(predecessor_coverage->final_identity, "6.12.95.7"))
++	    strcmp(predecessor_coverage->final_identity,
++		   VPSADMINOS_KLP_RELEASE_IDENTITY))
 +		return -EINVAL;
 +	self_spec = &vpsadminos_klp_v7_reverse_guard_spec;
 +#else
@@ -1980,7 +2117,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +	ret = vpsadminos_klp_verify_patch(anchor_patch,
 +					 &vpsadminos_klp_v6_anchor_spec);
 +	if (ret || !anchor_patch->enabled ||
-+	    !vpsadminos_klp_release_is("6.12.95.6"))
++	    !vpsadminos_klp_release_is(VPSADMINOS_KLP_ONLINE_PREDECESSOR_IDENTITY))
 +		return -EINVAL;
 +	vpsadminos_klp_guard_anchor = vpsadminos_klp_alloc_artifact(
 +			anchor_patch, &vpsadminos_klp_v6_anchor_spec, true);
@@ -2096,7 +2233,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
  static bool klp_is_module(struct klp_object *obj)
  {
  	return obj->name;
-@@ -983,12 +1888,28 @@ static int klp_init_patch(struct klp_patch *patch)
+@@ -983,12 +1889,28 @@ static int klp_init_patch(struct klp_patch *patch)
  static int __klp_disable_patch(struct klp_patch *patch)
  {
  	struct klp_object *obj;
@@ -2125,7 +2262,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
  
  	klp_init_transition(patch, KLP_TRANSITION_UNPATCHED);
  
-@@ -1025,6 +1946,12 @@ static int __klp_enable_patch(struct klp_patch *patch)
+@@ -1025,6 +1947,12 @@ static int __klp_enable_patch(struct klp_patch *patch)
  
  	pr_notice("enabling patch '%s'\n", patch->mod->name);
  
@@ -2138,7 +2275,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
  	klp_init_transition(patch, KLP_TRANSITION_PATCHED);
  
  	/*
-@@ -1246,6 +2173,12 @@ int klp_module_coming(struct module *mod)
+@@ -1246,6 +2174,12 @@ int klp_module_coming(struct module *mod)
  	}
  
  	mutex_lock(&klp_mutex);
@@ -2151,7 +2288,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
  	/*
  	 * Each module has to know that klp_module_coming()
  	 * has been called. We never know what module will
-@@ -1307,6 +2240,7 @@ int klp_module_coming(struct module *mod)
+@@ -1307,6 +2241,7 @@ int klp_module_coming(struct module *mod)
  	mod->klp_alive = false;
  	obj->mod = NULL;
  	klp_cleanup_module_patches_limited(mod, patch);
@@ -2159,7 +2296,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
  	mutex_unlock(&klp_mutex);
  
  	return ret;
-@@ -1327,6 +2261,7 @@ void klp_module_going(struct module *mod)
+@@ -1327,6 +2262,7 @@ void klp_module_going(struct module *mod)
  	mod->klp_alive = false;
  
  	klp_cleanup_module_patches_limited(mod, NULL);
@@ -2167,7 +2304,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
  
  	mutex_unlock(&klp_mutex);
  }
-@@ -1341,3 +2276,12 @@ static int __init klp_init(void)
+@@ -1341,3 +2277,12 @@ static int __init klp_init(void)
  }
  
  module_init(klp_init);
@@ -2181,7 +2318,7 @@ index 077e078032e05fd12711eebd886d99d49df1023b..ad6abb436053fad8d8ceec6792fb7563
 +KPATCH_IGNORE_FUNCTION(__klp_disable_patch)
 +#endif
 diff --git a/kernel/livepatch/state.c b/kernel/livepatch/state.c
-index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634e7c852d9 100644
+index 2565d039ade0a..b07e937b89d7e 100644
 --- a/kernel/livepatch/state.c
 +++ b/kernel/livepatch/state.c
 @@ -8,6 +8,11 @@
@@ -2196,7 +2333,7 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
  #include "core.h"
  #include "state.h"
  #include "transition.h"
-@@ -15,6 +20,581 @@
+@@ -15,6 +20,610 @@
  #define klp_for_each_state(patch, state)		\
  	for (state = patch->states; state && state->id; state++)
  
@@ -2204,26 +2341,26 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +static struct vpsadminos_klp_coverage_state vpsadminos_coverage = {
 +	.magic = VPSADMINOS_KLP_COVERAGE_MAGIC,
 +	.abi_version = 1,
-+	.generation = 7,
++	.generation = VPSADMINOS_KLP_RELEASE_GENERATION,
 +	.expected_artifacts = 1,
 +#if LIVEPATCH_IS_CHECKPOINT
 +	.anchor_token = VPSADMINOS_KLP_ID(0, 0),
 +	.anchor_class = VPSADMINOS_KLP_ANCHOR_NONE,
 +	.anchor_identity = LIVEPATCH_ORIG_KERNEL_VERSION,
 +#else
-+	.anchor_token = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V6_ANCHOR_ID_HI,
-+					  VPSADMINOS_KLP_V6_ANCHOR_ID_LO),
-+	.anchor_class = VPSADMINOS_KLP_ANCHOR_REMEDIATION,
-+	.anchor_identity = "6.12.95.6",
++	.anchor_token = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_ANCHOR_ID_HI,
++					  VPSADMINOS_KLP_ANCHOR_ID_LO),
++	.anchor_class = VPSADMINOS_KLP_ONLINE_ANCHOR_CLASS,
++	.anchor_identity = VPSADMINOS_KLP_ONLINE_ANCHOR_IDENTITY,
 +#endif
-+	.final_identity = "6.12.95.7",
++	.final_identity = VPSADMINOS_KLP_RELEASE_IDENTITY,
 +};
 +
 +static struct klp_state vpsadminos_coverage_klp_state
 +__section(".kpatch.system_states") __used
 +__aligned(__alignof__(struct klp_state)) = {
 +	.id = VPSADMINOS_KLP_COVERAGE_STATE_ID,
-+	.version = 7,
++	.version = VPSADMINOS_KLP_RELEASE_GENERATION,
 +	.data = &vpsadminos_coverage,
 +};
 +
@@ -2283,9 +2420,9 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_v7_anchor_spec = {
-+	.module_name = "livepatch_6",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V6_ANCHOR_ID_HI,
-+					 VPSADMINOS_KLP_V6_ANCHOR_ID_LO),
++	.module_name = VPSADMINOS_KLP_ANCHOR_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_ANCHOR_ID_HI,
++					 VPSADMINOS_KLP_ANCHOR_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_ANCHOR_INVENTORY_ID_HI,
 +					  LIVEPATCH_ANCHOR_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_ANCHOR_FUNCTIONS,
@@ -2295,9 +2432,9 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_v7_guard_spec = {
-+	.module_name = "livepatch_transition_guard",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_GUARD_ID_HI,
-+					 VPSADMINOS_KLP_V7_GUARD_ID_LO),
++	.module_name = VPSADMINOS_KLP_GUARD_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_GUARD_ID_HI,
++					 VPSADMINOS_KLP_GUARD_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_GUARD_INVENTORY_ID_HI,
 +					  LIVEPATCH_GUARD_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_GUARD_FUNCTIONS,
@@ -2307,9 +2444,9 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_v7_foundation_spec = {
-+	.module_name = "lp61295_foundation",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_FOUNDATION_ID_HI,
-+					 VPSADMINOS_KLP_V7_FOUNDATION_ID_LO),
++	.module_name = VPSADMINOS_KLP_FOUNDATION_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_FOUNDATION_ID_HI,
++					 VPSADMINOS_KLP_FOUNDATION_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_FOUNDATION_INVENTORY_ID_HI,
 +					  LIVEPATCH_FOUNDATION_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_FOUNDATION_FUNCTIONS,
@@ -2319,9 +2456,9 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_v7_final_spec = {
-+	.module_name = "lp7_sctp_correct",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_FINAL_ID_HI,
-+					 VPSADMINOS_KLP_V7_FINAL_ID_LO),
++	.module_name = VPSADMINOS_KLP_FINAL_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_FINAL_ID_HI,
++					 VPSADMINOS_KLP_FINAL_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_INVENTORY_ID_HI,
 +					  LIVEPATCH_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_EXPECTED_FUNCTIONS,
@@ -2350,15 +2487,16 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +		struct vpsadminos_klp_foundation_state *foundation)
 +{
 +	struct vpsadminos_klp_id expected =
-+		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_FOUNDATION_ID_HI,
-+				  VPSADMINOS_KLP_V7_FOUNDATION_ID_LO);
++		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_ID_HI,
++				  VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_ID_LO);
 +
 +	return foundation && foundation->magic == VPSADMINOS_KLP_FOUNDATION_MAGIC &&
 +	       foundation->abi_version == VPSADMINOS_KLP_FOUNDATION_STATE_VERSION &&
 +	       smp_load_acquire(&foundation->active) && !foundation->absorbing &&
 +	       vpsadminos_klp_id_equal(&foundation->owner_id, &expected) &&
 +	       foundation->owner &&
-+	       !strcmp(foundation->owner->name, "lp61295_foundation") &&
++	       !strcmp(foundation->owner->name,
++		       VPSADMINOS_KLP_PREDECESSOR_FOUNDATION_MODULE_NAME) &&
 +	       foundation->register_completion && foundation->cancel_completion &&
 +	       foundation->complete_transition && foundation->deactivate &&
 +	       foundation->prepare_absorb && foundation->abort_absorb &&
@@ -2380,8 +2518,8 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +		coverage->owner = owner;
 +		coverage->lifetime = vpsadminos_final_artifact;
 +		coverage->owner_token =
-+			VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_FINAL_ID_HI,
-+					  VPSADMINOS_KLP_V7_FINAL_ID_LO);
++			VPSADMINOS_KLP_ID(VPSADMINOS_KLP_FINAL_ID_HI,
++					  VPSADMINOS_KLP_FINAL_ID_LO);
 +		coverage->final_token = coverage->owner_token;
 +		WRITE_ONCE(coverage->completed_artifacts, BIT_ULL(0));
 +		smp_store_release(&coverage->active, true);
@@ -2409,15 +2547,41 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +vpsadminos_v7_final_pre_patch(struct klp_object *obj)
 +{
 +	struct vpsadminos_klp_dependency_token *dependency_token;
++	struct vpsadminos_klp_coverage_state *predecessor_coverage;
 +	struct vpsadminos_klp_dependency_state *dependency;
 +	struct vpsadminos_klp_foundation_state *foundation;
 +	struct klp_patch *patch = vpsadminos_klp_object_patch(obj);
 +	struct klp_state *record;
++	struct vpsadminos_klp_id predecessor_final_id =
++		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_ID_HI,
++				  VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_ID_LO);
 +	int ret;
 +
-+	if (!patch || patch != klp_transition_patch ||
-+	    klp_get_prev_state(VPSADMINOS_KLP_COVERAGE_STATE_ID))
++	if (!patch || patch != klp_transition_patch)
 +		return -EINVAL;
++	record = klp_get_prev_state(VPSADMINOS_KLP_COVERAGE_STATE_ID);
++	predecessor_coverage = record ? record->data : NULL;
++#if VPSADMINOS_KLP_ONLINE_EXPECT_PREDECESSOR_COVERAGE
++	if (!predecessor_coverage ||
++	    predecessor_coverage->magic != VPSADMINOS_KLP_COVERAGE_MAGIC ||
++	    predecessor_coverage->abi_version != 1 ||
++	    predecessor_coverage->generation !=
++		    VPSADMINOS_KLP_ONLINE_PREDECESSOR_GENERATION ||
++	    !smp_load_acquire(&predecessor_coverage->active) ||
++	    !smp_load_acquire(&predecessor_coverage->complete) ||
++	    predecessor_coverage->failed || !predecessor_coverage->owner ||
++	    !predecessor_coverage->lifetime ||
++	    !vpsadminos_klp_id_equal(&predecessor_coverage->owner_token,
++				     &predecessor_final_id) ||
++	    !vpsadminos_klp_id_equal(&predecessor_coverage->final_token,
++				     &predecessor_final_id) ||
++	    strcmp(predecessor_coverage->final_identity,
++		   VPSADMINOS_KLP_ONLINE_PREDECESSOR_FINAL_IDENTITY))
++		return -EINVAL;
++#else
++	if (predecessor_coverage)
++		return -EINVAL;
++#endif
 +	record = klp_get_prev_state(VPSADMINOS_KLP_DEPENDENCY_STATE_ID);
 +	dependency = record ? record->data : NULL;
 +	record = klp_get_prev_state(VPSADMINOS_KLP_FOUNDATION_STATE_ID);
@@ -2444,8 +2608,9 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +				  &dependency_token);
 +	if (ret)
 +		goto abort;
-+	ret = vpsadminos_prepare_identity("6.12.95.6", "6.12.95.7",
-+					  "6.12.95.6");
++	ret = vpsadminos_prepare_identity(VPSADMINOS_KLP_ONLINE_PREDECESSOR_IDENTITY,
++					  VPSADMINOS_KLP_RELEASE_IDENTITY,
++					  VPSADMINOS_KLP_ONLINE_PREDECESSOR_IDENTITY);
 +	if (ret)
 +		goto abort;
 +	ret = foundation->register_completion(
@@ -2514,9 +2679,9 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +#if LIVEPATCH_IS_CHECKPOINT
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_v7_checkpoint_spec = {
-+	.module_name = "livepatch_7",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_ID_HI,
-+					 VPSADMINOS_KLP_V7_CHECKPOINT_ID_LO),
++	.module_name = VPSADMINOS_KLP_CHECKPOINT_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_CHECKPOINT_ID_HI,
++					 VPSADMINOS_KLP_CHECKPOINT_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_INVENTORY_ID_HI,
 +					  LIVEPATCH_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_EXPECTED_FUNCTIONS,
@@ -2528,8 +2693,8 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +vpsadminos_v7_checkpoint_predecessors[] = {
 +	{
 +		.artifact_id = VPSADMINOS_KLP_ID(
-+			VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_HI,
-+			VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_LO),
++			VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_HI,
++			VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_LO),
 +		.required_mask = 0,
 +	},
 +};
@@ -2580,8 +2745,8 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +		vpsadminos_coverage.owner = owner;
 +		vpsadminos_coverage.lifetime = vpsadminos_checkpoint_artifact;
 +		vpsadminos_coverage.owner_token =
-+			VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_ID_HI,
-+					  VPSADMINOS_KLP_V7_CHECKPOINT_ID_LO);
++			VPSADMINOS_KLP_ID(VPSADMINOS_KLP_CHECKPOINT_ID_HI,
++					  VPSADMINOS_KLP_CHECKPOINT_ID_LO);
 +		vpsadminos_coverage.final_token =
 +			vpsadminos_coverage.owner_token;
 +		WRITE_ONCE(vpsadminos_coverage.completed_artifacts, BIT_ULL(0));
@@ -2628,8 +2793,8 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +	struct vpsadminos_klp_foundation_state *foundation;
 +	struct vpsadminos_klp_coverage_state *coverage;
 +	struct vpsadminos_klp_id checkpoint_guard_id =
-+		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_HI,
-+				  VPSADMINOS_KLP_V7_CHECKPOINT_GUARD_ID_LO);
++		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_HI,
++				  VPSADMINOS_KLP_CHECKPOINT_GUARD_ID_LO);
 +	struct klp_patch *patch = vpsadminos_klp_object_patch(obj);
 +	struct klp_state *record;
 +	int ret;
@@ -2656,7 +2821,8 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +	    /* Pairs with clean checkpoint-guard activation. */
 +	    !smp_load_acquire(&old_dependency->active) ||
 +	    old_dependency->absorbing || !old_dependency->owner ||
-+	    strcmp(old_dependency->owner->name, "lp7_checkpoint_guard") ||
++	    strcmp(old_dependency->owner->name,
++		   VPSADMINOS_KLP_CHECKPOINT_GUARD_MODULE_NAME) ||
 +	    !vpsadminos_klp_id_equal(&old_dependency->owner_id,
 +				     &checkpoint_guard_id) ||
 +	    old_dependency->foundation || !old_dependency->prepare_absorb ||
@@ -2682,7 +2848,7 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
 +	    vpsadminos_checkpoint_committed)
 +		return -EINVAL;
 +	ret = vpsadminos_prepare_identity(LIVEPATCH_ORIG_KERNEL_VERSION,
-+					  "6.12.95.7",
++					  VPSADMINOS_KLP_RELEASE_IDENTITY,
 +					  LIVEPATCH_ORIG_KERNEL_VERSION);
 +	if (ret)
 +		return ret;
@@ -2779,7 +2945,7 @@ index 2565d039ade0ad8ad072a0c6ff059030ec0cdd46..9e2a152fd5877a88b61b010e5f2d1634
   * klp_get_state() - get information about system state modified by
   *	the given patch
 diff --git a/kernel/livepatch/transition.c b/kernel/livepatch/transition.c
-index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb1eabf15d 100644
+index ba069459c1017..b01fd70c8bd6c 100644
 --- a/kernel/livepatch/transition.c
 +++ b/kernel/livepatch/transition.c
 @@ -7,13 +7,26 @@
@@ -2809,7 +2975,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  #define MAX_STACK_ENTRIES  100
  static DEFINE_PER_CPU(unsigned long[MAX_STACK_ENTRIES], klp_stack_entries);
  
-@@ -21,30 +34,1160 @@ static DEFINE_PER_CPU(unsigned long[MAX_STACK_ENTRIES], klp_stack_entries);
+@@ -21,30 +34,1161 @@ static DEFINE_PER_CPU(unsigned long[MAX_STACK_ENTRIES], klp_stack_entries);
  
  #define SIGNALS_TIMEOUT 15
  
@@ -2987,9 +3153,9 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_klp_foundation_anchor_spec = {
-+	.module_name = "livepatch_6",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V6_ANCHOR_ID_HI,
-+					 VPSADMINOS_KLP_V6_ANCHOR_ID_LO),
++	.module_name = VPSADMINOS_KLP_ANCHOR_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_ANCHOR_ID_HI,
++					 VPSADMINOS_KLP_ANCHOR_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_ANCHOR_INVENTORY_ID_HI,
 +					  LIVEPATCH_ANCHOR_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_ANCHOR_FUNCTIONS,
@@ -2999,9 +3165,9 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_klp_foundation_guard_spec = {
-+	.module_name = "livepatch_transition_guard",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_GUARD_ID_HI,
-+					 VPSADMINOS_KLP_V7_GUARD_ID_LO),
++	.module_name = VPSADMINOS_KLP_GUARD_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_GUARD_ID_HI,
++					 VPSADMINOS_KLP_GUARD_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_GUARD_INVENTORY_ID_HI,
 +					  LIVEPATCH_GUARD_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_GUARD_FUNCTIONS,
@@ -3011,9 +3177,9 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
 +
 +static const struct vpsadminos_klp_artifact_spec
 +vpsadminos_klp_foundation_self_spec = {
-+	.module_name = "lp61295_foundation",
-+	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_FOUNDATION_ID_HI,
-+					 VPSADMINOS_KLP_V7_FOUNDATION_ID_LO),
++	.module_name = VPSADMINOS_KLP_FOUNDATION_MODULE_NAME,
++	.artifact_id = VPSADMINOS_KLP_ID(VPSADMINOS_KLP_FOUNDATION_ID_HI,
++					 VPSADMINOS_KLP_FOUNDATION_ID_LO),
 +	.inventory_id = VPSADMINOS_KLP_ID(LIVEPATCH_INVENTORY_ID_HI,
 +					  LIVEPATCH_INVENTORY_ID_LO),
 +	.function_count = LIVEPATCH_EXPECTED_FUNCTIONS,
@@ -3173,7 +3339,8 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
 +	provisional = !state->active && klp_transition_patch &&
 +		      klp_transition_patch->replace &&
 +		      klp_transition_patch->mod &&
-+		      !strcmp(klp_transition_patch->mod->name, "livepatch_7");
++		      !strcmp(klp_transition_patch->mod->name,
++			      VPSADMINOS_KLP_CHECKPOINT_MODULE_NAME);
 +#endif
 +	available = state->active || prepared;
 +#if LIVEPATCH_IS_CHECKPOINT
@@ -3497,8 +3664,8 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
 +
 +	WRITE_ONCE(new->owner, prepared->checkpoint);
 +	new->owner_id =
-+		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_V7_CHECKPOINT_ID_HI,
-+				  VPSADMINOS_KLP_V7_CHECKPOINT_ID_LO);
++		VPSADMINOS_KLP_ID(VPSADMINOS_KLP_CHECKPOINT_ID_HI,
++				  VPSADMINOS_KLP_CHECKPOINT_ID_LO);
 +	WRITE_ONCE(new->absorbing, false);
 +	smp_store_release(&new->active, true);
 +	kfree(prepared);
@@ -3981,7 +4148,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  
  /*
   * This work can be performed periodically to finish patching or unpatching any
-@@ -149,9 +1292,26 @@ static void klp_complete_transition(void)
+@@ -149,9 +1293,26 @@ static void klp_complete_transition(void)
  			klp_post_unpatch_callback(obj);
  	}
  
@@ -4008,7 +4175,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  	klp_target_state = KLP_TRANSITION_IDLE;
  	klp_transition_patch = NULL;
  }
-@@ -256,6 +1416,52 @@ static int klp_check_stack_func(struct klp_func *func, unsigned long *entries,
+@@ -256,6 +1417,52 @@ static int klp_check_stack_func(struct klp_func *func, unsigned long *entries,
  	return 0;
  }
  
@@ -4061,7 +4228,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  /*
   * Determine whether it's safe to transition the task to the target patch state
   * by looking for any to-be-patched or to-be-unpatched functions on its stack.
-@@ -274,6 +1480,9 @@ static int klp_check_stack(struct task_struct *task, const char **oldname)
+@@ -274,6 +1481,9 @@ static int klp_check_stack(struct task_struct *task, const char **oldname)
  	if (ret < 0)
  		return -EINVAL;
  	nr_entries = ret;
@@ -4071,7 +4238,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  
  	klp_for_each_object(klp_transition_patch, obj) {
  		if (!obj->patched)
-@@ -311,9 +1520,12 @@ static int klp_check_and_switch_task(struct task_struct *task, void *arg)
+@@ -311,9 +1521,12 @@ static int klp_check_and_switch_task(struct task_struct *task, void *arg)
   * running, or it's sleeping on a to-be-patched or to-be-unpatched function, or
   * if the stack is unreliable, return false.
   */
@@ -4085,7 +4252,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  	int ret;
  
  	/* check if this task has already switched over */
-@@ -332,13 +1544,64 @@ static bool klp_try_switch_task(struct task_struct *task)
+@@ -332,13 +1545,64 @@ static bool klp_try_switch_task(struct task_struct *task)
  	 * functions.  If all goes well, switch the task to the target patch
  	 * state.
  	 */
@@ -4153,7 +4320,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  		break;
  
  	case -EBUSY:	/* klp_check_and_switch_task() */
-@@ -363,6 +1626,56 @@ static bool klp_try_switch_task(struct task_struct *task)
+@@ -363,6 +1627,56 @@ static bool klp_try_switch_task(struct task_struct *task)
  	return !ret;
  }
  
@@ -4210,7 +4377,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  void __klp_sched_try_switch(void)
  {
  	if (likely(!klp_patch_pending(current)))
-@@ -370,19 +1683,15 @@ void __klp_sched_try_switch(void)
+@@ -370,19 +1684,15 @@ void __klp_sched_try_switch(void)
  
  	/*
  	 * This function is called from cond_resched() which is called in many
@@ -4234,7 +4401,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  	if (unlikely(!klp_patch_pending(current)))
  		goto out;
  
-@@ -452,7 +1761,14 @@ void klp_try_complete_transition(void)
+@@ -452,7 +1762,14 @@ void klp_try_complete_transition(void)
  {
  	unsigned int cpu;
  	struct task_struct *g, *task;
@@ -4249,7 +4416,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  	bool complete = true;
  
  	WARN_ON_ONCE(klp_target_state == KLP_TRANSITION_IDLE);
-@@ -466,31 +1782,143 @@ void klp_try_complete_transition(void)
+@@ -466,31 +1783,143 @@ void klp_try_complete_transition(void)
  	 * Usually this will transition most (or all) of the tasks on a system
  	 * unless the patch includes changes to a very common function.
  	 */
@@ -4402,7 +4569,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  
  	if (!complete) {
  		if (klp_signals_cnt && !(klp_signals_cnt % SIGNALS_TIMEOUT))
-@@ -508,7 +1936,7 @@ void klp_try_complete_transition(void)
+@@ -508,7 +1937,7 @@ void klp_try_complete_transition(void)
  	}
  
  	/* Done!  Now cleanup the data structures. */
@@ -4411,7 +4578,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  	patch = klp_transition_patch;
  	klp_complete_transition();
  
-@@ -533,6 +1961,7 @@ void klp_start_transition(void)
+@@ -533,6 +1962,7 @@ void klp_start_transition(void)
  	unsigned int cpu;
  
  	WARN_ON_ONCE(klp_target_state == KLP_TRANSITION_IDLE);
@@ -4419,7 +4586,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  
  	pr_notice("'%s': starting %s transition\n",
  		  klp_transition_patch->mod->name,
-@@ -560,7 +1989,7 @@ void klp_start_transition(void)
+@@ -560,7 +1990,7 @@ void klp_start_transition(void)
  			set_tsk_thread_flag(task, TIF_PATCH_PENDING);
  	}
  
@@ -4428,7 +4595,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  
  	klp_signals_cnt = 0;
  }
-@@ -713,6 +2142,9 @@ void klp_copy_process(struct task_struct *child)
+@@ -713,6 +2143,9 @@ void klp_copy_process(struct task_struct *child)
  		clear_tsk_thread_flag(child, TIF_PATCH_PENDING);
  
  	child->patch_state = current->patch_state;
@@ -4438,7 +4605,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
  }
  
  /*
-@@ -750,3 +2182,9 @@ void klp_force_transition(void)
+@@ -750,3 +2183,9 @@ void klp_force_transition(void)
  		}
  	}
  }
@@ -4449,7 +4616,7 @@ index ba069459c1017b815101cc3aeb186d9407f7bd10..b097457b4e58ca41a155de86e7fbc9eb
 +KPATCH_IGNORE_FUNCTION(klp_start_transition)
 +#endif
 diff --git a/kernel/livepatch/transition.h b/kernel/livepatch/transition.h
-index 322db16233de1948f0928ad47d7f3b80342bd95d..497af35865224d71fe5f8e2fe817d0365d15280c 100644
+index 322db16233de1..497af35865224 100644
 --- a/kernel/livepatch/transition.h
 +++ b/kernel/livepatch/transition.h
 @@ -6,6 +6,8 @@
@@ -4462,7 +4629,7 @@ index 322db16233de1948f0928ad47d7f3b80342bd95d..497af35865224d71fe5f8e2fe817d036
  void klp_cancel_transition(void);
  void klp_start_transition(void);
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 1515562168900edc1594bdb018659e11814b97ff..7261348320bfa64ab35feab85cd352a471e5ef99 100644
+index 1515562168900..7261348320bfa 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -68,6 +68,11 @@
@@ -4531,7 +4698,7 @@ index 1515562168900edc1594bdb018659e11814b97ff..7261348320bfa64ab35feab85cd352a4
 +KPATCH_IGNORE_FUNCTION(preempt_schedule_irq)
 +#endif
 diff --git a/net/ceph/osdmap.c b/net/ceph/osdmap.c
-index f6fe0dfe2a569d59c3bad9673761d0727c25a074..4d5cf1a67a189fcebbd1dfcd6110cf110238b72a 100644
+index f6fe0dfe2a569..4d5cf1a67a189 100644
 --- a/net/ceph/osdmap.c
 +++ b/net/ceph/osdmap.c
 @@ -1443,7 +1443,7 @@ static struct ceph_pg_mapping *__decode_pg_temp(void **p, void *end,
@@ -4553,7 +4720,7 @@ index f6fe0dfe2a569d59c3bad9673761d0727c25a074..4d5cf1a67a189fcebbd1dfcd6110cf11
  
  	ceph_decode_need(p, end, 2 * len * sizeof(u32), e_inval);
 diff --git a/net/netfilter/ipset/ip_set_core.c b/net/netfilter/ipset/ip_set_core.c
-index 46a1bbda48437b44b07c6b27fbffdb83fb7a5df8..6cc8fe2352eb1400d84f47a39b0429e97f8ab660 100644
+index 46a1bbda48437..6cc8fe2352eb1 100644
 --- a/net/netfilter/ipset/ip_set_core.c
 +++ b/net/netfilter/ipset/ip_set_core.c
 @@ -21,8 +21,14 @@
@@ -4664,7 +4831,7 @@ index 46a1bbda48437b44b07c6b27fbffdb83fb7a5df8..6cc8fe2352eb1400d84f47a39b0429e9
  };
  #endif
 diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
-index 7638c59e67889578b3f8b215f6f28e6151cfeb29..9cd368e3106ae46bc7bb3b3b11987816f1aa1a76 100644
+index 7638c59e67889..9cd368e3106ae 100644
 --- a/net/netfilter/nf_tables_api.c
 +++ b/net/netfilter/nf_tables_api.c
 @@ -16,9 +16,15 @@
@@ -4771,7 +4938,7 @@ index 7638c59e67889578b3f8b215f6f28e6151cfeb29..9cd368e3106ae46bc7bb3b3b11987816
  
  static struct vpsadminos_nftables_pre_patch_callback
 diff --git a/net/netfilter/nfnetlink_queue.c b/net/netfilter/nfnetlink_queue.c
-index e03cbc7738ec94149e2fd7cdee17c5355c16dba9..296659f29c9549a94201370363c8ebc0a8b0db46 100644
+index e03cbc7738ec9..296659f29c954 100644
 --- a/net/netfilter/nfnetlink_queue.c
 +++ b/net/netfilter/nfnetlink_queue.c
 @@ -35,6 +35,8 @@
@@ -4867,7 +5034,7 @@ index e03cbc7738ec94149e2fd7cdee17c5355c16dba9..296659f29c9549a94201370363c8ebc0
  };
  #endif
 diff --git a/net/sctp/associola.c b/net/sctp/associola.c
-index f409b9f6b228f5a77578a60d14a20f578567cf9b..a4d6ebfd9080ae01420b600504ade5e2a859521d 100644
+index f409b9f6b228f..a4d6ebfd9080a 100644
 --- a/net/sctp/associola.c
 +++ b/net/sctp/associola.c
 @@ -1300,21 +1300,21 @@ void sctp_assoc_update_retran_path(struct sctp_association *asoc)
@@ -4903,7 +5070,7 @@ index f409b9f6b228f5a77578a60d14a20f578567cf9b..a4d6ebfd9080ae01420b600504ade5e2
  	pr_debug("%s: association:%p updated new path to addr:%pISpc\n",
  		 __func__, asoc, &asoc->peer.retran_path->ipaddr.sa);
 diff --git a/net/sunrpc/xprtsock.c b/net/sunrpc/xprtsock.c
-index 104b27430f86acd8c23af70ac6583ed352a35e2d..f8b071ff927aa64e5225590d8453d02588e6d235 100644
+index 104b27430f86a..f8b071ff927aa 100644
 --- a/net/sunrpc/xprtsock.c
 +++ b/net/sunrpc/xprtsock.c
 @@ -54,7 +54,7 @@

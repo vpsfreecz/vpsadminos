@@ -109,6 +109,16 @@ let
       if inventoryId == null then null else inventoryId.${field} or null
     );
 
+  buildDefineLines =
+    artifact:
+    let
+      defines = artifact.buildDefines or { };
+      defineNames = sort builtins.lessThan (attrNames defines);
+    in
+    concatMapStringsSep "\n" (
+      name: "#define ${name} ${defines.${name}}"
+    ) defineNames;
+
   livepatchBuildHeader =
     artifact:
     if !structuredRelease then ''
@@ -117,6 +127,7 @@ let
       #define LIVEPATCH_ORIG_KERNEL_VERSION        "${kernel.modDirVersion}"
       #define LIVEPATCH_NAME                       "${patchName}"
       #define LIVEPATCH_ARTIFACT_ROLE              "${artifact.role}"
+      ${buildDefineLines artifact}
       #endif
     '' else
     let
@@ -150,6 +161,7 @@ let
       #define LIVEPATCH_ORIG_KERNEL_VERSION        "${kernel.modDirVersion}"
       #define LIVEPATCH_NAME                       "${patchName}"
       #define LIVEPATCH_ARTIFACT_ROLE              "${artifact.role}"
+      ${buildDefineLines artifact}
       #ifdef __GENKSYMS__
       #define LIVEPATCH_IS_GUARD                   0
       #define LIVEPATCH_IS_CHECKPOINT_GUARD        0
