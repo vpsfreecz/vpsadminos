@@ -5949,7 +5949,7 @@ index ba069459c1017..ea3ddfb81a3bc 100644
  
  	pr_notice("'%s': starting %s transition\n",
  		  klp_transition_patch->mod->name,
-@@ -560,7 +1987,10 @@ void klp_start_transition(void)
+@@ -560,7 +1987,11 @@ void klp_start_transition(void)
  			set_tsk_thread_flag(task, TIF_PATCH_PENDING);
  	}
  
