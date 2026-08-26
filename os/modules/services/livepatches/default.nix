@@ -1157,6 +1157,10 @@ let
           exit 1
         fi
         ;;
+      livepatch_5)
+        echo "live-patches: exact active v5 is intentionally excluded from this corrective-only v7 release; keep the host on v5 and use the later cumulative release path" >&2
+        exit 1
+        ;;
       *)
         echo "live-patches: unexpected structured livepatch inventory: $active_patches" >&2
         exit 1
@@ -1198,7 +1202,7 @@ let
         ${structuredListContent}
         ;;
       *)
-        echo "usage: $0 load-corrective-v6|load-checkpoint|reverse-validation|list|status" >&2
+        echo "usage: $0 load|load-corrective-v6|load-checkpoint|reverse-validation|list|status" >&2
         exit 2
         ;;
       esac
