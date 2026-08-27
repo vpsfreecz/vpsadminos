@@ -41,7 +41,7 @@ import ../../make-test.nix (
                     exit 1
                   }
 
-                  if [ "${distribution}" == "alpine" ] || [ "${distribution}" == "chimera" ]; then
+                  if [ "${distribution}" = "alpine" ] || [ "${distribution}" = "chimera" ]; then
                     grep -q /run /proc/mounts || fail "/run not found in /proc/mounts"
                   else
                     grep -q /run /proc/mounts && fail "/run found in /proc/mounts"
