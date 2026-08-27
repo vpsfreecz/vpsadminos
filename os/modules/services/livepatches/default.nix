@@ -16,23 +16,50 @@ let
     version = config.boot.kernelVersion;
   };
   release = availablePatches.release;
-  structuredRelease = release != null && release ? paths;
-  releasePaths = if structuredRelease then attrValues release.paths else [ ];
-  onlineArtifacts = if structuredRelease then concatLists releasePaths else [ ];
-  checkpointArtifact =
-    if structuredRelease && release ? checkpoint then release.checkpoint else null;
-  releaseArtifacts =
-    onlineArtifacts ++ optional (checkpointArtifact != null) checkpointArtifact;
-  bootstrapArtifacts =
-    map (artifact: artifact.bootstrap) (filter (artifact: artifact ? bootstrap) releaseArtifacts);
   patchVersion = availablePatches.patchVersion;
+  isStructuredRelease = candidate: candidate != null && candidate ? paths;
+  releasePathsFor = candidate: if isStructuredRelease candidate then attrValues candidate.paths else [ ];
+  pathArtifactsFor =
+    candidate: pathName:
+    if isStructuredRelease candidate && candidate ? paths && hasAttr pathName candidate.paths
+    then getAttr pathName candidate.paths
+    else [ ];
+  onlineArtifactsFor =
+    candidate: if isStructuredRelease candidate then concatLists (releasePathsFor candidate) else [ ];
+  checkpointArtifactFor =
+    candidate:
+    if isStructuredRelease candidate && candidate ? checkpoint then candidate.checkpoint else null;
+  releaseArtifactsFor =
+    candidate:
+    let
+      checkpointArtifact = checkpointArtifactFor candidate;
+    in
+    onlineArtifactsFor candidate ++ optional (checkpointArtifact != null) checkpointArtifact;
+  bootstrapArtifactsFor =
+    candidate:
+    map (artifact: artifact.bootstrap) (filter (artifact: artifact ? bootstrap) (releaseArtifactsFor candidate));
+  releaseContractFor =
+    candidate:
+    if isStructuredRelease candidate && candidate ? contract then candidate.contract else null;
+  releasePatchVersionFor =
+    candidate:
+    if candidate != null && candidate ? patchVersion then candidate.patchVersion else patchVersion;
+  patchNameFor = candidate: "${toString (releasePatchVersionFor candidate)}";
+  artifactsFor = candidate: if isStructuredRelease candidate then releaseArtifactsFor candidate else [ legacyArtifact ];
+  structuredRelease = isStructuredRelease release;
+  multiAnchorRelease = structuredRelease && release ? onlineAnchors;
+  releasePaths = releasePathsFor release;
+  onlineArtifacts = onlineArtifactsFor release;
+  checkpointArtifact = checkpointArtifactFor release;
+  releaseArtifacts = releaseArtifactsFor release;
+  bootstrapArtifacts = bootstrapArtifactsFor release;
 
   buildEnable = (patchVersion > 0) && cfg.enable;
 
   kernel = config.boot.kernelPackage;
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) { };
 
-  patchName = "${toString patchVersion}";
+  patchName = patchNameFor release;
   installModDir = "lib/modules/${kernel.modDirVersion}/extra";
   legacyPatchModuleName = "livepatch_${toString patchVersion}";
   patchModuleName = legacyPatchModuleName;
@@ -52,8 +79,7 @@ let
     expectedSha256 = null;
   };
   artifacts = if structuredRelease then releaseArtifacts else [ legacyArtifact ];
-  releaseContract =
-    if structuredRelease && release ? contract then release.contract else null;
+  releaseContract = releaseContractFor release;
 
   roleFlagsFor =
     role:
@@ -74,7 +100,7 @@ let
     };
 
   contractForRole =
-    role:
+    releaseContract: role:
     if releaseContract == null then null
     else if role == "bootstrap-guard" then releaseContract.guard or null
     else if role == "checkpoint-guard" then releaseContract.checkpointGuard or null
@@ -120,21 +146,22 @@ let
     ) defineNames;
 
   livepatchBuildHeader =
-    artifact:
-    if !structuredRelease then ''
+    artifact: selectedRelease:
+    if !(isStructuredRelease selectedRelease) then ''
       #ifndef VPSADMINOS_LIVEPATCH_BUILD_H
       #define VPSADMINOS_LIVEPATCH_BUILD_H
       #define LIVEPATCH_ORIG_KERNEL_VERSION        "${kernel.modDirVersion}"
-      #define LIVEPATCH_NAME                       "${patchName}"
+      #define LIVEPATCH_NAME                       "${patchNameFor selectedRelease}"
       #define LIVEPATCH_ARTIFACT_ROLE              "${artifact.role}"
       ${buildDefineLines artifact}
       #endif
     '' else
     let
+      releaseContract = releaseContractFor selectedRelease;
       flags = roleFlagsFor artifact.role;
       selfContract =
         requireFrozenMetadata artifact "release.contract.self"
-          (contractForRole artifact.role);
+          (contractForRole releaseContract artifact.role);
       anchorContract =
         if flags.isCheckpointGuard then null
         else if flags.isReverseGuard
@@ -159,7 +186,7 @@ let
       #ifndef VPSADMINOS_LIVEPATCH_BUILD_H
       #define VPSADMINOS_LIVEPATCH_BUILD_H
       #define LIVEPATCH_ORIG_KERNEL_VERSION        "${kernel.modDirVersion}"
-      #define LIVEPATCH_NAME                       "${patchName}"
+      #define LIVEPATCH_NAME                       "${patchNameFor selectedRelease}"
       #define LIVEPATCH_ARTIFACT_ROLE              "${artifact.role}"
       ${buildDefineLines artifact}
       #ifdef __GENKSYMS__
@@ -267,7 +294,7 @@ let
   '';
 
   buildLivePatchArtifact =
-    { artifact, stdenv }:
+    { artifact, selectedRelease ? release, stdenv }:
     let
       moduleName = artifact.moduleName;
       installModPath = "${installModDir}/${moduleName}.ko";
@@ -280,7 +307,7 @@ let
     in
     stdenv.mkDerivation {
       name = "${moduleName}-${kernel.modDirVersion}";
-      version = toString patchVersion;
+      version = patchNameFor selectedRelease;
       src = patchesDir;
 
       hardeningDisable = [
@@ -298,7 +325,7 @@ let
 
       buildPhase = prepareKernelSource + ''
         cat > src/include/linux/vpsadminos-livepatch-build.h <<LIVEPATCH_HEADER_END
-        ${livepatchBuildHeader artifact}
+        ${livepatchBuildHeader artifact selectedRelease}
         LIVEPATCH_HEADER_END
         echo ${command}
         if ! ${command}; then
@@ -325,14 +352,14 @@ let
     };
 
   buildBootstrapArtifact =
-    { bootstrap, stdenv }:
+    { bootstrap, selectedRelease ? release, stdenv }:
     let
       moduleName = bootstrap.moduleName;
       installModPath = "${installModDir}/${moduleName}.ko";
     in
     stdenv.mkDerivation {
       name = "${moduleName}-${kernel.modDirVersion}";
-      version = toString patchVersion;
+      version = patchNameFor selectedRelease;
       src = patchesDir;
       dontStrip = true;
       nativeBuildInputs = kernel.nativeBuildInputs;
@@ -346,16 +373,55 @@ let
       '';
     };
 
-  builtArtifacts = map (artifact: pkgs.callPackage buildLivePatchArtifact {
-    inherit artifact;
-  }) artifacts;
-  builtBootstraps = map (bootstrap: pkgs.callPackage buildBootstrapArtifact {
-    inherit bootstrap;
-  }) bootstrapArtifacts;
-  patches = pkgs.symlinkJoin {
-    name = "livepatches-${kernel.modDirVersion}-${patchName}";
-    paths = builtArtifacts ++ builtBootstraps;
-  };
+  builtArtifactsFor =
+    selectedRelease:
+    map (artifact: pkgs.callPackage buildLivePatchArtifact {
+      inherit artifact selectedRelease;
+    }) (artifactsFor selectedRelease);
+  builtArtifactMapFor =
+    selectedRelease:
+    listToAttrs (
+      map (artifact:
+        nameValuePair artifact.moduleName (pkgs.callPackage buildLivePatchArtifact {
+          inherit artifact selectedRelease;
+        })
+      ) (artifactsFor selectedRelease)
+    );
+  builtBootstrapsFor =
+    selectedRelease:
+    map (bootstrap: pkgs.callPackage buildBootstrapArtifact {
+      inherit bootstrap selectedRelease;
+    }) (bootstrapArtifactsFor selectedRelease);
+  builtBootstrapMapFor =
+    selectedRelease:
+    listToAttrs (
+      map (bootstrap:
+        nameValuePair bootstrap.moduleName (pkgs.callPackage buildBootstrapArtifact {
+          inherit bootstrap selectedRelease;
+        })
+      ) (bootstrapArtifactsFor selectedRelease)
+    );
+  patchesFor =
+    selectedRelease:
+    let
+      artifactList = builtArtifactsFor selectedRelease;
+      bootstrapList = builtBootstrapsFor selectedRelease;
+      artifactMap = builtArtifactMapFor selectedRelease // builtBootstrapMapFor selectedRelease;
+    in
+    pkgs.symlinkJoin {
+      name = "livepatches-${kernel.modDirVersion}-${patchNameFor selectedRelease}";
+      paths = artifactList ++ bootstrapList;
+      passthru = {
+        artifacts = artifactMap;
+        orderedArtifacts = artifactList;
+        orderedBootstraps = bootstrapList;
+      };
+    };
+  patches = patchesFor release;
+  draftPatches =
+    if structuredRelease && release ? drafts
+    then mapAttrs (_: draft: patchesFor draft) release.drafts
+    else { };
 
   moduleLoadGen =
     {
@@ -778,12 +844,252 @@ let
       "$(cat /sys/kernel/livepatch/${artifact.moduleName}/replace 2>/dev/null || echo absent)"
   '';
 
-  expectedPatchInventory = moduleNames: concatStringsSep "\n" moduleNames;
+  expectedPatchInventory = moduleNames: concatStringsSep "\n" (sort builtins.lessThan moduleNames);
 
   activePatchInventoryGen = ''
     active_patches=$(find /sys/kernel/livepatch -mindepth 1 -maxdepth 1 \
       -type d -printf '%f\n' 2>/dev/null | sort)
   '';
+
+  onlineAnchors =
+    if multiAnchorRelease then attrValues release.onlineAnchors else [ ];
+  onlineArtifactsForAnchor = anchor: pathArtifactsFor release anchor.path;
+  onlineFirstArtifact =
+    anchor:
+    let
+      artifacts = onlineArtifactsForAnchor anchor;
+    in
+    if artifacts == [ ] then null else elemAt artifacts 0;
+  onlineSecondArtifact =
+    anchor:
+    let
+      artifacts = onlineArtifactsForAnchor anchor;
+    in
+    if length artifacts > 1 then elemAt artifacts 1 else null;
+  onlineRemainingArtifacts =
+    anchor:
+    let
+      artifacts = onlineArtifactsForAnchor anchor;
+    in
+    if length artifacts > 2 then sublist 2 (length artifacts - 2) artifacts else [ ];
+  onlineBootstrapForAnchor =
+    anchor:
+    let
+      firstArtifact = onlineFirstArtifact anchor;
+    in
+    if firstArtifact != null && firstArtifact ? bootstrap then firstArtifact.bootstrap else null;
+  onlineFinalArtifact =
+    anchor:
+    let
+      artifacts = onlineArtifactsForAnchor anchor;
+    in
+    if artifacts == [ ] then null else last artifacts;
+  onlineActiveIdentity =
+    anchor:
+    if anchor ? activeIdentity then anchor.activeIdentity else anchor.publishedIdentity or null;
+  onlineActiveInventoryNames =
+    anchor:
+    if anchor ? activeInventory then anchor.activeInventory else optional (anchor ? moduleName) anchor.moduleName;
+  onlineExpectedInventoryNames =
+    anchor:
+    if anchor ? expectedInventory
+    then anchor.expectedInventory
+    else throw "live-patches: online anchor ${anchor.path} missing expectedInventory";
+  onlineActiveArtifacts = anchor: anchor.activeArtifacts or [ ];
+  onlineActiveInventory = anchor: expectedPatchInventory (onlineActiveInventoryNames anchor);
+  onlineExpectedInventory = anchor: expectedPatchInventory (onlineExpectedInventoryNames anchor);
+  onlineFinalIdentity =
+    anchor:
+    let
+      finalArtifact = onlineFinalArtifact anchor;
+    in
+    if finalArtifact == null
+    then throw "live-patches: online anchor ${anchor.path} has no final artifact"
+    else finalArtifact.publishedIdentity or null;
+  onlineCommonPreflightContent = ''
+    ${noActiveTransitionGen}
+    if [ "$(cat /sys/kernel/kexec_crash_loaded 2>/dev/null)" != 1 ]; then
+      echo "live-patches: kdump is unavailable" >&2
+      exit 1
+    fi
+    cpu_count=$(getconf _NPROCESSORS_ONLN)
+    thread_count=$(find /proc -mindepth 3 -maxdepth 3 -type d \
+      -path '/proc/[0-9]*/task/[0-9]*' 2>/dev/null | wc -l)
+    mem_available=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
+    if [ "$cpu_count" -gt 128 ] || [ "$thread_count" -gt 100000 ] || \
+      [ "$mem_available" -lt 2097152 ]; then
+      echo "live-patches: host is outside the qualified resource envelope" >&2
+      exit 1
+    fi
+    cpu_vendor=$(awk -F ': ' '/^vendor_id/ { print $2; exit }' /proc/cpuinfo)
+    case "$cpu_vendor" in GenuineIntel|AuthenticAMD) ;; *)
+      echo "live-patches: unsupported CPU vendor $cpu_vendor" >&2
+      exit 1
+    esac
+  '';
+  activeAnchorArtifactCheckGen =
+    artifact:
+    let
+      moduleDir = "/sys/kernel/livepatch/${artifact.moduleName}";
+    in
+    ''
+      if [ ! -d ${moduleDir} ]; then
+        echo "live-patches: required active anchor artifact ${artifact.moduleName} is absent" >&2
+        exit 1
+      fi
+      if [ "$(cat ${moduleDir}/enabled 2>/dev/null)" != 1 ] || \
+        [ "$(cat ${moduleDir}/transition 2>/dev/null)" != 0 ]; then
+        echo "live-patches: active anchor artifact ${artifact.moduleName} is not mechanically complete" >&2
+        exit 1
+      fi
+      ${optionalString (artifact ? replace) ''
+        if [ "$(cat ${moduleDir}/replace 2>/dev/null)" != ${if artifact.replace then "1" else "0"} ]; then
+          echo "live-patches: active anchor artifact ${artifact.moduleName} replacement role mismatch" >&2
+          exit 1
+        fi
+      ''}
+      ${optionalString (artifact ? replacementCount) ''
+        anchor_functions=$(find ${moduleDir} -mindepth 2 -maxdepth 2 -type d 2>/dev/null | wc -l)
+        if [ "$anchor_functions" -ne ${toString artifact.replacementCount} ]; then
+          echo "live-patches: active anchor artifact ${artifact.moduleName} replacement inventory mismatch" >&2
+          exit 1
+        fi
+      ''}
+      ${optionalString (artifact ? moduleFile && artifact ? moduleSha256) ''
+        anchor_sha=$(${pkgs.coreutils}/bin/sha256sum ${escapeShellArg artifact.moduleFile})
+        anchor_sha=''${anchor_sha%% *}
+        if [ "$anchor_sha" != ${escapeShellArg artifact.moduleSha256} ]; then
+          echo "live-patches: active anchor artifact ${artifact.moduleName} SHA-256 mismatch" >&2
+          exit 1
+        fi
+      ''}
+      ${optionalString (artifact ? moduleFile && artifact ? moduleBuildId) ''
+        anchor_build_id=$(${pkgs.binutils}/bin/readelf -n ${escapeShellArg artifact.moduleFile} | \
+          sed -n 's/^[[:space:]]*Build ID: //p' | head -n 1)
+        if [ "$anchor_build_id" != ${escapeShellArg artifact.moduleBuildId} ]; then
+          echo "live-patches: active anchor artifact ${artifact.moduleName} build ID mismatch" >&2
+          exit 1
+        fi
+      ''}
+    '';
+  onlineCompleteCheckContentFor =
+    anchor:
+    let
+      artifacts = onlineArtifactsForAnchor anchor;
+      bootstrap = onlineBootstrapForAnchor anchor;
+      finalArtifact = onlineFinalArtifact anchor;
+    in
+    ''
+      ${activePatchInventoryGen}
+      if [ "$active_patches" != ${escapeShellArg (onlineExpectedInventory anchor)} ]; then
+        echo "live-patches: unexpected livepatch inventory: $active_patches" >&2
+        exit 1
+      fi
+      ${optionalString (bootstrap != null) ''
+        if [ -d /sys/module/${bootstrap.moduleName} ]; then
+          echo "live-patches: stale bootstrap helper is loaded" >&2
+          exit 1
+        fi
+      ''}
+      ${concatMapStrings activeAnchorArtifactCheckGen (onlineActiveArtifacts anchor)}
+      ${concatMapStrings exactArtifactWaitGen artifacts}
+      if [ "$(uname -r)" != ${escapeShellArg (onlineFinalIdentity anchor)} ]; then
+        echo "live-patches: final release identity is not active" >&2
+        exit 1
+      fi
+      if [ "$(cat /sys/module/${finalArtifact.moduleName}/parameters/generation_active 2>/dev/null)" != 1 ] || \
+        [ "$(cat /sys/module/${finalArtifact.moduleName}/parameters/generation_complete 2>/dev/null)" != 1 ]; then
+        echo "live-patches: coverage generation is incomplete" >&2
+        exit 1
+      fi
+    '';
+  onlinePreflightContentFor =
+    anchor:
+    let
+      bootstrap = onlineBootstrapForAnchor anchor;
+    in
+    ''
+      if [ "$(uname -r)" != ${escapeShellArg (onlineActiveIdentity anchor)} ]; then
+        echo "live-patches: exact anchor identity is not active" >&2
+        exit 1
+      fi
+      ${optionalString (anchor ? isolationMarker) ''
+        if [ ! -e ${escapeShellArg anchor.isolationMarker} ]; then
+          echo "live-patches: remediation isolation marker is absent" >&2
+          exit 1
+        fi
+      ''}
+      ${optionalString (anchor ? allowedBootBzImageSha256 && anchor ? allowedSystemMapSha256) (
+        bootIdentityCheckGen anchor
+      )}
+      ${activePatchInventoryGen}
+      if [ "$active_patches" != ${escapeShellArg (onlineActiveInventory anchor)} ]; then
+        echo "live-patches: unexpected livepatch inventory: $active_patches" >&2
+        exit 1
+      fi
+      ${optionalString (bootstrap != null) ''
+        if [ -d /sys/module/${bootstrap.moduleName} ]; then
+          echo "live-patches: stale bootstrap helper is loaded" >&2
+          exit 1
+        fi
+      ''}
+      ${concatMapStrings activeAnchorArtifactCheckGen (onlineActiveArtifacts anchor)}
+      ${onlineCommonPreflightContent}
+      ${concatMapStrings declaredArtifactIntegrityGen (onlineArtifactsForAnchor anchor)}
+      ${optionalString (bootstrap != null) (
+        declaredBootstrapIntegrityGen bootstrap
+      )}
+    '';
+  onlineLoadContentFor =
+    anchor:
+    let
+      firstArtifact = onlineFirstArtifact anchor;
+      secondArtifact = onlineSecondArtifact anchor;
+      remainingArtifacts = onlineRemainingArtifacts anchor;
+      bootstrap = onlineBootstrapForAnchor anchor;
+      finalArtifact = onlineFinalArtifact anchor;
+    in
+    ''
+      livepatch=$(cat /etc/livepatch-store-path)
+      ${onlinePreflightContentFor anchor}
+      ${moduleAliasContent}
+      ${optionalString (bootstrap != null) ''
+        echo "live-patches: loading exceptional bootstrap helper"
+        if ! insmod "$livepatch/${installModDir}/${bootstrap.moduleName}.ko"; then
+          echo "live-patches: bootstrap helper insertion failed" >&2
+          exit 1
+        fi
+      ''}
+      ${optionalString (firstArtifact != null) (
+        if bootstrap != null then ''
+          echo "live-patches: loading ${firstArtifact.role} ${firstArtifact.moduleName}"
+          if ! insmod "$livepatch/${artifactInstallPath firstArtifact}"; then
+            echo "live-patches: insertion of ${firstArtifact.moduleName} failed" >&2
+            exit 1
+          fi
+          if [ "$(cat /sys/kernel/livepatch/${firstArtifact.moduleName}/transition 2>/dev/null)" = 1 ]; then
+            echo 1 > /sys/module/${bootstrap.moduleName}/parameters/${bootstrap.kickParameter}
+          fi
+          ${exactArtifactWaitGen firstArtifact}
+        '' else ''
+          ${exactArtifactLoadGen firstArtifact}
+        ''
+      )}
+      ${optionalString (secondArtifact != null) (
+        if bootstrap != null then ''
+          ${exactArtifactLoadGen secondArtifact}
+          ${moduleRemovalGen bootstrap.moduleName}
+        '' else ""
+      )}
+      ${optionalString (bootstrap != null && secondArtifact == null) (
+        moduleRemovalGen bootstrap.moduleName
+      )}
+      ${concatMapStrings exactArtifactLoadGen remainingArtifacts}
+      ${onlineCompleteCheckContentFor anchor}
+      mkdir -p /run/vpsadminos/livepatches
+      date --utc +%Y-%m-%dT%H:%M:%SZ > \
+        /run/vpsadminos/livepatches/${finalArtifact.moduleName}.applied-at
+    '';
 
   noActiveTransitionGen = ''
     for transition_file in /sys/kernel/livepatch/*/transition; do
@@ -839,22 +1145,32 @@ let
     esac
   '';
 
-  correctiveAnchor = if structuredRelease then release.anchors.v6Remediation else null;
+  correctiveAnchor =
+    if structuredRelease && release ? anchors then release.anchors.v6Remediation or null else null;
   correctiveArtifacts =
-    if structuredRelease then release.paths.${correctiveAnchor.path} else [ ];
+    if correctiveAnchor != null then pathArtifactsFor release correctiveAnchor.path else [ ];
   correctiveGuard = if correctiveArtifacts == [ ] then null else elemAt correctiveArtifacts 0;
   correctiveFoundation = if length correctiveArtifacts < 2 then null else elemAt correctiveArtifacts 1;
   correctiveFinal = if length correctiveArtifacts < 3 then null else elemAt correctiveArtifacts 2;
   correctiveExpectedInventory =
-    expectedPatchInventory (map (artifact: artifact.moduleName) correctiveArtifacts);
+    if correctiveArtifacts == [ ]
+    then ""
+    else expectedPatchInventory (map (artifact: artifact.moduleName) correctiveArtifacts);
   correctiveBootstrap =
     if correctiveGuard != null && correctiveGuard ? bootstrap
     then correctiveGuard.bootstrap
     else null;
+  hasCorrectivePath =
+    structuredRelease
+    && correctiveAnchor != null
+    && correctiveGuard != null
+    && correctiveFoundation != null
+    && correctiveFinal != null
+    && correctiveBootstrap != null;
   checkpointBootAnchor =
-    if structuredRelease then release.anchors.cleanBoot or null else null;
+    if structuredRelease && release ? anchors then release.anchors.cleanBoot or null else null;
   checkpointBootArtifacts =
-    if checkpointBootAnchor != null then release.paths.${checkpointBootAnchor.path} else [ ];
+    if checkpointBootAnchor != null then pathArtifactsFor release checkpointBootAnchor.path else [ ];
   checkpointGuard =
     if checkpointBootArtifacts == [ ] then null else elemAt checkpointBootArtifacts 0;
   checkpointBootstrap =
@@ -862,19 +1178,30 @@ let
     then checkpointGuard.bootstrap
     else null;
   checkpointCompleteAnchor =
-    if structuredRelease then release.anchors.checkpointComplete or null else null;
+    if structuredRelease && release ? anchors then release.anchors.checkpointComplete or null else null;
   reverseValidationArtifacts =
-    if checkpointCompleteAnchor != null then release.paths.${checkpointCompleteAnchor.path} else [ ];
+    if checkpointCompleteAnchor != null then pathArtifactsFor release checkpointCompleteAnchor.path else [ ];
   reverseValidationGuard =
     if reverseValidationArtifacts == [ ] then null else elemAt reverseValidationArtifacts 0;
   reverseValidationBootstrap =
     if reverseValidationGuard != null && reverseValidationGuard ? bootstrap
     then reverseValidationGuard.bootstrap
     else null;
+  hasCheckpointPath =
+    structuredRelease
+    && checkpointArtifact != null
+    && checkpointBootAnchor != null
+    && checkpointGuard != null
+    && checkpointBootstrap != null
+    && checkpointCompleteAnchor != null;
+  hasReverseValidationPath =
+    hasCheckpointPath
+    && reverseValidationGuard != null
+    && reverseValidationBootstrap != null;
   checkpointExpectedInventory =
     if checkpointArtifact == null then "" else checkpointArtifact.moduleName;
 
-  correctiveCompleteCheckContent = optionalString structuredRelease ''
+  correctiveCompleteCheckContent = optionalString hasCorrectivePath ''
     ${activePatchInventoryGen}
     if [ "$active_patches" != ${escapeShellArg correctiveExpectedInventory} ]; then
       echo "live-patches: unexpected livepatch inventory: $active_patches" >&2
@@ -898,7 +1225,7 @@ let
     fi
   '';
 
-  checkpointCompleteCheckContent = optionalString structuredRelease ''
+  checkpointCompleteCheckContent = optionalString hasCheckpointPath ''
     ${activePatchInventoryGen}
     if [ "$active_patches" != ${escapeShellArg checkpointExpectedInventory} ]; then
       echo "live-patches: unexpected livepatch inventory: $active_patches" >&2
@@ -924,7 +1251,7 @@ let
     fi
   '';
 
-  correctivePreflightContent = optionalString structuredRelease ''
+  correctivePreflightContent = optionalString hasCorrectivePath ''
     if [ "$(uname -r)" != ${escapeShellArg correctiveAnchor.publishedIdentity} ]; then
       echo "live-patches: exact v6 remediation identity is not active" >&2
       exit 1
@@ -999,7 +1326,7 @@ let
     )}
   '';
 
-  checkpointPreflightContent = optionalString structuredRelease ''
+  checkpointPreflightContent = optionalString hasCheckpointPath ''
     if [ "$(uname -r)" != ${escapeShellArg checkpointBootAnchor.publishedIdentity} ]; then
       echo "live-patches: clean boot identity is not active" >&2
       exit 1
@@ -1033,7 +1360,7 @@ let
     )}
   '';
 
-  correctiveLoadContent = optionalString structuredRelease ''
+  correctiveLoadContent = optionalString hasCorrectivePath ''
     livepatch=$(cat /etc/livepatch-store-path)
     if [ "$(uname -r)" = ${escapeShellArg correctiveFinal.publishedIdentity} ]; then
       ${correctiveCompleteCheckContent}
@@ -1066,7 +1393,7 @@ let
       /run/vpsadminos/livepatches/${correctiveFinal.moduleName}.applied-at
   '';
 
-  checkpointLoadContent = optionalString structuredRelease ''
+  checkpointLoadContent = optionalString hasCheckpointPath ''
     livepatch=$(cat /etc/livepatch-store-path)
     if [ "$(uname -r)" = ${escapeShellArg checkpointCompleteAnchor.publishedIdentity} ]; then
       ${checkpointCompleteCheckContent}
@@ -1099,7 +1426,7 @@ let
       /run/vpsadminos/livepatches/${checkpointArtifact.moduleName}.applied-at
   '';
 
-  reverseValidationContent = optionalString structuredRelease ''
+  reverseValidationContent = optionalString hasReverseValidationPath ''
     livepatch=$(cat /etc/livepatch-store-path)
     ${checkpointCompleteCheckContent}
     ${noActiveTransitionGen}
@@ -1143,48 +1470,91 @@ let
     fi
   '';
 
-  structuredLoadContent = optionalString structuredRelease ''
+  multiAnchorStructuredLoadContent = optionalString multiAnchorRelease ''
     ${activePatchInventoryGen}
     current_release="$(uname -r)"
-    case "$active_patches" in
-      ${escapeShellArg checkpointExpectedInventory})
-        ${checkpointCompleteCheckContent}
-        ;;
-      ${escapeShellArg correctiveExpectedInventory})
-        ${correctiveCompleteCheckContent}
-        ;;
-      "")
-        if [ "$current_release" = ${escapeShellArg checkpointBootAnchor.publishedIdentity} ]; then
-          ${checkpointLoadContent}
-        else
-          echo "live-patches: no authorized structured path for release $current_release" >&2
-          exit 1
-        fi
-        ;;
-      ${escapeShellArg correctiveAnchor.moduleName})
-        if [ "$current_release" = ${escapeShellArg correctiveAnchor.publishedIdentity} ]; then
-          ${correctiveLoadContent}
-        else
-          echo "live-patches: remediation anchor identity mismatch for release $current_release" >&2
-          exit 1
-        fi
-        ;;
-      livepatch_5)
-        echo "live-patches: exact active v5 is intentionally excluded from this corrective-only v7 release; keep the host on v5 and use the later cumulative release path" >&2
-        exit 1
-        ;;
-      *)
-        echo "live-patches: unexpected structured livepatch inventory: $active_patches" >&2
-        exit 1
-        ;;
-    esac
+    if [ "$active_patches" = ${escapeShellArg checkpointExpectedInventory} ]; then
+      ${checkpointCompleteCheckContent}
+      exit 0
+    fi
+    ${concatMapStrings (anchor: ''
+      if [ "$current_release" = ${escapeShellArg (onlineFinalIdentity anchor)} ] && \
+        [ "$active_patches" = ${escapeShellArg (onlineExpectedInventory anchor)} ]; then
+        ${onlineCompleteCheckContentFor anchor}
+        exit 0
+      fi
+    '') onlineAnchors}
+    if [ -z "$active_patches" ]; then
+      if [ "$current_release" = ${escapeShellArg checkpointBootAnchor.publishedIdentity} ]; then
+        ${checkpointLoadContent}
+        exit 0
+      fi
+      echo "live-patches: no authorized structured path for release $current_release" >&2
+      exit 1
+    fi
+    ${concatMapStrings (anchor: ''
+      if [ "$current_release" = ${escapeShellArg (onlineActiveIdentity anchor)} ] && \
+        [ "$active_patches" = ${escapeShellArg (onlineActiveInventory anchor)} ]; then
+        ${onlineLoadContentFor anchor}
+        exit 0
+      fi
+    '') onlineAnchors}
+    echo "live-patches: unexpected structured livepatch inventory: $active_patches for release $current_release" >&2
+    exit 1
   '';
 
+  structuredLoadContent = optionalString structuredRelease (
+    if multiAnchorRelease then
+      multiAnchorStructuredLoadContent
+    else
+      ''
+        ${activePatchInventoryGen}
+        current_release="$(uname -r)"
+        case "$active_patches" in
+          ${escapeShellArg checkpointExpectedInventory})
+            ${checkpointCompleteCheckContent}
+            ;;
+          ${escapeShellArg correctiveExpectedInventory})
+            ${correctiveCompleteCheckContent}
+            ;;
+          "")
+            if [ "$current_release" = ${escapeShellArg checkpointBootAnchor.publishedIdentity} ]; then
+              ${checkpointLoadContent}
+            else
+              echo "live-patches: no authorized structured path for release $current_release" >&2
+              exit 1
+            fi
+            ;;
+          ${escapeShellArg correctiveAnchor.moduleName})
+            if [ "$current_release" = ${escapeShellArg correctiveAnchor.publishedIdentity} ]; then
+              ${correctiveLoadContent}
+            else
+              echo "live-patches: remediation anchor identity mismatch for release $current_release" >&2
+              exit 1
+            fi
+            ;;
+          livepatch_5)
+            echo "live-patches: exact active v5 is intentionally excluded from this corrective-only v7 release; keep the host on v5 and use the later cumulative release path" >&2
+            exit 1
+            ;;
+          *)
+            echo "live-patches: unexpected structured livepatch inventory: $active_patches" >&2
+            exit 1
+            ;;
+        esac
+      ''
+  );
+
   structuredListContent = optionalString structuredRelease (
-    concatMapStrings structuredListGen correctiveArtifacts
-    + concatMapStrings structuredListGen checkpointBootArtifacts
-    + concatMapStrings structuredListGen reverseValidationArtifacts
-    + structuredListGen checkpointArtifact
+    if multiAnchorRelease
+    then
+      concatMapStrings structuredListGen (concatLists (attrValues release.paths))
+      + structuredListGen checkpointArtifact
+    else
+      concatMapStrings structuredListGen correctiveArtifacts
+      + concatMapStrings structuredListGen checkpointBootArtifacts
+      + concatMapStrings structuredListGen reverseValidationArtifacts
+      + structuredListGen checkpointArtifact
   );
 
   live-patches-util = pkgs.writeScriptBin "live-patches" (
@@ -1198,7 +1568,11 @@ let
         ${structuredLoadContent}
         ;;
       load-corrective-v6)
-        ${correctiveLoadContent}
+        ${optionalString hasCorrectivePath correctiveLoadContent}
+        ${optionalString (!hasCorrectivePath) ''
+          echo "live-patches: this release has no corrective-v6 path" >&2
+          exit 1
+        ''}
         ;;
       load-checkpoint)
         ${checkpointLoadContent}
@@ -1285,10 +1659,14 @@ in
 
     (mkIf buildEnable {
       system.build.livePatches = patches;
+      system.build.livePatchDrafts = draftPatches;
       environment.etc."vpsadminos/livepatch-monitor.json".text = builtins.toJSON {
         kernelVersion = config.boot.kernelVersion;
         inherit patchVersion;
-        authorization = if structuredRelease then "corrective-only" else "legacy";
+        authorization =
+          if multiAnchorRelease then "multi-anchor"
+          else if structuredRelease then "corrective-only"
+          else "legacy";
         autoLoad = if structuredRelease then release.autoLoad or false else true;
         artifacts = map (artifact: {
           inherit (artifact) moduleName role;
@@ -1298,6 +1676,15 @@ in
         paths =
           if structuredRelease
           then mapAttrs (_: path: map (artifact: artifact.moduleName) path) release.paths
+          else { };
+        onlineAnchors =
+          if multiAnchorRelease
+          then mapAttrs (_: anchor: {
+            inherit (anchor) class path;
+            activeIdentity = onlineActiveIdentity anchor;
+            activeInventory = onlineActiveInventoryNames anchor;
+            expectedInventory = onlineExpectedInventoryNames anchor;
+          }) release.onlineAnchors
           else { };
         checkpoint =
           if checkpointArtifact == null then null else checkpointArtifact.moduleName;
