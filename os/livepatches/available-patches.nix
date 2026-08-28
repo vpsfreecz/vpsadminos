@@ -536,7 +536,7 @@ let
             ];
             targets = [ "vmlinux" ];
             nonReplace = true;
-            expectedSha256 = null;
+            expectedSha256 = "636659009a71130b4af7041e148708381bc8bd2bd973041959a30e94b350d79a";
             buildDefines = {
               VPSADMINOS_KLP_RELEASE_GENERATION = "8";
               VPSADMINOS_KLP_RELEASE_IDENTITY = "\"6.12.95.8\"";
