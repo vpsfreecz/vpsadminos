@@ -24,10 +24,10 @@ let
         };
         guard = {
           moduleName = "livepatch_transition_guard";
-          functionCount = 1;
+          functionCount = 6;
           inventoryId = {
-            high = "0x1ULL";
-            low = "0x1ULL";
+            high = "0x3fa36db88927cf79ULL";
+            low = "0x5754ae11e224339dULL";
           };
         };
         checkpointGuard = {
@@ -127,7 +127,7 @@ let
           ];
           targets = [ "vmlinux" ];
           nonReplace = true;
-          expectedSha256 = null;
+          expectedSha256 = "14971b88daa0fa3a6a91058fb486e7f84a4b02a29c3017b2e19890d80c04c563";
           bootstrap = {
             moduleName = "livepatch_transition_bootstrap";
             sourceDir = "transition-bootstrap";
@@ -303,7 +303,7 @@ let
           ];
           notes = [
             "Corrected-v7 supported-anchor draft; final publication still depends on parallel supported-v5 freeze-back."
-            "Self-contract freeze-back for the new v8 artifacts still needs a first successful build."
+            "Corrected-v7-side predecessor guard, lp8_from_v7 self-contract, and exact-final hash are frozen; checkpoint/rebuild freeze-back still remains pending."
           ];
           onlineAnchors = {
             correctedV7 = {
@@ -317,7 +317,7 @@ let
                 {
                   moduleName = "livepatch_transition_guard";
                   replace = false;
-                  replacementCount = 1;
+                  replacementCount = 6;
                 }
                 {
                   moduleName = "lp61295_foundation";
@@ -382,26 +382,26 @@ let
             };
             guard = {
               moduleName = "livepatch_transition_guard";
-              functionCount = 1;
+              functionCount = 6;
               inventoryId = {
-                high = "0x1ULL";
-                low = "0x1ULL";
+                high = "0x3fa36db88927cf79ULL";
+                low = "0x5754ae11e224339dULL";
               };
             };
             checkpointGuard = {
               moduleName = "lp8_checkpoint_guard";
-              functionCount = 1;
+              functionCount = 10;
               inventoryId = {
-                high = "0x1ULL";
-                low = "0x1ULL";
+                high = "0x97170d88bc49f655ULL";
+                low = "0x5049771d386e2124ULL";
               };
             };
             reverseGuard = {
               moduleName = "lp8_reverse_guard";
-              functionCount = 1;
+              functionCount = 10;
               inventoryId = {
-                high = "0x1ULL";
-                low = "0x1ULL";
+                high = "0x97170d88bc49f655ULL";
+                low = "0x5049771d386e2124ULL";
               };
             };
             foundation = {
@@ -414,10 +414,10 @@ let
             };
             final = {
               moduleName = "lp8_from_v7";
-              functionCount = 1;
+              functionCount = 20;
               inventoryId = {
-                high = "0x1ULL";
-                low = "0x1ULL";
+                high = "0xed58aef41987e6b2ULL";
+                low = "0x8e3606c89c7d8d14ULL";
               };
             };
             checkpoint = {
@@ -452,10 +452,11 @@ let
               "net/sctp/sctp.ko"
               "net/ceph/libceph.ko"
               "fs/ceph/ceph.ko"
+              "virt/lib/irqbypass.ko"
               "arch/x86/kvm/kvm.ko"
             ];
             nonReplace = true;
-            expectedSha256 = null;
+            expectedSha256 = "b25115dc50275ef7078a7a18254c99eda516ee8d9ab0998d2e07261cc7122b59";
             coverageState = {
               id = "0x6129500000000002";
               version = 8;
@@ -511,7 +512,7 @@ let
             ];
             targets = [ "vmlinux" ];
             nonReplace = true;
-            expectedSha256 = null;
+            expectedSha256 = "13e0fe1f7044244edc049f03ddba346c6d229b5854dad397ce4c2113c902b582";
             buildDefines = {
               VPSADMINOS_KLP_RELEASE_GENERATION = "8";
               VPSADMINOS_KLP_RELEASE_IDENTITY = "\"6.12.95.8\"";
@@ -635,7 +636,7 @@ let
           notes = [
             "Supported-v5 draft using v5-specific guard/foundation overrides plus the merged cumulative-v8 source projection."
             "Multi-anchor loader/schema support is wired locally, but final publication still needs exact artifact freeze-back and final release metadata."
-            "Self-contract freeze-back for the new v5-side v8 artifacts still needs a first successful build."
+            "Shared checkpoint-guard hash and shared reverse-guard self-contract are now frozen; v5-specific guard/final/checkpoint exact bytes still need successful build freeze-back."
           ];
           onlineAnchors = {
             supportedV5 = {
@@ -711,26 +712,26 @@ let
             };
             guard = {
               moduleName = "livepatch_transition_guard";
-              functionCount = 1;
+              functionCount = 6;
               inventoryId = {
-                high = "0x1ULL";
-                low = "0x1ULL";
+                high = "0x3fa36db88927cf79ULL";
+                low = "0x5754ae11e224339dULL";
               };
             };
             checkpointGuard = {
               moduleName = "lp8_checkpoint_guard";
-              functionCount = 1;
+              functionCount = 10;
               inventoryId = {
-                high = "0x1ULL";
-                low = "0x1ULL";
+                high = "0x97170d88bc49f655ULL";
+                low = "0x5049771d386e2124ULL";
               };
             };
             reverseGuard = {
               moduleName = "lp8_reverse_guard";
-              functionCount = 1;
+              functionCount = 10;
               inventoryId = {
-                high = "0x1ULL";
-                low = "0x1ULL";
+                high = "0x97170d88bc49f655ULL";
+                low = "0x5049771d386e2124ULL";
               };
             };
             foundation = {
@@ -871,7 +872,7 @@ let
             ];
             targets = [ "vmlinux" ];
             nonReplace = true;
-            expectedSha256 = null;
+            expectedSha256 = "13e0fe1f7044244edc049f03ddba346c6d229b5854dad397ce4c2113c902b582";
             buildDefines = {
               VPSADMINOS_KLP_RELEASE_GENERATION = "8";
               VPSADMINOS_KLP_RELEASE_IDENTITY = "\"6.12.95.8\"";

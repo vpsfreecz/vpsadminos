@@ -58,6 +58,11 @@ let
 
   kernel = config.boot.kernelPackage;
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) { };
+  kernelConfigFile =
+    if builtins.isAttrs kernel.configfile then kernel.configfile.outPath else kernel.configfile;
+  kernelLivepatchBuildTree =
+    "${kernel.dev}/lib/modules/${kernel.modDirVersion}/build";
+  kernelLivepatchVmlinux = "${kernel.dev}/vmlinux";
 
   patchName = patchNameFor release;
   installModDir = "lib/modules/${kernel.modDirVersion}/extra";
@@ -237,54 +242,54 @@ let
       #endif
     '';
 
-  prepareKernelSource = ''
-    export DEBUG=0
-    export CCACHE_UMASK=007
-    export CCACHE_DIR=/nix/var/cache/ccache
-    export CACHEDIR=$(pwd)/tmp/cache
-    export TEMPDIR=$(pwd)/tmp
-    cp -r ${kpatch-build} kpatch-build
-    kpb=$(pwd)/kpatch-build
-    mkdir -p "$TEMPDIR" "$CACHEDIR"
-
-    dirsBefore=""
-    for candidate in *; do
-      if [ -d "$candidate" ]; then
-        dirsBefore="$dirsBefore $candidate "
+  prepareKernelSource =
+    ''
+      export DEBUG=0
+      export CCACHE_UMASK=007
+      export CCACHE_DIR=/nix/var/cache/ccache
+      export CACHEDIR=$(pwd)/tmp/cache
+      export TEMPDIR=$(pwd)/tmp
+      cp -r ${kpatch-build} kpatch-build
+      kpb=$(pwd)/kpatch-build
+      mkdir -p "$TEMPDIR" "$CACHEDIR"
+      dirsBefore=""
+      for candidate in *; do
+        if [ -d "$candidate" ]; then
+          dirsBefore="$dirsBefore $candidate "
+        fi
+      done
+      tar xf ${kernel.src}
+      sourceRoot=
+      for candidate in *; do
+        if [ -d "$candidate" ]; then
+          case "$dirsBefore" in
+            *\ $candidate\ *) ;;
+            *)
+              if [ -n "$sourceRoot" ]; then
+                echo "unpacker produced multiple directories" >&2
+                exit 1
+              fi
+              sourceRoot="$candidate"
+              ;;
+          esac
+        fi
+      done
+      if [ -z "$sourceRoot" ]; then
+        echo "unpacker produced no source directory" >&2
+        exit 1
       fi
-    done
-    tar xf ${kernel.src}
-    sourceRoot=
-    for candidate in *; do
-      if [ -d "$candidate" ]; then
-        case "$dirsBefore" in
-          *\ $candidate\ *) ;;
-          *)
-            if [ -n "$sourceRoot" ]; then
-              echo "unpacker produced multiple directories" >&2
-              exit 1
-            fi
-            sourceRoot="$candidate"
-            ;;
-        esac
-      fi
-    done
-    if [ -z "$sourceRoot" ]; then
-      echo "unpacker produced no source directory" >&2
-      exit 1
-    fi
 
-    mv "$sourceRoot" src
-    export KERNEL_SRCDIR=$(pwd)/src
-    cp -r ${kernel.dev}/. ./src/
-    ln -snf ${kernel.configfile.outPath} ./src/.config
-    cp ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build/Module.symvers \
-      ./src/Module.symvers
-    cp ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build/scripts/module.lds \
-      ./src/scripts/module.lds
-    patchShebangs src/scripts > /dev/null
-    chmod u+w . -R
-  ''
+      mv "$sourceRoot" src
+      export KERNEL_SRCDIR=$(pwd)/src
+      cp -r ${kernel.dev}/. ./src/
+      ln -snf ${kernelConfigFile} ./src/.config
+      cp ${kernelLivepatchBuildTree}/Module.symvers \
+        ./src/Module.symvers
+      cp ${kernelLivepatchBuildTree}/scripts/module.lds \
+        ./src/scripts/module.lds
+      patchShebangs src/scripts > /dev/null
+      chmod u+w . -R
+    ''
   + optionalString (zfsBuiltinPkg != null) ''
     cp -r ${zfsBuiltinPkg} ./zfsBuiltin
     chmod -R u+w ./zfsBuiltin
@@ -299,7 +304,7 @@ let
       moduleName = artifact.moduleName;
       installModPath = "${installModDir}/${moduleName}.ko";
       command =
-        "$kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src "
+        "$kpb/kpatch-build/kpatch-build -v ${kernelLivepatchVmlinux} -s src "
         + "-n ${escapeShellArg moduleName} "
         + optionalString (artifact.nonReplace or false) "-R "
         + concatMapStrings (target: "-t ${escapeShellArg target} ") artifact.targets
@@ -364,7 +369,7 @@ let
       dontStrip = true;
       nativeBuildInputs = kernel.nativeBuildInputs;
       buildPhase = ''
-        make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
+        make -C ${kernelLivepatchBuildTree} \
           M="$PWD/${bootstrap.sourceDir}" modules
       '';
       installPhase = ''

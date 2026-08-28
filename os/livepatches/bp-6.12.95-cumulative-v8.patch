@@ -2321,23 +2321,25 @@ diff --git a/kernel/livepatch/state.c b/kernel/livepatch/state.c
 index 2565d039ade0a..b07e937b89d7e 100644
 --- a/kernel/livepatch/state.c
 +++ b/kernel/livepatch/state.c
-@@ -8,6 +8,11 @@
+@@ -8,6 +8,13 @@
  #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
  
  #include <linux/livepatch.h>
++#if !defined(__GENKSYMS__)
 +#include <linux/moduleparam.h>
 +#include <linux/string.h>
 +#include <linux/utsname.h>
 +#include <linux/vpsadminos-livepatch-build.h>
 +#include <linux/vpsadminos-livepatch-foundation.h>
++#endif
  #include "core.h"
  #include "state.h"
  #include "transition.h"
-@@ -15,6 +20,610 @@
+@@ -15,6 +22,610 @@
  #define klp_for_each_state(patch, state)		\
  	for (state = patch->states; state && state->id; state++)
  
-+#if LIVEPATCH_IS_GENERATION_FINAL || LIVEPATCH_IS_CHECKPOINT
++#if !defined(__GENKSYMS__) && (LIVEPATCH_IS_GENERATION_FINAL || LIVEPATCH_IS_CHECKPOINT)
 +static struct vpsadminos_klp_coverage_state vpsadminos_coverage = {
 +	.magic = VPSADMINOS_KLP_COVERAGE_MAGIC,
 +	.abi_version = 1,
@@ -5082,3 +5084,15 @@ index 104b27430f86a..f8b071ff927aa 100644
  #include <linux/atomic.h>
  #include <linux/kallsyms.h>
  #include <linux/kprobes.h>
+diff --git a/net/core/net_namespace.c b/net/core/net_namespace.c
+index cc54ed289d2b0961d3d551648df2e8f65a29b004..e70d91c775b25fbe639fdd10cdcef2eec7e22f2c 100644
+--- a/net/core/net_namespace.c
++++ b/net/core/net_namespace.c
+@@ -1400,0 +1401 @@ int vpsadminos_pernet_try_register(struct pernet_operations *ops)
++EXPORT_SYMBOL_GPL(vpsadminos_pernet_try_register);
+diff --git a/net/netfilter/nfnetlink.c b/net/netfilter/nfnetlink.c
+index 7961a391ab849ace198b013d4521d73747e70ec5..f396ef967798464457031236f7bebc6735a4040d 100644
+--- a/net/netfilter/nfnetlink.c
++++ b/net/netfilter/nfnetlink.c
+@@ -161,0 +162 @@ int vpsadminos_nfnl_try_unregister(const struct nfnetlink_subsystem *n)
++EXPORT_SYMBOL_GPL(vpsadminos_nfnl_try_unregister);

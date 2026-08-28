@@ -3855,6 +3855,7 @@ index 16b646f0c1d58..cc54ed289d2b0 100644
 +
 +	return error;
 +}
++EXPORT_SYMBOL_GPL(vpsadminos_pernet_try_register);
 +#endif
 +
  /**
@@ -6136,6 +6137,7 @@ index dd416c8532c55..0c0a1f20e853f 100644
 +	*bridge_dev = ctor_data;
 +	return 0;
 +}
++EXPORT_SYMBOL_GPL(vpsadminos_nfnl_try_unregister);
 +#endif
 +
  /* Bump dev refs so they don't vanish while packet is out */
