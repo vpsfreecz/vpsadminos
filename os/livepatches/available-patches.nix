@@ -422,10 +422,10 @@ let
             };
             checkpoint = {
               moduleName = "livepatch_8";
-              functionCount = 1;
+              functionCount = 30;
               inventoryId = {
-                high = "0x1ULL";
-                low = "0x1ULL";
+                high = "0x3b3a1df9f3a7d567ULL";
+                low = "0x43c3758c8b03dbe9ULL";
               };
             };
           };
@@ -752,10 +752,10 @@ let
             };
             checkpoint = {
               moduleName = "livepatch_8";
-              functionCount = 1;
+              functionCount = 30;
               inventoryId = {
-                high = "0x1ULL";
-                low = "0x1ULL";
+                high = "0x3b3a1df9f3a7d567ULL";
+                low = "0x43c3758c8b03dbe9ULL";
               };
             };
           };
