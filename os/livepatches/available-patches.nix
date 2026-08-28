@@ -303,7 +303,7 @@ let
           ];
           notes = [
             "Corrected-v7 supported-anchor draft; final publication still depends on parallel supported-v5 freeze-back."
-            "Corrected-v7-side predecessor guard, lp8_from_v7 self-contract, and exact-final hash are frozen; checkpoint/rebuild freeze-back still remains pending."
+            "Corrected-v7-side predecessor guard, lp8_from_v7 self-contract, exact-final hash, and shared checkpoint hash are frozen; reverse-guard freeze-back still remains pending."
           ];
           onlineAnchors = {
             correctedV7 = {
@@ -554,7 +554,7 @@ let
             buildPatches = [
               "bp-6.12.95-cumulative-v8"
             ];
-            expectedSha256 = null;
+            expectedSha256 = "0d2f9c01c03b8db2539a8313431af39c9bccd9aac9e3422bf97ba96ce5ee459c";
             nonReplace = false;
             coverageState = {
               id = "0x6129500000000002";
@@ -636,7 +636,7 @@ let
           notes = [
             "Supported-v5 draft using v5-specific guard/foundation overrides plus the merged cumulative-v8 source projection."
             "Multi-anchor loader/schema support is wired locally, but final publication still needs exact artifact freeze-back and final release metadata."
-            "Shared checkpoint-guard hash and shared reverse-guard self-contract are now frozen; v5-specific guard/final/checkpoint exact bytes still need successful build freeze-back."
+            "Shared checkpoint-guard hash and shared checkpoint exact hash are now frozen; v5-specific guard/foundation/final exact bytes and the shared reverse-guard exact hash still need successful build freeze-back."
           ];
           onlineAnchors = {
             supportedV5 = {
@@ -914,7 +914,7 @@ let
             buildPatches = [
               "bp-6.12.95-cumulative-v8"
             ];
-            expectedSha256 = null;
+            expectedSha256 = "0d2f9c01c03b8db2539a8313431af39c9bccd9aac9e3422bf97ba96ce5ee459c";
             nonReplace = false;
             coverageState = {
               id = "0x6129500000000002";
