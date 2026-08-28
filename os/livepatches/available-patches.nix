@@ -636,7 +636,7 @@ let
           notes = [
             "Supported-v5 draft using v5-specific guard/foundation overrides plus the merged cumulative-v8 source projection."
             "Multi-anchor loader/schema support is wired locally, but final publication still needs exact artifact freeze-back and final release metadata."
-            "Shared checkpoint-guard hash and shared checkpoint exact hash are now frozen; v5-specific guard/foundation/final exact bytes and the shared reverse-guard exact hash still need successful build freeze-back."
+            "Supported-v5 guard hash, shared checkpoint-guard hash, and shared checkpoint exact hash are now frozen; the v5-specific foundation/final exact bytes and the shared reverse-guard exact hash still need successful build freeze-back."
           ];
           onlineAnchors = {
             supportedV5 = {
@@ -777,7 +777,7 @@ let
             ];
             targets = [ "vmlinux" ];
             nonReplace = true;
-            expectedSha256 = null;
+            expectedSha256 = "636659009a71130b4af7041e148708381bc8bd2bd973041959a30e94b350d79a";
             bootstrap = {
               moduleName = "livepatch_transition_bootstrap";
               sourceDir = "transition-bootstrap";
