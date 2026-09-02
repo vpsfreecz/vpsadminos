@@ -146,7 +146,7 @@ import ../../make-test.nix (
 
         machine.wait_until_container_online(testct, timeout: 60)
 
-        machine.succeeds("osctl ct exec #{testct} apk add python3")
+        container_apk(machine, testct, 'add', 'python3', name: "Install Python in #{testct}")
 
         machine.all_succeed(
           "osctl ct exec #{testct} mkdir /data",
@@ -166,8 +166,8 @@ import ../../make-test.nix (
 
       cts.each do |testct|
         # When the bug is present, the script itself might fail to run, because
-        # apk v2 installs packages in this way, so the python3 interpreter itself
-        # is broken.
+        # apk installs packages in this way, so the python3 interpreter itself
+        # may be broken.
         machine.all_succeed(
           "osctl ct start #{testct}",
           "osctl ct runscript #{testct} /scripts/reader.py"

@@ -138,21 +138,6 @@ let
       )
     end
 
-    def self.ct_apk_add(testct, *packages)
-      wait_until_block_succeeds(
-        name: "install #{packages.join(', ')} in #{testct}",
-        timeout: 420
-      ) do
-        begin
-          machine.succeeds(
-            "osctl ct exec #{testct} apk add #{packages.join(' ')}",
-            timeout: 300
-          )
-        rescue OsVm::TimeoutError
-          false
-        end
-      end
-    end
   '';
 
   useMachine = cgroupsVersion: ''

@@ -36,8 +36,10 @@ import ../../make-test.nix (
             "osctl ct set dns-resolver testct1 1.1.1.1",
             "osctl ct start testct1",
             "sleep 5",
-            "osctl ct exec testct1 apk update",
-            "osctl ct exec testct1 apk add nfs-utils",
+          )
+          container_apk(machine, 'testct1', 'update', name: 'Update APK indexes in testct1')
+          container_apk(machine, 'testct1', 'add', 'nfs-utils', name: 'Install NFS utilities in testct1')
+          machine.all_succeed(
             "osctl ct exec testct1 rc-service rpcbind start",
             "osctl ct exec testct1 rc-service rpc.statd start",
 
@@ -48,8 +50,10 @@ import ../../make-test.nix (
             "osctl ct set dns-resolver testct2 1.1.1.1",
             "osctl ct start testct2",
             "sleep 5",
-            "osctl ct exec testct2 apk update",
-            "osctl ct exec testct2 apk add nfs-utils",
+          )
+          container_apk(machine, 'testct2', 'update', name: 'Update APK indexes in testct2')
+          container_apk(machine, 'testct2', 'add', 'nfs-utils', name: 'Install NFS utilities in testct2')
+          machine.all_succeed(
             "osctl ct exec testct2 rc-service rpcbind start",
             "osctl ct exec testct2 rc-service rpc.statd start",
 

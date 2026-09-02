@@ -54,7 +54,7 @@ let
                   "osctl ct start #{testct}"
                 )
                 machine.wait_until_container_online(testct)
-                ct_apk_add(testct, 'python3')
+                container_apk(machine, testct, 'add', 'python3', name: "Install Python in #{testct}")
               end
 
               after(:context) do
@@ -123,7 +123,7 @@ let
                       "osctl ct start #{testct}"
                     )
                     machine.wait_until_container_online(testct)
-                    ct_apk_add(testct, 'python3')
+                    container_apk(machine, testct, 'add', 'python3', name: "Install Python in #{testct}")
                   end
 
                   after(:context) do

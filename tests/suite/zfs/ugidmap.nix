@@ -24,8 +24,8 @@ import ../../make-test.nix (
       # Deploy tests
       machine.mkdir(test_dir)
 
-      tests = %w(defaults properties send-recv mappings acl-host acl-ct)
-      files = %w(run setup cleanup) + tests
+      tests = %w(defaults properties send-recv mappings acl-host)
+      files = %w(run setup cleanup acl-ct) + tests
 
       files.each do |name|
         machine.push_file(
@@ -40,6 +40,11 @@ import ../../make-test.nix (
       tests.each do |name|
         machine.succeeds("#{test_run} #{test_dir} #{name}")
       end
+
+      machine.succeeds("#{test_run} #{test_dir} acl-ct prepare")
+      machine.wait_until_container_online('testct', timeout: 60)
+      container_apk(machine, 'testct', 'add', 'acl', name: 'Install ACL tools in testct')
+      machine.succeeds("#{test_run} #{test_dir} acl-ct run")
     '';
   }
 )
