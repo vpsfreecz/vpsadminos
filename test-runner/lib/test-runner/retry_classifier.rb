@@ -9,6 +9,13 @@ module TestRunner
       /^E: Some index files failed to download\./,
       /^E: Unable to fetch some archives/
     ].freeze
+    APK_GENERIC_FAILURES = [
+      %r{^ERROR: Not continuing due to stale/unavailable repositories\.}
+    ].freeze
+    APK_FAILURE_SUMMARIES = [
+      /^\d+ unavailable, \d+ stale;/,
+      /^(?:\d+ errors?|ERRORS);/
+    ].freeze
     SWH_PROGRESS = /SWH vault: (?:requested bundle cooking|Processing)/
 
     module_function
@@ -43,6 +50,43 @@ module TestRunner
         'APT mirror HTTP failure'
       when /TLS connection was non-properly terminated/i
         'APT mirror TLS failure'
+      end
+    end
+
+    def apk(error)
+      return unless error.is_a?(OsVm::CommandFailed)
+
+      output_lines = command_output_lines(error)
+      terminal_line = output_lines.last
+      return unless terminal_line
+      return unless APK_FAILURE_SUMMARIES.any? { |pattern| pattern.match?(terminal_line) } ||
+                    APK_GENERIC_FAILURES.any? { |pattern| pattern.match?(terminal_line) }
+
+      diagnostic_lines = output_lines.select do |line|
+        line.start_with?('WARNING:', 'ERROR:')
+      end
+      return if diagnostic_lines.empty?
+
+      reasons = diagnostic_lines.filter_map { |line| apk_failure_reason(line) }
+      return if reasons.empty?
+      return unless diagnostic_lines.all? do |line|
+        apk_failure_reason(line) || APK_GENERIC_FAILURES.any? { |pattern| pattern.match?(line) }
+      end
+
+      reasons.last
+    end
+
+    def apk_failure_reason(line)
+      case line
+      when /DNS: transient error \(try again later\)/i,
+           /temporary error \(try again later\)/i
+        'APK transient network failure'
+      when /(?:operation|connection) timed out/i
+        'APK transport timeout'
+      when /(?:network connection aborted|software caused connection abort|could not connect to server|connection (?:reset|refused|aborted)|network is unreachable|network error \(check Internet connection and firewall\)|no route to host)/i
+        'APK transport failure'
+      when /HTTP (?:408|500|502|503|504):/i
+        'APK repository HTTP failure'
       end
     end
 
@@ -87,6 +131,7 @@ module TestRunner
       output_lines.reject { |line| line == 'error: executed command failed' }
     end
     private_class_method :apt_failure_reason
+    private_class_method :apk_failure_reason
     private_class_method :command_output_lines
   end
 end

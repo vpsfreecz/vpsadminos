@@ -393,6 +393,51 @@ module TestRunner
       end
     end
 
+    # Run apk in a vpsAdminOS container with bounded transient retries
+    #
+    # @param machine [OsVm::Machine] vpsAdminOS host
+    # @param container [String, Integer] container id
+    # @param operation [String] apk operation
+    # @param arguments [Array<String>] operation arguments
+    # @param name [String] operation name for retry reporting
+    # @param global_options [Array<String>] apk options placed before OPERATION
+    # @param environment [Hash<String, String>] command environment
+    # @param timeout [Integer] command timeout
+    # @return [Array(Integer, String)] command status and output
+    def container_apk(
+      machine,
+      container,
+      operation,
+      *arguments,
+      name:,
+      global_options: [],
+      environment: {},
+      timeout: @default_timeout
+    )
+      raise ArgumentError, 'apk operation cannot be empty' if operation.to_s.empty?
+
+      command = ['osctl', 'ct', 'exec', container.to_s]
+      command.push('env', *environment.map { |key, value| "#{key}=#{value}" }) unless environment.empty?
+      command.push(
+        'apk',
+        '--no-interactive',
+        '--timeout',
+        '60',
+        *global_options.map(&:to_s),
+        operation.to_s,
+        *arguments.map(&:to_s)
+      )
+
+      retry_operation(
+        name:,
+        attempts: 3,
+        delay: ->(attempt, _) { attempt * 30 },
+        retry_if: RetryClassifier.method(:apk)
+      ) do
+        machine.succeeds(Shellwords.join(command), timeout:)
+      end
+    end
+
     # Retry an APT operation using the framework's classified retry policy
     #
     # This is used when test-runner cannot construct the apt-get command, such
