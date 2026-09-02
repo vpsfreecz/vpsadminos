@@ -120,6 +120,38 @@ RSpec.describe TestRunner::RetryClassifier do
     end
   end
 
+  it 'classifies package 404s after a transient APKINDEX fetch failure' do
+    error = command_failed(<<~OUTPUT, status: 2)
+      WARNING: updating http://mirror.example.test/alpine/v3.24/main/x86_64/APKINDEX.tar.gz: DNS: transient error (try again later)
+      (1/2) Installing python3 (3.14.7-r1)
+      ERROR: python3-3.14.7-r1: HTTP 404: Not Found
+      (2/2) Installing python3-pycache-pyc0 (3.14.7-r1)
+      ERROR: python3-pycache-pyc0-3.14.7-r1: HTTP 404: Not Found
+      2 errors; 21.1 MiB in 51 packages
+    OUTPUT
+
+    expect(described_class.apk(error)).to eq('APK transient network failure')
+  end
+
+  it 'does not classify a package 404 without a transient APKINDEX failure' do
+    error = command_failed(<<~OUTPUT, status: 2)
+      ERROR: python3-3.14.7-r1: HTTP 404: Not Found
+      1 error; 21.1 MiB in 51 packages
+    OUTPUT
+
+    expect(described_class.apk(error)).to be_nil
+  end
+
+  it 'does not classify a package 404 after a different APK metadata failure' do
+    error = command_failed(<<~OUTPUT, status: 2)
+      WARNING: updating https://apk.example.test/packages.adb: DNS: transient error (try again later)
+      ERROR: python3-3.14.7-r1: HTTP 404: Not Found
+      1 error; 21.1 MiB in 51 packages
+    OUTPUT
+
+    expect(described_class.apk(error)).to be_nil
+  end
+
   it 'does not classify permanent APK failures' do
     [
       'HTTP 404: Not Found',

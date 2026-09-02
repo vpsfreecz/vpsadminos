@@ -69,8 +69,18 @@ module TestRunner
 
       reasons = diagnostic_lines.filter_map { |line| apk_failure_reason(line) }
       return if reasons.empty?
+
+      # A failed index refresh can leave cached package URLs stale. Only
+      # tolerate package 404s when this same operation reported a transient
+      # APKINDEX fetch failure; a standalone 404 is not retryable.
+      transient_index_failure = diagnostic_lines.any? do |line|
+        line.start_with?('WARNING:') && line.include?('APKINDEX.tar.gz:') && apk_failure_reason(line)
+      end
+
       return unless diagnostic_lines.all? do |line|
-        apk_failure_reason(line) || APK_GENERIC_FAILURES.any? { |pattern| pattern.match?(line) }
+        apk_failure_reason(line) ||
+        APK_GENERIC_FAILURES.any? { |pattern| pattern.match?(line) } ||
+        (transient_index_failure && /\AERROR: [^\s:]+: HTTP 404: Not Found\z/.match?(line))
       end
 
       reasons.last
