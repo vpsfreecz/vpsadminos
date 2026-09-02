@@ -431,6 +431,75 @@ RSpec.describe TestRunner::TestEvaluator do
     end.to raise_error(ArgumentError, 'apt-get arguments cannot be empty')
   end
 
+  it 'runs apk in a container with classified retries' do
+    evaluator = build_evaluator
+    machine = instance_double(OsVm::VpsadminosMachine)
+    transient = OsVm::CommandFailed.new('temporary APK failure')
+    calls = 0
+    allow(machine).to receive(:succeeds) do
+      calls += 1
+      raise transient if calls == 1
+
+      [0, 'installed']
+    end
+    allow(TestRunner::RetryClassifier).to receive(:apk)
+      .with(transient)
+      .and_return('APK transient network failure')
+    allow(evaluator).to receive(:sleep)
+    allow(evaluator).to receive(:log)
+
+    result = evaluator.container_apk(
+      machine,
+      'ct name',
+      'add',
+      'curl package',
+      name: 'APK package installation',
+      global_options: ['--no-cache'],
+      environment: { 'HTTP_PROXY' => 'http://proxy.example.test:3128' },
+      timeout: 1200
+    )
+
+    expect(result).to eq([0, 'installed'])
+    expect(machine).to have_received(:succeeds).twice.with(
+      'osctl ct exec ct\\ name env ' \
+      'HTTP_PROXY\\=http://proxy.example.test:3128 ' \
+      'apk --no-interactive --timeout 60 --no-cache add curl\\ package',
+      timeout: 1200
+    )
+    expect(evaluator).to have_received(:sleep).with(30)
+    expect(evaluator).to have_received(:log).with(
+      'Retrying APK package installation after OsVm::CommandFailed: ' \
+      'APK transient network failure; attempt 2/3 in 30s'
+    )
+  end
+
+  it 'requires an apk operation' do
+    evaluator = build_evaluator
+
+    expect do
+      evaluator.container_apk(
+        instance_double(OsVm::VpsadminosMachine),
+        'ct',
+        '',
+        name: 'APK operation'
+      )
+    end.to raise_error(ArgumentError, 'apk operation cannot be empty')
+  end
+
+  it 'does not retry an apk evaluator timeout' do
+    evaluator = build_evaluator
+    machine = instance_double(OsVm::VpsadminosMachine)
+    allow(machine).to receive(:succeeds).and_raise(OsVm::TimeoutError, 'timed out')
+    allow(evaluator).to receive(:sleep)
+
+    expect do
+      evaluator.container_apk(machine, 'ct', 'update', name: 'APK update')
+    end.to raise_error(OsVm::TimeoutError, 'timed out')
+
+    expect(machine).to have_received(:succeeds).once
+    expect(evaluator).not_to have_received(:sleep)
+  end
+
   it 'waits until a block succeeds' do
     evaluator = build_evaluator
     calls = 0
