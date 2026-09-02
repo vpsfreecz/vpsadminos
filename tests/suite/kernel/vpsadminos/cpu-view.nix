@@ -36,7 +36,7 @@ let
             )
 
             machine.wait_until_container_online(testct, timeout: 60)
-            ct_apk_add(testct, 'python3')
+            container_apk(machine, testct, 'add', 'python3', name: "Install Python in #{testct}")
           end
 
           after(:suite) do

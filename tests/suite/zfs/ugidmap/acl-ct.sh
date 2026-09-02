@@ -4,11 +4,17 @@ GIDMAP="0:$TEST_GID:65536"
 CT_USER_UID=1000
 CT_GROUP_GID=2000
 
-log_must osctl user new --map-uid $UIDMAP --map-gid $GIDMAP testuser
-log_must osctl ct new --user testuser --distribution alpine --map-mode zfs testct
-log_must osctl ct netif new bridge --link lxcbr0 testct eth0
-log_must osctl ct start testct
-log_must sleep 10
+if [ "$TEST_PHASE" = "prepare" ]; then
+  log_must osctl user new --map-uid $UIDMAP --map-gid $GIDMAP testuser
+  log_must osctl ct new --user testuser --distribution alpine --map-mode zfs testct
+  log_must osctl ct netif new bridge --link lxcbr0 testct eth0
+  log_must osctl ct start testct
+  exit 0
+fi
+
+if [ "$TEST_PHASE" != "run" ]; then
+  log_fail "Usage: $0 TEST_DIR acl-ct {prepare|run}"
+fi
 
 CT_DS=$(osctl ct show -H -o dataset testct)
 CT_ROOTFS=$(osctl ct show -H -o rootfs testct)
@@ -22,8 +28,6 @@ fail() {
   echo \$@
   exit 1
 }
-
-apk add acl
 
 addgroup -g $CT_GROUP_GID testgroup
 adduser -u $CT_USER_UID -G testgroup -D testuser

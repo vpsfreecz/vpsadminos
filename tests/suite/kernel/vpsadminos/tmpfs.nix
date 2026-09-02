@@ -92,7 +92,7 @@ let
               "osctl ct start #{testct}"
             )
             machine.wait_until_container_online(testct)
-            ct_apk_add(testct, 'findmnt')
+            container_apk(machine, testct, 'add', 'findmnt', name: "Install findmnt in #{testct}")
           end
 
           after(:suite) do

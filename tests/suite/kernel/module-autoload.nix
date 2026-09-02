@@ -142,10 +142,18 @@ import ../../make-test.nix (
           "osctl ct start #{ctid}",
         )
         machine.wait_until_succeeds("osctl ct exec #{ctid} sh -lc true", timeout: 180)
-        machine.wait_until_succeeds(
-          "osctl ct exec #{ctid} sh -lc " \
-          "#{Shellwords.escape('apk add --no-cache iproute2 iproute2-tc iptables iptables-legacy nftables python3')}",
-          timeout: 180
+        container_apk(
+          machine,
+          ctid,
+          'add',
+          'iproute2',
+          'iproute2-tc',
+          'iptables',
+          'iptables-legacy',
+          'nftables',
+          'python3',
+          name: "Install network tools in #{ctid}",
+          global_options: ['--no-cache']
         )
       end
 
