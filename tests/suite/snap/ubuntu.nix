@@ -7,9 +7,14 @@ import ./base.nix {
       version = "latest";
       mapBase = null;
       setup = ''
-        machine.all_succeed(
-          "osctl ct exec #{ct} apt-get update -y",
-          "osctl ct exec #{ct} apt-get -y install snapd",
+        container_apt_get(machine, ct, 'update', '-y', name: "APT metadata refresh in #{ct}")
+        container_apt_get(
+          machine,
+          ct,
+          'install',
+          '-y',
+          'snapd',
+          name: "Snap APT package installation in #{ct}",
         )
       '';
       check = "check_snap_hello(ct)";
@@ -20,9 +25,15 @@ import ./base.nix {
       version = "latest";
       mapBase = 3400000;
       setup = ''
-        machine.all_succeed(
-          "osctl ct exec #{ct} apt-get update -y",
-          "osctl ct exec #{ct} apt-get -y install screen snapd",
+        container_apt_get(machine, ct, 'update', '-y', name: "APT metadata refresh in #{ct}")
+        container_apt_get(
+          machine,
+          ct,
+          'install',
+          '-y',
+          'screen',
+          'snapd',
+          name: "Snap APT package installation in #{ct}",
         )
       '';
       check = "check_snap_lxd(ct)";

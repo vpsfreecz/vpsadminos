@@ -5,9 +5,14 @@ import ./base.nix {
       version = "latest";
       mapBase = 1600000;
       setup = ''
-        machine.all_succeed(
-          "osctl ct exec #{ct} apt-get update -y",
-          "osctl ct exec #{ct} apt-get -y install incus",
+        container_apt_get(machine, ct, 'update', '-y', name: "APT metadata refresh in #{ct}")
+        container_apt_get(
+          machine,
+          ct,
+          'install',
+          '-y',
+          'incus',
+          name: "Incus APT package installation in #{ct}",
         )
       '';
     }
