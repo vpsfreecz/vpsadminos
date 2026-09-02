@@ -35,30 +35,99 @@ let
       };
     };
 in
-(mkSimpleScript "attrs"
-  ''
-    Test that IMMUTABLE and APPEND_ONLY flags can be set/unset in containers
-  ''
-  ''
-    describe 'attr' do
-      { 'immutable' => 'i', 'append-only' => 'a' }.each do |attr, option|
-        file = "/#{attr}.file"
+{
+  misc-attrs = {
+    description = ''
+      Test IMMUTABLE and APPEND_ONLY flags with native and ZFS ID mapping
+    '';
 
-        context attr do
-          before(:context) do
-            machine.succeeds("osctl ct exec #{testct} touch #{file}")
-          end
+    script = common.useMachine 2 + ''
+      prefix = 'kmisc-attrs'
+      testcts = %w[native zfs].to_h do |mode|
+        [mode, get_container_id("#{prefix}-#{mode}")]
+      end
 
-          %w[+ -].each do |cmd|
-            it "allows chattr #{cmd}#{option}" do
-              machine.succeeds("osctl ct exec #{testct} chattr #{cmd}#{option} #{file}")
+      def self.file_attributes(testct, file)
+        _, output = machine.succeeds("osctl ct exec #{testct} lsattr #{file}")
+        output.strip.split.first
+      end
+
+      before(:suite) do
+        ensure_kernel_machine
+        cleanup_containers_with_prefix(prefix)
+
+        testcts.each do |mode, testct|
+          machine.all_succeed(
+            "osctl ct new --distribution alpine --map-mode #{mode} #{testct}",
+            "osctl ct start #{testct}"
+          )
+        end
+      end
+
+      after(:suite) do
+        cleanup_containers_with_prefix(prefix)
+      end
+
+      describe 'file attributes' do
+        testcts.each do |mode, testct|
+          context "with #{mode} ID mapping" do
+            it 'enforces the immutable flag' do
+              file = "/immutable-#{mode}.file"
+              machine.succeeds(
+                "osctl ct exec #{testct} /bin/sh -c 'printf initial > #{file}'"
+              )
+
+              begin
+                machine.succeeds("osctl ct exec #{testct} chattr +i #{file}")
+                expect(file_attributes(testct, file)).to include('i')
+                machine.all_fail(
+                  "osctl ct exec #{testct} /bin/sh -c 'printf replaced > #{file}'",
+                  "osctl ct exec #{testct} /bin/sh -c 'printf appended >> #{file}'",
+                  "osctl ct exec #{testct} rm #{file}"
+                )
+              ensure
+                machine.succeeds("osctl ct exec #{testct} chattr -i #{file}")
+              end
+
+              expect(file_attributes(testct, file)).not_to include('i')
+              machine.all_succeed(
+                "osctl ct exec #{testct} /bin/sh -c 'printf replaced > #{file}'",
+                "osctl ct exec #{testct} rm #{file}"
+              )
+            end
+
+            it 'enforces the append-only flag' do
+              file = "/append-only-#{mode}.file"
+              machine.succeeds(
+                "osctl ct exec #{testct} /bin/sh -c 'printf initial > #{file}'"
+              )
+
+              begin
+                machine.succeeds("osctl ct exec #{testct} chattr +a #{file}")
+                expect(file_attributes(testct, file)).to include('a')
+                machine.succeeds(
+                  "osctl ct exec #{testct} /bin/sh -c 'printf appended >> #{file}'"
+                )
+                machine.all_fail(
+                  "osctl ct exec #{testct} /bin/sh -c 'printf replaced > #{file}'",
+                  "osctl ct exec #{testct} rm #{file}"
+                )
+              ensure
+                machine.succeeds("osctl ct exec #{testct} chattr -a #{file}")
+              end
+
+              expect(file_attributes(testct, file)).not_to include('a')
+              machine.all_succeed(
+                "osctl ct exec #{testct} /bin/sh -c 'printf replaced > #{file}'",
+                "osctl ct exec #{testct} rm #{file}"
+              )
             end
           end
         end
       end
-    end
-  ''
-)
+    '';
+  };
+}
 // (mkSimpleScript "mknod"
   ''
     Containers can use mknod
