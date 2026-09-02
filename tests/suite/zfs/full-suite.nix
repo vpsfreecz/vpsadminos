@@ -89,6 +89,7 @@ import ../../make-test.nix (
             # Keep bisect/repro runs fast: avoid rebuilding kernel with ZFS built-in.
             boot.zfsBuiltin = lib.mkForce false;
             boot.zfsUserPackage = lib.mkForce zfsUserWithTests;
+            boot.kernelModules = [ "ext4" ];
             # Prevent fd0 probing noise/stalls during long ZFS test runs.
             boot.blacklistedKernelModules = [ "floppy" ];
             boot.kernelParams = [ "floppy=off" ];
