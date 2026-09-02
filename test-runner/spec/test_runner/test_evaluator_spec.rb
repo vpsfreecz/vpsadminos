@@ -266,6 +266,171 @@ RSpec.describe TestRunner::TestEvaluator do
     end.to raise_error(OsVm::TimeoutError, 'Timeout occurred while waiting for thing')
   end
 
+  it 'retries a classified operation and reports recovered failures' do
+    evaluator = build_evaluator
+    calls = 0
+    delays = []
+    logs = []
+    allow(evaluator).to receive(:sleep) { |delay| delays << delay }
+    allow(evaluator).to receive(:log) { |message| logs << message }
+
+    result = evaluator.retry_operation(
+      name: 'upstream request',
+      attempts: 3,
+      delay: ->(attempt, _) { attempt * 2 },
+      retry_if: ->(error) { error.message == 'temporary' && 'temporary upstream failure' }
+    ) do |attempt|
+      calls += 1
+      raise 'temporary' if attempt < 3
+
+      :ready
+    end
+
+    expect(result).to eq(:ready)
+    expect(calls).to eq(3)
+    expect(delays).to eq([2, 4])
+    expect(logs).to eq(
+      [
+        'Retrying upstream request after RuntimeError: temporary upstream failure; ' \
+        'attempt 2/3 in 2s',
+        'Retrying upstream request after RuntimeError: temporary upstream failure; ' \
+        'attempt 3/3 in 4s'
+      ]
+    )
+  end
+
+  it 'returns an immediate operation success without consulting retry behavior' do
+    evaluator = build_evaluator
+    retry_if = instance_spy(Proc)
+    delay = instance_spy(Proc)
+    allow(evaluator).to receive(:log)
+    allow(evaluator).to receive(:sleep)
+
+    result = evaluator.retry_operation(
+      name: 'upstream request',
+      attempts: 3,
+      delay:,
+      retry_if:
+    ) { :ready }
+
+    expect(result).to eq(:ready)
+    expect(retry_if).not_to have_received(:call)
+    expect(delay).not_to have_received(:call)
+    expect(evaluator).not_to have_received(:log)
+    expect(evaluator).not_to have_received(:sleep)
+  end
+
+  it 'raises an unclassified operation failure without retrying' do
+    evaluator = build_evaluator
+    calls = 0
+    allow(evaluator).to receive(:sleep)
+
+    expect do
+      evaluator.retry_operation(
+        name: 'upstream request',
+        attempts: 3,
+        retry_if: ->(_) { false }
+      ) do
+        calls += 1
+        raise 'terminal'
+      end
+    end.to raise_error(RuntimeError, 'terminal')
+
+    expect(calls).to eq(1)
+    expect(evaluator).not_to have_received(:sleep)
+  end
+
+  it 'raises the last classified failure when retries are exhausted' do
+    evaluator = build_evaluator
+    calls = 0
+    allow(evaluator).to receive(:sleep)
+    allow(evaluator).to receive(:log)
+
+    expect do
+      evaluator.retry_operation(
+        name: 'upstream request',
+        attempts: 3,
+        delay: 0,
+        retry_if: ->(_) { true }
+      ) do
+        calls += 1
+        raise "temporary #{calls}"
+      end
+    end.to raise_error(RuntimeError, 'temporary 3')
+
+    expect(calls).to eq(3)
+    expect(evaluator).to have_received(:log).twice
+  end
+
+  it 'validates retry operation arguments' do
+    evaluator = build_evaluator
+
+    expect do
+      evaluator.retry_operation(name: 'thing', attempts: 0, retry_if: ->(_) { true }) { true }
+    end.to raise_error(ArgumentError, 'attempts must be a positive integer')
+
+    expect do
+      evaluator.retry_operation(name: 'thing', attempts: 1, delay: -1, retry_if: ->(_) { true }) { true }
+    end.to raise_error(ArgumentError, 'delay must be a non-negative number or callable')
+
+    expect do
+      evaluator.retry_operation(name: 'thing', attempts: 1, retry_if: true) { true }
+    end.to raise_error(ArgumentError, 'retry_if must be callable')
+  end
+
+  it 'runs apt-get in a container with native and classified retries' do
+    evaluator = build_evaluator
+    machine = instance_double(OsVm::VpsadminosMachine)
+    transient = OsVm::CommandFailed.new('temporary APT failure')
+    calls = 0
+    allow(machine).to receive(:succeeds) do
+      calls += 1
+      raise transient if calls == 1
+
+      [0, 'installed']
+    end
+    allow(TestRunner::RetryClassifier).to receive(:apt)
+      .with(transient)
+      .and_return('APT mirror synchronization race')
+    allow(evaluator).to receive(:sleep)
+    allow(evaluator).to receive(:log)
+
+    result = evaluator.container_apt_get(
+      machine,
+      'ct name',
+      'install',
+      '--yes',
+      'curl',
+      name: 'APT package installation',
+      environment: { 'DEBIAN_FRONTEND' => 'noninteractive' },
+      timeout: 1200
+    )
+
+    expect(result).to eq([0, 'installed'])
+    expect(machine).to have_received(:succeeds).twice.with(
+      'osctl ct exec ct\\ name env DEBIAN_FRONTEND\\=noninteractive ' \
+      'apt-get -o Acquire::Retries\\=3 install --yes curl',
+      timeout: 1200
+    )
+    expect(evaluator).to have_received(:sleep).with(30)
+    expect(evaluator).to have_received(:log).with(
+      'Retrying APT package installation after OsVm::CommandFailed: ' \
+      'APT mirror synchronization race; attempt 2/3 in 30s'
+    )
+  end
+
+  it 'requires apt-get arguments' do
+    evaluator = build_evaluator
+
+    expect do
+      evaluator.container_apt_get(
+        instance_double(OsVm::VpsadminosMachine),
+        'ct',
+        name: 'APT operation'
+      )
+    end.to raise_error(ArgumentError, 'apt-get arguments cannot be empty')
+  end
+
   it 'waits until a block succeeds' do
     evaluator = build_evaluator
     calls = 0

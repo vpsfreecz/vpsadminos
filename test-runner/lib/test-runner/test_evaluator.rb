@@ -1,6 +1,7 @@
 require 'pry'
 require 'osvm'
 require 'rspec/expectations'
+require 'shellwords'
 require 'test-runner/hook'
 require 'test-runner/test_result'
 require 'test-runner/test_script_result'
@@ -308,6 +309,106 @@ module TestRunner
 
         sleep(1)
       end
+    end
+
+    # Retry a failed operation a bounded number of times
+    #
+    # RETRY_IF receives the exception and must return false/nil for a terminal
+    # failure, true to retry with the exception summary as the reason, or a
+    # string describing the classified transient failure. DELAY may be a
+    # numeric value or a callable receiving the failed attempt number and
+    # exception.
+    #
+    # @param name [String] operation name for retry reporting
+    # @param attempts [Integer] maximum number of attempts, including the first
+    # @param delay [Numeric, Proc]
+    # @param retry_if [Proc]
+    # @yieldparam attempt [Integer] current attempt, starting at one
+    # @return [any] yielded value
+    def retry_operation(name:, attempts:, retry_if:, delay: 1)
+      unless attempts.is_a?(Integer) && attempts > 0
+        raise ArgumentError, 'attempts must be a positive integer'
+      end
+
+      unless delay.respond_to?(:call) || (delay.is_a?(Numeric) && delay >= 0)
+        raise ArgumentError, 'delay must be a non-negative number or callable'
+      end
+
+      raise ArgumentError, 'retry_if must be callable' unless retry_if.respond_to?(:call)
+
+      attempts.times do |attempt|
+        raise_if_kernel_failed!
+
+        begin
+          ret = yield(attempt + 1)
+          raise_if_kernel_failed!
+          return ret
+        rescue StandardError => e
+          raise_if_kernel_failed!
+          raise if attempt + 1 >= attempts
+
+          classification = retry_if.call(e)
+          raise unless classification
+
+          retry_delay = delay.respond_to?(:call) ? delay.call(attempt + 1, e) : delay
+
+          unless retry_delay.is_a?(Numeric) && retry_delay >= 0
+            raise ArgumentError, 'retry delay must be a non-negative number'
+          end
+
+          reason =
+            if classification == true
+              e.message.lines.first&.strip || e.class.to_s
+            else
+              classification.to_s
+            end
+
+          log(
+            "Retrying #{name} after #{e.class}: #{reason}; " \
+            "attempt #{attempt + 2}/#{attempts} in #{retry_delay}s"
+          )
+          sleep(retry_delay) if retry_delay > 0
+        end
+      end
+    end
+
+    # Run apt-get in a vpsAdminOS container with bounded transient retries
+    #
+    # @param machine [OsVm::Machine] vpsAdminOS host
+    # @param container [String, Integer] container id
+    # @param arguments [Array<String>] apt-get arguments
+    # @param name [String] operation name for retry reporting
+    # @param environment [Hash<String, String>] command environment
+    # @param timeout [Integer] command timeout
+    # @return [Array(Integer, String)] command status and output
+    def container_apt_get(machine, container, *arguments, name:, environment: {}, timeout: @default_timeout)
+      raise ArgumentError, 'apt-get arguments cannot be empty' if arguments.empty?
+
+      command = ['osctl', 'ct', 'exec', container.to_s]
+      command.push('env', *environment.map { |key, value| "#{key}=#{value}" }) unless environment.empty?
+      command.push('apt-get', '-o', 'Acquire::Retries=3', *arguments.map(&:to_s))
+
+      retry_apt_operation(name:) do
+        machine.succeeds(Shellwords.join(command), timeout:)
+      end
+    end
+
+    # Retry an APT operation using the framework's classified retry policy
+    #
+    # This is used when test-runner cannot construct the apt-get command, such
+    # as when executing a byte-stable documentation fixture.
+    #
+    # @param name [String] operation name for retry reporting
+    # @yieldreturn [any]
+    # @return [any] yielded value
+    def retry_apt_operation(name:, &)
+      retry_operation(
+        name:,
+        attempts: 3,
+        delay: ->(attempt, _) { attempt * 30 },
+        retry_if: RetryClassifier.method(:apt),
+        &
+      )
     end
 
     # Wait for a block that eventually succeeds
