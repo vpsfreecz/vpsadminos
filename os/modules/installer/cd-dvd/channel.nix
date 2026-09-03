@@ -54,9 +54,11 @@ let
     test-runner = rubySource ../../../../test-runner;
   };
 
+  # Reflink metadata is allocated with the source extent, so cloning can fail
+  # when that allocation group is full even if the filesystem has free space.
   nixosChannel = pkgs.runCommand "nixos-${config.system.vpsadminos.version}" { } ''
     mkdir $out
-    cp -prd ${nixpkgs} $out/nixos
+    cp --reflink=never -prd ${nixpkgs} $out/nixos
     chmod -R u+w $out/nixos
     if [ ! -e $out/nixos/nixpkgs ]; then
       ln -s . $out/nixos/nixpkgs
@@ -65,28 +67,28 @@ let
 
   vpsadminosChannel = pkgs.runCommand "vpsadminos-${config.system.vpsadminos.version}" { } ''
     mkdir -p $out $out/vpsadminos $out/vpsadminos/artwork
-    cp -prd ${../../../../flake.nix} $out/vpsadminos/flake.nix
-    cp -prd ${../../../../flake.lock} $out/vpsadminos/flake.lock
-    cp -prd ${../../../../.ruby-version} $out/vpsadminos/.ruby-version
-    cp -prd ${ctStartMenu} $out/vpsadminos/ctstartmenu
-    cp -prd ${ctPtyWrapper} $out/vpsadminos/ctptywrapper
-    cp -prd ${imageScripts} $out/vpsadminos/image-scripts
-    cp -prd ${rubySources.libosctl} $out/vpsadminos/libosctl
-    cp -prd ${rubySources.osctl} $out/vpsadminos/osctl
-    cp -prd ${rubySources.osctl-exporter} $out/vpsadminos/osctl-exporter
-    cp -prd ${rubySources.osctl-exportfs} $out/vpsadminos/osctl-exportfs
-    cp -prd ${rubySources.osctl-image} $out/vpsadminos/osctl-image
-    cp -prd ${rubySources.osctl-oomd} $out/vpsadminos/osctl-oomd
-    cp -prd ${rubySources.osctl-repo} $out/vpsadminos/osctl-repo
-    cp -prd ${rubySources.osctld} $out/vpsadminos/osctld
+    cp --reflink=never -prd ${../../../../flake.nix} $out/vpsadminos/flake.nix
+    cp --reflink=never -prd ${../../../../flake.lock} $out/vpsadminos/flake.lock
+    cp --reflink=never -prd ${../../../../.ruby-version} $out/vpsadminos/.ruby-version
+    cp --reflink=never -prd ${ctStartMenu} $out/vpsadminos/ctstartmenu
+    cp --reflink=never -prd ${ctPtyWrapper} $out/vpsadminos/ctptywrapper
+    cp --reflink=never -prd ${imageScripts} $out/vpsadminos/image-scripts
+    cp --reflink=never -prd ${rubySources.libosctl} $out/vpsadminos/libosctl
+    cp --reflink=never -prd ${rubySources.osctl} $out/vpsadminos/osctl
+    cp --reflink=never -prd ${rubySources.osctl-exporter} $out/vpsadminos/osctl-exporter
+    cp --reflink=never -prd ${rubySources.osctl-exportfs} $out/vpsadminos/osctl-exportfs
+    cp --reflink=never -prd ${rubySources.osctl-image} $out/vpsadminos/osctl-image
+    cp --reflink=never -prd ${rubySources.osctl-oomd} $out/vpsadminos/osctl-oomd
+    cp --reflink=never -prd ${rubySources.osctl-repo} $out/vpsadminos/osctl-repo
+    cp --reflink=never -prd ${rubySources.osctld} $out/vpsadminos/osctld
     mkdir -p $out/vpsadminos/tools
-    cp -prd ${rubySources.osctlEnvExec} $out/vpsadminos/tools/osctl-env-exec
-    cp -prd ${rubySources.osup} $out/vpsadminos/osup
-    cp -prd ${rubySources.osvm} $out/vpsadminos/osvm
-    cp -prd ${rubySources.svctl} $out/vpsadminos/svctl
-    cp -prd ${rubySources.test-runner} $out/vpsadminos/test-runner
-    cp -prd ${os} $out/vpsadminos/os
-    cp -prd ${../../../../artwork/boot.png} $out/vpsadminos/artwork/boot.png
+    cp --reflink=never -prd ${rubySources.osctlEnvExec} $out/vpsadminos/tools/osctl-env-exec
+    cp --reflink=never -prd ${rubySources.osup} $out/vpsadminos/osup
+    cp --reflink=never -prd ${rubySources.osvm} $out/vpsadminos/osvm
+    cp --reflink=never -prd ${rubySources.svctl} $out/vpsadminos/svctl
+    cp --reflink=never -prd ${rubySources.test-runner} $out/vpsadminos/test-runner
+    cp --reflink=never -prd ${os} $out/vpsadminos/os
+    cp --reflink=never -prd ${../../../../artwork/boot.png} $out/vpsadminos/artwork/boot.png
     chmod -R u+w $out/vpsadminos
     echo -n ${config.system.vpsadminos.release} > $out/vpsadminos/.version
     echo -n ${config.system.vpsadminos.versionSuffix} > $out/vpsadminos/.version-suffix
