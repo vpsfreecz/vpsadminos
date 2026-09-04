@@ -30,7 +30,7 @@ import ../../make-test.nix (
           after(:suite) do
             execution_order << :after_suite
 
-            machine.stop if machine.running?
+            machine.kill if machine.running?
 
             expect(execution_order).to eq(%i[
               before_suite
