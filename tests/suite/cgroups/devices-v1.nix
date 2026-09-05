@@ -114,6 +114,55 @@ import ../../make-test.nix (
       _, output = machine.succeeds("osctl ct exec testct cat /sys/fs/cgroup/devices/devices.list")
       device_list = output.strip.split("\n").map { |line| line.strip.split(" ") }
       check_allowlist(allowed_devices + [%w(c 10:200 rwm /dev/net/tun)], device_list)
+
+      shared_cgroup = "/sys/fs/cgroup/devices/osctl/pool.tank/group.default/user.testct"
+      testct_cgroup = "#{shared_cgroup}/ct.testct"
+      testct2_cgroup = "#{shared_cgroup}/ct.testct2"
+
+      read_devices = lambda do |path|
+        machine.succeeds("cat #{path}/devices.list")[1]
+               .lines
+               .map { |line| line.strip.split(" ") }
+      end
+
+      describe 'container devices under a shared user cgroup', order: :defined do
+        before(:context) do
+          machine.all_succeed(
+            "osctl ct new --distribution alpine --user testct testct2",
+            "osctl ct unset start-menu testct2",
+            "osctl ct start testct2",
+            "osctl ct devices add -p testct2 char 10 200 rwm /dev/net/tun"
+          )
+        end
+
+        it 'keeps a sibling device allowed when removed from one container' do
+          machine.succeeds("osctl ct devices del testct char 10 200")
+
+          expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
+          expect(read_devices.call(shared_cgroup)).to include(%w[c 10:200 rwm])
+          expect(read_devices.call(testct_cgroup)).not_to include(%w[c 10:200 rwm])
+          expect(read_devices.call(testct2_cgroup)).to include(%w[c 10:200 rwm])
+        end
+
+        it 'keeps a sibling mode unchanged when restricting one container' do
+          machine.succeeds("osctl ct devices add -p testct char 10 200 rwm /dev/net/tun")
+          machine.succeeds("osctl ct devices chmod testct char 10 200 r")
+
+          expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
+          expect(read_devices.call(shared_cgroup)).to include(%w[c 10:200 rwm])
+          expect(read_devices.call(testct_cgroup)).to include(%w[c 10:200 r])
+          expect(read_devices.call(testct2_cgroup)).to include(%w[c 10:200 rwm])
+        end
+
+        it 'still removes device access recursively from the parent group' do
+          machine.succeeds("osctl group devices del --recursive /default char 10 200")
+
+          expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
+          expect(read_devices.call(shared_cgroup)).not_to include(%w[c 10:200 rwm])
+          expect(read_devices.call(testct_cgroup)).not_to include(%w[c 10:200 r])
+          expect(read_devices.call(testct2_cgroup)).not_to include(%w[c 10:200 rwm])
+        end
+      end
     '';
   }
 )

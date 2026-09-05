@@ -26,7 +26,7 @@ module OsCtld
     end
 
     def remove_device(device)
-      abs_all_cgroup_paths.reverse_each do |cgpath, req|
+      abs_ct_cgroup_paths.reverse_each do |cgpath, req|
         next unless prepare_cgroup(cgpath, req)
 
         do_deny_device(device, cgpath)
@@ -34,7 +34,13 @@ module OsCtld
     end
 
     def apply_changes(changes)
-      abs_all_cgroup_paths.each do |cgpath, req|
+      abs_group_cgroup_paths.each do |cgpath, req|
+        next unless prepare_cgroup(cgpath, req)
+
+        do_apply_changes(changes.slice(:allow), cgpath)
+      end
+
+      abs_ct_cgroup_paths.each do |cgpath, req|
         next unless prepare_cgroup(cgpath, req)
 
         do_apply_changes(changes, cgpath)
