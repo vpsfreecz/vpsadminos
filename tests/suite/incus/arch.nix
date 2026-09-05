@@ -17,6 +17,12 @@ import ./base.nix {
           timeout: 900,
         )
       '';
+      preStart = ''
+        ct_shell(
+          ct,
+          "incus config set i1 #{Shellwords.escape('raw.lxc=lxc.sched.core = 0')}"
+        )
+      '';
     }
   ];
 }
