@@ -45,4 +45,45 @@ RSpec.describe OsVm::PortReservation do
 
     expect(described_class.get_port(key: 'beta')).to eq(20_000)
   end
+
+  it 'isolates allocations made by independent processes' do
+    Dir.mktmpdir do |dir|
+      first = described_class.send(:new)
+      second = described_class.send(:new)
+
+      [first, second].each do |allocator|
+        allocator.instance_variable_set(:@ports, [10_000, 10_001])
+        allow(allocator).to receive(:lock_directory).and_return(dir)
+      end
+
+      expect(first.get_port(key: 'first')).to eq(10_000)
+      expect(second.get_port(key: 'second')).to eq(10_001)
+    ensure
+      first&.release_port(key: 'first')
+      second&.release_port(key: 'second')
+    end
+  end
+
+  it 'uses a host-wide lock directory for the current user' do
+    allocator = described_class.send(:new)
+
+    expect(allocator.send(:lock_directory)).to eq("/var/tmp/osvm-port-reservations-#{Process.uid}")
+  end
+
+  it 'supports a configured host-wide lock root' do
+    allocator = described_class.send(:new)
+    original_root = ENV.fetch('OSVM_PORT_RESERVATION_ROOT', nil)
+
+    Dir.mktmpdir do |dir|
+      ENV['OSVM_PORT_RESERVATION_ROOT'] = dir
+
+      expect(allocator.send(:lock_directory)).to eq(File.join(dir, "osvm-port-reservations-#{Process.uid}"))
+    end
+  ensure
+    if original_root.nil?
+      ENV.delete('OSVM_PORT_RESERVATION_ROOT')
+    else
+      ENV['OSVM_PORT_RESERVATION_ROOT'] = original_root
+    end
+  end
 end
