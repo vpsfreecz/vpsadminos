@@ -3,6 +3,11 @@ import ../../make-test.nix (
   let
     rootDisk = "system-install-root.img";
     poolDisk = "system-install-pool.img";
+    configuration =
+      let
+        cfg = builtins.getEnv "VPSADMINOS_CONFIG";
+      in
+      if cfg == "" then null else import cfg;
 
     isoSystem = import ../../../os (
       {
@@ -32,10 +37,13 @@ import ../../make-test.nix (
           }
         ];
       }
+      // pkgs.lib.optionalAttrs (configuration != null) { inherit configuration; }
       // (pkgs.vpsadminosTestFrameworkInputs or { })
     );
 
     isoPath = "${isoSystem.config.system.build.isoImage}/iso/${isoSystem.config.isoImage.isoName}";
+    installUnstable = isoSystem.config.system.vpsadminos.enableUnstable;
+    expectedKernelVersion = isoSystem.config.boot.kernelVersion;
 
     disks = [
       {
@@ -112,7 +120,8 @@ import ../../make-test.nix (
             'command -v vpsadminos-enter',
             'command -v vpsadminos-version',
             'command -v vpsadminos-rebuild',
-            'vpsadminos-version'
+            'vpsadminos-version',
+            'test "$(uname -r)" = "${expectedKernelVersion}"'
           )
         end
 
@@ -181,6 +190,7 @@ import ../../make-test.nix (
               networking.hostName = "vpsadminos-installed";
               networking.nameservers = [ "10.0.2.3" ];
               networking.useDHCP = true;
+              system.vpsadminos.enableUnstable = ${pkgs.lib.boolToString installUnstable};
               osctl.test-shell = {
                 enable = true;
                 shells = 1;
@@ -190,7 +200,7 @@ import ../../make-test.nix (
         end
 
         it 'installs vpsAdminOS to disk' do
-          installer.succeeds('vpsadminos-install --root /mnt --flake /mnt/etc/vpsadminos#vpsadminos-installed --no-root-password', timeout: 1800)
+          installer.succeeds('vpsadminos-install --root /mnt --flake /mnt/etc/vpsadminos#vpsadminos-installed --no-root-password', timeout: 2400)
           installer.succeeds('vpsadminos-enter --root /mnt -- true')
           installer.succeeds('test -d /mnt/boot/grub')
         end
@@ -207,7 +217,8 @@ import ../../make-test.nix (
             'test -L /run/current-system',
             'test -d /boot/grub',
             'test "$(findmnt -n -o FSTYPE /)" = "ext4"',
-            'command -v vpsadminos-rebuild'
+            'command -v vpsadminos-rebuild',
+            'test "$(uname -r)" = "${expectedKernelVersion}"'
           )
         end
 
