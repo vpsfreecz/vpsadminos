@@ -38,6 +38,8 @@ RSpec.describe OsCtld::ContainerControl::Runner do
     runner_class.new(
       pool: 'tank',
       id: 'ct1',
+      run_id: 'run-1',
+      lifecycle_start_token: 'start-token',
       lxc_home: '/var/lib/lxc',
       user_home: '/home/alice',
       log_file: '/tmp/ct.log',
@@ -61,6 +63,7 @@ RSpec.describe OsCtld::ContainerControl::Runner do
     expect(ENV.fetch('TERM')).to eq('xterm')
     expect(ENV.to_h.fetch('HOME')).to eq('/home/alice')
     expect(ENV.fetch('PATH')).to eq(OsCtld::SwitchUser::SYSTEM_PATH.join(':'))
+    expect(ENV.fetch('OSCTL_RUN_ID')).to eq('run-1')
     expect(ENV).not_to have_key('BUNDLE_GEMFILE')
   end
 

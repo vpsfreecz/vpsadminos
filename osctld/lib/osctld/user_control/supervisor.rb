@@ -1,14 +1,78 @@
 require 'libosctl'
 require 'osctld/generic/client_handler'
+require 'osctld/process_identity'
 
 module OsCtld
   class UserControl::Supervisor
-    class ClientHandler < Generic::ClientHandler
-      def handle_cmd(req)
-        cmd = UserControl::Command.find(req[:cmd].to_sym)
-        error!("Unsupported command '#{req[:cmd]}'") unless cmd
+    DIRECT_COMMANDS = %w[
+      ct_netns_setup
+      ct_on_start
+      ct_post_stop
+      ct_pre_start
+      ct_wrapper_start
+      veth_down
+      veth_up
+    ].freeze
 
-        cmd.run(opts[:user], req[:opts])
+    NAMESPACED_COMMANDS = %w[
+      ct_autodev
+      ct_post_mount
+      ct_pre_mount
+    ].freeze
+
+    module AuthenticatedHandler
+      protected
+
+      def validate_request(req, allowed_commands)
+        return error('invalid input') unless req.is_a?(Hash) && req[:opts].is_a?(Hash)
+        return error('invalid cmd') unless allowed_commands.include?(req[:cmd].to_s)
+
+        nil
+      end
+
+      def with_peer(namespaces: [], root: false)
+        peer = nil
+
+        begin
+          cred = @sock.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED)
+          pid, uid, gid = cred.unpack('LLL')
+          peer = ProcessIdentity.new(pid, namespaces:, root:)
+        rescue SystemCallError, IOError, ArgumentError
+          return error('unable to authenticate peer')
+        end
+
+        begin
+          yield(peer, uid, gid)
+        ensure
+          peer.close
+        end
+      end
+
+      def run_command(req, user, peer)
+        cmd = UserControl::Command.find(req[:cmd].to_sym)
+        return error("Unsupported command '#{req[:cmd]}'") unless cmd
+
+        cmd.run(user, req[:opts].dup, peer:)
+      end
+    end
+
+    class ClientHandler < Generic::ClientHandler
+      include AuthenticatedHandler
+
+      def handle_cmd(req)
+        ret = validate_request(req, DIRECT_COMMANDS)
+        return ret if ret
+
+        with_peer do |peer, uid, gid|
+          user = opts[:user]
+
+          unless uid == user.ugid && gid == user.ugid
+            log(:warn, "Invalid direct peer pid=#{peer.pid},uid=#{uid},gid=#{gid} for user #{user.ident}")
+            next error('invalid user')
+          end
+
+          run_command(req, user, peer)
+        end
       end
 
       def log_type
@@ -21,56 +85,60 @@ module OsCtld
     # The handler finds appropriate osctld user and passes control to standard
     # client handler.
     class NamespacedClientHandler < Generic::ClientHandler
+      include AuthenticatedHandler
+
+      ROOTFS_DESCRIPTOR_TIMEOUT = 5
+      ROOTFS_DESCRIPTOR_REQUEST = 'send-rootfs-mount-fd'.freeze
+
       def handle_cmd(req)
-        return error('invalid input') unless req.is_a?(Hash)
+        ret = validate_request(req, NAMESPACED_COMMANDS)
+        return ret if ret
 
-        # For now, allow only ct_autodev
-        unless %w[ct_autodev ct_pre_mount ct_post_mount].include?(req[:cmd])
-          return error('invalid cmd')
+        ct = DB::Containers.find(req[:opts][:id], req[:opts][:pool])
+        return error('invalid container') unless ct
+
+        with_peer(namespaces: %i[mnt user], root: true) do |peer, uid, gid|
+          user = ct.user
+
+          unless peer.in_cgroup_subtree?(ct.base_cgroup_path)
+            log(:warn, "Namespaced peer pid=#{peer.pid} does not belong to #{ct.ident}")
+            next error('invalid container')
+          end
+
+          expected_uid = user.uid_map.ns_to_host(0)
+          expected_gid = user.gid_map.ns_to_host(0)
+
+          unless uid == expected_uid && gid == expected_gid
+            log(
+              :warn,
+              "Invalid namespaced peer pid=#{peer.pid},uid=#{uid},gid=#{gid} " \
+              "for #{ct.ident}, expected uid=#{expected_uid},gid=#{expected_gid}"
+            )
+            next error('invalid user')
+          end
+
+          rootfs_dir = nil
+
+          begin
+            if req[:cmd].to_s == 'ct_post_mount'
+              send_update(ROOTFS_DESCRIPTOR_REQUEST)
+
+              unless @sock.wait_readable(ROOTFS_DESCRIPTOR_TIMEOUT)
+                next error('missing mounted container rootfs descriptor')
+              end
+
+              rootfs_dir = @sock.recv_io
+              req[:opts][:rootfs_dir] = rootfs_dir
+            end
+
+            log(:info, "Forwarding request to user #{user.ident}")
+            run_command(req, user, peer)
+          rescue SystemCallError, IOError, ArgumentError, TypeError
+            error('invalid mounted container rootfs descriptor')
+          ensure
+            rootfs_dir&.close unless rootfs_dir&.closed?
+          end
         end
-
-        # Find out which user has connected
-        cred = @sock.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED)
-        pid, uid, gid = cred.unpack('LLL')
-
-        # Locate the user in DB using the uid of the caller process' grandparent:
-        # - caller: lxc hook
-        # - parent: lxc-start, future /sbin/init
-        # - grandparent: lxc-start running within the host namespace
-        process = OsCtl::Lib::OsProcess.new(pid)
-        gpuid = process.grandparent.ruid
-
-        user = DB::Users.get.detect do |u|
-          u.pool.name == req[:opts][:pool] && u.ugid == gpuid
-        end
-
-        unless user
-          log(:warn, "Unable to find user for pid=#{pid},uid=#{uid},gid=#{gid}")
-          return error('invalid user')
-        end
-
-        # Just to be sure that we have the right user, compare the caller's
-        # uid/gid with the user's uid/gid within user namespace.
-        {
-          uid: [user.uid_map.ns_to_host(0), uid],
-          gid: [user.gid_map.ns_to_host(0), gid]
-        }.each do |type, ids|
-          expected, got = ids
-
-          next unless expected != got
-
-          log(:warn, "Caller's #{type} does not match the located user: " \
-                     "user=#{user.ident}, expected #{type}=#{expected}, " \
-                     "got #{type}=#{got}")
-          return error('invalid user')
-        end
-
-        req[:opts].update(client_pid: pid) if req[:opts].is_a?(Hash)
-
-        # Forward to a real client handler
-        log(:info, "Forwarding request to user #{user.ident}")
-        handler = ClientHandler.new(@sock, user:)
-        handler.handle_cmd(req)
       end
 
       def log_type

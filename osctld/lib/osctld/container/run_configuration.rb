@@ -1,5 +1,7 @@
 require 'libosctl'
 require 'osctld/lockable'
+require 'osctld/process_identity'
+require 'securerandom'
 
 module OsCtld
   class Container::RunConfiguration
@@ -33,6 +35,30 @@ module OsCtld
           @run_conf.send(:release_init_lease)
           @identity = nil
         end
+      end
+    end
+
+    # Hold one authenticated lifecycle callback on this exact run. Retirement
+    # rejects new leases and waits for active callbacks before the container
+    # can detach the run and admit a replacement.
+    class LifecycleLease
+      def initialize(run_conf)
+        @run_conf = run_conf
+        @mutex = Mutex.new
+        @closed = false
+      end
+
+      def close
+        release = @mutex.synchronize do
+          next false if @closed
+
+          @closed = true
+          true
+        end
+        return unless release
+
+        @run_conf.send(:release_lifecycle_lease)
+        @run_conf = nil
       end
     end
 
@@ -70,12 +96,19 @@ module OsCtld
       @init_lease_mutex = Mutex.new
       @init_lease_cond = ConditionVariable.new
       @init_lease_count = 0
+      @lifecycle_lease_count = 0
       @retiring = false
       @destroyed = false
+      @retirement_complete = false
       @aborted = false
       @do_reboot = false
       @exit_promise = Promise.new
       @dist_network_configured = false
+      @lifecycle_identity = nil
+      @lifecycle_pid = nil
+      @lifecycle_start_time_ticks = nil
+      @lifecycle_events = {}
+      @lifecycle_start_token = nil
       self.load_conf(from_file: load_conf)
     end
 
@@ -230,6 +263,18 @@ module OsCtld
       raise
     end
 
+    # Acquire an exact-run lease for a lifecycle callback or recovery action.
+    # Callers must first pin this run through the container's current-run lock.
+    def acquire_lifecycle_lease
+      @init_lease_mutex.synchronize do
+        raise LifecycleError, 'container run is retiring' if @retiring || @destroyed
+
+        @lifecycle_lease_count += 1
+      end
+
+      LifecycleLease.new(self)
+    end
+
     # Prevent new init leases without waiting for current holders. This is
     # called while the container still points at this run, making detachment
     # atomic with respect to lease acquisition.
@@ -240,6 +285,26 @@ module OsCtld
         @retiring = true
         @init_lease_cond.broadcast
         true
+      end
+    end
+
+    def retiring?
+      @init_lease_mutex.synchronize { @retiring || @destroyed }
+    end
+
+    # Wait until destroy has completed retirement. Container start uses this
+    # outside ordinary state locks so it cannot overwrite a retiring run.
+    def wait_until_retired
+      @init_lease_mutex.synchronize do
+        @init_lease_cond.wait(@init_lease_mutex) until @retirement_complete
+      end
+    end
+
+    # Wait for authenticated callbacks and recovery actions to finish. The
+    # current-run pointer remains attached while this wait is in progress.
+    def wait_for_lifecycle_leases
+      @init_lease_mutex.synchronize do
+        @init_lease_cond.wait(@init_lease_mutex) while @lifecycle_lease_count > 0
       end
     end
 
@@ -266,6 +331,79 @@ module OsCtld
       @exit_promise.fulfil
     end
 
+    def lifecycle_identity
+      inclusively { @lifecycle_identity }
+    end
+
+    def issue_lifecycle_start
+      token = SecureRandom.hex(32)
+      exclusively { @lifecycle_start_token = token }
+      token
+    end
+
+    def register_lifecycle(source_identity, token:)
+      identity = source_identity.duplicate
+      identity_pid = identity.pid
+      identity_start_time_ticks = identity.start_time_ticks
+      old_identity = nil
+
+      exclusively do
+        unless token.is_a?(String) && token == @lifecycle_start_token
+          raise LifecycleError, 'invalid lifecycle start capability'
+        end
+
+        if @lifecycle_identity&.alive?
+          raise LifecycleError, 'container lifecycle is already registered'
+        end
+
+        unless identity.alive?
+          raise LifecycleError, 'container lifecycle process is not available'
+        end
+
+        @lifecycle_start_token = nil
+        old_identity = @lifecycle_identity
+        @lifecycle_identity = identity
+        @lifecycle_pid = identity_pid
+        @lifecycle_start_time_ticks = identity_start_time_ticks
+        @lifecycle_events = { 'wrapper_start' => true }
+        identity = nil
+      end
+
+      old_identity&.close
+      save
+      lifecycle_identity
+    rescue SystemCallError, IOError, ArgumentError, TypeError => e
+      raise LifecycleError, "unable to register lifecycle process: #{e.message}"
+    ensure
+      identity&.close
+    end
+
+    def claim_lifecycle_event(event, after: [])
+      event_name = event.to_s
+      dependencies = Array(after).map(&:to_s)
+
+      exclusively do
+        unless @lifecycle_identity&.alive?
+          raise LifecycleError, 'container lifecycle process is not available'
+        end
+
+        if @lifecycle_events[event_name]
+          raise LifecycleError, "lifecycle event #{event_name} was already handled"
+        end
+
+        missing = dependencies.reject { |dependency| @lifecycle_events[dependency] }
+        unless missing.empty?
+          raise LifecycleError,
+                "lifecycle event #{event_name} is out of order, missing #{missing.join(', ')}"
+        end
+
+        @lifecycle_events[event_name] = true
+      end
+
+      save
+      true
+    end
+
     def dist_configure_network?
       inclusively do
         !dist_network_configured && can_dist_configure_network?
@@ -287,7 +425,10 @@ module OsCtld
           'vendor' => vendor,
           'variant' => variant,
           'cpu_package' => cpu_package,
-          'destroy_dataset_on_stop' => destroy_dataset_on_stop?
+          'destroy_dataset_on_stop' => destroy_dataset_on_stop?,
+          'lifecycle_pid' => @lifecycle_pid,
+          'lifecycle_start_time_ticks' => @lifecycle_start_time_ticks,
+          'lifecycle_events' => @lifecycle_events.keys
         }
       end
     end
@@ -324,6 +465,11 @@ module OsCtld
         else
           false
         end
+      @lifecycle_events = Array(cfg['lifecycle_events']).to_h { |event| [event.to_s, true] }
+      restore_lifecycle_identity(
+        cfg['lifecycle_pid'],
+        cfg['lifecycle_start_time_ticks']
+      )
       nil
     end
 
@@ -341,20 +487,63 @@ module OsCtld
 
     def destroy
       begin_retirement
-      wait_for_init_leases
+      wait_for_leases
       File.unlink(file_path)
     rescue Errno::ENOENT
       # ignore
     ensure
-      close_init_identity
+      begin
+        close_init_identity
+      ensure
+        begin
+          close_lifecycle_identity
+        ensure
+          complete_retirement
+        end
+      end
     end
 
     protected
 
-    def wait_for_init_leases
+    def restore_lifecycle_identity(pid, start_time_ticks)
+      return if pid.nil? || start_time_ticks.nil?
+
+      identity = ProcessIdentity.new(pid)
+
+      unless identity.start_time_ticks == Integer(start_time_ticks)
+        identity.close
+        return
+      end
+
+      @lifecycle_identity = identity
+      @lifecycle_pid = identity.pid
+      @lifecycle_start_time_ticks = identity.start_time_ticks
+    rescue SystemCallError, IOError, ArgumentError
+      identity&.close
+      @lifecycle_identity = nil
+      @lifecycle_pid = nil
+      @lifecycle_start_time_ticks = nil
+    end
+
+    def close_lifecycle_identity
+      identity = nil
+
+      exclusively do
+        identity = @lifecycle_identity
+        @lifecycle_identity = nil
+        @lifecycle_pid = nil
+        @lifecycle_start_time_ticks = nil
+      end
+
+      identity&.close
+    end
+
+    def wait_for_leases
       @init_lease_mutex.synchronize do
-        @init_lease_cond.wait(@init_lease_mutex) while @init_lease_count > 0
+        @init_lease_cond.wait(@init_lease_mutex) while @init_lease_count > 0 || @lifecycle_lease_count > 0
+
         @destroyed = true
+        @init_lease_cond.broadcast
       end
     end
 
@@ -363,7 +552,25 @@ module OsCtld
         raise LifecycleError, 'init identity lease underflow' unless @init_lease_count > 0
 
         @init_lease_count -= 1
-        @init_lease_cond.broadcast if @init_lease_count == 0
+        @init_lease_cond.broadcast
+      end
+    end
+
+    def release_lifecycle_lease
+      @init_lease_mutex.synchronize do
+        unless @lifecycle_lease_count > 0
+          raise LifecycleError, 'lifecycle lease underflow'
+        end
+
+        @lifecycle_lease_count -= 1
+        @init_lease_cond.broadcast
+      end
+    end
+
+    def complete_retirement
+      @init_lease_mutex.synchronize do
+        @retirement_complete = true
+        @init_lease_cond.broadcast
       end
     end
 

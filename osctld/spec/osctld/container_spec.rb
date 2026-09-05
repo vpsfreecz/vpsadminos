@@ -15,6 +15,9 @@ require 'osctld/container/raw_configs'
 require 'osctld/container/impermanence'
 require 'osctld/container/start_menu'
 require 'osctld/container'
+require 'osctld/container/recovery'
+require 'osctld/user_control/command'
+require 'osctld/user_control/commands/ct_post_stop'
 
 RSpec.describe OsCtld::Container do
   let(:run_conf_class) { build_fake_run_configuration_class(load_return: nil) }
@@ -528,11 +531,11 @@ RSpec.describe OsCtld::Container do
   end
 
   describe '#syslogns_tag' do
-    it 'keeps the legacy stable tag by default' do
+    it 'keeps a stable kernel-valid tag by default' do
       with_tmpdir do |dir|
         ct = build_container(root: dir, id: 'ct1')
 
-        expect(ct.syslogns_tag).to eq('    tank:ct1')
+        expect(ct.syslogns_tag).to eq('tank_ct1')
       end
     end
 
@@ -544,7 +547,28 @@ RSpec.describe OsCtld::Container do
         tag = ct.syslogns_tag(run_id:)
 
         expect(tag.bytesize).to eq(OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE)
-        expect(tag).to match(/\Along-co:[0-9a-f]{4}\z/)
+        expect(tag).to match(/\Along-co-[0-9a-f]{4}\z/)
+      end
+    end
+
+    it 'keeps every tag inside the kernel name grammar' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir, id: '.-_container_-.')
+        tags = [ct.syslogns_tag, ct.syslogns_tag(run_id: 'tank:.-_container_-.:123.45')]
+        grammar = /\A[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?\z/
+
+        tags.each do |tag|
+          expect(tag.bytesize).to be_between(1, OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE)
+          expect(tag).to match(grammar)
+        end
+      end
+    end
+
+    it 'falls back to an alphanumeric prefix for an unusable container id' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir, id: '.-_.')
+
+        expect(ct.syslogns_tag(run_id: 'tank:.-_.:123.45')).to match(/\Act-[0-9a-f]{4}\z/)
       end
     end
   end
@@ -726,6 +750,82 @@ RSpec.describe OsCtld::Container do
       end
     end
 
+    it 'atomically initializes one run configuration for concurrent ensure callers' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        original_init = ct.method(:init_run_conf)
+        init_arrivals = Queue.new
+        release_init = Queue.new
+        created = []
+        created_lock = Mutex.new
+        results = Queue.new
+
+        ct.define_singleton_method(:init_run_conf) do |*args, **kwargs|
+          init_arrivals << true
+          release_init.pop
+          original_init.call(*args, **kwargs)
+        end
+        allow(ct).to receive(:new_run_conf).and_wrap_original do |original|
+          run_conf = original.call
+          created_lock.synchronize { created << run_conf }
+          run_conf
+        end
+        allow(ct).to receive(:reconfigure)
+
+        threads = 2.times.map do
+          Thread.new { results << ct.ensure_run_conf }
+        end
+        2.times { init_arrivals.pop }
+        2.times { release_init << true }
+        threads.each { |thread| expect(thread.join(1)).to be(thread) }
+
+        returned = 2.times.map { results.pop }
+        expect(created.length).to eq(1)
+        expect(returned).to all(equal(created.first))
+        expect(created.first.save_calls).to eq(1)
+      ensure
+        2.times { release_init&.push(true) }
+        threads&.each { |thread| thread.join(1) }
+      end
+    end
+
+    it 'does not publish an ensured run until reconfiguration completes' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        reconfigure_started = Queue.new
+        release_reconfigure = Queue.new
+        results = Queue.new
+        allow(ct).to receive(:reconfigure) do
+          reconfigure_started << true
+          release_reconfigure.pop
+        end
+
+        first_thread = Thread.new { results << ct.ensure_run_conf }
+        reconfigure_started.pop
+        second_thread = Thread.new { results << ct.ensure_run_conf }
+        10_000.times do
+          break if second_thread.status != 'run'
+
+          Thread.pass
+        end
+
+        expect(second_thread.status).to eq('sleep')
+        expect { results.pop(true) }.to raise_error(ThreadError)
+
+        release_reconfigure << true
+        expect(first_thread.join(1)).to be(first_thread)
+        expect(second_thread.join(1)).to be(second_thread)
+
+        returned = 2.times.map { results.pop }
+        expect(returned).to all(equal(ct.run_conf))
+        expect(ct.run_conf.save_calls).to eq(1)
+      ensure
+        release_reconfigure&.push(true) if first_thread&.alive?
+        first_thread&.join(1)
+        second_thread&.join(1)
+      end
+    end
+
     it 'moves the active run configuration to past_run_conf when stopped' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
@@ -741,35 +841,283 @@ RSpec.describe OsCtld::Container do
       end
     end
 
-    it 'detaches a retiring run before waiting for its active leases' do
+    it 'keeps a retiring run attached until destroy completes' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
         active = run_conf_class.new(ct, load_conf: false)
         destroy_started = Queue.new
         release_destroy = Queue.new
+        original_destroy = active.method(:destroy)
         active.define_singleton_method(:destroy) do
-          super()
           destroy_started << true
           release_destroy.pop
+          original_destroy.call
         end
         ct.instance_variable_set('@run_conf', active)
+        allow(ct).to receive(:reconfigure)
 
         stop_thread = Thread.new { ct.stopped(active) }
         destroy_started.pop
+        start_thread = Thread.new { ct.ensure_run_conf }
         read_result = Queue.new
         read_thread = Thread.new { read_result << ct.run_conf }
 
         expect(read_thread.join(1)).to be(read_thread)
-        expect(read_result.pop).to be_nil
+        expect(read_result.pop).to be(active)
         expect(stop_thread).to be_alive
+        expect(start_thread).to be_alive
 
         release_destroy << true
         expect(stop_thread.join(1)).to be(stop_thread)
         expect(stop_thread.value).to be(true)
+        expect(start_thread.join(1)).to be(start_thread)
+        expect(ct.run_conf).not_to be(active)
+        expect(start_thread.value).to be(ct.run_conf)
+        expect(ct.get_past_run_conf).to be(active)
       ensure
         release_destroy&.push(true) if stop_thread&.alive?
         read_thread&.join(1)
         stop_thread&.join(1)
+        start_thread&.join(1)
+      end
+    end
+
+    it 'elects one teardown owner while a concurrent same-run path waits' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', active)
+        owner_entered = Queue.new
+        waiter_entered = Queue.new
+        release_owner = Queue.new
+        effects_mutex = Mutex.new
+        global_cleanup_calls = 0
+        hook_calls = 0
+
+        teardown = proc do
+          ct.stopped(active) do |owner|
+            unless owner
+              waiter_entered << true
+              next
+            end
+
+            effects_mutex.synchronize do
+              global_cleanup_calls += 1
+              hook_calls += 1
+            end
+            owner_entered << true
+            Timeout.timeout(5) { release_owner.pop }
+          end
+        end
+
+        owner_thread = Thread.new { teardown.call }
+        Timeout.timeout(5) { owner_entered.pop }
+        waiter_thread = Thread.new { teardown.call }
+        Timeout.timeout(5) { waiter_entered.pop }
+
+        expect(active.retirement_calls).to eq(2)
+        expect(waiter_thread).to be_alive
+
+        release_owner << true
+        expect(owner_thread.join(5)).to be(owner_thread)
+        expect(waiter_thread.join(5)).to be(waiter_thread)
+        expect(owner_thread.value).to be(true)
+        expect(waiter_thread.value).to be(true)
+        expect(global_cleanup_calls).to eq(1)
+        expect(hook_calls).to eq(1)
+        expect(active.destroy_calls).to eq(1)
+      ensure
+        release_owner&.push(true) if owner_thread&.alive?
+        owner_thread&.join(5)
+        waiter_thread&.join(5)
+      end
+    end
+
+    [
+      [:post_stop, nil],
+      [:recovery, nil],
+      %i[post_stop bpf],
+      %i[recovery bpf],
+      %i[post_stop apparmor_destroy],
+      %i[recovery apparmor_destroy]
+    ].each do |teardown_owner, failure_step|
+      description = if failure_step
+                      "completes teardown after #{failure_step} fails with #{teardown_owner} as owner"
+                    else
+                      "serializes recovery and post-stop when #{teardown_owner} owns common teardown"
+                    end
+
+      it description do
+        with_tmpdir do |dir|
+          ct = build_container(root: dir)
+          active = run_conf_class.new(ct, load_conf: false)
+          ct.instance_variable_set('@run_conf', active)
+          ct.state = :running
+          allow(ct).to receive(:current_state).and_return(:stopped)
+
+          effects = []
+          effects_mutex = Mutex.new
+          common_started = Queue.new
+          injected_error = RuntimeError.new("#{failure_step} failed") if failure_step
+          record_effect = lambda do |effect|
+            path = Thread.current[:osctld_teardown_path]
+            effects_mutex.synchronize { effects << [effect, path] }
+            common_started << path if effect == :apparmor_destroy
+          end
+
+          netifs = ct.netifs
+          netifs.define_singleton_method(:take_down) { nil }
+          allow(netifs).to receive(:take_down) { record_effect.call(:netifs) }
+
+          apparmor = ct.apparmor
+          apparmor.define_singleton_method(:destroy_namespace) { nil }
+          apparmor.define_singleton_method(:unload_profile) { nil }
+          allow(apparmor).to receive(:destroy_namespace) do
+            record_effect.call(:apparmor_destroy)
+            raise injected_error if failure_step == :apparmor_destroy
+          end
+          allow(apparmor).to receive(:unload_profile) do
+            record_effect.call(:apparmor_unload)
+          end
+          stub_const('OsCtld::AppArmor', Class.new do
+            def self.enabled? = true
+          end)
+
+          stub_const('OsCtld::Hook', Class.new do
+            def self.run(*); end
+          end)
+          stub_const('OsCtld::Eventd', Class.new do
+            def self.report(*); end
+          end)
+          stub_const('OsCtld::DB::Containers', Class.new do
+            class << self
+              attr_accessor :container
+
+              def find(*) = container
+              def get = [container]
+            end
+          end)
+          OsCtld::DB::Containers.container = ct
+          allow(OsCtld::Hook).to receive(:run) do
+            record_effect.call(:hook)
+          end
+          allow(OsCtld::Eventd).to receive(:report)
+          allow(OsCtld::BpfFs).to receive(:remove_ct) do
+            record_effect.call(:bpf)
+            raise injected_error if failure_step == :bpf
+          end
+
+          user = instance_double(FakeObjects::FakeUser)
+          peer = instance_double(OsCtld::ProcessIdentity)
+          command = OsCtld::UserControl::Commands::CtPostStop.new(
+            user,
+            { id: ct.id, pool: ct.pool.name, run_id: 'active' },
+            peer:
+          )
+          command.instance_variable_set(:@authenticated_run_conf, active)
+          allow(command).to receive(:authenticate_lifecycle_callback).with(ct).and_return(nil)
+          allow(command).to receive(:claim_lifecycle_event) do
+            command.instance_variable_set(
+              :@lifecycle_event_lease,
+              active.acquire_lifecycle_lease
+            )
+            nil
+          end
+          allow(command).to receive(:log)
+          allow(peer).to receive(:environment_variable).with('LXC_TARGET').and_return('stop')
+
+          delayed_path = teardown_owner == :post_stop ? :recovery : :post_stop
+          delayed_at_stop = Queue.new
+          release_delayed = Queue.new
+          owner_waiting = Queue.new
+          allow(ct).to receive(:stopped).and_wrap_original do |original, *args, &block|
+            if Thread.current[:osctld_teardown_path] == delayed_path
+              delayed_at_stop << true
+              Timeout.timeout(5) { release_delayed.pop }
+            end
+            original.call(*args, &block)
+          end
+          allow(active).to receive(:wait_for_lifecycle_leases).and_wrap_original do |original|
+            owner_waiting << Thread.current[:osctld_teardown_path]
+            original.call
+          end
+
+          recovery = OsCtld::Container::Recovery.new(ct)
+          start_recovery = lambda do
+            Thread.new do
+              Thread.current.report_on_exception = false
+              Thread.current[:osctld_teardown_path] = :recovery
+              recovery.recover_state
+            end
+          end
+          start_callback = lambda do
+            Thread.new do
+              Thread.current.report_on_exception = false
+              Thread.current[:osctld_teardown_path] = :post_stop
+              command.execute
+            end
+          end
+
+          if delayed_path == :recovery
+            recovery_thread = start_recovery.call
+            Timeout.timeout(5) { delayed_at_stop.pop }
+            callback_thread = start_callback.call
+          else
+            callback_thread = start_callback.call
+            Timeout.timeout(5) { delayed_at_stop.pop }
+            recovery_thread = start_recovery.call
+          end
+
+          expect(Timeout.timeout(5) { owner_waiting.pop }).to eq(teardown_owner)
+          expect { common_started.pop(true) }.to raise_error(ThreadError)
+          expect(effects_mutex.synchronize { effects.dup }).to eq(
+            [[teardown_owner == :post_stop ? :bpf : :netifs, teardown_owner]]
+          )
+
+          release_delayed << true
+          failed_path = failure_step == :bpf ? :post_stop : teardown_owner if failure_step
+          failed_thread = failed_path == :post_stop ? callback_thread : recovery_thread
+          successful_thread = failed_path == :post_stop ? recovery_thread : callback_thread
+
+          if failure_step
+            expect(successful_thread.join(5)).to be(successful_thread)
+            expect { failed_thread.join(5) }.to raise_error do |error|
+              expect(error).to be(injected_error)
+            end
+          else
+            expect(callback_thread.join(5)).to be(callback_thread)
+            expect(recovery_thread.join(5)).to be(recovery_thread)
+          end
+
+          unless failed_path == :post_stop
+            expect(callback_thread.value).to eq(status: true, output: nil)
+          end
+          expect(recovery_thread.value).to be_nil unless failed_path == :recovery
+
+          expected_effects = [
+            [teardown_owner == :post_stop ? :bpf : :netifs, teardown_owner],
+            [teardown_owner == :post_stop ? :netifs : :bpf, delayed_path],
+            [:apparmor_destroy, teardown_owner],
+            [:apparmor_unload, teardown_owner],
+            [:hook, teardown_owner]
+          ]
+          expect(effects_mutex.synchronize { effects.dup }).to eq(expected_effects)
+          expect(netifs).to have_received(:take_down).once
+          expect(apparmor).to have_received(:destroy_namespace).once
+          expect(apparmor).to have_received(:unload_profile).once
+          expect(OsCtld::BpfFs).to have_received(:remove_ct).with(ct.pool.name, ct.id).once
+          expect(OsCtld::Hook).to have_received(:run).with(ct, :post_stop).once
+          expect(active.closed_lifecycle_lease_count).to eq(2)
+          expect(active.destroy_observed_lease_count).to eq(0)
+          expect(active.destroy_calls).to eq(1)
+        ensure
+          release_delayed&.push(true) if recovery_thread&.alive? || callback_thread&.alive?
+          [recovery_thread, callback_thread].compact.each do |thread|
+            thread.join(5)
+          rescue StandardError
+            # Expected injected failures are asserted above.
+          end
+        end
       end
     end
 

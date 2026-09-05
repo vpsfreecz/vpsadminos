@@ -10,11 +10,14 @@ module OsCtld
     # execve().
     LXC_ATTACH_FLAGS = LXC::LXC_ATTACH_SET_PERSONALITY
 
-    attr_reader :pool, :ctid, :lxc_home, :user_home, :log_file
+    attr_reader :pool, :ctid, :run_id, :lifecycle_start_token, :lxc_home,
+                :user_home, :log_file
 
     # @param opts [Hash] container options
     # @option opts [String] :pool
     # @option opts [String] :id
+    # @option opts [String, nil] :run_id
+    # @option opts [String, nil] :lifecycle_start_token
     # @option opts [String] :lxc_home
     # @option opts [String] :user_home
     # @option opts [String] :log_file
@@ -24,6 +27,8 @@ module OsCtld
     def initialize(**opts)
       @pool = opts[:pool]
       @ctid = opts[:id]
+      @run_id = opts[:run_id]
+      @lifecycle_start_token = opts[:lifecycle_start_token]
       @lxc_home = opts[:lxc_home]
       @user_home = opts[:user_home]
       @log_file = opts[:log_file]
@@ -64,6 +69,7 @@ module OsCtld
       ENV.delete_if { |k, _| k != 'TERM' }
       ENV['PATH'] = system_path.join(':')
       ENV['HOME'] = user_home
+      ENV['OSCTL_RUN_ID'] = run_id if run_id
     end
 
     def setup_exec_run_env

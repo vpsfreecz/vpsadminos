@@ -2,27 +2,85 @@
 require 'json'
 require 'socket'
 
-pool, ctid = ARGV
+module OsCtldCtStart
+  MAX_BOOTSTRAP_SIZE = 64 * 1024
 
-s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
+  module_function
 
-payload = {
-  cmd: :ct_wrapper_start,
-  opts: {
-    id: ctid,
-    pool:,
-    pid: Process.pid
-  }
-}
+  def load_bootstrap(fd_arg)
+    fd = Integer(fd_arg, 10)
+    raise ArgumentError, 'invalid bootstrap descriptor' if fd < 3
 
-s.send("#{payload.to_json}\n", 0)
+    io = IO.for_fd(fd, 'r')
+    raw = io.read(MAX_BOOTSTRAP_SIZE + 1)
+    raise ArgumentError, 'bootstrap payload is too large' if raw.bytesize > MAX_BOOTSTRAP_SIZE
 
-ret = JSON.parse(s.readline, symbolize_names: true)
-s.close
+    data = JSON.parse(raw, symbolize_names: true)
+    required_strings = %i[pool ctid run_id lifecycle_start_token]
+    unless data.is_a?(Hash) \
+           && required_strings.all? { |key| data[key].is_a?(String) && !data[key].empty? }
+      raise ArgumentError, 'invalid bootstrap payload'
+    end
 
-if ret[:status]
-  Process.exec(*ARGV[2..])
-else
-  warn "Error: #{ret[:message]}"
-  exit(false)
+    cgroup_fds = data[:cgroup_fds]
+    unless cgroup_fds.is_a?(Array) && !cgroup_fds.empty? \
+           && cgroup_fds.uniq.length == cgroup_fds.length \
+           && cgroup_fds.all? { |cgroup_fd| cgroup_fd.is_a?(Integer) && cgroup_fd >= 3 && cgroup_fd != fd }
+      raise ArgumentError, 'invalid cgroup descriptors'
+    end
+
+    data
+  rescue JSON::ParserError
+    raise ArgumentError, 'invalid bootstrap payload'
+  ensure
+    io&.close
+  end
+
+  def enter_cgroups(fds)
+    unless fds.is_a?(Array) && !fds.empty? \
+           && fds.uniq.length == fds.length \
+           && fds.all? { |fd| fd.is_a?(Integer) && fd >= 3 }
+      raise ArgumentError, 'invalid cgroup descriptors'
+    end
+
+    files = fds.map { |fd| IO.for_fd(fd, 'w') }
+    files.each { |file| file.write("0\n") }
+  ensure
+    files&.each { |file| file.close unless file.closed? }
+  end
+
+  def run(argv)
+    bootstrap_fd, *command = argv
+    if bootstrap_fd.nil? || command.empty?
+      raise ArgumentError, 'invalid container start arguments'
+    end
+
+    bootstrap = load_bootstrap(bootstrap_fd)
+
+    enter_cgroups(bootstrap.fetch(:cgroup_fds))
+
+    UNIXSocket.open("/run/osctl/user-control/#{Process.uid}.sock") do |socket|
+      payload = {
+        cmd: :ct_wrapper_start,
+        opts: {
+          id: bootstrap.fetch(:ctid),
+          pool: bootstrap.fetch(:pool),
+          run_id: bootstrap.fetch(:run_id),
+          lifecycle_start_token: bootstrap.fetch(:lifecycle_start_token)
+        }
+      }
+
+      socket.send("#{payload.to_json}\n", 0)
+      ret = JSON.parse(socket.readline, symbolize_names: true)
+
+      unless ret[:status]
+        warn "Error: #{ret[:message]}"
+        return false
+      end
+    end
+
+    Process.exec(*command)
+  end
 end
+
+exit(false) if $0 == __FILE__ && !OsCtldCtStart.run(ARGV)

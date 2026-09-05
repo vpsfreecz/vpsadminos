@@ -22,10 +22,15 @@ module OsCtld
         ct.current_state if %i[run run_network].include?(mode)
       end
 
+      def issue_transient_lifecycle_start(mode)
+        return unless %i[run run_network].include?(mode)
+
+        ct.run_conf.issue_lifecycle_start
+      end
+
       def add_network_opts(opts)
         opts.update(
-          init_script: File.join('/', File.basename(init_script.path)),
-          net_config: NetConfig.create(ct).export
+          init_script: File.join('/', File.basename(init_script.path))
         )
       end
 
@@ -148,7 +153,7 @@ module OsCtld
 
           ret =
             if ct_init_pid
-              setup_network(opts, ct_init_pid) || yield
+              setup_network || yield
             else
               error('network setup failed: container is not attachable')
             end
@@ -163,14 +168,14 @@ module OsCtld
         ret || ok(status.exitstatus)
       end
 
-      def setup_network(opts, init_pid)
-        osctld_netns_setup(init_pid:, net_config: opts[:net_config])
+      def setup_network
+        osctld_netns_setup
         nil
       rescue StandardError => e
         error("network setup failed: #{e.message}")
       end
 
-      def osctld_netns_setup(init_pid:, net_config:)
+      def osctld_netns_setup
         s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 
         payload = {
@@ -178,8 +183,7 @@ module OsCtld
           opts: {
             id: ctid,
             pool:,
-            init_pid:,
-            net_config:
+            run_id:
           }
         }
 
@@ -193,8 +197,12 @@ module OsCtld
         raise "Error during ct_netns_setup callback: #{ret[:message]}"
       end
 
-      # Callback to osctld to relocate self-process from container's wrapper cgroup
+      # Register the transient LXC lifecycle from its already-assigned cgroup.
       def osctld_wrapper_callback
+        unless lifecycle_start_token.is_a?(String) && !lifecycle_start_token.empty?
+          raise 'missing transient lifecycle start capability'
+        end
+
         s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 
         payload = {
@@ -202,7 +210,8 @@ module OsCtld
           opts: {
             id: ctid,
             pool:,
-            pid: Process.pid
+            run_id:,
+            lifecycle_start_token:
           }
         }
 

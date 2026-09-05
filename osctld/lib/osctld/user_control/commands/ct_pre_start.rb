@@ -11,50 +11,54 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
-      return error('access denied') unless owns_ct?(ct)
 
-      ct.starting
+      ret = authenticate_lifecycle_callback(ct)
+      return ret if ret
 
-      # Mark autostart as fulfilled
-      ct.pool.fulfil_autostart(ct)
+      with_claimed_lifecycle_event(ct, :pre_start, after: :wrapper_start) do |run_conf|
+        ct.starting
 
-      # Fulfil possible reboot request
-      ct.pool.fulfil_reboot(ct)
+        # Mark autostart as fulfilled
+        ct.pool.fulfil_autostart(ct)
 
-      # Mount datasets
-      ct.run_conf.mount(force: true)
+        # Fulfil possible reboot request
+        ct.pool.fulfil_reboot(ct)
 
-      # Load AppArmor profile
-      ct.apparmor.setup if AppArmor.enabled?
+        # Mount datasets
+        run_conf.mount(force: true)
 
-      # Configure CGroups
-      ret = call_cmd(
-        Commands::Container::CGParamApply,
-        id: ct.id,
-        pool: ct.pool.name,
-        manipulation_lock: 'ignore'
-      )
-      return ret unless ret[:status]
+        # Load AppArmor profile
+        ct.apparmor.setup if AppArmor.enabled?
 
-      # Configure devices cgroup
-      ct.devices.apply
+        # Configure CGroups
+        ret = call_cmd(
+          Commands::Container::CGParamApply,
+          id: ct.id,
+          pool: ct.pool.name,
+          manipulation_lock: 'ignore'
+        )
+        next ret unless ret[:status]
 
-      # Prepared shared mount directory
-      ct.mounts.shared_dir.create
-      BpfFs.setup_ct(
-        ct.pool.name,
-        ct.id,
-        root_uid: ct.root_host_uid,
-        root_gid: ct.root_host_gid
-      )
+        # Configure devices cgroup
+        ct.devices.apply
 
-      # Setup start menu
-      ct.setup_start_menu
+        # Prepared shared mount directory
+        ct.mounts.shared_dir.create
+        BpfFs.setup_ct(
+          ct.pool.name,
+          ct.id,
+          root_uid: ct.root_host_uid,
+          root_gid: ct.root_host_gid
+        )
 
-      # User-defined hook
-      Hook.run(ct, :pre_start)
+        # Setup start menu
+        ct.setup_start_menu
 
-      ok
+        # User-defined hook
+        Hook.run(ct, :pre_start)
+
+        ok
+      end
     rescue HookFailed => e
       error(e.message)
     end

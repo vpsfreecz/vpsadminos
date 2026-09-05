@@ -4,11 +4,13 @@ require 'socket'
 
 ctid = ENV.fetch('LXC_NAME', nil)
 veth = ENV.fetch('LXC_NET_PEER', nil)
+run_id = ENV.fetch('OSCTL_RUN_ID', nil)
 
-if ctid.nil? || veth.nil?
+if ctid.nil? || veth.nil? || run_id.nil?
   warn 'Expected environment variables:'
   warn '  LXC_NAME'
   warn '  LXC_NET_PEER'
+  warn '  OSCTL_RUN_ID'
   exit(false)
 end
 
@@ -36,6 +38,7 @@ s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.puts({ cmd: :veth_down, opts: {
   id: ctid,
   pool:,
+  run_id:,
   interface: ifname,
   veth:
 } }.to_json)

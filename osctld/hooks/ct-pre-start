@@ -3,10 +3,12 @@ require 'json'
 require 'socket'
 
 ctid = ENV.fetch('LXC_NAME', nil)
+run_id = ENV.fetch('OSCTL_RUN_ID', nil)
 
-if ctid.nil?
+if ctid.nil? || run_id.nil?
   warn 'Expected environment variables:'
   warn '  LXC_NAME'
+  warn '  OSCTL_RUN_ID'
   exit(false)
 end
 
@@ -20,7 +22,8 @@ pool = Regexp.last_match(1)
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.puts({ cmd: :ct_pre_start, opts: {
   id: ctid,
-  pool:
+  pool:,
+  run_id:
 } }.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close

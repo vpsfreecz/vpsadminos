@@ -103,6 +103,19 @@ RSpec.describe OsCtld::CGroup do
     end
   end
 
+  it 'returns self-migration files for every cgroup hierarchy' do
+    with_tmpdir do |tmpdir|
+      force_cgroup(1, %w[cpu,cpuacct memory], fs: tmpdir)
+
+      expect(described_class.procs_paths(%w[osctl ct.ct1])).to eq(
+        [
+          File.join(tmpdir, 'cpu,cpuacct', 'osctl', 'ct.ct1', 'cgroup.procs'),
+          File.join(tmpdir, 'memory', 'osctl', 'ct.ct1', 'cgroup.procs')
+        ]
+      )
+    end
+  end
+
   it 'prefers the runstate cgroupfs bind mount on cgroup v2' do
     Dir.mktmpdir do |dir|
       runstate_fs = File.join(dir, 'runstate')

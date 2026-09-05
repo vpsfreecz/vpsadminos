@@ -11,20 +11,29 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
-      return error('access denied') unless owns_ct?(ct)
 
-      # Filter out devices that have to be created
-      devices = ct.devices.select { |dev| dev.can_create? && dev.name }.map do |dev|
-        dev.export.merge(
-          type_s: dev.type_s,
-          permission: device_access_mode(dev.name)
-        )
+      ret = authenticate_lifecycle_callback(ct)
+      return ret if ret
+
+      with_claimed_lifecycle_event(ct, :autodev, after: :post_mount) do
+        # Filter out devices that have to be created
+        devices = ct.devices.select { |dev| dev.can_create? && dev.name }.map do |dev|
+          dev.export.merge(
+            type_s: dev.type_s,
+            permission: device_access_mode(dev.name)
+          )
+        end
+
+        ok(devices:)
       end
-
-      ok(devices:)
     end
 
     protected
+
+    # LXC runs autodev from its cloned setup child, which forks the hook.
+    def lifecycle_peer_depth
+      2
+    end
 
     # Return device access mode for the device on the host, if it exists
     def device_access_mode(dev_name)

@@ -32,6 +32,8 @@ module OsCtld
       runner = OsCtld::ContainerControl::Commands.const_get(cfg[:name])::Runner.new(
         pool: cfg[:pool],
         id: cfg[:id],
+        run_id: cfg[:run_id],
+        lifecycle_start_token: cfg[:lifecycle_start_token],
         lxc_home: cfg[:lxc_home],
         user_home: cfg[:user_home],
         log_file: cfg[:log_file],

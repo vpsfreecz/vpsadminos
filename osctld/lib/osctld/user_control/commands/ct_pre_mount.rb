@@ -11,44 +11,63 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
-      return error('access denied') unless owns_ct?(ct)
 
-      Hook.run(
-        ct,
-        :pre_mount,
-        rootfs_mount: opts[:rootfs_mount],
-        ns_pid: opts[:client_pid]
-      )
+      ret = authenticate_lifecycle_callback(ct)
+      return ret if ret
 
-      if ct.map_mode == 'native'
-        rc = ct.get_run_conf
+      rootfs_mount = container_rootfs_mount(ct)
+      with_claimed_lifecycle_event(ct, :pre_mount, after: :pre_start) do |run_conf|
+        Hook.run(
+          ct,
+          :pre_mount,
+          rootfs_mount:,
+          ns_pid: peer.pid,
+          mnt_ns: peer.namespace(:mnt)
+        )
 
-        ct.mounts.shared_dir.map_and_push(rc.rootfs, opts[:client_pid])
+        if ct.map_mode == 'native'
+          ct.mounts.shared_dir.map_and_push(
+            run_conf.rootfs,
+            peer.namespace(:user)
+          )
 
-        begin
-          ct.mounts.each do |mnt|
-            next unless mnt.map_ids
+          begin
+            ct.mounts.each do |mnt|
+              next unless mnt.map_ids
 
-            ct.mounts.shared_dir.map_and_push(mnt.fs, opts[:client_pid])
+              ct.mounts.shared_dir.map_and_push(
+                mnt.fs,
+                peer.namespace(:user)
+              )
+            end
+          rescue SystemCommandFailed
+            log(:warn, 'Failed to map and push a mount, cleaning up')
+
+            ct.mounts.shared_dir.cleanup_pushed(run_conf.rootfs)
+
+            ct.mounts.each do |mnt|
+              next unless mnt.map_ids
+
+              ct.mounts.shared_dir.cleanup_pushed(mnt.fs)
+            end
+
+            raise
           end
-        rescue SystemCommandFailed
-          log(:warn, 'Failed to map and push a mount, cleaning up')
-
-          ct.mounts.shared_dir.cleanup_pushed(rc.rootfs)
-
-          ct.mounts.each do |mnt|
-            next unless mnt.map_ids
-
-            ct.mounts.shared_dir.cleanup_pushed(mnt.fs)
-          end
-
-          raise
         end
-      end
 
-      ok
+        ok
+      end
     rescue HookFailed => e
       error(e.message)
+    rescue SystemCallError, IOError, ArgumentError, TypeError => e
+      error("invalid container rootfs or namespace: #{e.message}")
+    end
+
+    protected
+
+    # LXC runs pre-mount from its cloned setup child, which forks the hook.
+    def lifecycle_peer_depth
+      2
     end
   end
 end

@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/container/run_configuration'
 require 'osctld/utils/ip'
 
 module OsCtld
@@ -28,24 +29,50 @@ module OsCtld
         # do nothing
 
       elsif current_state == :stopped
-        # Put all network interfaces down
-        begin
-          take_down_netifs
-        rescue StandardError => e
-          log(:warn, "Failed to take down netifs: #{e.class}: #{e.message}")
-          netif_cleanup_failed = true
+        run_conf, run_lease = lease_current_run
+
+        if run_lease
+          teardown_failures = []
+          ct.stopped(run_conf) do |teardown_owner|
+            begin
+              # Put all network interfaces down
+              begin
+                take_down_netifs
+              rescue StandardError => e
+                log(:warn, "Failed to take down netifs: #{e.class}: #{e.message}")
+                netif_cleanup_failed = true
+              end
+            ensure
+              # Recovery's network cleanup is path-specific and must complete
+              # even when authenticated post-stop owns the common teardown.
+              run_lease.close
+              run_lease = nil
+            end
+
+            next unless teardown_owner
+
+            # Retirement rejects new leases. Wait for every already-admitted
+            # path-specific effect before running common teardown effects.
+            capture_teardown_failure(teardown_failures, :lifecycle_leases) do
+              run_conf.wait_for_lifecycle_leases
+            end
+
+            if AppArmor.enabled?
+              capture_teardown_failure(teardown_failures, :apparmor_namespace) do
+                ct.apparmor.destroy_namespace
+              end
+              capture_teardown_failure(teardown_failures, :apparmor_profile) do
+                ct.apparmor.unload_profile
+              end
+            end
+
+            capture_teardown_failure(teardown_failures, :post_stop_hook) do
+              Hook.run(ct, :post_stop)
+            end
+          end
+
+          raise_teardown_failure(teardown_failures)
         end
-
-        # Unload AppArmor profile and destroy namespace
-        if AppArmor.enabled?
-          ct.apparmor.destroy_namespace
-          ct.apparmor.unload_profile
-        end
-
-        ct.stopped
-
-        # User-defined hook
-        Hook.run(ct, :post_stop)
 
         # Announce the change first as :aborting, that will cause a waiting
         # osctl ct start to give it up
@@ -60,7 +87,11 @@ module OsCtld
       Eventd.report(:state_recovery, pool: ct.pool.name, id: ct.id, state: current_state)
       nil
     ensure
-      cleanup_or_taint if netif_cleanup_failed
+      begin
+        run_lease&.close
+      ensure
+        cleanup_or_taint if netif_cleanup_failed
+      end
     end
 
     # Kill all processes found in the container's cgroup with signal
@@ -137,6 +168,23 @@ module OsCtld
         ct.save_config
       end
       !taint
+    end
+
+    # Pin the current run while holding the container pointer lock. A run that
+    # has already begun retirement is being cleaned by another owner and must
+    # not be touched without a lease.
+    def lease_current_run
+      run_conf = nil
+      lease = nil
+
+      ct.inclusively do
+        run_conf = ct.run_conf
+        lease = run_conf&.acquire_lifecycle_lease
+      end
+
+      [run_conf, lease]
+    rescue Container::RunConfiguration::LifecycleError
+      [run_conf, nil]
     end
 
     # Remove left-over cgroups in container path
@@ -328,6 +376,24 @@ module OsCtld
       )
     rescue NetInterface::HostLinkClaimError => e
       raise InvalidNetifIdentity, e.message
+    end
+
+    def capture_teardown_failure(failures, step)
+      yield
+    rescue StandardError => e
+      failures << [step, e]
+    end
+
+    def raise_teardown_failure(failures)
+      return if failures.empty?
+
+      failures.drop(1).each do |step, error|
+        log(:warn, "Additional #{step} teardown failure: #{error.class}: #{error.message}")
+      rescue StandardError
+        # Preserve the first teardown error even if secondary logging fails.
+      end
+
+      raise failures.first.last
     end
   end
 end
