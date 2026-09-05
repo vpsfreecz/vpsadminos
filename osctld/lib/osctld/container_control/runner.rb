@@ -141,6 +141,17 @@ module OsCtld
       end
     end
 
+    def wait_for_path(path, timeout: 10, interval: 0.1)
+      deadline = Time.now + timeout
+
+      loop do
+        return true if File.exist?(path)
+        return false if Time.now >= deadline
+
+        sleep(interval)
+      end
+    end
+
     def wait_for_process(pid, timeout:)
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
 

@@ -1,10 +1,21 @@
 require 'fiddle'
 require 'fiddle/import'
+require 'io/wait'
 require 'tempfile'
 require 'libosctl/native'
 
 module OsCtl::Lib
   class Sys
+    # vpsAdminOS currently supports x86_64-linux only. Keep the syscall number
+    # here until libc exposes an openat2(2) wrapper.
+    SYS_OPENAT2 = 437
+    O_CLOEXEC = 0x0008_0000
+    O_DIRECTORY = 0x0001_0000
+
+    RESOLVE_NO_MAGICLINKS = 0x02
+    RESOLVE_NO_SYMLINKS = 0x04
+    RESOLVE_BENEATH = 0x08
+
     CLONE_NEWNS = 0x00020000
     CLONE_NEWUTS = 0x04000000
     CLONE_NEWUSER = 0x10000000
@@ -21,6 +32,7 @@ module OsCtl::Lib
     MS_BIND = 4096
     MS_MOVE = 8192
     MS_REC = 16_384
+    MS_PRIVATE = 1 << 18
     MS_SLAVE = 1 << 19
     MS_SHARED = 1 << 20
 
@@ -41,8 +53,13 @@ module OsCtl::Lib
       extern 'int umount2(const char *target, int flags)'
       extern 'int unshare(int flags)'
       extern 'int chroot(const char *path)'
+      extern 'int fchdir(int fd)'
       extern 'int syncfs(int fd)'
       extern 'int klogctl(int type, char *bufp, int len)'
+      extern 'int pidfd_open(int pid, unsigned int flags)'
+      extern 'int openat(int dirfd, const char *pathname, int flags, unsigned int mode)'
+      extern 'long syscall(long number, long arg1, const char *arg2, ' \
+             'const void *arg3, size_t arg4)'
     end
 
     def setresuid(ruid, euid, suid)
@@ -57,6 +74,60 @@ module OsCtl::Lib
       raise SystemCallError, Fiddle.last_error if ret != 0
 
       ret
+    end
+
+    def pidfd_open(pid)
+      fd = Int.pidfd_open(pid, 0)
+      raise SystemCallError, Fiddle.last_error if fd < 0
+
+      IO.for_fd(fd, autoclose: true)
+    end
+
+    def pidfd_alive?(pidfd)
+      pidfd.wait_readable(0).nil?
+    end
+
+    # Open a path relative to an already-open directory. Unlike
+    # {#open_beneath}, this helper permits procfs magic links, which are needed
+    # to reopen root and namespace descriptors through a retained /proc/<pid>
+    # directory after entering another mount namespace.
+    def openat_io(dir, path, flags: File::RDONLY, mode: 0)
+      relative_path = path.to_s
+      if relative_path.empty? || relative_path.start_with?('/') || relative_path.include?("\0") ||
+         relative_path.split('/').include?('..')
+        raise ArgumentError, 'path has to be a safe relative path'
+      end
+
+      fd = Int.openat(dir.fileno, relative_path, Integer(flags) | O_CLOEXEC, Integer(mode))
+      raise SystemCallError, Fiddle.last_error if fd < 0
+
+      IO.for_fd(fd, autoclose: true).tap { |io| io.close_on_exec = true }
+    end
+
+    # Open +path+ below an already-open directory without permitting symlink
+    # or magic-link traversal. The returned IO owns the new descriptor.
+    def open_beneath(dir, path, flags: File::RDONLY)
+      relative_path = path.to_s
+      if relative_path.empty? || relative_path.start_with?('/') || relative_path.include?("\0")
+        raise ArgumentError, 'path has to be a non-empty relative path'
+      end
+
+      how = [
+        Integer(flags) | O_CLOEXEC | O_DIRECTORY,
+        0,
+        RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS | RESOLVE_NO_SYMLINKS
+      ].pack('Q<Q<Q<')
+
+      fd = Int.syscall(
+        SYS_OPENAT2,
+        dir.fileno,
+        relative_path,
+        how,
+        how.bytesize
+      )
+      raise SystemCallError, Fiddle.last_error if fd < 0
+
+      IO.for_fd(fd, autoclose: true).tap { |io| io.close_on_exec = true }
     end
 
     def move_mount(src, dst)
@@ -105,6 +176,13 @@ module OsCtl::Lib
 
     def make_shared(dst)
       ret = Int.mount('none', dst, 0, MS_SHARED, 0)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
+    def make_private(dst)
+      ret = Int.mount('none', dst, 0, MS_PRIVATE, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
 
       ret
@@ -166,6 +244,13 @@ module OsCtl::Lib
 
     def chroot(path)
       ret = Int.chroot(path)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
+    def fchdir_io(io)
+      ret = Int.fchdir(io.fileno)
       raise SystemCallError, Fiddle.last_error if ret != 0
 
       ret

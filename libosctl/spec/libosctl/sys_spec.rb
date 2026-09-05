@@ -38,6 +38,96 @@ RSpec.describe OsCtl::Lib::Sys do
                   [1000, 1001, 1002], {},
                   [1000, 1001, 1002]
 
+  it 'opens pidfds and reports whether the process is still alive' do
+    pidfd = instance_double(IO)
+    allow(described_class::Int).to receive(:pidfd_open).with(123, 0).and_return(7)
+    allow(IO).to receive(:for_fd).with(7, autoclose: true).and_return(pidfd)
+    allow(pidfd).to receive(:wait_readable).with(0).and_return(nil, pidfd)
+
+    expect(sys.pidfd_open(123)).to be(pidfd)
+    expect(sys.pidfd_alive?(pidfd)).to be(true)
+    expect(sys.pidfd_alive?(pidfd)).to be(false)
+  end
+
+  it 'raises when pidfd_open fails' do
+    allow(described_class::Int).to receive(:pidfd_open).with(123, 0).and_return(-1)
+    allow(Fiddle).to receive(:last_error).and_return(Errno::ESRCH::Errno)
+
+    expect { sys.pidfd_open(123) }.to raise_error(SystemCallError)
+  end
+
+  it 'opens proc magic links relative to a retained directory' do
+    dir = instance_double(File, fileno: 9)
+    opened = instance_double(IO)
+    allow(described_class::Int).to receive(:openat)
+      .with(9, 'ns/mnt', File::RDONLY | described_class::O_CLOEXEC, 0)
+      .and_return(12)
+    allow(IO).to receive(:for_fd).with(12, autoclose: true).and_return(opened)
+    allow(opened).to receive(:close_on_exec=).with(true)
+
+    expect(sys.openat_io(dir, 'ns/mnt')).to be(opened)
+    expect(opened).to have_received(:close_on_exec=).with(true)
+  end
+
+  it 'rejects escaping relative paths before calling openat' do
+    dir = instance_double(File, fileno: 9)
+    allow(described_class::Int).to receive(:openat)
+
+    expect { sys.openat_io(dir, '../root') }
+      .to raise_error(ArgumentError, /safe relative path/)
+    expect(described_class::Int).not_to have_received(:openat)
+  end
+
+  it 'opens relative paths beneath a held directory without symlink traversal' do
+    dir = instance_double(File, fileno: 9)
+    opened = instance_double(IO)
+    how = [
+      File::RDONLY | described_class::O_CLOEXEC | described_class::O_DIRECTORY,
+      0,
+      described_class::RESOLVE_BENEATH |
+        described_class::RESOLVE_NO_MAGICLINKS |
+        described_class::RESOLVE_NO_SYMLINKS
+    ].pack('Q<Q<Q<')
+
+    allow(described_class::Int).to receive(:syscall)
+      .with(described_class::SYS_OPENAT2, 9, 'srv/root', how, how.bytesize)
+      .and_return(12)
+    allow(IO).to receive(:for_fd).with(12, autoclose: true).and_return(opened)
+    allow(opened).to receive(:close_on_exec=).with(true)
+
+    expect(sys.open_beneath(dir, 'srv/root')).to be(opened)
+    expect(opened).to have_received(:close_on_exec=).with(true)
+  end
+
+  it 'rejects absolute paths before calling openat2' do
+    dir = instance_double(File, fileno: 9)
+    allow(described_class::Int).to receive(:syscall)
+
+    expect { sys.open_beneath(dir, '/srv/root') }
+      .to raise_error(ArgumentError, /relative path/)
+    expect(described_class::Int).not_to have_received(:syscall)
+  end
+
+  it 'opens a real directory and rejects symlinks and parent escape' do
+    Dir.mktmpdir('libosctl-open-beneath') do |root|
+      Dir.mkdir(File.join(root, 'child'))
+      File.symlink('child', File.join(root, 'link'))
+
+      File.open(root) do |dir|
+        opened = sys.open_beneath(dir, 'child')
+
+        begin
+          expect(opened.stat.ino).to eq(File.stat(File.join(root, 'child')).ino)
+          expect(opened.close_on_exec?).to be(true)
+          expect { sys.open_beneath(dir, 'link') }.to raise_error(Errno::ELOOP)
+          expect { sys.open_beneath(dir, '..') }.to raise_error(Errno::EXDEV)
+        ensure
+          opened.close
+        end
+      end
+    end
+  end
+
   it_behaves_like 'simple Int wrapper',
                   :move_mount, :mount,
                   ['/src', '/dst'], {},
