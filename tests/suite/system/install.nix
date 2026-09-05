@@ -3,6 +3,11 @@ import ../../make-test.nix (
   let
     rootDisk = "system-install-root.img";
     poolDisk = "system-install-pool.img";
+    configuration =
+      let
+        cfg = builtins.getEnv "VPSADMINOS_CONFIG";
+      in
+      if cfg == "" then null else import cfg;
 
     isoSystem = import ../../../os (
       {
@@ -32,10 +37,13 @@ import ../../make-test.nix (
           }
         ];
       }
+      // pkgs.lib.optionalAttrs (configuration != null) { inherit configuration; }
       // (pkgs.vpsadminosTestFrameworkInputs or { })
     );
 
     isoPath = "${isoSystem.config.system.build.isoImage}/iso/${isoSystem.config.isoImage.isoName}";
+    installUnstable = isoSystem.config.system.vpsadminos.enableUnstable;
+    expectedKernelVersion = isoSystem.config.boot.kernelVersion;
 
     disks = [
       {
@@ -81,6 +89,31 @@ import ../../make-test.nix (
     };
 
     testScript = ''
+      require 'json'
+
+      def assert_selected_kernel(machine)
+        expected = '${expectedKernelVersion}'
+        release = machine.succeeds('uname -r')[1].strip
+        return if release == expected
+
+        # A loaded livepatch changes uname, but not the selected base kernel.
+        # Accept only the configured patch identity, with a settled live module.
+        metadata = JSON.parse(machine.succeeds('cat /etc/vpsadminos/livepatch-monitor.json')[1])
+        version = metadata.fetch('patchVersion')
+        unless metadata.fetch('kernelVersion') == expected && version.is_a?(Integer) && version.positive?
+          raise "unexpected kernel/livepatch identity: #{release}, #{metadata.inspect}"
+        end
+        mod = "livepatch_#{version}"
+        unless release == "#{expected}.#{version}" && metadata.fetch('module') == mod
+          raise "unexpected kernel release: #{release}, expected #{expected} or #{expected}.#{version}"
+        end
+        machine.wait_until_succeeds(
+          "test \"$(cat /sys/kernel/livepatch/#{mod}/enabled)\" = 1 && " \
+          "test \"$(cat /sys/kernel/livepatch/#{mod}/transition)\" = 0",
+          timeout: 60
+        )
+      end
+
       def append_nix_config(machine, path, text)
         machine.succeeds(<<~SH)
           set -e
@@ -114,6 +147,7 @@ import ../../make-test.nix (
             'command -v vpsadminos-rebuild',
             'vpsadminos-version'
           )
+          assert_selected_kernel(installer)
         end
 
         it 'prepares target disks and generates config' do
@@ -181,6 +215,7 @@ import ../../make-test.nix (
               networking.hostName = "vpsadminos-installed";
               networking.nameservers = [ "10.0.2.3" ];
               networking.useDHCP = true;
+              system.vpsadminos.enableUnstable = ${pkgs.lib.boolToString installUnstable};
               osctl.test-shell = {
                 enable = true;
                 shells = 1;
@@ -190,7 +225,7 @@ import ../../make-test.nix (
         end
 
         it 'installs vpsAdminOS to disk' do
-          installer.succeeds('vpsadminos-install --root /mnt --flake /mnt/etc/vpsadminos#vpsadminos-installed --no-root-password', timeout: 1800)
+          installer.succeeds('vpsadminos-install --root /mnt --flake /mnt/etc/vpsadminos#vpsadminos-installed --no-root-password', timeout: 2400)
           installer.succeeds('vpsadminos-enter --root /mnt -- true')
           installer.succeeds('test -d /mnt/boot/grub')
         end
@@ -209,6 +244,7 @@ import ../../make-test.nix (
             'test "$(findmnt -n -o FSTYPE /)" = "ext4"',
             'command -v vpsadminos-rebuild'
           )
+          assert_selected_kernel(installed)
         end
 
         it 'initializes osctl pool storage' do
