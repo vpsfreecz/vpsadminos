@@ -1,8 +1,45 @@
 name: CI
+run-name: "CI (${{ inputs.test_suite || 'ci' }}${{ inputs.test_pattern && format(': {0}', inputs.test_pattern) || '' }}${{ inputs.test_suite == 'zfs-full' && inputs.zfs_tags && inputs.zfs_tags != 'functional' && format(': {0}', inputs.zfs_tags) || '' }})"
+
+env:
+  VPSADMINOS_CONFIG: >-
+    ${{ (inputs.test_suite == 'ci-unstable' || inputs.test_suite == 'zfs-full' || github.ref == 'refs/heads/snajpa-6.18' || github.head_ref == 'snajpa-6.18') && format('{0}/os/configs/unstable.nix', github.workspace) || '' }}
 
 on:
   workflow_dispatch:
     inputs:
+      test_suite:
+        description: Native suite (unstable and ZTS use the selected vpsAdminOS 6.18 tuple)
+        required: true
+        default: ci
+        type: choice
+        options:
+          - ci
+          - ci-unstable
+          - zfs-full
+      test_pattern:
+        description: 'Optional native test/script pattern; empty runs the whole suite'
+        required: false
+        type: string
+        default: ''
+      test_tag:
+        description: 'Native CI tag; proxy-exec selects the opt-in scheduler fixtures'
+        required: true
+        default: ci
+        type: choice
+        options:
+          - ci
+          - proxy-exec
+      proxy_lock_full_matrix:
+        description: 'Run all existing lock classes and disabled controls (proxy-exec tag only)'
+        required: false
+        default: false
+        type: boolean
+      zfs_tags:
+        description: 'ZTS tags for zfs-full; comma-separated affected groups or functional for all'
+        required: false
+        type: string
+        default: functional
       stop_on_failure:
         description: Stop scheduling after the first unexpected result
         required: true
@@ -94,7 +131,9 @@ jobs:
     name: Run test suite
     needs: build
     runs-on: self-hosted
-    timeout-minutes: 240
+    # Full ZTS takes about ten hours, plus closure construction. Leave time
+    # for artifact upload before the job's 24-hour GITHUB_TOKEN lifetime.
+    timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || 240 }}
 
     steps:
       - uses: actions/checkout@v7
@@ -105,23 +144,81 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        timeout-minutes: 260
         env:
           STOP_ON_FAILURE: ${{ github.event.inputs.stop_on_failure || 'false' }}
+          TEST_SUITE: ${{ inputs.test_suite || 'ci' }}
+          TEST_PATTERN: ${{ inputs.test_pattern }}
+          TEST_TAG: ${{ inputs.test_tag || 'ci' }}
+          VPSADMINOS_ZFS_FULL_TAGS: ${{ inputs.zfs_tags || 'functional' }}
+          VPSADMINOS_PROXY_LOCK_FULL_MATRIX: ${{ inputs.proxy_lock_full_matrix && '1' || '0' }}
         run: |
           set -o pipefail
+
+          if [[ "$VPSADMINOS_PROXY_LOCK_FULL_MATRIX" == "1" &&
+                ( "$TEST_SUITE" == "zfs-full" || "$TEST_TAG" != "proxy-exec" ) ]]; then
+            echo "::error::The full lock matrix requires a native proxy-exec run"
+            exit 1
+          fi
+
+          printf 'Native suite: %s\nConfiguration: %s\n' "$TEST_SUITE" "$VPSADMINOS_CONFIG"
+          printf 'Native test pattern: %s\n' "${TEST_PATTERN:-<whole suite>}"
+          printf 'Proxy lock full matrix: %s\n' "$VPSADMINOS_PROXY_LOCK_FULL_MATRIX"
+          if [[ "$TEST_SUITE" == "zfs-full" ]]; then
+            printf 'ZTS tags: %s\n' "$VPSADMINOS_ZFS_FULL_TAGS"
+          fi
+          git show --no-patch --format='Source: %H%nTree: %T' HEAD
+          cat os/packages/linux/available-kernels.nix
 
           args=(
             test
             --test-config tests/test-configs/ci.nix
             --state-dir "$TEST_RUNNER_STATE_DIR"
             -f
-            --jobs auto
-            -t ci
           )
+
+          case "$TEST_SUITE" in
+            ci|ci-unstable)
+              case "$TEST_TAG" in
+                ci) ;;
+                proxy-exec)
+                  # This existing locktorture fixture also needs discovery opt-in.
+                  export VPSADMINOS_ENABLE_SCHED_PROXY_EXEC_TEST=1
+                  ;;
+                *)
+                  echo "::error::Unknown native test tag: $TEST_TAG"
+                  exit 1
+                  ;;
+              esac
+              printf 'Native test tag: %s\n' "$TEST_TAG"
+              args+=(--jobs auto -t "$TEST_TAG")
+              ;;
+            zfs-full)
+              if [[ -n "$TEST_PATTERN" ]]; then
+                echo "::error::Full ZTS does not accept a native test pattern"
+                exit 1
+              fi
+              # Complete ZTS in the native VM, not a focused body or debug stage.
+              unset VPSADMINOS_LOCAL_ZFS_STAGE VPSADMINOS_ZFS_FULL_USER_SOURCE
+              unset VPSADMINOS_ZFS_FULL_TEST
+              export VPSADMINOS_ZFS_FULL_PROFILE=full
+              export VPSADMINOS_ZFS_FULL_USE_BUILTIN=1
+              export VPSADMINOS_ZFS_FULL_RUNFILES=common.run,linux.run
+              export VPSADMINOS_ZFS_FULL_TAGS="${VPSADMINOS_ZFS_FULL_TAGS:-functional}"
+              args+=(--jobs 1 -t zfs-full zfs/full-suite)
+              ;;
+            *)
+              echo "::error::Unknown native test suite: $TEST_SUITE"
+              exit 1
+              ;;
+          esac
 
           if [[ "$STOP_ON_FAILURE" == "true" ]]; then
             args+=(--stop-on-failure)
+          fi
+
+          if [[ -n "$TEST_PATTERN" ]]; then
+            # One quoted positional pattern, never shell words or CLI options.
+            args+=(-- "$TEST_PATTERN")
           fi
 
           ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"
@@ -129,14 +226,24 @@ jobs:
       - name: Upload full test logs
         id: upload-test-logs
         if: >-
-          (failure() || cancelled()) &&
+          (failure() || cancelled() || inputs.test_pattern || inputs.test_suite == 'zfs-full' || inputs.test_suite == 'ci-unstable') &&
           steps.prepare-tests.outcome == 'success' &&
           steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/upload-test-logs
         with:
+          name: os-test-logs-${{ github.run_id }}-${{ github.run_attempt }}-native
+          # Preserve ZTS report paths such as posix-sa:Linux inside tar.
+          archive-root: ${{ inputs.test_suite == 'zfs-full' && steps.prepare-tests.outputs.state-directory || '' }}
+          # ZTS's text reports have no suffix. Do not upload binary test state
+          # or VM images along with these diagnostic files.
           paths: |
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/log
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/results
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/stdout
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/stderr
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/merged
 
       - name: Evaluate test results
         if: >-
@@ -157,7 +264,11 @@ jobs:
           logs-root: ${{ steps.prepare-tests.outputs.state-directory }}
 
       - name: Cleanup test state
-        if: always()
+        # Successful qualification still needs its complete uploaded evidence.
+        if: >-
+          always() &&
+          ((!inputs.test_pattern && inputs.test_suite != 'zfs-full' && inputs.test_suite != 'ci-unstable') ||
+          steps.upload-test-logs.outcome == 'success')
         uses: ./.github/actions/cleanup-test-state
         with:
           state-directory: ${{ steps.prepare-tests.outputs.state-directory }}
@@ -167,6 +278,8 @@ jobs:
 
   livepatch-lifecycle:
     name: Livepatch lifecycle (${{ matrix.vendor }})
+    # Whole CI retains these jobs; ZTS-only/focused runs do not repeat them.
+    if: ${{ inputs.test_suite != 'zfs-full' && !inputs.test_pattern }}
     needs: build
     runs-on:
       group: vpsAdminOS runners
@@ -210,6 +323,7 @@ jobs:
           steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/upload-test-logs
         with:
+          name: os-test-logs-${{ github.run_id }}-${{ github.run_attempt }}-livepatch-${{ matrix.vendor }}
           paths: |
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
