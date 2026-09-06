@@ -2,9 +2,47 @@
 with lib.kernel;
 {
   stableKernelVersion = "6.12.95";
-  unstableKernelVersion = "6.12.95";
+  unstableKernelVersion = "6.18.49";
 
   kernels = {
+    "6.18.49" = {
+      rev = "fbda79346b89b2d2486edd22e4bbbca0154d96b7";
+      sha256 = "sha256-IJjSeziEAH8QSWTjBNN8FnqBA81UTJ5nvZQsg+zOGiQ=";
+      structuredExtraConfig = {
+        DAMON = yes;
+        DAMON_VADDR = yes;
+        DAMON_PADDR = yes;
+        DAMON_SYSFS = yes;
+        DAMON_RECLAIM = yes;
+        PSI = no;
+        SCHED_CLASS_EXT = no;
+        SCHED_PROXY_EXEC = yes;
+        TRACING_NS = yes;
+      };
+      zfs = {
+        rev = "4ded9ca89108e507377ff3d613038bea16018b2d";
+        sha256 = "sha256-WtnAKH7j4N7nN1NRCF1Ky5wDwjFQynfuRZyvVqn2VWs=";
+      };
+    };
+    "6.18.44" = {
+      rev = "15f0cb69214054627f1d2b1c0d14556c15a1ace3";
+      sha256 = "sha256-/dXTySrZXulvADPPDzfV7H9xIFvyDboLTF6SLI6OsE4=";
+      structuredExtraConfig = {
+        DAMON = yes;
+        DAMON_VADDR = yes;
+        DAMON_PADDR = yes;
+        DAMON_SYSFS = yes;
+        DAMON_RECLAIM = yes;
+        PSI = no;
+        SCHED_CLASS_EXT = no;
+        SCHED_PROXY_EXEC = yes;
+        TRACING_NS = yes;
+      };
+      zfs = {
+        rev = "b2ade5816c3a16f779616c6d25710f7f2bca7ce9";
+        sha256 = "sha256-OHzDCuQ9fP3qKPhA3QysBOwqzWiFUir6BcHv2hIONPg=";
+      };
+    };
     "6.12.95" = {
       rev = "a2384967b90f24d2470c9eb15f0e66d938df7e08";
       sha256 = "sha256-QlwV4uFeX7ZbWHMuU14rFXswmpqpb1hdVmYUAGOWRh8=";
