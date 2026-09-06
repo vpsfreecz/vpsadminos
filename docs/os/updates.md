@@ -23,6 +23,60 @@ You can also build the tool from a checkout:
 make vpsadminos-rebuild
 ```
 
+## Selectable Linux 6.18 platform
+
+The 6.18 release line selects Linux 6.18.49 with its matching OpenZFS and LXC
+sources. Linux 6.12.95 remains the default; moving to 6.18 is explicit:
+
+```nix
+system.vpsadminos.enableUnstable = true;
+```
+
+For a source-checkout build, `os/configs/unstable.nix` sets the same option.
+Changing the boot kernel requires a reboot; `vpsadminos-rebuild switch` alone
+does not replace the running kernel. Keep the previous bootable system
+generation until the new kernel and workloads have been verified. To return
+to the default kernel, disable this option, rebuild, and reboot into the
+resulting generation. The previous 6.18.44 tuple and the 6.12.95 and 6.12.48
+source entries remain available.
+
+The selected source revisions are Linux
+`fbda79346b89b2d2486edd22e4bbbca0154d96b7`, OpenZFS
+`4ded9ca89108e507377ff3d613038bea16018b2d`, and LXC
+`d510d66005fb974b19425fb6a12b87bbde8ae36c`. Kernel and OpenZFS selection is
+paired in `os/packages/linux/available-kernels.nix`; do not mix their modules
+with another kernel build.
+
+The OpenZFS 2.3.x fork includes selected stability and security backports,
+including host-namespace authorization for pool administration and fault
+injection (CVE-2026-79619), vdev device-access checks, bounded nvlist decoding,
+and receive, rollback, lifetime, and MMP corrections. It is not a migration
+to OpenZFS 2.4.x or an automatic pool-feature upgrade. LXC remains the same
+6.0.6-based downstream source; its package version now reflects that base.
+The rsyslog package also carries the narrow RainerScript `replace()` sizing
+repair for CVE-2026-78002 without changing its release line or defaults.
+
+This line includes proxy execution, proactive-reclaim support, namespaced
+container tracing, authority guards, and the corresponding container
+lifecycle and filesystem corrections. PSI and `SCHED_CLASS_EXT` remain
+disabled, as does host-global unprivileged BPF. SELinux namespace/outer-context
+work and separate hardening development are not part of this release.
+
+### Existing containers and namespaced tracing
+
+The namespaced-tracing additions are a feature of the selected platform, not
+a prerequisite for an ordinary osctld or system-generation activation. Keep
+the matching kernel/LXC support, private host tracing mounts and container
+bpffs lifecycle together; they do not enable host-global unprivileged BPF.
+
+Containers that are already running keep their current namespaces and mounts
+when osctld or the system generation is replaced. They gain the new tracing
+namespace and container-local `/sys/fs/bpf` mount on their next normal start,
+with a kernel that provides tracing namespaces. Activation does not retrofit
+those namespaces or require stopping workloads to obtain them. The tracing
+namespace is omitted when the running kernel does not provide it. The host's
+private bpffs is not the writable filesystem exposed inside the container.
+
 ## Kernel livepatch coverage
 
 Livepatch availability and vulnerability coverage are specific to the boot
