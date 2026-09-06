@@ -2,9 +2,48 @@
 with lib.kernel;
 {
   stableKernelVersion = "6.12.95";
-  unstableKernelVersion = "6.12.95";
+  unstableKernelVersion = "6.18.49";
 
   kernels = {
+    "6.18.49" = {
+      rev = "111d7aa6a8b955cf9c9418ae79d3f39e7efe1177";
+      # Linux uses fetchurl: hash archive bytes, not the unpacked source tree.
+      sha256 = "sha256-K0eIXTlfReQzB1TlVe2i+PhW2kfU453Ayf8DX5xD6YE=";
+      structuredExtraConfig = {
+        DAMON = yes;
+        DAMON_VADDR = yes;
+        DAMON_PADDR = yes;
+        DAMON_SYSFS = yes;
+        DAMON_RECLAIM = yes;
+        PSI = no;
+        SCHED_CLASS_EXT = no;
+        SCHED_PROXY_EXEC = yes;
+        TRACING_NS = yes;
+      };
+      zfs = {
+        rev = "dde7c3bfb7044094eb29fe0ce0606f75c45dd721";
+        sha256 = "sha256-wK6gHX4WADBnfyIgKTeQQnPTmYfMxlNmoTJN5xZtEBg=";
+      };
+    };
+    "6.18.44" = {
+      rev = "15f0cb69214054627f1d2b1c0d14556c15a1ace3";
+      sha256 = "sha256-/dXTySrZXulvADPPDzfV7H9xIFvyDboLTF6SLI6OsE4=";
+      structuredExtraConfig = {
+        DAMON = yes;
+        DAMON_VADDR = yes;
+        DAMON_PADDR = yes;
+        DAMON_SYSFS = yes;
+        DAMON_RECLAIM = yes;
+        PSI = no;
+        SCHED_CLASS_EXT = no;
+        SCHED_PROXY_EXEC = yes;
+        TRACING_NS = yes;
+      };
+      zfs = {
+        rev = "b2ade5816c3a16f779616c6d25710f7f2bca7ce9";
+        sha256 = "sha256-OHzDCuQ9fP3qKPhA3QysBOwqzWiFUir6BcHv2hIONPg=";
+      };
+    };
     "6.12.95" = {
       rev = "a2384967b90f24d2470c9eb15f0e66d938df7e08";
       sha256 = "sha256-QlwV4uFeX7ZbWHMuU14rFXswmpqpb1hdVmYUAGOWRh8=";

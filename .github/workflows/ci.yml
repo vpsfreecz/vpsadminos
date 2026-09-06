@@ -1,8 +1,22 @@
 name: CI
+run-name: CI (${{ inputs.test_suite || 'ci' }})
+
+env:
+  VPSADMINOS_CONFIG: >-
+    ${{ (inputs.test_suite == 'ci-unstable' || inputs.test_suite == 'zfs-full' || github.ref == 'refs/heads/snajpa-6.18' || github.head_ref == 'snajpa-6.18') && format('{0}/os/configs/unstable.nix', github.workspace) || '' }}
 
 on:
   workflow_dispatch:
     inputs:
+      test_suite:
+        description: Native suite (unstable and ZTS use the selected vpsAdminOS 6.18 tuple)
+        required: true
+        default: ci
+        type: choice
+        options:
+          - ci
+          - ci-unstable
+          - zfs-full
       stop_on_failure:
         description: Stop scheduling after the first unexpected result
         required: true
@@ -94,7 +108,9 @@ jobs:
     name: Run test suite
     needs: build
     runs-on: self-hosted
-    timeout-minutes: 240
+    # Full ZTS takes about ten hours, plus closure construction. Leave time
+    # for artifact upload before the job's 24-hour GITHUB_TOKEN lifetime.
+    timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || 240 }}
 
     steps:
       - uses: actions/checkout@v7
@@ -105,20 +121,42 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        timeout-minutes: 260
         env:
           STOP_ON_FAILURE: ${{ github.event.inputs.stop_on_failure || 'false' }}
+          TEST_SUITE: ${{ inputs.test_suite || 'ci' }}
         run: |
           set -o pipefail
+
+          printf 'Native suite: %s\nConfiguration: %s\n' "$TEST_SUITE" "$VPSADMINOS_CONFIG"
+          git show --no-patch --format='Source: %H%nTree: %T' HEAD
+          cat os/packages/linux/available-kernels.nix
 
           args=(
             test
             --test-config tests/test-configs/ci.nix
             --state-dir "$TEST_RUNNER_STATE_DIR"
             -f
-            --jobs auto
-            -t ci
           )
+
+          case "$TEST_SUITE" in
+            ci|ci-unstable)
+              args+=(--jobs auto -t ci)
+              ;;
+            zfs-full)
+              # Complete ZTS in the native VM, not a focused body or debug stage.
+              unset VPSADMINOS_LOCAL_ZFS_STAGE VPSADMINOS_ZFS_FULL_USER_SOURCE
+              unset VPSADMINOS_ZFS_FULL_TEST
+              export VPSADMINOS_ZFS_FULL_PROFILE=full
+              export VPSADMINOS_ZFS_FULL_USE_BUILTIN=1
+              export VPSADMINOS_ZFS_FULL_RUNFILES=common.run,linux.run
+              export VPSADMINOS_ZFS_FULL_TAGS=functional
+              args+=(--jobs 1 -t zfs-full zfs/full-suite)
+              ;;
+            *)
+              echo "::error::Unknown native test suite: $TEST_SUITE"
+              exit 1
+              ;;
+          esac
 
           if [[ "$STOP_ON_FAILURE" == "true" ]]; then
             args+=(--stop-on-failure)
@@ -129,11 +167,12 @@ jobs:
       - name: Upload full test logs
         id: upload-test-logs
         if: >-
-          (failure() || cancelled()) &&
+          (failure() || cancelled() || inputs.test_suite == 'zfs-full' || inputs.test_suite == 'ci-unstable') &&
           steps.prepare-tests.outcome == 'success' &&
           steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/upload-test-logs
         with:
+          name: os-test-logs-${{ github.run_id }}-${{ github.run_attempt }}-native
           paths: |
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
@@ -157,7 +196,11 @@ jobs:
           logs-root: ${{ steps.prepare-tests.outputs.state-directory }}
 
       - name: Cleanup test state
-        if: always()
+        # Successful qualification still needs its complete uploaded evidence.
+        if: >-
+          always() &&
+          ((inputs.test_suite != 'zfs-full' && inputs.test_suite != 'ci-unstable') ||
+          steps.upload-test-logs.outcome == 'success')
         uses: ./.github/actions/cleanup-test-state
         with:
           state-directory: ${{ steps.prepare-tests.outputs.state-directory }}
@@ -167,6 +210,8 @@ jobs:
 
   livepatch-lifecycle:
     name: Livepatch lifecycle (${{ matrix.vendor }})
+    # Complete CI selections retain these jobs; ZTS-only does not repeat them.
+    if: ${{ inputs.test_suite != 'zfs-full' }}
     needs: build
     runs-on:
       group: vpsAdminOS runners
@@ -210,6 +255,7 @@ jobs:
           steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/upload-test-logs
         with:
+          name: os-test-logs-${{ github.run_id }}-${{ github.run_attempt }}-livepatch-${{ matrix.vendor }}
           paths: |
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
