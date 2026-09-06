@@ -84,5 +84,17 @@ in
     # requiring precise timing.
     "kernel.unprivileged_bpf_disabled" = 0;
     "kernel.sysctl_unprivileged_bpf_time_adjust_nsec" = 5 * 1000 * 1000; # 5ms
+  }
+  // whenKernelAtLeast "6.18" {
+    # Kernel 6.18 can grant container-root eBPF through tracing-namespace
+    # scoped tokens. Keep host-wide unprivileged BPF disabled by default so
+    # container tracing uses the constrained token path instead of the legacy
+    # global unprivileged path.
+    "kernel.unprivileged_bpf_disabled" = mkDefault 1;
+
+    # Allow eBPF programs created inside tracing namespaces to receive the
+    # container-bound token path. The kernel side constrains this to the
+    # tracing namespace boundary and rejects host-global tracing surfaces.
+    "kernel.bpf_container_tracing_enabled" = mkDefault 1;
   };
 }
