@@ -171,6 +171,87 @@ in
     mount --rbind /run/osctl/bpf /sys/fs/bpf
     mount --make-rprivate /sys/fs/bpf
 
+    # TraceFS. Keep the host mount private and expose only the bounded
+    # discovery files to containers through /run/osctl/tracing.
+    mkdir -p /sys/kernel/tracing
+    mountpoint -q /sys/kernel/tracing || mount -t tracefs tracefs /sys/kernel/tracing
+    mount --make-rprivate /sys/kernel/tracing
+
+    trace_dir=/run/osctl/tracing
+    mkdir -p "$trace_dir"
+    if ! mountpoint -q "$trace_dir"; then
+      mount --bind "$trace_dir" "$trace_dir"
+    fi
+    mount -o remount,bind,rw "$trace_dir"
+    mount --make-rprivate "$trace_dir"
+
+    rm -f \
+      "$trace_dir/available_filter_functions" \
+      "$trace_dir/available_events" \
+      "$trace_dir/pmu_type_kprobe" \
+      "$trace_dir/pmu_type_uprobe"
+
+    trace_exact_symbols="sched_fork wake_up_new_task tcp_v4_connect tcp_v6_connect tcp_set_state tcp_close inet_csk_accept udp_recvmsg udpv6_queue_rcv_one_skb free_user_ns retire_userns_sysctls"
+    trace_syscalls="open openat openat2 kill tkill tgkill fork vfork clone clone3 execve execveat mount umount2 fsopen fsconfig fsmount move_mount open_tree mount_setattr read write pread64 pwrite64 stat lstat newfstatat statx connect accept accept4"
+    trace_syscall_prefixes="__x64_sys_ __ia32_sys_ __arm64_sys_ __riscv_sys_ __s390x_sys_ __s390_sys_ __powerpc_sys_ __powerpc64_sys_ __sparc_sys_ __sparc64_sys_ __se_sys_ __do_sys_ sys_"
+
+    ${pkgs.gawk}/bin/awk \
+      -v exact="$trace_exact_symbols" \
+      -v syscalls="$trace_syscalls" \
+      -v prefixes="$trace_syscall_prefixes" '
+        BEGIN {
+          n = split(exact, exact_names, " ")
+          for (i = 1; i <= n; i++)
+            allow[exact_names[i]] = 1
+
+          n = split(syscalls, syscall_names, " ")
+          p = split(prefixes, prefix_names, " ")
+          for (i = 1; i <= n; i++)
+            for (j = 1; j <= p; j++)
+              allow[prefix_names[j] syscall_names[i]] = 1
+        }
+
+        {
+          name = $1
+          if (allow[name] && !seen[name]++)
+            print name
+        }
+      ' /sys/kernel/tracing/available_filter_functions \
+      > "$trace_dir/available_filter_functions"
+    : > "$trace_dir/available_events"
+    if [ -r /sys/bus/event_source/devices/kprobe/type ]; then
+      cat /sys/bus/event_source/devices/kprobe/type > "$trace_dir/pmu_type_kprobe"
+    else
+      : > "$trace_dir/pmu_type_kprobe"
+    fi
+    if [ -r /sys/bus/event_source/devices/uprobe/type ]; then
+      cat /sys/bus/event_source/devices/uprobe/type > "$trace_dir/pmu_type_uprobe"
+    else
+      : > "$trace_dir/pmu_type_uprobe"
+    fi
+
+    chmod 0444 \
+      "$trace_dir/available_filter_functions" \
+      "$trace_dir/available_events" \
+      "$trace_dir/pmu_type_kprobe" \
+      "$trace_dir/pmu_type_uprobe"
+    chmod 0555 "$trace_dir"
+    mount -o remount,bind,ro "$trace_dir"
+
+    # DebugFS projection. Containers must not see the raw host debugfs tree,
+    # but older tracing tools still look for tracing below /sys/kernel/debug.
+    debugfs_dir=/run/osctl/debugfs
+    mkdir -p "$debugfs_dir"
+    if ! mountpoint -q "$debugfs_dir"; then
+      mount --bind "$debugfs_dir" "$debugfs_dir"
+    fi
+    mount -o remount,bind,rw "$debugfs_dir"
+    mount --make-rprivate "$debugfs_dir"
+    rm -rf "$debugfs_dir/tracing"
+    ln -s ../tracing "$debugfs_dir/tracing"
+    chmod 0555 "$debugfs_dir"
+    mount -o remount,bind,ro "$debugfs_dir"
+
     # securityfs
     mount -t securityfs securityfs /sys/kernel/security
 
