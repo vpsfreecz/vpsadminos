@@ -12,6 +12,12 @@ inputs:
     default: |
       /tmp/os-test-runner/**/*.log
       /tmp/os-test-runner/**/*.txt
+  archive-root:
+    description: >-
+      Archive log and text files plus suffixless ZTS reports below this
+      directory, instead of uploading paths directly
+    required: false
+    default: ""
   retention-days:
     description: Days to retain the artifact
     required: false
@@ -24,10 +30,41 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Archive logs preserving filenames
+      id: archive
+      if: ${{ inputs.archive-root != '' }}
+      shell: bash
+      env:
+        LOG_ROOT: ${{ inputs.archive-root }}
+      run: |
+        set -euo pipefail
+        archive_dir="$(mktemp -d "$RUNNER_TEMP/os-test-logs.XXXXXX")"
+        trap 'rm -f "$archive_dir/files"' EXIT
+
+        # ZTS paths can contain colons, which upload-artifact rejects. Keep
+        # their original names inside tar, without including binary test state,
+        # hidden files or symlinks. Match the existing diagnostic selection.
+        (
+          cd "$LOG_ROOT"
+          find . -type f ! -path '*/.*' \
+            \( -name '*.log' -o -name '*.txt' -o \
+            \( -path '*/zfs-test-results/*' \
+            \( -name log -o -name results -o -name stdout -o \
+            -name stderr -o -name merged \) \) \) -print0
+        ) > "$archive_dir/files"
+
+        if [[ -s "$archive_dir/files" ]]; then
+          tar -C "$LOG_ROOT" --null --verbatim-files-from --no-recursion \
+            --hard-dereference -cf "$archive_dir/test-logs.tar" \
+            -T "$archive_dir/files"
+        fi
+        # With no matches, upload-artifact applies if-no-files-found as before.
+        printf 'path=%s/test-logs.tar\n' "$archive_dir" >> "$GITHUB_OUTPUT"
+
     - name: Upload logs
       uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.name }}
-        path: ${{ inputs.paths }}
+        path: ${{ steps.archive.outputs.path || inputs.paths }}
         retention-days: ${{ inputs.retention-days }}
         if-no-files-found: ${{ inputs.if-no-files-found }}
