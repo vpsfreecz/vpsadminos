@@ -116,7 +116,9 @@ import ../../make-test.nix (
       end
 
       expect_command_to_fail = lambda do |machine, command|
-        status, output = machine.execute(command)
+        # Preserve intentional probe termination instead of returning 124,
+        # which OSVM reserves for its own command watchdog.
+        status, output = machine.execute("timeout --preserve-status 4s #{command}")
         expect(status).not_to eq(0), output
       end
 
@@ -329,11 +331,11 @@ import ../../make-test.nix (
             it 'drops protected ports from other sources' do
               expect_command_to_fail.call(
                 no_conntrack_server,
-                "timeout 4s " + tcp_command.call(8080, "${noConntrackDeniedAddress}")
+                tcp_command.call(8080, "${noConntrackDeniedAddress}")
               )
               expect_command_to_fail.call(
                 no_conntrack_server,
-                "timeout 4s " + udp_command.call(5353, "${noConntrackDeniedAddress}")
+                udp_command.call(5353, "${noConntrackDeniedAddress}")
               )
             end
 
@@ -435,11 +437,11 @@ import ../../make-test.nix (
             it 'drops unconfigured service ports' do
               expect_command_to_fail.call(
                 conntrack_server,
-                "timeout 4s " + tcp_command.call(8081, "${conntrackClientAddress}")
+                tcp_command.call(8081, "${conntrackClientAddress}")
               )
               expect_command_to_fail.call(
                 conntrack_server,
-                "timeout 4s " + udp_command.call(5354, "${conntrackClientAddress}")
+                udp_command.call(5354, "${conntrackClientAddress}")
               )
             end
 
