@@ -36,13 +36,20 @@ RSpec.describe OsCtld::Utils::SwitchUser do
     expect(ret[:args]).to eq(%w[bash -l])
     expect(ret[:settings][:user]).to eq('u-alice')
     expect(ret[:settings][:syslogns_tag]).to be_nil
-    shell = host.ct_attach(ct, 'bash', syslogns_tag: 'ct1-shell')
+    shell = host.ct_attach(ct, 'bash', syslogns_tag: 'ct1-shell', cgroup_path: '/osctl/ct.ct1/init.scope')
     expect(shell[:settings][:syslogns_tag]).to eq('ct1-shell')
     expect(shell[:args]).to eq(['bash'])
+    expect(shell[:settings][:cgroup_path]).to eq('/osctl/ct.ct1/init.scope')
     expect(OsCtld::CGroup).to have_received(:mkpath_all).with(
       ['', 'osctl', 'pool.tank', 'ct.ct1'],
-      chown: 12_345
-    ).twice
+      chown: 12_345,
+      delegate_existing: false
+    )
+    expect(OsCtld::CGroup).to have_received(:mkpath_all).with(
+      ['', 'osctl', 'ct.ct1', 'init.scope'],
+      chown: 12_345,
+      delegate_existing: false
+    )
   end
 
   it 'delegates container syscmd calls to ContainerControl::Commands::Syscmd' do
