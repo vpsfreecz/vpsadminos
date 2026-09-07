@@ -237,7 +237,9 @@ import ../../make-test.nix (
         fail "wait_for_osctl_container() did not raise TimeoutError on stopped container"
       end
 
-      machine.wait_for_osctl_container(existing_ct, state: 'stopped', timeout: 10)
+      # Positive state probes need room for CLI startup plus protocol cleanup
+      # under full CI load; keep the intentional negative ten-second waits above.
+      machine.wait_for_osctl_container(existing_ct, state: 'stopped', timeout: 30)
 
       machine.succeeds("osctl ct start --wait 0 #{existing_ct}")
 
