@@ -11,7 +11,7 @@ let
   shellIndexes = range 0 (cfg.shells - 1);
 
   serviceName = i: if i == 0 then "test-shell" else "test-shell-${toString i}";
-  device = i: "/dev/hvc${toString i}";
+  device = i: "/dev/virtio-ports/org.osvm.shell${toString i}";
   shellService = i: {
     run = ''
       until [ -c ${device i} ] ; do
@@ -31,13 +31,14 @@ let
 
       cd /tmp
 
-      exec < ${device i} > ${device i}
-      exec 2>&1
-      stty -F ${device i} raw -echo # prevent nl -> cr/nl conversion
+      # A virtio serial port permits one open; share that descriptor for I/O.
+      exec 3<> ${device i}
+      exec <&3 >&3 2>&3
+      exec 3>&-
 
       echo test-shell-ready
 
-      exec ${pkgs.bash}/bin/bash --norc ${device i}
+      exec ${pkgs.bash}/bin/bash --norc
     '';
     oneShot = true;
     onChange = "ignore";
