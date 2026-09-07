@@ -3,6 +3,14 @@
 require 'spec_helper'
 
 RSpec.describe OsVm::VpsadminosMachine do
+  def stub_booted_machine(machine)
+    allow(machine).to receive_messages(
+      running?: true,
+      wait_for_boot: machine,
+      monotonic_now: 100.0
+    )
+  end
+
   it 'parses osctl json output' do
     with_tmpdir do |dir|
       machine = build_vpsadminos_machine(dir:)
@@ -25,22 +33,50 @@ RSpec.describe OsVm::VpsadminosMachine do
   it 'waits for osctl pools to become active' do
     with_tmpdir do |dir|
       machine = build_vpsadminos_machine(dir:)
+      stub_booted_machine(machine)
       allow(machine).to receive(:execute).and_return([0, "importing\n"], [0, "active\n"])
       allow(machine).to receive(:sleep)
 
-      expect(machine.wait_for_osctl_pool('tank', timeout: 20)).to eq(machine)
+      expect(machine.wait_for_osctl_pool('tank', timeout: 120)).to eq(machine)
       expect(machine).to have_received(:execute).with(
         'osctl pool show -H -o state tank',
-        timeout: 10
+        timeout: 60,
+        deadline: 220.0,
+        timeout_message: kind_of(String)
       ).twice
+    end
+  end
+
+  it 'starts stopped VMs before waiting for osctl pools' do
+    with_tmpdir do |dir|
+      machine = build_vpsadminos_machine(dir:)
+      allow(machine).to receive_messages(
+        running?: false,
+        wait_for_boot: machine,
+        execute: [0, "active\n"],
+        monotonic_now: 100.0
+      )
+      allow(machine).to receive(:start)
+
+      expect(machine.wait_for_osctl_pool('tank', timeout: 20)).to eq(machine)
+      expect(machine).to have_received(:start).with(
+        deadline: 120.0,
+        timeout_message: 'Timeout occurred while waiting for pool "tank" to become active'
+      )
+      expect(machine).to have_received(:wait_for_boot).with(
+        timeout: 20.0,
+        deadline: 120.0,
+        timeout_message: 'Timeout occurred while waiting for pool "tank" to become active'
+      )
     end
   end
 
   it 'retries timed out osctl pool probes' do
     with_tmpdir do |dir|
       machine = build_vpsadminos_machine(dir:)
+      stub_booted_machine(machine)
       calls = 0
-      allow(machine).to receive(:execute) do
+      allow(machine).to receive(:execute) do |*, **|
         calls += 1
         raise OsVm::TimeoutError, 'timed out' if calls == 1
 
@@ -48,10 +84,12 @@ RSpec.describe OsVm::VpsadminosMachine do
       end
       allow(machine).to receive(:sleep)
 
-      expect(machine.wait_for_osctl_pool('tank', timeout: 20)).to eq(machine)
+      expect(machine.wait_for_osctl_pool('tank', timeout: 120)).to eq(machine)
       expect(machine).to have_received(:execute).with(
         'osctl pool show -H -o state tank',
-        timeout: 10
+        timeout: 60,
+        deadline: 220.0,
+        timeout_message: kind_of(String)
       ).twice
     end
   end
@@ -59,6 +97,7 @@ RSpec.describe OsVm::VpsadminosMachine do
   it 'times out while waiting for an osctl pool to become active' do
     with_tmpdir do |dir|
       machine = build_vpsadminos_machine(dir:)
+      stub_booted_machine(machine)
       allow(machine).to receive(:execute).and_return([0, "importing\n"])
 
       expect do
@@ -67,20 +106,101 @@ RSpec.describe OsVm::VpsadminosMachine do
     end
   end
 
+  it 'keeps pool diagnostics when the real shell protocol consumes the deadline' do
+    with_tmpdir do |dir|
+      machine = build_vpsadminos_machine(dir:)
+      shell = machine.send(:current_shell)
+      wait_timeouts = []
+      readable_calls = 0
+      io = instance_double(IO, closed?: false, close: nil, write: nil)
+      allow(io).to receive(:wait_readable) do |timeout|
+        wait_timeouts << timeout
+        readable_calls += 1
+        next true if readable_calls <= 3
+
+        sleep(timeout)
+        false
+      end
+      allow(io).to receive(:read_nonblock).and_return(
+        "#{Base64.strict_encode64("importing\n")}\n",
+        "#{OsVm::Shell::OUTPUT_END_MARKER}\n",
+        "0\n"
+      )
+      allow(machine).to receive(:sleep_with_deadline)
+      machine.instance_variable_set(:@running, true)
+      shell.instance_variable_set(:@up, true)
+      shell.instance_variable_set(:@io, io)
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+      expect do
+        machine.wait_for_osctl_pool('tank', timeout: 0.1, poll_timeout: 0.1)
+      end.to raise_error(
+        OsVm::TimeoutError,
+        /last state: "importing".*last error:/
+      )
+
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+      expect(elapsed).to be < 0.5
+      expect(wait_timeouts).not_to be_empty
+      expect(wait_timeouts).to all(be_between(0, 0.1).exclusive)
+    end
+  end
+
+  it 'never retries a pool command after its shell protocol deadline' do
+    with_tmpdir do |dir|
+      machine = build_vpsadminos_machine(dir:)
+      shell = machine.send(:current_shell)
+      shell_log = shell.send(:log)
+      writes = []
+      io = instance_double(IO, closed?: false, close: nil)
+      allow(shell_log).to receive(:execute_end).and_call_original
+      allow(io).to receive(:write) { |data| writes << data }
+      allow(io).to receive(:wait_readable).and_raise(
+        OsVm::TimeoutError,
+        'shell protocol deadline expired'
+      )
+      machine.instance_variable_set(:@running, true)
+      shell.instance_variable_set(:@up, true)
+      shell.instance_variable_set(:@io, io)
+
+      expect do
+        machine.wait_for_osctl_pool('tank', timeout: 1, poll_timeout: 0.05)
+      end.to raise_error(
+        OsVm::UnrecoverableTimeoutError,
+        /waiting for pool "tank" to become active.*last error:/
+      )
+
+      pool_commands = writes.grep(/osctl/)
+      expect(pool_commands.length).to eq(1)
+      expect(pool_commands.first).to include(
+        'osctl\\ pool\\ show\\ -H\\ -o\\ state\\ tank'
+      )
+      expect(io).to have_received(:close).once
+      expect(shell_log).to have_received(:execute_end).once
+    end
+  end
+
   it 'waits for osctl containers to reach the requested state' do
     with_tmpdir do |dir|
       machine = build_vpsadminos_machine(dir:)
-      allow(machine).to receive(:wait_until_succeeds).and_return([0, "stopped\n"], [0, "running\n"])
+      allow(machine).to receive(:monotonic_now).and_return(100.0)
+      allow(machine).to receive(:execute).and_return([0, "stopped\n"], [0, "running\n"])
       allow(machine).to receive(:sleep)
 
       expect(machine.wait_for_osctl_container('ct1')).to eq(machine)
+      expect(machine).to have_received(:execute).with(
+        'osctl ct show -H -o state ct1',
+        timeout: 5.0,
+        deadline: 110.0,
+        timeout_message: kind_of(String)
+      ).twice
     end
   end
 
   it 'times out while waiting for an osctl container state' do
     with_tmpdir do |dir|
       machine = build_vpsadminos_machine(dir:)
-      allow(machine).to receive(:wait_until_succeeds).and_return([0, "stopped\n"])
+      allow(machine).to receive(:monotonic_now).and_return(100.0)
 
       expect do
         machine.wait_for_osctl_container('ct1', timeout: 0)
@@ -88,15 +208,79 @@ RSpec.describe OsVm::VpsadminosMachine do
     end
   end
 
+  it 'does not spend the final container deadline on another shell probe' do
+    with_tmpdir do |dir|
+      machine = build_vpsadminos_machine(dir:)
+      now = 100.0
+      probes = []
+      allow(machine).to receive(:monotonic_now) { now }
+      allow(machine).to receive(:execute) do |command, timeout:, deadline:, timeout_message:|
+        probes << [command, timeout, deadline, timeout_message]
+        now += 2.5
+        [0, "stopped\n"]
+      end
+      allow(machine).to receive(:sleep) { |duration| now += duration }
+
+      expect do
+        machine.wait_for_osctl_container('ct1', timeout: 10)
+      end.to raise_error(
+        OsVm::TimeoutError,
+        /waiting for container "ct1" to become running, last state: "stopped"/
+      )
+
+      expect(probes.map { |probe| probe.take(3) }).to eq(
+        [
+          ['osctl ct show -H -o state ct1', 5.0, 110.0],
+          ['osctl ct show -H -o state ct1', 5.0, 110.0]
+        ]
+      )
+    end
+  end
+
   it 'waits for containers to become online through osctl ct exec' do
     with_tmpdir do |dir|
       machine = build_vpsadminos_machine(dir:)
-      allow(machine).to receive(:wait_until_succeeds).and_return([0, ''])
+      allow(machine).to receive(:monotonic_now).and_return(100.0)
+      allow(machine).to receive(:execute).and_return([1, ''], [0, ''])
+      allow(machine).to receive(:sleep)
 
       expect(machine.wait_until_container_online('ct1', timeout: 12)).to eq(machine)
-      expect(machine).to have_received(:wait_until_succeeds).with(
+      expect(machine).to have_received(:execute).with(
         "osctl ct exec ct1 sh -c 'ping -c 1 check-online.vpsadminos.org || curl --head https://check-online.vpsadminos.org || wget -O - https://check-online.vpsadminos.org || getent hosts check-online.vpsadminos.org'",
-        timeout: 12
+        timeout: 6.0,
+        deadline: 112.0,
+        timeout_message: 'Timeout occurred while waiting for container "ct1" to come online'
+      ).twice
+    end
+  end
+
+  it 'does not spend the final online deadline on another shell probe' do
+    with_tmpdir do |dir|
+      machine = build_vpsadminos_machine(dir:)
+      now = 100.0
+      probes = []
+      allow(machine).to receive(:monotonic_now) { now }
+      allow(machine).to receive(:execute) do |command, timeout:, deadline:, timeout_message:|
+        probes << [command, timeout, deadline, timeout_message]
+        now += 2.5
+        [1, 'not online']
+      end
+      allow(machine).to receive(:sleep) { |duration| now += duration }
+
+      expect do
+        machine.wait_until_container_online('ct1', timeout: 10)
+      end.to raise_error(
+        OsVm::TimeoutError,
+        'Timeout occurred while waiting for container "ct1" to come online'
+      )
+
+      command =
+        "osctl ct exec ct1 sh -c 'ping -c 1 check-online.vpsadminos.org || curl --head https://check-online.vpsadminos.org || wget -O - https://check-online.vpsadminos.org || getent hosts check-online.vpsadminos.org'"
+      expect(probes.map { |probe| probe.take(3) }).to eq(
+        [
+          [command, 5.0, 110.0],
+          [command, 5.0, 110.0]
+        ]
       )
     end
   end

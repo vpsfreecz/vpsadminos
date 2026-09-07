@@ -10,7 +10,7 @@ let
   testShell =
     i:
     let
-      device = "/dev/hvc${toString i}";
+      device = "/dev/virtio-ports/org.osvm.shell${toString i}";
     in
     pkgs.writeShellScript "osvm-test-shell-${toString i}" ''
       until [ -c ${device} ]; do
@@ -28,40 +28,31 @@ let
       export PAGER=
       export PS1=
 
-      stty -F ${device} raw -echo
+      # A virtio serial port permits one open; share that descriptor for I/O.
+      exec 3<> ${device}
+      exec <&3 >&3 2>&3
+      exec 3>&-
 
-      echo test-shell-ready > ${device}
+      echo test-shell-ready
 
-      exec ${pkgs.bash}/bin/bash --norc ${device}
+      exec ${pkgs.bash}/bin/bash --norc
     '';
 
   serviceName = i: if i == 0 then "test-shell" else "test-shell-${toString i}";
 
-  shellService =
-    i:
-    let
-      device = "/dev/hvc${toString i}";
-    in
-    {
-      description = "osvm test shell";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "dev-hvc${toString i}.device" ];
-      restartIfChanged = false;
-      stopIfChanged = false;
-      reloadIfChanged = false;
-      serviceConfig = {
-        Type = "simple";
-        StandardInput = "tty";
-        StandardOutput = "tty";
-        StandardError = "tty";
-        TTYPath = device;
-        TTYReset = "yes";
-        TTYVHangup = "yes";
-        ExecStart = testShell i;
-        Restart = "always";
-        RestartSec = 1;
-      };
+  shellService = i: {
+    description = "osvm test shell";
+    wantedBy = [ "multi-user.target" ];
+    restartIfChanged = false;
+    stopIfChanged = false;
+    reloadIfChanged = false;
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = testShell i;
+      Restart = "always";
+      RestartSec = 1;
     };
+  };
 in
 {
   options.osvm.testShells = lib.mkOption {
