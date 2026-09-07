@@ -114,6 +114,89 @@ import ../../make-test.nix (
       if new_root_prog_name == root_prog_name
         fail "expected different root program than #{root_prog_name}"
       end
+
+      default_cgroup = "/sys/fs/cgroup/osctl/pool.tank/group.default"
+      shared_cgroup = "#{default_cgroup}/user.testct"
+      testct_cgroup = "#{shared_cgroup}/ct.testct"
+      testct2_cgroup = "#{shared_cgroup}/ct.testct2"
+      promoted_default_prog_name = check_prog_list!(default_cgroup)
+
+      check_tun_access = lambda do |ct, read:, write:|
+        { '<' => read, '>' => write }.each do |redirection, allowed|
+          command = "osctl ct exec #{ct} sh -c 'exec 3#{redirection}/root/test-tun'"
+
+          if allowed
+            machine.succeeds(command)
+          else
+            _, output = machine.fails(command)
+            expect(output).to include('Operation not permitted')
+          end
+        end
+      end
+
+      describe 'container devices under a shared user cgroup', order: :defined do
+        before(:context) do
+          machine.all_succeed(
+            "osctl ct new --distribution alpine --user testct testct2",
+            "osctl ct unset start-menu testct2",
+            "osctl ct start testct2",
+            "osctl ct devices add -p testct2 char 10 200 rwm /dev/net/tun",
+            "osctl ct exec testct mknod /root/test-tun c 10 200",
+            "osctl ct exec testct2 mknod /root/test-tun c 10 200"
+          )
+
+          # Keep nodes independent of device configuration and only open them:
+          # reading or writing an unattached TUN device has unrelated errors.
+          check_tun_access.call('testct', read: true, write: true)
+          check_tun_access.call('testct2', read: true, write: true)
+          expect(check_prog_list!(testct_cgroup)).to eq(new_ct_prog_name)
+          expect(check_prog_list!(testct2_cgroup)).to eq(new_ct_prog_name)
+          expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
+        end
+
+        it 'keeps a sibling device allowed when removed from one container' do
+          machine.succeeds("osctl ct devices del testct char 10 200")
+
+          check_tun_access.call('testct', read: false, write: false)
+          check_tun_access.call('testct2', read: true, write: true)
+          expect(check_prog_list!(testct_cgroup)).to eq(ct_prog_name)
+          expect(check_prog_list!(testct2_cgroup)).to eq(new_ct_prog_name)
+          expect(check_prog_list!(default_cgroup)).to eq(promoted_default_prog_name)
+          expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
+        end
+
+        it 'keeps a sibling mode unchanged when restricting one container' do
+          machine.succeeds("osctl ct devices add -p testct char 10 200 rwm /dev/net/tun")
+          check_tun_access.call('testct', read: true, write: true)
+          expect(check_prog_list!(testct_cgroup)).to eq(new_ct_prog_name)
+          expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
+
+          machine.succeeds("osctl ct devices chmod testct char 10 200 r")
+
+          check_tun_access.call('testct', read: true, write: false)
+          check_tun_access.call('testct2', read: true, write: true)
+          restricted_prog_name = check_prog_list!(testct_cgroup)
+          expect(restricted_prog_name).not_to eq(ct_prog_name)
+          expect(restricted_prog_name).not_to eq(new_ct_prog_name)
+          expect(check_prog_list!(testct2_cgroup)).to eq(new_ct_prog_name)
+          expect(check_prog_list!(default_cgroup)).to eq(promoted_default_prog_name)
+          expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
+        end
+
+        it 'still removes device access recursively from the parent group' do
+          machine.succeeds("osctl group devices del --recursive /default char 10 200")
+
+          check_tun_access.call('testct', read: false, write: false)
+          check_tun_access.call('testct2', read: false, write: false)
+
+          # On v2, the parent program restricts effective access without
+          # requiring the containers' own programs to be replaced.
+          check_prog_list!(testct_cgroup)
+          check_prog_list!(testct2_cgroup)
+          expect(check_prog_list!(default_cgroup)).to eq(default_prog_name)
+          expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
+        end
+      end
     '';
   }
 )
