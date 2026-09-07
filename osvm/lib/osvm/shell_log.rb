@@ -30,6 +30,23 @@ module OsVm
       execute_end(status, output, begun_at)
     end
 
+    def execute_timeout(error, trace)
+      buffer = trace[:reply_buffer].to_s
+      begun_at = log_begin do |io|
+        io.puts('ACTION: protocol-timeout')
+        io.puts("PHASE: #{trace[:failed_phase] || trace[:phase]}")
+      end
+      log_end(begun_at) do |io|
+        io.puts("ERROR: #{error.class}: #{error.message[0, 4096]}")
+        io.puts("PROTOCOL_ERROR: #{trace[:protocol_error][0, 4096]}") if trace[:protocol_error]
+        io.puts("REPLY_BUFFER_BYTES: #{buffer.bytesize}")
+        io.puts("REPLY_BUFFER_PREFIX: #{buffer.byteslice(0, 32_768).inspect}")
+      end
+    rescue IOError, SystemCallError
+      # An unavailable log must not replace the command's original timeout.
+      nil
+    end
+
     def close
       file.close
     end

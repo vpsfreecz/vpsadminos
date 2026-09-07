@@ -30,7 +30,7 @@ RSpec.describe OsVm::Shell do
       expect(shell.qemu_options).to eq(
         [
           '-chardev', "socket,id=shell2,path=#{File.join(dir, 'shell2.sock')}",
-          '-device', 'virtconsole,chardev=shell2'
+          '-device', 'virtserialport,chardev=shell2,name=org.osvm.shell2'
         ]
       )
     end
@@ -53,6 +53,31 @@ RSpec.describe OsVm::Shell do
     end
   end
 
+  it 'reads wrapped output through the protocol terminator' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      io = instance_double(IO, wait_readable: true, closed?: false, close: nil)
+      shell.instance_variable_set(:@io, io)
+      shell.instance_variable_set(:@up, true)
+      encoded = Base64.strict_encode64('firstsecond')
+      allow(shell).to receive(:read_nonblock).and_return(
+        "#{encoded[0, 8]}\n",
+        "#{encoded[8..]}\n",
+        "#{described_class::OUTPUT_END_MARKER}\n"
+      )
+
+      output = shell.send(
+        :read_output,
+        timeout: 1,
+        command: 'printf output',
+        terminator: "#{described_class::OUTPUT_END_MARKER}\n"
+      )
+
+      expect(Base64.decode64(output)).to eq('firstsecond')
+      expect(shell).to have_received(:read_nonblock).exactly(3).times
+    end
+  end
+
   it 'does not restart a stopped machine after a detected kernel failure' do
     with_tmpdir do |dir|
       failure = OsVm::KernelFailure.new(
@@ -69,6 +94,27 @@ RSpec.describe OsVm::Shell do
     end
   end
 
+  it 'reserves forced-kill and protocol-drain time for guest commands' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      writes = []
+      io = instance_double(IO)
+      allow(io).to receive(:write) { |data| writes << data }
+      allow(shell).to receive(:monotonic_now).and_return(100.0)
+      allow(shell).to receive(:read_output).and_return(
+        "#{Base64.strict_encode64("ok\n")}\n",
+        "0\n"
+      )
+      shell.instance_variable_set(:@io, io)
+
+      expect(shell.send(:execute_command, 'true', timeout: 10)).to eq([0, "ok\n"])
+      expect(writes.first).to include('timeout --kill-after=1 7 bash')
+      expect(writes.first).to include(
+        "base64 -w 76; echo #{described_class::OUTPUT_END_MARKER}"
+      )
+    end
+  end
+
   it 'checks successful and failed commands' do
     with_tmpdir do |dir|
       shell = build_shell(dir:)
@@ -78,6 +124,99 @@ RSpec.describe OsVm::Shell do
 
       expect(shell.succeeds('true')).to eq([0, "ok\n"])
       expect(shell.fails('false')).to eq([1, "fail\n"])
+    end
+  end
+
+  it 'retains the original protocol timeout when reset raises another timeout' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      io = instance_double(IO, write: 1, wait_readable: true, closed?: false)
+      shell.instance_variable_set(:@io, io)
+      shell.instance_variable_set(:@up, true)
+      reads = 0
+      allow(shell).to receive(:read_nonblock) do
+        reads += 1
+        raise OsVm::UnrecoverableTimeoutError, 'original output deadline' if reads > 1
+
+        'cGFydGlhbA=='
+      end
+      allow(io).to receive(:close).and_raise(OsVm::TimeoutError, 'reset interrupted')
+
+      expect do
+        shell.execute('poweroff -f', timeout: 1)
+      end.to raise_error(OsVm::TimeoutError, 'reset interrupted')
+
+      log = File.read(File.join(dir, 'shell.log'))
+      expect(log).to include('PHASE: output_read')
+      expect(log).to include('PROTOCOL_ERROR: OsVm::UnrecoverableTimeoutError: original output deadline')
+      expect(log).to include('ERROR: OsVm::TimeoutError: reset interrupted')
+      expect(log).to include('REPLY_BUFFER_BYTES: 12')
+      expect(log).to include('REPLY_BUFFER_PREFIX: "cGFydGlhbA=="')
+      expect(shell.instance_variable_get(:@io)).to be_nil
+      expect(shell).not_to be_up
+    end
+  end
+
+  it 'retains the status-read phase without changing an unrecoverable timeout' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      io = instance_double(IO, write: 1, wait_readable: true, closed?: false, close: nil)
+      shell.instance_variable_set(:@io, io)
+      shell.instance_variable_set(:@up, true)
+      reads = 0
+      allow(shell).to receive(:read_nonblock) do
+        reads += 1
+        raise OsVm::UnrecoverableTimeoutError, 'original status deadline' if reads > 1
+
+        "#{Base64.strict_encode64("ok\n")}\n#{described_class::OUTPUT_END_MARKER}\n"
+      end
+
+      expect do
+        shell.execute('true', timeout: 1)
+      end.to raise_error(OsVm::UnrecoverableTimeoutError, 'original status deadline')
+
+      log = File.read(File.join(dir, 'shell.log'))
+      expect(log).to include('PHASE: status_read')
+      expect(log).to include('ERROR: OsVm::UnrecoverableTimeoutError: original status deadline')
+      expect(log).to include('REPLY_BUFFER_BYTES: 0')
+      expect(shell.instance_variable_get(:@io)).to be_nil
+      expect(shell).not_to be_up
+    end
+  end
+
+  it 'keeps successful protocol replies unchanged without additional timeout logging' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      io = instance_double(IO, write: 1, wait_readable: true)
+      shell.instance_variable_set(:@io, io)
+      shell.instance_variable_set(:@up, true)
+      allow(shell).to receive(:read_nonblock).and_return(
+        "#{Base64.strict_encode64("ok\n")}\n#{described_class::OUTPUT_END_MARKER}\n",
+        "0\n"
+      )
+
+      expect(shell.execute('true', timeout: 1)).to eq([0, "ok\n"])
+      expect(io).to have_received(:write).twice
+      log = File.read(File.join(dir, 'shell.log'))
+      expect(log).to include('STATUS: 0')
+      expect(log).not_to include('ACTION: protocol-timeout')
+    end
+  end
+
+  it 'bounds the additional protocol timeout record' do
+    with_tmpdir do |dir|
+      path = File.join(dir, 'shell.log')
+      log = OsVm::ShellLog.new(path)
+      trace = { phase: 'output_read', reply_buffer: 'x' * 40_000, protocol_error: 'y' * 10_000 }
+      log.execute_timeout(OsVm::TimeoutError.new('z' * 10_000), trace)
+      log.close
+      text = File.read(path)
+
+      expect(text).to include('REPLY_BUFFER_BYTES: 40000')
+      expect(text).to include("REPLY_BUFFER_PREFIX: #{('x' * 32_768).inspect}")
+      expect(text).not_to include('x' * 32_769)
+      expect(text).not_to include('y' * 4097)
+      expect(text).not_to include('z' * 4097)
     end
   end
 

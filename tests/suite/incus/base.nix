@@ -10,7 +10,6 @@ import ../../make-test.nix (
       require 'shellwords'
 
       def ensure_machine
-        machine.start unless machine.running?
         machine.wait_for_osctl_pool('tank')
         machine.wait_until_online
       end
