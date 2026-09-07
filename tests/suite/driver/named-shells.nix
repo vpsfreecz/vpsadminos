@@ -63,6 +63,18 @@ import ../../make-test.nix (
         machine.wait_until_succeeds('true', shell: 'second')
         machine.wait_until_fails('false', shell: 'second')
 
+        # Exercise output beyond socket buffers, including binary bytes and
+        # a tail without a newline, before checking the next transaction.
+        _, output = machine.succeeds(
+          'head -c 2097152 /dev/zero; printf tail', shell: 'second'
+        )
+        unless output == ("\0" * 2097152 + 'tail')
+          fail "#{name}: large shell reply was corrupted (#{output.bytesize} bytes)"
+        end
+        run_expect("#{name} command after large reply", [0, "after\n"]) do
+          machine.succeeds('echo after', shell: 'second')
+        end
+
         machine.succeeds("rm -f #{first_started} #{first_done}")
 
         first_thread = Thread.new do
