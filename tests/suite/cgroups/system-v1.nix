@@ -36,6 +36,8 @@ import ../../make-test.nix (
       runtime_cgroup.start(kernel_params: ['osctl.cgroupv=1'])
 
       machines.each do |name, machine|
+        machine.wait_for_boot(timeout: 20 * 60)
+
         _, output = machine.succeeds('cat /run/osctl/cgroup.version')
         if output.strip != "1"
           fail "expected cgroup version on #{name} to be 1, got '#{output.inspect}'"
