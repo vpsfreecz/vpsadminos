@@ -57,6 +57,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        # Git >= 2.54 maintenance is not disabled by checkout's gc.auto=0.
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: maintenance.auto
+          GIT_CONFIG_VALUE_0: "false"
 
       - name: Check NixOS container image repository module
         run: nix eval --impure --raw --file tests/nixos-container-image-repository-eval.nix
@@ -102,6 +107,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        # Keep checkout's fetch from starting a background repack.
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: maintenance.auto
+          GIT_CONFIG_VALUE_0: "false"
 
       - name: Prepare test state
         id: prepare-tests
@@ -188,6 +198,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        # Keep checkout's fetch from starting a background repack.
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: maintenance.auto
+          GIT_CONFIG_VALUE_0: "false"
 
       - name: Prepare test state
         id: prepare-tests
