@@ -329,23 +329,27 @@ import (previous.outPath + "/tests/make-test.nix")
         )
 
         snapshots = {}
-        create_workload = lambda do |ctid, address|
-          machine.all_succeed(
-            "osctl ct new --distribution alpine #{ctid}",
-            "osctl ct unset start-menu #{ctid}",
-            "osctl ct netif new routed #{ctid} eth0",
-            "osctl ct netif ip add #{ctid} eth0 #{address}/32",
-            "osctl ct mount #{ctid}",
-          )
+        create_workload = lambda do |ctid, address, create: true, start: true|
+          if create
+            machine.all_succeed(
+              "osctl ct new --distribution alpine #{ctid}",
+              "osctl ct unset start-menu #{ctid}",
+              "osctl ct netif new routed #{ctid} eth0",
+              "osctl ct netif ip add #{ctid} eth0 #{address}/32",
+              "osctl ct mount #{ctid}",
+            )
+          end
           info = machine.osctl_json("ct show #{ctid}")
           # The minimal image does not install an HTTP server. Supply the
           # workload explicitly, not as an assumed guest package or policy.
           machine.push_file('${pkgs.pkgsStatic.busybox}/bin/busybox', "#{info.fetch('rootfs')}/sbin/upgrade-busybox", preserve: true)
           machine.push_file('${workload}', "#{info.fetch('rootfs')}/sbin/upgrade-workload", preserve: true)
-          machine.all_succeed(
-            "osctl ct set init-cmd #{ctid} /sbin/upgrade-workload",
-            "osctl ct start #{ctid}",
-          )
+          machine.succeeds("osctl ct set init-cmd #{ctid} /sbin/upgrade-workload")
+          unless start
+            machine.succeeds("echo activated-generation-data > #{Shellwords.escape(info.fetch('rootfs'))}/activated-generation-data")
+            next
+          end
+          machine.succeeds("osctl ct start #{ctid}")
           machine.wait_until_succeeds("osctl ct exec #{ctid} test -s /upgrade/worker.pid")
           info = machine.osctl_json("ct show #{ctid}")
           init = info.fetch('init_pid').to_i
@@ -458,11 +462,26 @@ import (previous.outPath + "/tests/make-test.nix")
               # coexist. The named case fixes A's revision; no live inventory.
               activate_generation.call('${activatedSystem}')
               expect('${activatedSystem}').not_to eq(booted_system)
-              create_workload.call('activegeneration', '192.0.2.13')
+              # This frozen userspace cannot start new CTs after the v1 live
+              # switch: its LXC requires the missing /run/osctl/cgroup. Do not
+              # repair A in the fixture. Retain A-created stopped state and
+              # require T to start it, alongside the continuously running B CTs.
+              create_workload.call('activegeneration', '192.0.2.13', start: false)
               assert_limits.call(25, 64)
             ''
         }
         activate_generation.call('${nextSystem}')
+
+        ${
+          if activatedSystem == null then
+            ""
+          else
+            ''
+              create_workload.call('activegeneration', '192.0.2.13', create: false)
+              machine.succeeds('osctl ct exec activegeneration grep -Fx activated-generation-data /activated-generation-data')
+              assert_retained.call
+            ''
+        }
 
         # Reusing a private hierarchy must be idempotent after restrictions
         # have settled, not just during the first daemon startup.
