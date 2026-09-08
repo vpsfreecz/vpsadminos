@@ -44,6 +44,17 @@ import ../../make-test.nix (
 
               machine.wait_until_succeeds("ping -c 1 #{ip}")
 
+              # Connectivity and guest service health must hold in the SAME
+              # container: host-side address application can hide a failed
+              # guest network service (notably NixOS EEXIST failures).
+              machine.succeeds(
+                "osctl ct exec #{testct} sh -c 'if test -d /run/systemd/system; then systemctl is-system-running --wait; fi'"
+              )
+
+              ${pkgs.lib.optionalString (distribution == "nixos") ''
+                machine.succeeds("osctl ct exec #{testct} systemctl is-active networking-setup.service")
+              ''}
+
               ${pkgs.lib.optionalString (distribution == "fedora") ''
                 # The published Fedora image deliberately has dns=none in
                 # vpsadminos.conf. Select guest-managed DNS explicitly for
