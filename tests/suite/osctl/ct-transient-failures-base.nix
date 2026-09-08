@@ -88,7 +88,18 @@ import ../../make-test.nix (
             "grep -Fx entered #{rootfs}/transient-entered",
             "test ! -e #{rootfs}/root/unexpected-payload",
           )
-          machine.wait_until_succeeds("test \"$(osctl ct show -H -o state stalled)\" = stopped", timeout: 30)
+          # Keep a stuck client inside a guest timeout, not the test-shell
+          # protocol deadline. Otherwise the transport becomes unusable before
+          # we can collect daemon backtraces and the surviving process tree.
+          state_status, state_output = machine.execute('timeout 30 osctl ct show -H -o state stalled', timeout: 45)
+          if state_status != 0 || state_output.strip != 'stopped'
+            machine.execute('ps -eo pid,ppid,stat,wchan:32,args', timeout: 30)
+            machine.execute('timeout 10 osctl debug threads ls', timeout: 20)
+            machine.execute('timeout 10 osctl debug locks ls -v', timeout: 20)
+            machine.execute('tail -n 150 /var/log/osctld/current', timeout: 20)
+            machine.execute('find /run/osctl/cgroup -path "*stalled*" -name cgroup.procs -print -exec cat {} \\;', timeout: 20)
+            fail "stalled state query failed: status=#{state_status}, output=#{state_output.inspect}"
+          end
           stopped = machine.osctl_json('ct show stalled')
           expect(stopped.fetch('recovery_tainted')).to be(false)
           expect(stopped.fetch('init_pid')).to be_nil
