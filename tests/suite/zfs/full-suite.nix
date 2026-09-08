@@ -347,8 +347,9 @@ import ../../make-test.nix (
             '';
             runit.services.zfs-test-smb = {
               run = ''
-                mkdir -p /var/lib/samba/usershares /var/cache/samba \
-                  /var/lock/samba /var/run/samba
+                mkdir -p /var/lib/samba/usershares /var/lib/samba/private \
+                  /var/cache/samba /var/lock/samba /var/run/samba /var/log/samba
+                chmod 0700 /var/lib/samba/private
                 chmod 1770 /var/lib/samba/usershares
                 exec ${pkgs.samba}/bin/smbd --foreground --no-process-group \
                   --debug-stdout --configfile=/etc/samba/smb.conf
@@ -438,6 +439,7 @@ import ../../make-test.nix (
       machine.wait_for_service('kernel-modules')
       machine.wait_for_service('nfsd')
       machine.wait_for_service('zfs-test-smb')
+      machine.wait_until_succeeds("ss -H -lnt sport = :445 | grep -q '127.0.0.1:445'")
       # Under heavy parallel test load, osctld/pool activation can exceed the
       # default timeout and cause false-negative bootstrap failures.
       machine.wait_for_osctl_pool('tank', timeout: 20 * 60)
