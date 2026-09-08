@@ -89,7 +89,9 @@ import ../../make-test.nix (
             "test ! -e #{rootfs}/root/unexpected-payload",
           )
           machine.wait_until_succeeds("test \"$(osctl ct show -H -o state stalled)\" = stopped", timeout: 30)
-          expect(machine.osctl_json('ct show stalled').fetch('recovery_tainted')).to be(false)
+          stopped = machine.osctl_json('ct show stalled')
+          expect(stopped.fetch('recovery_tainted')).to be(false)
+          expect(stopped.fetch('init_pid')).to be_nil
           machine.succeeds("! ps -eo args= | grep -E '^osctld: tank:stalled runner:'")
           expect(machine.osctl_json('ct show sibling').fetch('init_pid')).to eq(sibling_init)
           expect(machine.succeeds('ip -o address show dev lo')[1]).to eq(host_loopback)

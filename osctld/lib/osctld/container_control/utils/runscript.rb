@@ -159,14 +159,36 @@ module OsCtld
         ret
       ensure
         [in_r, in_w, out_r, out_w].compact.each { |io| io.close unless io.closed? }
-        network_socket&.close unless network_socket&.closed?
-        if runner_pid
-          # The init script normally exits on pipe EOF. Do not strand the
-          # LXC child if startup or payload execution raised an exception.
-          status = wait_for_process(runner_pid, timeout: TRANSIENT_EXIT_TIMEOUT)
-          lxc_ct.stop if !status && lxc_ct.running?
-          wait_for_lxc_stopped
+        begin
+          if runner_pid
+            # Keep readiness open until cleanup finishes. Early EOF would
+            # make the daemon reap this runner before it stops the payload.
+            stop_transient_runner(runner_pid, graceful: ret && ret[:status])
+            wait_for_lxc_stopped
+          end
+        ensure
+          network_socket&.close unless network_socket&.closed?
         end
+      end
+
+      def stop_transient_runner(pid, graceful: true)
+        grace = graceful ? TRANSIENT_EXIT_TIMEOUT : 0
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + grace
+        loop do
+          waited_pid, status = Process.wait2(pid, Process::WNOHANG)
+          return status if waited_pid
+          break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+          sleep(0.05)
+        end
+
+        # Stop the payload while its monitor still owns the LXC control
+        # socket. Killing the monitor first makes LXC report stopped while
+        # lxc-init and its children can survive, orphaned in their namespaces.
+        lxc_ct.stop if lxc_ct.running?
+        wait_for_process(pid, timeout: TRANSIENT_EXIT_TIMEOUT)
+      rescue Errno::ECHILD
+        nil
       end
 
       def wait_transient_ready(io)

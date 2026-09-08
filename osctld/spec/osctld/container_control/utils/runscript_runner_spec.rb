@@ -37,6 +37,20 @@ RSpec.describe OsCtld::ContainerControl::Utils::Runscript::Runner do
     writer&.close
   end
 
+  it 'stops the live LXC payload before terminating its monitor' do
+    stub_const("#{described_class}::TRANSIENT_EXIT_TIMEOUT", 0)
+    lxc = instance_double(LXC::Container, running?: true, stop: true)
+    allow(runner).to receive(:lxc_ct).and_return(lxc)
+    allow(Process).to receive(:wait2).with(1234, Process::WNOHANG).and_return(nil)
+    calls = []
+    allow(lxc).to receive(:stop) { calls << :stop }
+    allow(runner).to receive(:wait_for_process).with(1234, timeout: 0) { calls << :wait }
+
+    runner.send(:stop_transient_runner, 1234)
+
+    expect(calls).to eq(%i[stop wait])
+  end
+
   it 'releases pipes and reaps a real init child when startup closes early' do
     lxc = instance_double(LXC::Container, running?: false)
     allow(runner).to receive(:lxc_ct).and_return(lxc)
