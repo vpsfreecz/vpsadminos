@@ -603,6 +603,25 @@ import (previous.outPath + "/tests/make-test.nix")
           machine.succeeds("osctl ct exec #{ctid} grep -Fx retained-data /upgrade/data")
         end
 
+        # Exercise the guest's own reboot command, not another host stop/start.
+        # The old host kernel and boot generation must not change with it.
+        snapshots.each do |ctid, saved|
+          old_init = machine.osctl_json("ct show #{ctid}").fetch('init_pid')
+          old_identity = machine.succeeds("awk '{print $22}' /proc/#{old_init}/stat")[1].strip
+          machine.succeeds("osctl ct exec #{ctid} sh -c '(sleep 2; reboot) >/root/upgrade-reboot.log 2>&1 </dev/null &'")
+          machine.wait_until_succeeds("test ! -e /proc/#{old_init}/stat || test \"$(awk '{print $22}' /proc/#{old_init}/stat)\" != #{old_identity}", timeout: 120)
+          machine.wait_until_succeeds("osctl ct exec #{ctid} rc-service networking status", timeout: 180)
+          machine.wait_until_succeeds("ping -c 1 #{saved.fetch(:address)}")
+          info = machine.osctl_json("ct show #{ctid}")
+          expect(info.fetch('state')).to eq('running')
+          new_identity = machine.succeeds("awk '{print $22}' /proc/#{info.fetch('init_pid')}/stat")[1].strip
+          expect([info.fetch('init_pid'), new_identity]).not_to eq([old_init, old_identity])
+          machine.succeeds("osctl ct exec #{ctid} grep -Fx retained-data /upgrade/data")
+          expect(info.fetch('recovery_tainted')).to be(false)
+          expect(machine.succeeds('uname -r')[1].strip).to eq(before_kernel)
+          expect(machine.succeeds('cat /proc/sys/kernel/random/boot_id')[1].strip).to eq(before_boot)
+        end
+
         # Containers created by the predecessor must still stop and delete cleanly.
         snapshots.each do |ctid, saved|
           machine.all_succeed(
