@@ -213,6 +213,7 @@ let
           "osctl/ct-uid-gid"
           "osctl/pool/export-cleanup"
           "osctl-exportfs/mount"
+          "osctld/direct-start"
           "osctld/resilience"
           "osctld/restart"
           "prometheus/exporters"
