@@ -3,6 +3,7 @@
 # rubocop:disable RSpec/MultipleDescribes, RSpec/VerifiedDoubles
 
 require 'ostruct'
+require 'json'
 
 require 'osctld/dist_config'
 require 'osctld/dist_config/configurator'
@@ -58,6 +59,20 @@ RSpec.describe OsCtld::DistConfig do
       described_class.run(double(distribution: 'unknown', mount: nil, log: nil), :start)
 
       expect(fallback_class).to have_received(:new)
+    end
+
+    %i[dns_resolvers unset_dns_resolvers].each do |cmd|
+      it "reports #{cmd} failures with internal diagnostics rather than swallowing them" do
+        dist = double
+        allow(dist).to receive(cmd).and_raise('private reload failure')
+        allow(described_class).to receive(:for).with(:known).and_return(double(new: dist))
+        allow(described_class).to receive(:denixstorify).and_return(['private trace'])
+
+        expect { described_class.run(ctrc, cmd) }
+          .to raise_error(OsCtld::CommandFailed, 'Unable to apply DNS resolver configuration; see osctld log')
+        expect(ctrc).to have_received(:log).with(:warn, "DistConfig.#{cmd} failed: private reload failure")
+        expect(ctrc).to have_received(:log).with(:warn, 'private trace')
+      end
     end
 
     it 'logs and swallows exceptions from distribution commands' do
@@ -161,6 +176,106 @@ RSpec.describe OsCtld::DistConfig::Configurator do
     expect(File.read(File.join(rootfs, 'etc', 'resolv.conf'))).to eq(
       "nameserver 1.1.1.1\nnameserver 8.8.8.8\noptions edns0\n"
     )
+  end
+
+  it 'keeps NetworkManager from replacing configured resolvers' do
+    FileUtils.mkdir_p(File.join(rootfs, 'etc', 'NetworkManager', 'conf.d'))
+
+    configurator.dns_resolvers(%w[1.1.1.1])
+
+    expect(File.read(File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf'))).to eq(
+      "# Generated and managed by osctld. Do not edit.\n[main]\ndns=none\n"
+    )
+  end
+
+  it 'does not rewrite current NetworkManager resolver policy on repeated set' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    configurator.dns_resolvers(%w[1.1.1.1])
+    allow(File).to receive(:write).and_call_original
+
+    configurator.dns_resolvers(%w[8.8.8.8])
+
+    expect(File).not_to have_received(:write).with(path, anything)
+    expect(configurator.prepare_dns_resolvers).to be(true)
+  end
+
+  it 'migrates legacy NetworkManager resolver policy on set' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "[main]\ndns=none\n")
+
+    configurator.dns_resolvers(%w[1.1.1.1])
+
+    expect(File.read(path)).to eq(
+      "# Generated and managed by osctld. Do not edit.\n[main]\ndns=none\n"
+    )
+  end
+
+  it 'preserves custom NetworkManager resolver policy on set' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "[main]\ndns=systemd-resolved\n")
+
+    configurator.dns_resolvers(%w[1.1.1.1])
+
+    expect(File.read(path)).to eq("[main]\ndns=systemd-resolved\n")
+  end
+
+  it 'leaves absent NetworkManager resolver policy absent on unset' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+
+    configurator.unset_dns_resolvers
+
+    expect(File.exist?(path)).to be(false)
+  end
+
+  it 'reapplies default DNS when retrying unset after a failed reload' do
+    FileUtils.mkdir_p(File.join(rootfs, 'etc', 'NetworkManager', 'conf.d'))
+
+    expect(configurator.unset_dns_resolvers).to be(true)
+  end
+
+  it 'removes current NetworkManager resolver policy on unset' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "# Generated and managed by osctld. Do not edit.\n[main]\ndns=none\n")
+
+    configurator.unset_dns_resolvers
+    configurator.unset_dns_resolvers
+
+    expect(File.exist?(path)).to be(false)
+  end
+
+  it 'removes legacy NetworkManager resolver policy on unset' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "[main]\ndns=none\n")
+
+    configurator.unset_dns_resolvers
+
+    expect(File.exist?(path)).to be(false)
+  end
+
+  it 'preserves custom NetworkManager resolver policy on unset' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "[main]\ndns=systemd-resolved\n")
+
+    configurator.unset_dns_resolvers
+
+    expect(File.read(path)).to eq("[main]\ndns=systemd-resolved\n")
+  end
+
+  it 'does not overwrite or reload a read-only NetworkManager drop-in' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "[main]\ndns=none\n")
+    File.chmod(0o444, path)
+
+    expect(configurator.prepare_dns_resolvers).to be(false)
+    expect(configurator.unset_dns_resolvers).to be(false)
+    expect(File.read(path)).to eq("[main]\ndns=none\n")
   end
 
   it 'instantiates nil, single, first-usable, and no-usable network classes' do
