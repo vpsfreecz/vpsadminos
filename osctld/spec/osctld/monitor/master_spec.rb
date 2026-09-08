@@ -106,6 +106,26 @@ RSpec.describe OsCtld::Monitor::Master do
     )
   end
 
+  it 'keeps the monitor thread alive when a reported init pid has exited' do
+    ct = build_ct(id: 'ct1')
+    state = Struct.new(:state, :init_pid).new(:running, 4321)
+    state_class = stub_const('OsCtld::ContainerControl::Commands::State', Class.new do
+      def self.run!(_ct); end
+    end)
+    eventd = stub_const('OsCtld::Eventd', Class.new do
+      def self.report(*); end
+    end)
+    allow(state_class).to receive(:run!).with(ct).and_return(state)
+    allow(eventd).to receive(:report)
+    allow(ct).to receive(:set_init_pid).with(4321).and_raise(Errno::ESRCH)
+
+    expect { master.send(:update_state, ct) }.not_to raise_error
+
+    expect(ct.state).to eq(:running)
+    expect(ct.ensure_run_conf.init_pid).to be_nil
+    expect(eventd).not_to have_received(:report)
+  end
+
   it 'does not clear an existing error state from container-control state' do
     ct = build_ct(id: 'ct1')
     ct.state = :error

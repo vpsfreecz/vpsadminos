@@ -52,15 +52,22 @@ RSpec.describe OsCtld::Container::Hooks do
   end
 
   it 'uses nsenter for mount hooks' do
-    hook = described_class::PreMount.new(ct, rootfs_mount: '/mnt/rootfs', ns_pid: 321)
+    mnt_ns = instance_double(IO, fileno: 42)
+    hook = described_class::PreMount.new(
+      ct,
+      rootfs_mount: '/mnt/rootfs',
+      ns_pid: 321,
+      mnt_ns:
+    )
 
     expect(hook.send(:environment)).to include(
       'OSCTL_CT_ROOTFS_MOUNT' => '/mnt/rootfs',
       'OSCTL_CT_NS_PID' => '321'
     )
     expect(hook.send(:executable, '/hook/path')).to eq(
-      ['nsenter', '--target', '321', '--mount', '/hook/path']
+      ['nsenter', '--mount=/proc/self/fd/42', '/hook/path']
     )
+    expect(hook.send(:inherited_files)).to eq([mnt_ns])
   end
 end
 # rubocop:enable RSpec/MultipleMemoizedHelpers, RSpec/VerifiedDoubles

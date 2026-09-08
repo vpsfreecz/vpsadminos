@@ -383,21 +383,37 @@ module OsCtld
       end
     end
 
-    def refresh_init_pid
+    def refresh_init_pid(expected_run_conf: nil)
       return init_pid unless running?
 
       st = ContainerControl::Commands::State.run!(self)
       self.state = st.state
-      set_init_pid(st.init_pid) if st.init_pid
-      st.init_pid
+      return unless st.init_pid
+
+      set_init_pid(st.init_pid, expected_run_conf:)
     rescue ContainerControl::Error
       nil
     end
 
-    def set_init_pid(pid)
+    def set_init_pid(pid, expected_run_conf: nil)
       return unless pid
 
-      ensure_run_conf.init_pid = pid
+      target_run_conf =
+        if expected_run_conf
+          inclusively do
+            next unless @state == :running && @run_conf.equal?(expected_run_conf)
+
+            expected_run_conf
+          end
+        else
+          ensure_run_conf
+        end
+      return unless target_run_conf
+
+      target_run_conf.init_pid = pid
+      pid
+    rescue Errno::ESRCH, Container::RunConfiguration::LifecycleError
+      nil
     end
 
     def starting
@@ -409,14 +425,25 @@ module OsCtld
       end
     end
 
-    def stopped
-      exclusively do
+    def stopped(expected_run_conf = nil)
+      retiring_run_conf = nil
+      accepted = exclusively do
+        if expected_run_conf && !@run_conf.equal?(expected_run_conf)
+          next false
+        end
+
         if run_conf
-          run_conf.destroy
+          retiring_run_conf = @run_conf
+          retiring_run_conf.begin_retirement
           @past_run_conf = @run_conf
           @run_conf = nil
         end
+
+        true
       end
+
+      retiring_run_conf&.destroy
+      accepted
     end
 
     def can_dist_configure_network?

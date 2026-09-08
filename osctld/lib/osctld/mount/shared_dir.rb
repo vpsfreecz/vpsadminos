@@ -67,13 +67,25 @@ module OsCtld
 
     # Bind-mount path with ID-mapping and push it through the shared directory
     # @param dir [String]
-    # @param ns_pid [Integer]
+    # @param user_ns [IO, Integer] opened user namespace or the earlier hook PID
     # @param [String] path to the mountpoint, same in both init and ct mount namespaces
-    def map_and_push(dir, ns_pid)
+    def map_and_push(dir, user_ns)
       host_path = host_path_for(dir)
+      user_ns_path =
+        if user_ns.respond_to?(:fileno)
+          File.join('/proc', Process.pid.to_s, 'fd', user_ns.fileno.to_s)
+        else
+          File.join('/proc', user_ns.to_s, 'ns', 'user')
+        end
 
       Dir.mkdir(host_path)
-      syscmd("mount --bind -o X-mount.idmap=/proc/#{ns_pid}/ns/user #{dir} #{host_path}")
+      syscmd_argv([
+                    'mount',
+                    '--bind',
+                    '-o', "X-mount.idmap=#{user_ns_path}",
+                    dir,
+                    host_path
+                  ])
 
       host_path
     end
