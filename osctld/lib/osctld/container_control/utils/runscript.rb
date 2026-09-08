@@ -1,5 +1,6 @@
 require 'json'
 require 'socket'
+require 'io/wait'
 
 module OsCtld
   module ContainerControl::Utils::Runscript
@@ -53,6 +54,9 @@ module OsCtld
     end
 
     module Runner
+      TRANSIENT_READY_TIMEOUT = 30
+      TRANSIENT_EXIT_TIMEOUT = 5
+
       # Execute script in a stopped container
       # @param opts [Hash]
       # @option opts [String] :script path to the script relative to the rootfs
@@ -63,6 +67,7 @@ module OsCtld
       # @option opts [Boolean] :wait
       def runscript_run(opts)
         pid = Process.fork do
+          Process.setpgrp if opts[:process_group]
           cur_stdin = opts.fetch(:stdin, stdin)
           cur_stdout = opts.fetch(:stdout, stdout)
           cur_stderr = opts.fetch(:stderr, stderr)
@@ -134,31 +139,56 @@ module OsCtld
           stdout: out_w,
           stderr: nil,
           close_fds: [in_w, out_r],
+          process_group: true,
           wait: false
         )
 
         in_r.close
         out_w.close
 
-        # Wait for the container to be started
-        if out_r.readline.strip == 'ready'
-          ct_init_pid = wait_for_lxc_attachable
-
-          ret =
-            if ct_init_pid
-              setup_network || yield
-            else
-              error('network setup failed: container is not attachable')
-            end
+        # Bound startup, not the user's command. Closing these pipes must
+        # also happen on EOF, a malformed token or a failed network handshake.
+        wait_transient_ready(out_r)
+        ct_init_pid = wait_for_lxc_attachable
+        ret =
+          if ct_init_pid
+            setup_network || yield
+          else
+            error('network setup failed: container is not attachable')
+          end
+        ret
+      ensure
+        [in_r, in_w, out_r, out_w].compact.each { |io| io.close unless io.closed? }
+        network_socket&.close unless network_socket&.closed?
+        if runner_pid
+          # The init script normally exits on pipe EOF. Do not strand the
+          # LXC child if startup or payload execution raised an exception.
+          status = wait_for_process(runner_pid, timeout: TRANSIENT_EXIT_TIMEOUT)
+          lxc_ct.stop if !status && lxc_ct.running?
+          wait_for_lxc_stopped
         end
+      end
 
-        # Closing in_w will bring down opts[:init_script] and stop the container
-        in_w.close
-        out_r.close
+      def wait_transient_ready(io)
+        expected = "ready\n"
+        received = ''
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + TRANSIENT_READY_TIMEOUT
 
-        _, status = Process.wait2(runner_pid)
-        wait_for_lxc_stopped
-        ret || ok(status.exitstatus)
+        while received.bytesize < expected.bytesize
+          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          raise Errno::ETIMEDOUT, 'transient init readiness timed out' if remaining <= 0
+
+          chunk = io.read_nonblock(expected.bytesize - received.bytesize, exception: false)
+          case chunk
+          when :wait_readable
+            io.wait_readable(remaining)
+          when nil
+            raise EOFError, 'transient init closed readiness pipe'
+          else
+            received << chunk
+            raise 'invalid transient init readiness' unless expected.start_with?(received)
+          end
+        end
       end
 
       def setup_network

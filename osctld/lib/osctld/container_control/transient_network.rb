@@ -1,5 +1,6 @@
 require 'json'
 require 'socket'
+require 'io/wait'
 require 'osctld/process_identity'
 require 'osctld/net_config'
 
@@ -9,6 +10,10 @@ module OsCtld
   # A private one-shot channel inherited by exactly one transient helper.
   # The helper can signal readiness, but cannot supply a PID or configuration.
   class ContainerControl::TransientNetwork
+    # Bound startup only. User commands may legitimately run indefinitely
+    # after the private handshake has completed.
+    READY_TIMEOUT = 60
+
     attr_reader :runner_socket
 
     def initialize(ct, net_config = NetConfig.create(ct))
@@ -18,7 +23,7 @@ module OsCtld
     end
 
     def serve(runner_identity)
-      raise 'invalid transient network request' unless @server_socket.read(6) == "ready\n"
+      read_ready(runner_identity)
 
       raise Errno::ESRCH, 'transient helper exited' unless runner_identity.alive?
 
@@ -35,9 +40,11 @@ module OsCtld
       end
 
       reply(status: true)
+      true
     rescue StandardError => e
       @ct.log(:warn, "transient network setup: #{e.full_message(highlight: false)}") if @ct.respond_to?(:log)
       reply(status: false, message: "transient network setup failed (#{e.class})")
+      false
     ensure
       @server_socket.close unless @server_socket.closed?
     end
@@ -47,6 +54,30 @@ module OsCtld
     end
 
     protected
+
+    def read_ready(runner_identity)
+      expected = "ready\n"
+      received = ''
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + READY_TIMEOUT
+
+      while received.bytesize < expected.bytesize
+        raise Errno::ESRCH, 'transient helper exited' unless runner_identity.alive?
+
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        raise Errno::ETIMEDOUT, 'transient helper readiness timed out' if remaining <= 0
+
+        chunk = @server_socket.read_nonblock(expected.bytesize - received.bytesize, exception: false)
+        case chunk
+        when :wait_readable
+          @server_socket.wait_readable([remaining, 0.1].min)
+        when nil
+          raise EOFError, 'transient helper closed readiness channel'
+        else
+          received << chunk
+          raise 'invalid transient network request' unless expected.start_with?(received)
+        end
+      end
+    end
 
     def reply(**result)
       @server_socket.write("#{result.to_json}\n")

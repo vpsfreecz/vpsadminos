@@ -3,6 +3,8 @@ require 'osctld/container_control/transient_network'
 module OsCtld
   # Frontend is run from osctld in daemon mode, when it is running as root
   class ContainerControl::Frontend
+    FAILED_RUNNER_GRACE = 5
+
     # @return [Class]
     attr_reader :command_class
 
@@ -160,10 +162,13 @@ module OsCtld
       cmd_w.close
 
       ret_w.close
-      transient_network&.serve(runner_identity)
+      if transient_network && !transient_network.serve(runner_identity)
+        return ContainerControl::Result.new(false, message: 'transient network setup failed')
+      end
 
       begin
         ret = JSON.parse(ret_r.readline, symbolize_names: true)
+        runner_responded = true
         runner_result(ret)
       rescue EOFError
         ContainerControl::Result.new(
@@ -173,17 +178,50 @@ module OsCtld
       end
     ensure
       transient_network&.close
-      runner_identity&.close
       # Release a helper still waiting for its command when pinning or command
       # transport fails, then reap it just as on the successful result path.
       [cmd_r, cmd_w, ret_r, ret_w].compact.each { |io| io.close unless io.closed? }
       if pid
         begin
-          Process.wait(pid)
+          if transient_network && !runner_responded
+            reap_failed_runner(pid)
+          else
+            Process.wait(pid)
+          end
         ensure
           cleanup_runner_cgroup(cgroup_path) if cleanup_cgroup_path
+          runner_identity&.close
         end
+      else
+        runner_identity&.close
       end
+    end
+
+    # Only our unreaped direct child is addressed here, so its numeric PID
+    # cannot be reused before waitpid. Never impose this bound on a successfully
+    # started user payload: it applies only after startup/transport failure.
+    def reap_failed_runner(pid)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + FAILED_RUNNER_GRACE
+      loop do
+        return if Process.waitpid(pid, Process::WNOHANG)
+        break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+        sleep(0.05)
+      end
+
+      Process.kill('TERM', pid)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + FAILED_RUNNER_GRACE
+      loop do
+        return if Process.waitpid(pid, Process::WNOHANG)
+        break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+        sleep(0.05)
+      end
+
+      Process.kill('KILL', pid)
+      Process.wait(pid)
+    rescue Errno::ECHILD
+      nil
     end
 
     def cleanup_runner_cgroup(cgroup_path)

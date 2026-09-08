@@ -30,6 +30,60 @@ RSpec.describe OsCtld::ContainerControl::TransientNetwork do
     expect(network).not_to have_received(:setup)
   end
 
+  describe 'readiness liveness with real sockets' do
+    before { stub_const("#{described_class}::READY_TIMEOUT", 0.05) }
+
+    ['', 'rea'].each do |payload|
+      it "bounds an open socket carrying #{payload.inspect}" do
+        server.runner_socket.write(payload) unless payload.empty?
+        worker = Thread.new { server.serve(runner) }
+
+        expect(worker.join(1)).to eq(worker)
+        expect(JSON.parse(server.runner_socket.readline).fetch('status')).to be(false)
+        expect(OsCtld::ContainerControl::Commands::State).not_to have_received(:run!)
+        expect(network).not_to have_received(:setup)
+      ensure
+        worker&.kill&.join
+      end
+    end
+
+    it 'notices runner death even when another process retains the socket' do
+      allow(runner).to receive(:alive?).and_return(false)
+      worker = Thread.new { server.serve(runner) }
+
+      expect(worker.join(1)).to eq(worker)
+      expect(JSON.parse(server.runner_socket.readline).fetch('status')).to be(false)
+      expect(OsCtld::ContainerControl::Commands::State).not_to have_received(:run!)
+    ensure
+      worker&.kill&.join
+    end
+
+    it 'detects an actually exited pinned helper without relying on socket EOF' do
+      child = fork { exit!(0) }
+      pinned = OsCtld::ProcessIdentity.new(child)
+      Process.wait(child)
+      child = nil
+      worker = Thread.new { server.serve(pinned) }
+
+      expect(worker.join(1)).to eq(worker)
+      expect(JSON.parse(server.runner_socket.readline).fetch('status')).to be(false)
+      expect(OsCtld::ContainerControl::Commands::State).not_to have_received(:run!)
+    ensure
+      worker&.kill&.join
+      pinned&.close
+      Process.wait(child) if child
+    end
+
+    it 'handles EOF before readiness without namespace or network effects' do
+      server.runner_socket.close_write
+      server.serve(runner)
+
+      expect(JSON.parse(server.runner_socket.readline).fetch('status')).to be(false)
+      expect(OsCtld::ContainerControl::Commands::State).not_to have_received(:run!)
+      expect(network).not_to have_received(:setup)
+    end
+  end
+
   it 'pins the daemon-selected LXC init before authenticating and applying' do
     calls = []
     allow(identity).to receive(:authenticate!) { |**opts| calls << [:authenticate, opts] }
