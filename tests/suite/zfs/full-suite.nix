@@ -141,6 +141,29 @@ import ../../make-test.nix (
                   --replace-fail '/usr/bin/sleep' '${pkgs.coreutils}/bin/sleep'
               done
 
+              # This VM already runs the real NFS server. Supply the missing
+              # Linux fixtures for the unprivileged share/unshare bodies; keep
+              # the attempted ZFS operations unprivileged and observe exports
+              # with sudo, rather than mistaking unreadable etab for no share.
+              misc_tests=$out/share/zfs/zfs-tests/tests/functional/cli_user/misc
+              substituteInPlace "$misc_tests/setup.ksh" \
+                --replace-fail 'if is_global_zone && ! is_linux' 'if is_global_zone'
+              for test in zfs_share_001_neg zfs_unshare_001_neg; do
+                substituteInPlace "$misc_tests/$test.ksh" \
+                  --replace-fail 'if is_linux || is_freebsd; then' 'if is_freebsd; then' \
+                  --replace-fail 'verify_runnable "global"' \
+                  $'verify_runnable "global"\nlog_mustnot test "$(id -u)" -eq 0\nfunction is_shared_linux {\n  typeset exports\n  exports=$(sudo -n exportfs -s) || log_fail "cannot read exports"\n  printf "%s\\n" "$exports" | awk -v fs="$1" \'$1 == fs { found=1 } END { exit !found }\'\n}'
+              done
+              # Both error messages were unconditional, so the skipped body
+              # could never reach its permission check even with valid setup.
+              substituteInPlace "$misc_tests/zfs_unshare_001_neg.ksh" \
+                --replace-fail \
+                  $'log_mustnot not_shared $TESTDIR/shared\nlog_fail "$TESTPOOL/$TESTFS/shared was not shared initially at all!"' \
+                  'log_must is_shared $TESTDIR/shared' \
+                --replace-fail \
+                  $'log_mustnot not_shared $TESTDIR/shared\nlog_fail "$TESTPOOL/$TESTFS/shared was actually unshared!"' \
+                  'log_must is_shared $TESTDIR/shared'
+
               # OpenZFS 2.3.8 predates upstream 6f17052743, which makes the
               # L2ARC wrap test's intended write volume deterministic.
               substituteInPlace $out/share/zfs/zfs-tests/tests/functional/cache/cache_012_pos.ksh \
