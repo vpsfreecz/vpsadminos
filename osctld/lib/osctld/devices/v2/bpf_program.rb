@@ -48,11 +48,14 @@ module OsCtld
         args << "#{dev.type_s}:#{dev.major}:#{dev.minor}:#{dev.mode}"
       end
 
+      BpfFs.setup
       run_devcgprog(*args)
     end
 
     def destroy
       File.unlink(path)
+    rescue Errno::ENOENT
+      # The pin can already be gone after cgroup/BPF cleanup or pool export.
     end
 
     # Check if program is attached to a cgroup
@@ -69,6 +72,7 @@ module OsCtld
     # Attach program to cgroup
     # @param link [Devices::V2::BpfLink]
     def attach(link)
+      BpfFs.add_pool(link.pool_name)
       run_devcgprog(
         'attach',
         path,
@@ -86,18 +90,35 @@ module OsCtld
               "link on pool #{link.pool_name} while new_link on pool #{new_link.pool_name}"
       end
 
-      run_devcgprog(
-        'replace',
-        link.path,
-        BpfFs.prog_pin_path(new_link.prog_name),
-        new_link.path
-      )
+      BpfFs.add_pool(new_link.pool_name)
+      begin
+        run_devcgprog(
+          'replace',
+          link.path,
+          BpfFs.prog_pin_path(new_link.prog_name),
+          new_link.path
+        )
+      rescue StandardError => e
+        # devcgprog updates the live link before renaming its pin. If the rename
+        # fails, the old pin still exists but now points at the new program.
+        # Restore the original program without attempting another pin rename.
+        replace_error = e
+        begin
+          run_devcgprog('replace', link.path, BpfFs.prog_pin_path(link.prog_name))
+        rescue StandardError => e
+          raise "unable to restore BPF link #{link.path} after #{replace_error.message}: #{e.message}"
+        end
+
+        raise replace_error
+      end
     end
 
     # Detach program from cgroup
     # @param link [Devices::V2::BpfLink]
     def detach(link)
       File.unlink(link.path)
+    rescue Errno::ENOENT
+      # The link pin can already be gone when the cgroup tree was removed.
     end
 
     protected
