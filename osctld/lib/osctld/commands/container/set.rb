@@ -19,9 +19,9 @@ module OsCtld
         ].each do |attr|
           next unless opts.has_key?(attr)
 
-          if ct.respond_to?(attr)
-            changes[attr] = opts[attr] if opts[attr] != ct.send(attr)
-          else
+          # Persisted DNS intent does not prove that guest policy is applied,
+          # e.g. after a failed live reload or an osctld upgrade.
+          if attr == :dns_resolvers || !ct.respond_to?(attr) || opts[attr] != ct.send(attr)
             changes[attr] = opts[attr]
           end
         end
