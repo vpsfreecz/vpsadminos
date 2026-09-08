@@ -48,11 +48,14 @@ module OsCtld
         args << "#{dev.type_s}:#{dev.major}:#{dev.minor}:#{dev.mode}"
       end
 
+      BpfFs.setup
       run_devcgprog(*args)
     end
 
     def destroy
       File.unlink(path)
+    rescue Errno::ENOENT
+      # The pin can already be gone after cgroup/BPF cleanup or pool export.
     end
 
     # Check if program is attached to a cgroup
@@ -69,6 +72,7 @@ module OsCtld
     # Attach program to cgroup
     # @param link [Devices::V2::BpfLink]
     def attach(link)
+      BpfFs.add_pool(link.pool_name)
       run_devcgprog(
         'attach',
         path,
@@ -86,6 +90,7 @@ module OsCtld
               "link on pool #{link.pool_name} while new_link on pool #{new_link.pool_name}"
       end
 
+      BpfFs.add_pool(new_link.pool_name)
       run_devcgprog(
         'replace',
         link.path,
@@ -98,6 +103,8 @@ module OsCtld
     # @param link [Devices::V2::BpfLink]
     def detach(link)
       File.unlink(link.path)
+    rescue Errno::ENOENT
+      # The link pin can already be gone when the cgroup tree was removed.
     end
 
     protected
