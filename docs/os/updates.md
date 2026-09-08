@@ -79,6 +79,12 @@ private bpffs is not the writable filesystem exposed inside the container.
 
 ### Userspace downgrade considerations
 
+Before downgrading to osctld without NetworkManager resolver ownership, unset
+managed resolvers with the newer daemon while the guest is running. Verify
+that guest DNS has resumed its normal policy. The older daemon cannot remove
+the newer daemon's owned `10-osctl-dns.conf` drop-in. Preserve operator-owned
+NetworkManager configuration rather than deleting all drop-ins.
+
 Per-container bpffs mounts created by the newer daemon are unknown to older
 userspace and can remain after a downgrade until the next host reboot. This
 is a bounded rollback resource leak, not a reason to drain containers during
