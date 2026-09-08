@@ -27,6 +27,10 @@ RSpec.describe OsCtld::Monitor::Master do
       def ensure_run_conf
         run_conf
       end
+
+      def set_init_pid(pid)
+        run_conf.init_pid = pid
+      end
     end.new(id:, pool:, user:, group:, state: :stopped, run_conf:)
   end
 
