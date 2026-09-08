@@ -65,6 +65,13 @@ module OsCtl::Lib
       ret
     end
 
+    # NS_GET_USERNS: query the kernel owner, not a caller-provided namespace.
+    def namespace_userns(namespace)
+      io = IO.for_fd(namespace.ioctl(0xb701, 0), autoclose: true)
+      io.close_on_exec = true
+      io
+    end
+
     def pidfd_open(pid)
       fd = Int.pidfd_open(pid, 0)
       raise SystemCallError, Fiddle.last_error if fd < 0

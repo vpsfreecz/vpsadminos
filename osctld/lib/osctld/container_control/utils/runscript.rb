@@ -4,10 +4,27 @@ require 'socket'
 module OsCtld
   module ContainerControl::Utils::Runscript
     module Frontend
+      def runscript_mode(run:, network:)
+        running = run ? ct.current_state == :running : ct.running?
+
+        if running
+          :running
+        elsif run && network
+          :run_network
+        elsif run
+          :run
+        else
+          raise ContainerControl::Error, 'container not running'
+        end
+      end
+
+      def sync_state_after_transient_run(mode)
+        ct.current_state if %i[run run_network].include?(mode)
+      end
+
       def add_network_opts(opts)
         opts.update(
-          init_script: File.join('/', File.basename(init_script.path)),
-          net_config: NetConfig.create(ct).export
+          init_script: File.join('/', File.basename(init_script.path))
         )
       end
 
@@ -86,6 +103,7 @@ module OsCtld
           pid
         else
           _, status = Process.wait2(pid)
+          wait_for_lxc_stopped
           ok(status.exitstatus)
         end
       end
@@ -101,7 +119,6 @@ module OsCtld
       # @param opts [Hash]
       # @option opts [String] :init_script path to the script used to control
       #                                    the container
-      # @option opts [Hash] :net_config
       def with_configured_network(opts)
         ret = nil
 
@@ -110,7 +127,7 @@ module OsCtld
         out_r, out_w = IO.pipe
 
         # Start the container with lxc-init
-        init_pid = runscript_run(
+        runner_pid = runscript_run(
           id: ctid,
           script: opts[:init_script],
           stdin: in_r,
@@ -125,26 +142,35 @@ module OsCtld
 
         # Wait for the container to be started
         if out_r.readline.strip == 'ready'
-          # Configure network
-          pid = lxc_ct.attach do
-            setup_exec_env
-            ENV['HOME'] = '/root'
-            ENV['USER'] = 'root'
-            NetConfig.import(opts[:net_config]).setup
-          end
+          ct_init_pid = wait_for_lxc_attachable
 
-          Process.wait2(pid)
-
-          # Execute user command
-          ret = yield
+          ret =
+            if ct_init_pid
+              setup_network || yield
+            else
+              error('network setup failed: container is not attachable')
+            end
         end
 
         # Closing in_w will bring down opts[:init_script] and stop the container
         in_w.close
         out_r.close
 
-        _, status = Process.wait2(init_pid)
+        _, status = Process.wait2(runner_pid)
+        wait_for_lxc_stopped
         ret || ok(status.exitstatus)
+      end
+
+      def setup_network
+        raise 'transient network channel unavailable' unless network_socket
+
+        network_socket.write("ready\n")
+        ret = JSON.parse(network_socket.readline, symbolize_names: true)
+        ret[:status] ? nil : error(ret[:message])
+      rescue StandardError => e
+        error("network setup failed: #{e.message}")
+      ensure
+        network_socket&.close
       end
 
       # Callback to osctld to relocate self-process from container's wrapper cgroup

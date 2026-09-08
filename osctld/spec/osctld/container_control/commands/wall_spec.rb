@@ -28,7 +28,7 @@ RSpec.describe OsCtld::ContainerControl::Commands::Wall do
     end
 
     it 'returns ok when wall exits successfully' do
-      runner = build_runner(build_wait_status(0))
+      runner = build_runner(0)
 
       expect(runner.execute('hello')).to eq(status: true, output: nil)
     end

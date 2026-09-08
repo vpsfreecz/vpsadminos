@@ -39,6 +39,10 @@ RSpec.describe 'container io commands' do
       def ident
         "#{pool.name}:#{id}"
       end
+
+      def syslogns_tag
+        'ct1-shell'
+      end
     end.new(
       id:,
       pool:,
@@ -218,6 +222,7 @@ RSpec.describe 'container io commands' do
         ct,
         'lxc-attach', '-P', '/var/lib/lxc/ct1',
         '-n', 'ct1',
+        '--elevated-privileges=CGROUP',
         '--clear-env',
         '--keep-var', 'TERM',
         '-v', 'USER=root',
@@ -264,7 +269,8 @@ RSpec.describe 'container io commands' do
         ct,
         'bash',
         '--rcfile',
-        '/var/lib/lxc/ct1/.bashrc'
+        '/var/lib/lxc/ct1/.bashrc',
+        syslogns_tag: 'ct1-shell'
       )
     end
   end

@@ -35,8 +35,11 @@ module OsCtld
         ret =
           if mode == :kill
             with_forced_teardown { fork_runner(args: [mode, opts]) }
-          elsif ct.running?
-            exec_runner(args: [mode, opts.merge(halt_from_inside: true)])
+          elsif %i[stop shutdown].include?(mode) && ct.running?
+            exec_runner(
+              args: [mode, opts.merge(halt_from_inside: true)],
+              switch_extra_namespaces: false
+            )
           else
             fork_runner(args: [mode, opts])
           end
@@ -124,10 +127,9 @@ module OsCtld
 
       # @return [Integer] halt duration in seconds
       def run_halt(timeout)
-        queue = OsCtl::Lib::Queue.new
         t1 = Time.now
 
-        pid = lxc_ct.attach do
+        lxc_attach_wait(timeout:) do
           setup_exec_env
 
           %w[halt poweroff shutdown].each do |cmd|
@@ -136,18 +138,6 @@ module OsCtld
             next
           end
         end
-
-        timeout_thread = Thread.new do
-          next if queue.pop(timeout:) == :done
-
-          Process.kill('KILL', pid) if pid && pid > 1
-        rescue Errno::ESRCH
-          next
-        end
-
-        Process.wait(pid) if pid && pid > 1
-        queue << :done
-        timeout_thread.join
 
         Time.now - t1
       end
