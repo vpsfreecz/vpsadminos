@@ -28,16 +28,7 @@ module OsCtld
           cmd: opts[:cmd]
         }
 
-        mode =
-          if ct.running?
-            :running
-          elsif !ct.running? && opts[:run] && opts[:network]
-            :run_network
-          elsif !ct.running? && opts[:run]
-            :run
-          else
-            raise ContainerControl::Error, 'container not running'
-          end
+        mode = runscript_mode(run: opts[:run], network: opts[:network])
 
         if opts[:network]
           add_network_opts(runner_opts)
@@ -58,11 +49,14 @@ module OsCtld
           stdin: opts[:stdin],
           stdout: opts[:stdout],
           stderr: opts[:stderr],
+          switch_extra_namespaces: mode != :running,
+          transient_network: mode == :run_network,
           reset_subtree_control: mode != :running
         )
 
         ret.ok? ? ret.data : ret
       ensure
+        sync_state_after_transient_run(mode) if mode
         cleanup_init_script
       end
     end
@@ -80,7 +74,6 @@ module OsCtld
       # @option opts [Boolean] :network setup network if the container is run?
       # @option opts [String] :init_script path to the script used to control
       #                                    the container
-      # @option opts [Hash] :net_config
       # @return [Integer] exit status
       def execute(mode, opts)
         send(:"exec_#{mode}", opts)
@@ -89,19 +82,13 @@ module OsCtld
       protected
 
       def exec_running(opts)
-        pid = lxc_ct.attach(
+        exit_status = lxc_attach_command(
+          opts[:cmd],
           stdin:,
           stdout:,
           stderr:
-        ) do
-          setup_exec_env
-          ENV['HOME'] = '/root'
-          ENV['USER'] = 'root'
-          LXC.run_command(opts[:cmd])
-        end
-
-        _, status = Process.wait2(pid)
-        ok(status.exitstatus)
+        )
+        ok(exit_status)
       end
 
       def exec_run(opts)
@@ -129,14 +116,14 @@ module OsCtld
         end
 
         _, status = Process.wait2(pid)
+        wait_for_lxc_stopped
 
-        ok(status.exitstatus)
+        ok(exitstatus(status))
       end
 
       def exec_run_network(opts)
         with_configured_network(
-          init_script: opts[:init_script],
-          net_config: opts[:net_config]
+          init_script: opts[:init_script]
         ) { exec_running(opts) }
       end
     end
