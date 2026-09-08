@@ -2,6 +2,7 @@ require 'digest'
 require 'forwardable'
 require 'libosctl'
 require 'singleton'
+require 'osctld/cgroup'
 
 module OsCtld
   # Manage a list of BPF programs and their links
@@ -64,10 +65,11 @@ module OsCtld
         BpfFs.list_links(pool_name).each do |link_name|
           link = Devices::V2::BpfLink.from_name(pool_name, link_name)
 
+          key = cgroup_key(link.cgroup_path)
           @links[link.prog_name] ||= {}
-          @links[link.prog_name][link.cgroup_path] = link
+          @links[link.prog_name][key] = link
 
-          @path_cache[link.cgroup_path] = link
+          @path_cache[key] = link
 
           cnt += 1
         end
@@ -79,8 +81,8 @@ module OsCtld
     # Attach program allowing access to the specified devices to a cgroup
     #
     # The program is attached only if it is not already attached. If `prog_name`
-    # is given and its link to the cgroup exists, program `prog_name` is replaced
-    # with the new program.
+    # is given, it is a caller hint; the pinned cached link identifies the
+    # actual program to replace, including inherited public-root aliases.
     #
     # @param pool_name [String]
     # @param devices [Array<Devices::Device>]
@@ -104,12 +106,15 @@ module OsCtld
           prog.create
         end
 
-        link = Devices::V2::BpfLink.new(new_prog_name, pool_name, cgroup_path)
+        key = cgroup_key(cgroup_path)
+        old_link = @path_cache[key]
+        old_link = nil if old_link && !BpfFs.link_pinned?(old_link.pool_name, old_link.name)
 
-        if prog_name && prog_name != new_prog_name && @links[prog_name] && @links[prog_name][cgroup_path]
-          old_link = @links[prog_name].delete(cgroup_path)
-          old_link = nil unless BpfFs.link_pinned?(old_link.pool_name, old_link.name)
-        end
+        # An adopted public-root pin remains valid after the hierarchy becomes
+        # private. Its basename must not be rewritten before link replacement.
+        return new_prog_name if old_link && old_link.prog_name == new_prog_name
+
+        link = Devices::V2::BpfLink.new(new_prog_name, pool_name, cgroup_path)
 
         unless prog.attached?(link)
           if old_link
@@ -117,17 +122,18 @@ module OsCtld
           else
             prog.attach(link)
           end
-
-          @links[new_prog_name] ||= {}
-          @links[new_prog_name][link.cgroup_path] = link
-
-          @path_cache[link.cgroup_path] = link
         end
 
-        if old_link && @links[prog_name].empty?
-          old_prog = @programs.delete(prog_name)
-          @links.delete(prog_name)
+        # Commit bookkeeping only after the kernel operation succeeded. A
+        # failed replacement must retain the old pin for retry and cleanup.
+        @links[old_link.prog_name].delete(key) if old_link
+        @links[new_prog_name] ||= {}
+        @links[new_prog_name][key] = link
+        @path_cache[key] = link
 
+        if old_link && @links[old_link.prog_name].empty?
+          old_prog = @programs.delete(old_link.prog_name)
+          @links.delete(old_link.prog_name)
           old_prog.destroy
         end
 
@@ -146,13 +152,14 @@ module OsCtld
     # @param cgroup_path [String]
     def prune_cgroup_links(cgroup_path)
       sync do
-        link = @path_cache.delete(cgroup_path)
+        key = cgroup_key(cgroup_path)
+        link = @path_cache[key]
         return if link.nil?
 
         prog = @programs[link.prog_name]
-
-        @links[link.prog_name].delete(cgroup_path)
         prog.detach(link)
+        @path_cache.delete(key)
+        @links[link.prog_name].delete(key)
 
         if @links[link.prog_name].empty?
           @links.delete(link.prog_name)
@@ -169,6 +176,17 @@ module OsCtld
     end
 
     protected
+
+    # CGroup setup validates the public/private views of the same hierarchy.
+    # Cache by their common logical path, while BpfLink preserves the actual
+    # existing pin name. Do not treat a similarly prefixed path as an alias.
+    def cgroup_key(path)
+      root = CGroup::DEFAULT_FS
+      return CGroup::RUNSTATE_FS if path == root
+      return path unless path.start_with?("#{root}/")
+
+      "#{CGroup::RUNSTATE_FS}#{path.delete_prefix(root)}"
+    end
 
     def load_programs
       sync do
