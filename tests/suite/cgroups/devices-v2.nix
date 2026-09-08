@@ -183,6 +183,35 @@ import ../../make-test.nix (
           expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
         end
 
+        it 'preserves the attached program when the new link pin cannot be renamed' do
+          require 'shellwords'
+
+          old_prog_name = check_prog_list!(testct_cgroup)
+          target_prog_name = check_prog_list!(testct2_cgroup)
+          expect(old_prog_name).not_to eq(target_prog_name)
+
+          # Reuse the real pinned cgroup path, changing only the program name.
+          # A directory at the destination makes rename fail after link.Update.
+          pin_dir = '/run/osctl/bpf/osctl/pools/tank/links'
+          pins = machine.succeeds("find #{pin_dir} -maxdepth 1 -type f -name 'devcg-#{old_prog_name}-on-*'")[1].lines.map(&:strip)
+          pins.select! { |pin| pin.end_with?('testct') }
+          expect(pins.length).to eq(1)
+          old_pin = pins.first
+          target_pin = old_pin.sub("/devcg-#{old_prog_name}-on-", "/devcg-#{target_prog_name}-on-")
+          expect(target_pin).not_to eq(old_pin)
+          machine.succeeds("test ! -e #{Shellwords.escape(target_pin)}")
+          machine.succeeds("mkdir #{Shellwords.escape(target_pin)}")
+
+          begin
+            machine.fails("osctl ct devices chmod testct char 10 200 rwm")
+            expect(check_prog_list!(testct_cgroup)).to eq(old_prog_name)
+            machine.succeeds("test -f #{Shellwords.escape(old_pin)}")
+            expect(machine.succeeds("osctl healthcheck -a")[1]).to eq("No errors detected.\n")
+          ensure
+            machine.succeeds("rmdir #{Shellwords.escape(target_pin)}")
+          end
+        end
+
         it 'still removes device access recursively from the parent group' do
           machine.succeeds("osctl group devices del --recursive /default char 10 200")
 
