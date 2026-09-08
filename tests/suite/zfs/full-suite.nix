@@ -313,6 +313,31 @@ import ../../make-test.nix (
             # compares their complete pre/post-upgrade file checksums.
             services.zfs.vdevlog.enable = lib.mkForce false;
             services.nfs.server.enable = true;
+            # ZFS's protocol-specific unshare body requires real Samba
+            # usershares as well as NFS. Bind this test-only server to loopback.
+            environment.etc."samba/smb.conf".text = ''
+              [global]
+              interfaces = lo
+              bind interfaces only = yes
+              smb ports = 445
+              security = user
+              map to guest = Bad User
+              usershare path = /var/lib/samba/usershares
+              usershare max shares = 100
+              usershare owner only = no
+              usershare allow guests = yes
+              load printers = no
+              disable spoolss = yes
+            '';
+            runit.services.zfs-test-smb = {
+              run = ''
+                mkdir -p /var/lib/samba/usershares /var/cache/samba \
+                  /var/lock/samba /var/run/samba
+                chmod 1770 /var/lib/samba/usershares
+                exec ${pkgs.samba}/bin/smbd --foreground --no-process-group \
+                  --debug-stdout --configfile=/etc/samba/smb.conf
+              '';
+            };
             boot.qemu = {
               memory = lib.mkForce zfsVmMemory;
               cpus = lib.mkForce zfsVmCpus;
@@ -396,6 +421,7 @@ import ../../make-test.nix (
       # service finish before starting the independent pool deadline.
       machine.wait_for_service('kernel-modules')
       machine.wait_for_service('nfsd')
+      machine.wait_for_service('zfs-test-smb')
       # Under heavy parallel test load, osctld/pool activation can exceed the
       # default timeout and cause false-negative bootstrap failures.
       machine.wait_for_osctl_pool('tank', timeout: 20 * 60)
@@ -447,6 +473,11 @@ import ../../make-test.nix (
         "command -v mkfs.xfs",
         "command -v parted",
         "command -v net",
+        "testparm -s /etc/samba/smb.conf",
+        "mkdir -p /usr/bin",
+        # libshare's Linux SMB backend uses the FHS path, not PATH lookup.
+        "ln -sf $(command -v net) /usr/bin/net",
+        "net usershare list",
         "command -v strings",
         "command -v getent",
         "ln -sf $(command -v bash) /bin/bash",
