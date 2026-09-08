@@ -128,6 +128,7 @@ let
           "declarative-containers"
           "defaults"
           "dist-config/netif-bridge"
+          "dist-config/nixos-resolvers"
           {
             test = "dist-config/netif-routed";
             args = {
