@@ -118,7 +118,12 @@ import (previous.outPath + "/tests/make-test.nix")
         before_bpffs = machine.succeeds('stat -c %d:%i /sys/fs/bpf')[1].strip
         daemon_identity = lambda do
           status = machine.succeeds('sv status osctld')[1]
-          pid = status.match(/\(pid (\d+)\)/).captures.first
+          supervisor = status.match(/\(pid (\d+)\)/).captures.first
+          # sv tracks the logging supervisor, not the daemon. Killing that
+          # supervisor leaves its child alive and creates a second daemon.
+          pids = machine.succeeds("pgrep -P #{supervisor} -f '^osctld: main$'")[1].split
+          expect(pids.length).to eq(1)
+          pid = pids.first
           [pid, machine.succeeds("awk '{print $22}' /proc/#{pid}/stat")[1].strip]
         end
         before_daemon = daemon_identity.call
@@ -248,6 +253,7 @@ import (previous.outPath + "/tests/make-test.nix")
             machine.wait_until_succeeds("! kill -0 #{prior_daemon.first}")
           end
           machine.wait_for_service('osctld')
+          machine.wait_until_succeeds("pgrep -f '^osctld: main$'")
           machine.wait_for_osctl_pool('tank')
           expect(daemon_identity.call).not_to eq(prior_daemon)
           expect(private_mounts.call).to eq(adopted_mounts)
