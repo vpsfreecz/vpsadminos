@@ -11,6 +11,7 @@
       testct2 = get_container_id(prefix)
       testcts = [testct1, testct2]
       host_message = "host-only message #{testcts.join('-')}"
+      host_tag_pattern = "#{Regexp.escape(prefix)}-[0-9a-f]{4}"
 
       before(:suite) do
         ensure_kernel_machine
@@ -81,7 +82,7 @@
               machine.succeeds("osctl ct exec #{testct} sh -c 'echo #{msg} > /dev/kmsg'")
 
               _, output = machine.succeeds('dmesg')
-              expect(output).to match(/^\[\s*\d+\.\d+\] \[\s*#{Regexp.escape(testct)}\s*\] #{Regexp.escape(msg)}$/)
+              expect(output).to match(/^\[\s*\d+\.\d+\] \[\s*#{host_tag_pattern}\s*\] #{Regexp.escape(msg)}$/)
             end
           end
         end
