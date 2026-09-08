@@ -207,10 +207,24 @@ module OsCtld
       end
     end
 
-    def dns_resolvers(_opts = {})
-      with_rootfs do
-        configurator.dns_resolvers(ct.dns_resolvers)
+    def dns_resolvers(opts = {})
+      resolvers = opts.fetch(:resolvers) { ct.dns_resolvers }
+
+      # The start hook is already inside a rootfs helper, before guest init.
+      # Live reload must run from the host frontend, not from that chroot.
+      if @within_rootfs || !ct.running?
+        with_rootfs { configurator.dns_resolvers(resolvers) }
+        return
       end
+
+      reload = with_rootfs { configurator.prepare_dns_resolvers }
+      reload_network_manager_dns if reload
+      with_rootfs { configurator.write_dns_resolvers(resolvers) }
+    end
+
+    def unset_dns_resolvers(_opts = {})
+      reload = with_rootfs { configurator.unset_dns_resolvers }
+      reload_network_manager_dns if reload && !@within_rootfs && ct.running?
     end
 
     # @param opts [Hash] options
@@ -247,6 +261,29 @@ module OsCtld
     protected
 
     attr_reader :configurator
+
+    def reload_network_manager_dns
+      # Query the running daemon, not a client version string. Exit 8 means
+      # NM is stopped and will read the policy at its next normal start.
+      result = ct_syscmd(ct, %w[nmcli -t -f VERSION general], valid_rcs: [0, 8])
+      return if result.exitstatus == 8
+
+      version = result.output.strip.match(/\A(\d+)\.(\d+)\./)
+      raise 'unable to determine NetworkManager version' unless version
+
+      if (version.captures.map(&:to_i) <=> [1, 22]) >= 0
+        ct_syscmd(ct, %w[nmcli general reload conf,dns-rc], valid_rcs: [0, 8])
+      else
+        # The daemon already supports synchronous Reload(flags) in 1.18,
+        # but nmcli gained general reload only in 1.22. Do not replace it
+        # with asynchronous SIGHUP or restart the guest's connections.
+        ct_syscmd(ct, [
+                    'dbus-send', '--system', '--print-reply', '--type=method_call',
+                    '--dest=org.freedesktop.NetworkManager', '/org/freedesktop/NetworkManager',
+                    'org.freedesktop.NetworkManager.Reload', 'uint32:3'
+                  ])
+      end
+    end
 
     def with_rootfs(&block)
       if @within_rootfs
