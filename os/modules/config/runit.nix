@@ -68,6 +68,8 @@ in
     mkdir -p /var/lib/lxc/rootfs
 
     # CGroups
+    mkdir -p /run/osctl
+
     case "$cgroupv" in
       1) ;;
       2) ;;
@@ -120,8 +122,6 @@ in
         mount -t cgroup2 cgroup2 /sys/fs/cgroup/unified
 
         mkdir -p /sys/fs/cgroup/systemd/runit
-        ln -sf /sys/fs/cgroup/systemd/runit /run/runit/cgroup.system
-        ln -sf /sys/fs/cgroup/systemd/runit /run/runit/cgroup.service
         ;;
       2)
         mount -t cgroup2 cgroup2 /sys/fs/cgroup
@@ -142,14 +142,26 @@ in
         for c in `cat /sys/fs/cgroup/system//service/cgroup.controllers` ; do
           echo "+$c" >> /sys/fs/cgroup/system/service/cgroup.subtree_control
         done
-
-        ln -sf /sys/fs/cgroup/system /run/runit/cgroup.system
-        ln -sf /sys/fs/cgroup/system/service /run/runit/cgroup.service
         ;;
     esac
 
-    mkdir -p /run/osctl
+    mkdir -p /run/osctl/cgroup
+    mount --rbind /sys/fs/cgroup /run/osctl/cgroup
+    mount --make-rprivate /run/osctl/cgroup
     echo "$cgroupv" > /run/osctl/cgroup.version
+
+    case "$cgroupv" in
+      1)
+        ln -sf /run/osctl/cgroup/systemd/runit /run/runit/cgroup.system
+        ln -sf /run/osctl/cgroup/systemd/runit /run/runit/cgroup.service
+        ;;
+      2)
+        # Kernfs filtering can hide sibling cgroups through /sys/fs/cgroup from
+        # runit service wrappers. Use the private host view exported for osctld.
+        ln -sf /run/osctl/cgroup/system /run/runit/cgroup.system
+        ln -sf /run/osctl/cgroup/system/service /run/runit/cgroup.service
+        ;;
+    esac
 
     # BPF FS
     mount -t bpf bpf /sys/fs/bpf
