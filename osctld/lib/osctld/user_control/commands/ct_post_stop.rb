@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/bpf_fs'
 require 'osctld/user_control/commands/base'
 
 module OsCtld
@@ -24,6 +25,7 @@ module OsCtld
         ct.run_conf.request_reboot
       end
 
+      BpfFs.remove_ct(ct.pool.name, ct.id)
       ct.stopped
 
       # User-defined hook

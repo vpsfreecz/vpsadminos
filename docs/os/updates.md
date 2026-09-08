@@ -77,6 +77,14 @@ those namespaces or require stopping workloads to obtain them. The tracing
 namespace is omitted when the running kernel does not provide it. The host's
 private bpffs is not the writable filesystem exposed inside the container.
 
+### Userspace downgrade considerations
+
+Per-container bpffs mounts created by the newer daemon are unknown to older
+userspace and can remain after a downgrade until the next host reboot. This
+is a bounded rollback resource leak, not a reason to drain containers during
+forward userspace activation. Do not remove a live container's mounts merely
+to downgrade management userspace.
+
 ## Kernel livepatch coverage
 
 Livepatch availability and vulnerability coverage are specific to the boot
