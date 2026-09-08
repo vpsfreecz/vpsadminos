@@ -2,13 +2,24 @@ module OsCtld
   module ContainerControl; end
 
   class ContainerControl::Result
+    # Diagnostics travel only over the private helper pipe. The daemon logs
+    # them before converting this payload to the public result below.
+    def self.failure_payload(error, stage:)
+      {
+        status: false,
+        message: "helper #{stage} failed (#{error.class})",
+        user_runner: stage == :setup,
+        diagnostic: error.full_message(highlight: false)
+      }
+    end
+
     # Create result from the runner's output
     # @return [ContainerControl::Result]
     def self.from_runner(data)
       if data[:status]
         new(true, data: data[:output])
       else
-        new(false, message: data[:message])
+        new(false, message: data[:message], user_runner: data.fetch(:user_runner, false))
       end
     end
 
