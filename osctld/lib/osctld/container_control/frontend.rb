@@ -200,6 +200,7 @@ module OsCtld
     # @option opts [IO, nil] :stdin
     # @option opts [IO, nil] :stdout
     # @option opts [IO, nil] :stderr
+    # @option opts [Array<IO>] :keep_fds additional descriptors kept in the runner
     # @option opts [Boolean] :switch_to_system
     #
     # @return [ContainerControl::Result]
@@ -209,6 +210,7 @@ module OsCtld
       stdin = opts[:stdin]
       stdout = opts.fetch(:stdout, $stdout)
       stderr = opts.fetch(:stderr, $stderr)
+      keep_fds = Array(opts[:keep_fds])
 
       runner_opts = {
         id: ct.id,
@@ -227,7 +229,7 @@ module OsCtld
       ugid = ct.user.ugid
       homedir = ct.user.homedir
 
-      pid = SwitchUser.fork(keep_fds: [w, stdin, stdout, stderr].compact) do
+      pid = SwitchUser.fork(keep_fds: ([w, stdin, stdout, stderr] + keep_fds).compact) do
         # Closed by SwitchUser.fork
         # r.close
 

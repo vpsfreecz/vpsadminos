@@ -83,7 +83,9 @@ module OsCtld
       ContainerControl::Commands::WithMountns.run!(
         ct,
         ns_pid: opts[:ns_pid],
+        mnt_ns: opts[:mnt_ns],
         chroot: opts[:rootfs_mount],
+        root_dir: opts[:root_dir],
         block: proc do
           # /run is mounted by {#pre_start}
           FileUtils.mkdir_p('/run/udev')
