@@ -138,7 +138,9 @@ module OsCtld
           syslogns_tag:
         )
         Process.exec(::OsCtld.bin('osctld-ct-runner'))
-        exit
+      rescue StandardError => e
+        write_runner_failure(ret_w, e)
+        exit(false)
       end
 
       stdin.close if stdin
@@ -158,12 +160,11 @@ module OsCtld
 
       begin
         ret = JSON.parse(ret_r.readline, symbolize_names: true)
-        ContainerControl::Result.from_runner(ret)
+        runner_result(ret)
       rescue EOFError
         ContainerControl::Result.new(
           false,
-          message: 'user runner failed',
-          user_runner: true
+          message: 'helper exited without a response'
         )
       end
     ensure
@@ -233,20 +234,35 @@ module OsCtld
         # Closed by SwitchUser.fork
         # r.close
 
-        Process.setproctitle(
-          "osctld: #{ctid} " \
-          "runner:#{command_class.name.split('::').last.downcase}"
-        )
+        begin
+          Process.setproctitle(
+            "osctld: #{ctid} " \
+            "runner:#{command_class.name.split('::').last.downcase}"
+          )
 
-        if opts.fetch(:switch_to_system, true)
-          SwitchUser.switch_to_system(sysuser, ugid, ugid, homedir)
+          if opts.fetch(:switch_to_system, true)
+            SwitchUser.switch_to_system(sysuser, ugid, ugid, homedir)
+          end
+
+          runner = command_class::Runner.new(**runner_opts)
+        rescue StandardError => e
+          write_runner_failure(w, e, stage: :setup)
+          exit(false)
         end
 
-        runner = command_class::Runner.new(**runner_opts)
-        ret = runner.execute(*args, **kwargs)
-        w.write("#{ret.to_json}\n")
+        begin
+          ret = runner.execute(*args, **kwargs)
+        rescue StandardError => e
+          write_runner_failure(w, e, stage: :execution)
+          exit(false)
+        end
 
-        exit
+        begin
+          w.write("#{ret.to_json}\n")
+        rescue StandardError => e
+          write_runner_failure(w, e, stage: :response)
+          exit(false)
+        end
       end
 
       w.close
@@ -254,15 +270,25 @@ module OsCtld
       begin
         ret = JSON.parse(r.readline, symbolize_names: true)
         Process.wait(pid)
-        ContainerControl::Result.from_runner(ret)
+        runner_result(ret)
       rescue EOFError
         Process.wait(pid)
         ContainerControl::Result.new(
           false,
-          message: 'user runner failed',
-          user_runner: true
+          message: 'helper exited without a response'
         )
       end
+    end
+
+    def write_runner_failure(io, error, stage: :setup)
+      io.write("#{ContainerControl::Result.failure_payload(error, stage:).to_json}\n")
+    rescue SystemCallError, IOError
+      nil
+    end
+
+    def runner_result(payload)
+      ct.log(:warn, payload[:diagnostic]) if payload[:diagnostic]
+      ContainerControl::Result.from_runner(payload)
     end
   end
 end
