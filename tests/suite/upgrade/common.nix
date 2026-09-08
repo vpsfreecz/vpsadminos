@@ -514,6 +514,21 @@ import (previous.outPath + "/tests/make-test.nix")
           assert_retained.call
         end
 
+        # Running helpers on inherited CTs have different contracts: attach
+        # and runscript enter the guest, while ct su is an unprivileged host
+        # shell for this CT. Do not count one path as proof of the others.
+        machine.succeeds('echo host-shell > /run/upgrade-host-only; chmod 444 /run/upgrade-host-only')
+        snapshots.each_key do |ctid|
+          attach = 'set -e; test "$(id -u)" = 0; test ! -e /run/upgrade-host-only; grep -Fx retained-data /upgrade/data; exit 0'
+          machine.succeeds("printf '%s\\n' #{Shellwords.escape(attach)} | timeout 30 osctl ct attach #{ctid}", timeout: 60)
+          su = 'set -e; test "$(id -u)" != 0; grep -Fx host-shell /run/upgrade-host-only; test -z "$OSCTL_RUN_ID"; exit 0'
+          machine.succeeds("printf '%s\\n' #{Shellwords.escape(su)} | timeout 30 osctl ct su #{ctid}", timeout: 60)
+          script = "#!/bin/sh\nset -eu\ntest \"$(id -u)\" = 0\ngrep -Fx retained-data /upgrade/data\necho helper-data > /upgrade/helper-data\n"
+          machine.succeeds("printf %s #{Shellwords.escape(script)} | timeout 30 osctl ct runscript #{ctid} -", timeout: 60)
+          expect(machine.succeeds("osctl ct cat #{ctid} /upgrade/helper-data")[1].strip).to eq('helper-data')
+        end
+        assert_retained.call
+
         assert_limits.call(25, 64)
         machine.all_succeed(
           'osctl ct set cpu-limit limited 50',
