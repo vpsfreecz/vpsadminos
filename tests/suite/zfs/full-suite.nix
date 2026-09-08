@@ -234,11 +234,18 @@ import ../../make-test.nix (
                 ''
               else
                 (kernelPackages.genZfsUserPackage config.boot.kernelVersion).overrideAttrs (old: {
+                  # Exercise optional upstream test bodies in this test-only
+                  # package, without adding PAM to the production ZFS build.
+                  buildInputs = (old.buildInputs or [ ]) ++ [
+                    pkgs.libaio
+                    pkgs.pam
+                  ];
                   configureFlags =
                     lib.filter (flag: !(lib.hasPrefix "--with-python=" flag)) (old.configureFlags or [ ])
                     ++ [
                       "--with-python=${zfsTestPython}/bin/python3"
                       "--enable-pyzfs"
+                      "--enable-pam"
                     ];
                   postInstall =
                     (lib.replaceStrings
@@ -246,7 +253,11 @@ import ../../make-test.nix (
                       [ "echo 'keeping zfs-tests for zfs-full-suite'" ]
                       (old.postInstall or "")
                     )
-                    + zfsTestPostInstall;
+                    + zfsTestPostInstall
+                    + ''
+                      test -x "$out/share/zfs/zfs-tests/bin/mmap_libaio"
+                      test -f "$out/lib/security/pam_zfs_key.so"
+                    '';
                 });
           in
           {
@@ -288,6 +299,11 @@ import ../../make-test.nix (
                 sockets = lib.mkForce 1;
               };
             };
+
+            # Upstream io_uring probes /boot/config-$(uname -r). Expose the
+            # actual kernel build configuration instead of skipping a feature
+            # which is enabled, or fabricating a CONFIG_IO_URING=y marker.
+            environment.etc."zfs-test/kernel-config".source = config.boot.kernelPackage.configfile;
 
             # zfs-tests.sh requires ksh and passwordless sudo for the run user.
             environment.systemPackages = [
@@ -422,6 +438,8 @@ import ../../make-test.nix (
         "test -x /bin/mount",
         "test -x /bin/umount",
         "su - zfstest -c 'sudo -n id -un | grep -x root'",
+        "mkdir -p /boot",
+        "ln -s /etc/zfs-test/kernel-config /boot/config-$(uname -r)",
         "mkdir -p /var/tmp",
         "chmod 1777 /var/tmp",
         "mkdir -p /var/tmp/test_results",
