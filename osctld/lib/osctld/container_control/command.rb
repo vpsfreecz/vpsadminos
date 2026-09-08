@@ -1,3 +1,5 @@
+require 'osctld/container_control/result'
+
 module OsCtld
   class ContainerControl::Error < StandardError; end
 

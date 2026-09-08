@@ -19,7 +19,7 @@ module OsCtld
         cfg[:ugid],
         cfg[:homedir],
         cfg[:cgroup_path],
-        syslogns_pid: cfg[:syslogns_pid]
+        syslogns_tag: cfg[:syslogns_tag]
       )
       Process.exec(*ARGV[2..])
     end
