@@ -186,6 +186,7 @@ let
         "zfs/block-cloning-corruption"
         "zfs/fallocate-deadlock"
         "zfs/mmap-nosync"
+        "zfs/mmap-write-truncate"
         "zfs/overlayfs-deadlock"
         "zfs/ugidmap"
       ]
