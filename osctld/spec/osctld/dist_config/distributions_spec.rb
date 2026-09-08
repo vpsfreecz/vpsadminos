@@ -12,6 +12,7 @@ require 'osctld/dist_config/distributions/ubuntu'
 require 'osctld/dist_config/distributions/redhat'
 require 'osctld/dist_config/distributions/nixos'
 require 'osctld/dist_config/distributions/void'
+require 'osctld/container_control/commands/with_mountns'
 
 RSpec.describe 'DistConfig distributions' do
   let(:hostname_class) { Struct.new(:local, :fqdn, keyword_init: true) }
@@ -72,6 +73,139 @@ RSpec.describe 'DistConfig distributions' do
     dist.start
 
     expect(dist).not_to have_received(:with_rootfs)
+  end
+
+  describe 'live resolver application' do
+    let(:ct) { double(id: 'ct1', dns_resolvers: ['1.1.1.1'], running?: true) }
+    let(:configurator) { instance_double(OsCtld::DistConfig::Configurator) }
+    let(:dist) do
+      OsCtld::DistConfig::Distributions::Debian.new(
+        double(ct:, distribution: 'debian', version: '12')
+      )
+    end
+
+    before do
+      dist.instance_variable_set(:@configurator, configurator)
+      allow(dist).to receive(:with_rootfs).and_yield
+      allow(dist).to receive(:ct_syscmd)
+      allow(dist).to receive(:ct_syscmd).with(ct, %w[nmcli -t -f VERSION general], valid_rcs: [0, 8])
+                                        .and_return(OsCtl::Lib::SystemCommandResult.new(0, "1.56.0\n"))
+    end
+
+    it 'uses the supported D-Bus reload on NetworkManager 1.18 without resetting connections' do
+      allow(configurator).to receive(:prepare_dns_resolvers).and_return(true)
+      allow(configurator).to receive(:write_dns_resolvers)
+      allow(dist).to receive(:ct_syscmd).with(ct, %w[nmcli -t -f VERSION general], valid_rcs: [0, 8])
+                                        .and_return(OsCtl::Lib::SystemCommandResult.new(0, "1.18.8\n"))
+
+      dist.dns_resolvers
+
+      expect(dist).to have_received(:ct_syscmd).with(ct, [
+                                                       'dbus-send', '--system', '--print-reply', '--type=method_call',
+                                                       '--dest=org.freedesktop.NetworkManager', '/org/freedesktop/NetworkManager',
+                                                       'org.freedesktop.NetworkManager.Reload', 'uint32:3'
+                                                     ])
+      expect(dist).not_to have_received(:ct_syscmd).with(ct, %w[nmcli general reload conf,dns-rc], anything)
+    end
+
+    it 'does not call an unsupported reload when the old daemon is not running' do
+      allow(configurator).to receive(:prepare_dns_resolvers).and_return(true)
+      allow(configurator).to receive(:write_dns_resolvers)
+      allow(dist).to receive(:ct_syscmd).with(ct, %w[nmcli -t -f VERSION general], valid_rcs: [0, 8])
+                                        .and_return(OsCtl::Lib::SystemCommandResult.new(8, 'NetworkManager is not running'))
+
+      dist.dns_resolvers
+
+      expect(dist).to have_received(:ct_syscmd).once
+      expect(configurator).to have_received(:write_dns_resolvers).with(['1.1.1.1'])
+    end
+
+    it 'applies NetworkManager policy before publishing the requested resolver file' do
+      events = []
+      allow(configurator).to receive(:prepare_dns_resolvers) do
+        events << :prepare
+        true
+      end
+      allow(dist).to receive(:ct_syscmd).with(ct, %w[nmcli general reload conf,dns-rc], valid_rcs: [0, 8]) do
+        events << :reload
+      end
+      allow(configurator).to receive(:write_dns_resolvers).with(['8.8.8.8']) { events << :write }
+
+      dist.dns_resolvers(resolvers: ['8.8.8.8'])
+
+      expect(events).to eq(%i[prepare reload write])
+      expect(dist).to have_received(:ct_syscmd)
+        .with(ct, %w[nmcli general reload conf,dns-rc], valid_rcs: [0, 8])
+    end
+
+    it 'does not publish new resolver contents when the live reload fails' do
+      allow(configurator).to receive(:prepare_dns_resolvers).and_return(true)
+      allow(configurator).to receive(:write_dns_resolvers)
+      allow(dist).to receive(:ct_syscmd).and_raise('reload failed')
+
+      expect { dist.dns_resolvers }.to raise_error(RuntimeError, 'reload failed')
+      expect(configurator).not_to have_received(:write_dns_resolvers)
+    end
+
+    it 'reloads DNS after unsetting the owned NetworkManager policy' do
+      allow(configurator).to receive(:unset_dns_resolvers).and_return(true)
+
+      dist.unset_dns_resolvers
+
+      expect(dist).to have_received(:ct_syscmd)
+        .with(ct, %w[nmcli general reload conf,dns-rc], valid_rcs: [0, 8])
+    end
+
+    it 'does not reload custom or absent NetworkManager installations' do
+      allow(configurator).to receive_messages(prepare_dns_resolvers: false, unset_dns_resolvers: false)
+      allow(configurator).to receive(:write_dns_resolvers)
+
+      dist.dns_resolvers
+      dist.unset_dns_resolvers
+
+      expect(dist).not_to have_received(:ct_syscmd)
+    end
+
+    it 'only prepares files for a stopped container' do
+      allow(ct).to receive(:running?).and_return(false)
+      allow(configurator).to receive(:dns_resolvers).with(['1.1.1.1'])
+      allow(configurator).to receive(:unset_dns_resolvers).and_return(true)
+
+      dist.dns_resolvers
+      dist.unset_dns_resolvers
+
+      expect(configurator).to have_received(:dns_resolvers)
+      expect(dist).not_to have_received(:ct_syscmd)
+    end
+
+    it 'keeps live NixOS resolver writes independent of a guest updater' do
+      nixos = OsCtld::DistConfig::Distributions::NixOS.new(
+        double(ct:, distribution: 'nixos', version: '22.11')
+      )
+      allow(ct).to receive(:impermanence).and_return(nil)
+      nixos.instance_variable_set(:@configurator, configurator)
+      allow(nixos).to receive(:with_rootfs).and_yield
+      allow(nixos).to receive(:ct_syscmd)
+      allow(configurator).to receive_messages(prepare_dns_resolvers: false, unset_dns_resolvers: false)
+      allow(configurator).to receive(:write_dns_resolvers).with(['8.8.8.8'])
+
+      nixos.dns_resolvers(resolvers: ['8.8.8.8'])
+      nixos.unset_dns_resolvers
+
+      expect(configurator).to have_received(:write_dns_resolvers).with(['8.8.8.8'])
+      expect(nixos).not_to have_received(:ct_syscmd)
+    end
+
+    it 'never attaches from the pre-init rootfs helper' do
+      dist.instance_variable_set(:@within_rootfs, true)
+      allow(configurator).to receive(:dns_resolvers).with(['1.1.1.1'])
+
+      dist.dns_resolvers
+
+      expect(configurator).to have_received(:dns_resolvers)
+      expect(ct).not_to have_received(:running?)
+      expect(dist).not_to have_received(:ct_syscmd)
+    end
   end
 
   it 'logs warnings for unsupported operations on Other' do
