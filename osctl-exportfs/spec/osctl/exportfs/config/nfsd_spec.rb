@@ -15,6 +15,14 @@ RSpec.describe OsCtl::ExportFS::Config::Nfsd do
     expect(cfg.disallowed_versions).to eq([])
   end
 
+  it 'expands aggregate NFSv4 support without changing the saved selection' do
+    cfg = described_class.new('versions' => %w[4.1 4])
+
+    expect(cfg.allowed_versions).to eq(%w[4 4.0 4.1 4.2])
+    expect(cfg.disallowed_versions).to eq(%w[3])
+    expect(cfg.dump['versions']).to eq(%w[4.1 4])
+  end
+
   it 'loads custom values and dumps them' do
     cfg = described_class.new(
       'port' => 2049,
