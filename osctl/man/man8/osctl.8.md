@@ -1153,14 +1153,26 @@ The following shortcuts are supported:
 `ct set dns-resolver` *ctid* *address...*
   Configure DNS resolvers for container *ctid*. At least one DNS resolver is
   needed. Given DNS resolvers are written to the container's `/etc/resolv.conf`
-  on every start.
+  immediately and on every start.
 
-  Note that when you assign a bridged veth with DHCP to the container, it will
-  override `/etc/resolv.conf` with DNS servers from DHCP server.
+  For NetworkManager, `osctld` manages `10-osctl-dns.conf` when that file is
+  absent or already osctld-owned. In a running container, it synchronously
+  reloads NetworkManager configuration and DNS before writing the resolver
+  file, without reactivating connections. Custom policy files are preserved.
+  Other DHCP clients or custom guest policy can still override resolvers.
+
+  A failed live application is reported as an error and the requested resolver
+  setting is not saved. See the osctld log for details. Guest policy files may
+  already have changed; repeat the command after correcting the reported
+  failure to finish application. A stopped NetworkManager reads the prepared
+  configuration on its next start.
 
 `ct unset dns-resolver` *ctid*
   Unset container DNS resolvers. `osctld` will no longer manipulate the
-  container's `/etc/resolv.conf`.
+  container's `/etc/resolv.conf`. The osctld-owned NetworkManager drop-in is
+  removed and a live configuration/DNS reload returns DNS handling to the
+  guest. Custom policy files are not removed. Live-application failures are
+  reported and the previous container setting is retained, as for set.
 
 `ct set nesting` *ctid*
   Enable LXC nesting for container *ctid*. The container needs to be restarted for
