@@ -59,8 +59,15 @@ RSpec.describe OsCtld::ContainerControl::TransientNetwork do
     end
 
     it 'detects an actually exited pinned helper without relying on socket EOF' do
-      child = fork { exit!(0) }
+      release_r, release_w = IO.pipe
+      child = fork do
+        release_w.close
+        release_r.read
+        exit!(0)
+      end
+      release_r.close
       pinned = OsCtld::ProcessIdentity.new(child)
+      release_w.close
       Process.wait(child)
       child = nil
       worker = Thread.new { server.serve(pinned) }
@@ -71,6 +78,7 @@ RSpec.describe OsCtld::ContainerControl::TransientNetwork do
     ensure
       worker&.kill&.join
       pinned&.close
+      [release_r, release_w].compact.each { |io| io.close unless io.closed? }
       Process.wait(child) if child
     end
 
