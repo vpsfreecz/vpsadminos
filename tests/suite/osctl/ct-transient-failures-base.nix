@@ -103,7 +103,10 @@ import ../../make-test.nix (
           stopped = machine.osctl_json('ct show stalled')
           expect(stopped.fetch('recovery_tainted')).to be(false)
           expect(stopped.fetch('init_pid')).to be_nil
-          machine.succeeds("! ps -eo args= | grep -E '^osctld: tank:stalled runner:'")
+          # The monitor can still be finishing a bounded state query after a
+          # very short-lived init exits. Require convergence, not an atomic
+          # snapshot that mistakes that legitimate query for a leaked helper.
+          machine.wait_until_succeeds("! ps -eo args= | grep -E '^osctld: tank:stalled runner:'", timeout: 30)
           expect(machine.osctl_json('ct show sibling').fetch('init_pid')).to eq(sibling_init)
           expect(machine.succeeds('ip -o address show dev lo')[1]).to eq(host_loopback)
           machine.all_succeed(
