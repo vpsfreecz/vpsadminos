@@ -80,6 +80,8 @@ import (previous.outPath + "/tests/make-test.nix")
         echo $! > /upgrade/worker.pid
         (exec /sbin/upgrade-busybox httpd -f -p 8080 -h /upgrade > /upgrade/http.log 2>&1) &
         echo $! > /upgrade/http.pid
+        (exec /sbin/upgrade-busybox tcpsvd 0.0.0.0 8081 /sbin/upgrade-busybox cat > /upgrade/tcp.log 2>&1) &
+        echo $! > /upgrade/tcp.pid
         echo UPGRADE_READY
         while IFS= read -r line; do
           printf 'UPGRADE_ECHO:%s\n' "$line"
@@ -92,6 +94,38 @@ import (previous.outPath + "/tests/make-test.nix")
         ping -c 1 255.255.255.254
         grep -Fx predecessor-data /root/retained
         echo stopped-runscript-data > /root/stopped-runscript
+      '';
+
+      streamClient = pkgs.writeText "upgrade-tcp-stream.rb" ''
+        require 'json'
+        require 'socket'
+        require 'timeout'
+
+        address, prefix = ARGV
+        socket = nil
+        begin
+          # Connect exactly once. Reconnection would hide an interrupted flow.
+          socket = Socket.tcp(address, 8081, connect_timeout: 30)
+          port = socket.local_address.ip_port
+          sequence = 0
+          until File.exist?("#{prefix}.stop")
+            message = "#{sequence}\n"
+            Timeout.timeout(30) do
+              socket.write(message)
+              raise 'sequence mismatch' unless socket.readline == message
+            end
+            sequence += 1
+            File.write("#{prefix}.new", JSON.generate(sequence:, port:))
+            File.rename("#{prefix}.new", "#{prefix}.progress")
+            sleep(0.1)
+          end
+          File.write("#{prefix}.done", sequence.to_s)
+        rescue StandardError => e
+          File.write("#{prefix}.error", "#{e.class}: #{e.message}")
+          raise
+        ensure
+          socket&.close
+        end
       '';
 
       consoleClient = pkgs.writeText "upgrade-console.rb" ''
@@ -172,6 +206,7 @@ import (previous.outPath + "/tests/make-test.nix")
         end
         machine.push_file('${consoleClient}', '/root/upgrade-console.rb')
         machine.push_file('${stoppedNetwork}', '/root/upgrade-stopped-network')
+        machine.push_file('${streamClient}', '/root/upgrade-tcp-stream.rb')
         machine.succeeds('chmod 500 /root/upgrade-stopped-network')
 
         # A separate ordinary-init CT contains bounded OOM/fork workloads so
@@ -323,6 +358,11 @@ import (previous.outPath + "/tests/make-test.nix")
             "ruby /root/upgrade-console.rb #{ctid} before-upgrade",
             "! tr '\\0' '\\n' < /proc/#{init}/environ | grep -q '^OSCTL_RUN_ID='",
           )
+          prefix = "/run/upgrade-stream-#{ctid}"
+          machine.succeeds("ruby /root/upgrade-tcp-stream.rb #{address} #{prefix} > #{prefix}.log 2>&1 & echo $! > #{prefix}.pid")
+          machine.wait_until_succeeds("test -s #{prefix}.progress")
+          stream = JSON.parse(machine.succeeds("cat #{prefix}.progress")[1])
+          stream_pid = machine.succeeds("cat #{prefix}.pid")[1].strip
           snapshots[ctid] = {
             address:,
             init:,
@@ -335,6 +375,11 @@ import (previous.outPath + "/tests/make-test.nix")
             console: machine.succeeds("stat -c %i /run/osctl/pools/tank/console/#{ctid}/tty0.sock")[1],
             worker: machine.succeeds("osctl ct exec #{ctid} sh -c 'cat /proc/$(cat /upgrade/worker.pid)/stat'")[1].split.values_at(0, 21),
             http: machine.succeeds("osctl ct exec #{ctid} sh -c 'cat /proc/$(cat /upgrade/http.pid)/stat'")[1].split.values_at(0, 21),
+            tcp: machine.succeeds("osctl ct exec #{ctid} sh -c 'cat /proc/$(cat /upgrade/tcp.pid)/stat'")[1].split.values_at(0, 21),
+            stream_prefix: prefix,
+            stream_port: stream.fetch('port'),
+            stream_pid:,
+            stream_start: machine.succeeds("awk '{print $22}' /proc/#{stream_pid}/stat")[1],
           }
         end
 
@@ -359,6 +404,13 @@ import (previous.outPath + "/tests/make-test.nix")
             expect(worker).to eq(saved.fetch(:worker))
             http = machine.succeeds("osctl ct exec #{ctid} sh -c 'cat /proc/$(cat /upgrade/http.pid)/stat'")[1].split.values_at(0, 21)
             expect(http).to eq(saved.fetch(:http))
+            tcp = machine.succeeds("osctl ct exec #{ctid} sh -c 'cat /proc/$(cat /upgrade/tcp.pid)/stat'")[1].split.values_at(0, 21)
+            expect(tcp).to eq(saved.fetch(:tcp))
+            prefix = saved.fetch(:stream_prefix)
+            machine.succeeds("test ! -e #{prefix}.error && kill -0 #{saved.fetch(:stream_pid)}")
+            expect(machine.succeeds("awk '{print $22}' /proc/#{saved.fetch(:stream_pid)}/stat")[1]).to eq(saved.fetch(:stream_start))
+            stream = JSON.parse(machine.succeeds("cat #{prefix}.progress")[1])
+            expect(stream.fetch('port')).to eq(saved.fetch(:stream_port))
             machine.all_succeed(
               "osctl ct exec #{ctid} grep -Fx retained-data /upgrade/data",
               "ruby /root/upgrade-console.rb #{ctid} after-upgrade",
@@ -373,7 +425,19 @@ import (previous.outPath + "/tests/make-test.nix")
 
         activate_generation = lambda do |target|
           prior_daemon = daemon_identity.call
+          sequences = snapshots.transform_values do |saved|
+            JSON.parse(machine.succeeds("cat #{saved.fetch(:stream_prefix)}.progress")[1]).fetch('sequence')
+          end
           machine.succeeds("#{target}/bin/switch-to-configuration test", timeout: 300)
+          # Keep the same connections transferring ordered data during the
+          # activation, not just fresh connections before and afterwards.
+          snapshots.each do |ctid, saved|
+            prefix = saved.fetch(:stream_prefix)
+            machine.succeeds("test ! -e #{prefix}.error")
+            stream = JSON.parse(machine.succeeds("cat #{prefix}.progress")[1])
+            expect(stream.fetch('sequence')).to be > sequences.fetch(ctid)
+            expect(stream.fetch('port')).to eq(saved.fetch(:stream_port))
+          end
           machine.wait_for_osctl_pool('tank')
           expect(machine.succeeds('uname -r')[1].strip).to eq(before_kernel)
           expect(machine.succeeds('cat /proc/sys/kernel/random/boot_id')[1].strip).to eq(before_boot)
@@ -525,6 +589,10 @@ import (previous.outPath + "/tests/make-test.nix")
         # Restart the actual predecessor-created running workloads, not only
         # afterupgrade. Convert their test init back to the ordinary guest init.
         snapshots.each do |ctid, saved|
+          prefix = saved.fetch(:stream_prefix)
+          machine.succeeds("touch #{prefix}.stop")
+          machine.wait_until_succeeds("test -s #{prefix}.done")
+          machine.succeeds("test ! -e #{prefix}.error")
           machine.all_succeed("osctl ct stop #{ctid}", "osctl ct unset init-cmd #{ctid}", "osctl ct start #{ctid}")
           machine.wait_until_succeeds("osctl ct exec #{ctid} rc-service networking status")
           machine.wait_until_succeeds("ping -c 1 #{saved.fetch(:address)}")
