@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/exceptions'
 
 module OsCtld
   module DistConfig
@@ -38,6 +39,9 @@ module OsCtld
       rescue StandardError => e
         ctrc.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
         ctrc.log(:warn, denixstorify(e.backtrace).join("\n"))
+        if %i[dns_resolvers unset_dns_resolvers].include?(cmd)
+          raise CommandFailed, 'Unable to apply DNS resolver configuration; see osctld log'
+        end
       end
     end
   end

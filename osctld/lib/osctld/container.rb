@@ -623,8 +623,8 @@ module OsCtld
           DistConfig.run(get_run_conf, :set_hostname, original:)
 
         when :dns_resolvers
+          DistConfig.run(get_run_conf, :dns_resolvers, resolvers: v)
           self.dns_resolvers = v
-          DistConfig.run(get_run_conf, :dns_resolvers)
 
         when :nesting
           self.nesting = true
@@ -690,6 +690,7 @@ module OsCtld
           DistConfig.run(get_run_conf, :unset_etc_hosts)
 
         when :dns_resolvers
+          DistConfig.run(get_run_conf, :unset_dns_resolvers)
           self.dns_resolvers = nil
 
         when :nesting

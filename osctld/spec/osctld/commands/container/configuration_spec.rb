@@ -39,6 +39,22 @@ RSpec.describe 'container configuration commands' do
   end
 
   describe OsCtld::Commands::Container::Set do
+    it 'reapplies explicitly requested DNS even when the persisted value matches' do
+      ct = Struct.new(:dns_resolvers, :changes) do
+        def set(changes)
+          self.changes = changes
+        end
+
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new(['1.1.1.1'])
+      command = described_class.new({ dns_resolvers: ['1.1.1.1'] }, {})
+
+      expect(command.execute(ct)).to eq(status: true, output: nil)
+      expect(ct.changes).to eq(dns_resolvers: ['1.1.1.1'])
+    end
+
     it 'persists only changed and supported attributes' do
       ct = Struct.new(:autostart, :hostname, :changes, keyword_init: true) do
         def set(changes)
