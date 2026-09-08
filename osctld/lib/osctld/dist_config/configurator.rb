@@ -97,6 +97,16 @@ module OsCtld
     # Configure DNS resolvers
     # @param resolvers [Array<String>]
     def dns_resolvers(resolvers)
+      prepare_dns_resolvers
+      write_dns_resolvers(resolvers)
+    end
+
+    # @return [Boolean] whether NetworkManager needs a live reload
+    def prepare_dns_resolvers
+      network_manager_dns_none
+    end
+
+    def write_dns_resolvers(resolvers)
       writable?(File.join(rootfs, 'etc', 'resolv.conf')) do |path|
         File.open("#{path}.new", 'w') do |f|
           resolvers.each { |v| f.puts("nameserver #{v}") }
@@ -107,11 +117,62 @@ module OsCtld
       end
     end
 
+    def unset_dns_resolvers
+      network_manager_dns_default
+    end
+
     def log_type
       ctid
     end
 
     protected
+
+    NETWORK_MANAGER_DNS_LEGACY_CONFIG = "[main]\ndns=none\n".freeze
+    NETWORK_MANAGER_DNS_CONFIG = <<~CONFIG.freeze
+      # Generated and managed by osctld. Do not edit.
+      [main]
+      dns=none
+    CONFIG
+
+    def network_manager_dns_none
+      path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+      return false unless Dir.exist?(File.dirname(path))
+
+      state = network_manager_dns_config_state(path)
+      return true if state == :current
+      return false if state == :custom || !writable?(path)
+
+      File.write(path, NETWORK_MANAGER_DNS_CONFIG)
+      true
+    end
+
+    def network_manager_dns_default
+      path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+      return false unless Dir.exist?(File.dirname(path))
+
+      state = network_manager_dns_config_state(path)
+      return true if state == :absent
+      return false if state == :custom || !writable?(path)
+
+      File.unlink(path)
+      true
+    end
+
+    def network_manager_dns_config_state(path)
+      stat = File.lstat(path)
+      return :custom unless stat.file?
+
+      content = File.binread(path)
+      return :current if content == NETWORK_MANAGER_DNS_CONFIG
+      return :legacy if content == NETWORK_MANAGER_DNS_LEGACY_CONFIG
+
+      :custom
+    rescue Errno::ENOENT
+      :absent
+    rescue SystemCallError => e
+      log(:warn, "Unable to inspect #{path}: #{e.message}")
+      :custom
+    end
 
     # @return [DistConfig::Network::Base, nil]
     attr_reader :network_backend
