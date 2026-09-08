@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/bpf_fs'
 require 'osctld/user_control/commands/base'
 
 module OsCtld
@@ -40,6 +41,12 @@ module OsCtld
 
       # Prepared shared mount directory
       ct.mounts.shared_dir.create
+      BpfFs.setup_ct(
+        ct.pool.name,
+        ct.id,
+        root_uid: ct.root_host_uid,
+        root_gid: ct.root_host_gid
+      )
 
       # Setup start menu
       ct.setup_start_menu

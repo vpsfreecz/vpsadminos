@@ -173,13 +173,14 @@ module ContainerHelpers
         end
       end
 
-      attr_reader :ct, :destroy_calls, :save_calls, :distribution_updates
+      attr_reader :ct, :rootfs, :destroy_calls, :save_calls, :distribution_updates
       attr_accessor :dataset, :distribution, :version, :arch, :vendor, :variant,
                     :cpu_package, :init_pid
 
       def initialize(ct, load_conf: true)
         @ct = ct
         @dataset = ct.dataset
+        @rootfs = ct.rootfs
         @distribution = ct.distribution
         @version = ct.version
         @arch = ct.arch
