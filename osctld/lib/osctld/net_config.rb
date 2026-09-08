@@ -51,6 +51,10 @@ module OsCtld
           end
 
         when :routed
+          # An IPv6-only interface cannot supply an IPv4 gateway/source, and
+          # vice versa. Do not install defaults for unconfigured families.
+          next unless n.ips.any? { |ip| ip.version == ip_v }
+
           begin
             via = netif.default_via(ip_v).to_s
             n.routes << Route.new(ip_v, via, ip_v == 4 ? 32 : 128, nil)
@@ -69,6 +73,7 @@ module OsCtld
     # Apply configuration using netlink
     def setup
       nl = Linux::Netlink::Route::Socket.new
+      wait_for_netifs(nl)
 
       netifs.each do |netif|
         netif.ips.each do |ip|
@@ -88,6 +93,8 @@ module OsCtld
           next
         end
       end
+
+      wait_for_ipv6_addresses(nl)
     end
 
     def export
@@ -115,6 +122,64 @@ module OsCtld
     end
 
     protected
+
+    def wait_for_ipv6_addresses(nl, timeout: 10)
+      expected = netifs.flat_map do |netif|
+        netif.ips.select { |ip| ip.version == 6 }.map { |ip| [netif.name, IPAddr.new(ip.address)] }
+      end
+      return if expected.empty?
+
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+
+      loop do
+        # AddrHandler memoizes dumps: DAD progress requires a fresh snapshot.
+        nl.addr.clear_cache
+        addresses = expected.map(&:first).uniq.to_h do |name|
+          [name, nl.addr.list(index: name, family: Socket::AF_INET6).to_a]
+        end
+        # Neighbor discovery also uses the interface's automatic link-local
+        # address, whose DAD can finish after the configured global address.
+        link_local = addresses.flat_map do |name, entries|
+          entries.select { |entry| entry.address.link_local? }.map { |entry| [name, entry.address] }
+        end
+        pending = (expected + link_local).uniq.reject do |name, ip|
+          address = addresses.fetch(name).find { |entry| entry.address == ip }
+          next false unless address
+
+          if address.flags.anybits?(Linux::IFA_F_DADFAILED)
+            raise "IPv6 duplicate address detection failed: #{name}=#{ip}"
+          end
+
+          address.flags.nobits?(Linux::IFA_F_TENTATIVE)
+        end
+        return if pending.empty?
+
+        if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+          raise "IPv6 addresses not ready: #{pending.map { |name, ip| "#{name}=#{ip}" }.join(', ')}"
+        end
+
+        sleep(0.1)
+      end
+    end
+
+    def wait_for_netifs(nl, timeout: 10)
+      names = netifs.map(&:name).uniq
+      return if names.empty?
+
+      deadline = Time.now + timeout
+      missing = []
+
+      loop do
+        existing = nl.link.list.map(&:ifname)
+        missing = names - existing
+        return if missing.empty?
+        break if Time.now >= deadline
+
+        sleep(0.1)
+      end
+
+      raise "network interfaces not found: #{missing.join(', ')}"
+    end
 
     def default_route_addr(ip_v)
       ip_v == 4 ? '0.0.0.0' : '::'

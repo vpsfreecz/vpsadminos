@@ -18,9 +18,9 @@ module OsCtld
 
     module Runner
       # @param message [String]
-      # @return [Process::Status]
+      # @return [Integer]
       def ct_wall(message)
-        pid = lxc_ct.attach do
+        lxc_attach_wait do
           UtmpReader.read_utmp_fhs(max_entries: 32) do |entry|
             next if entry.record_type != :user_process
 
@@ -30,13 +30,6 @@ module OsCtld
               next
             end
           end
-        end
-
-        begin
-          Process.wait(pid)
-          $?
-        rescue Errno::ECHILD
-          1
         end
       end
 

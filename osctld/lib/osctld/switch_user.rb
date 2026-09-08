@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'securerandom'
 
 module OsCtld
   module SwitchUser
@@ -48,7 +49,6 @@ module OsCtld
     # @option opts [Array<IO, Integer>] :keep_fds
     # @option opts [Boolean] :keep_stdfds (true)
     # @option opts [String, nil] :syslogns_tag (nil)
-    # @option opts [Integer, nil] :syslogns_pid (nil)
     def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, **opts, &block)
       chown_cgroups = opts.has_key?(:chown_cgroups) ? opts[:chown_cgroups] : true
 
@@ -75,8 +75,7 @@ module OsCtld
           ugid,
           homedir,
           cgroup_path,
-          syslogns_tag: opts.fetch(:syslogns_tag, nil),
-          syslogns_pid: opts.fetch(:syslogns_pid, nil)
+          syslogns_tag: opts.fetch(:syslogns_tag, nil)
         )
 
         msg = r.readline.strip
@@ -99,11 +98,7 @@ module OsCtld
     end
 
     # Switch the current process to an unprivileged user
-    def self.switch_to(sysuser, ugid, homedir, cgroup_path, syslogns_tag: nil, syslogns_pid: nil)
-      if syslogns_tag && syslogns_pid
-        raise ArgumentError, 'provide either syslogns_tag or syslogns_pid, not both'
-      end
-
+    def self.switch_to(sysuser, ugid, homedir, cgroup_path, syslogns_tag: nil)
       # Environment
       ENV.delete('XDG_SESSION_ID')
 
@@ -116,16 +111,15 @@ module OsCtld
       # CGroups
       CGroup.attach_to_all(cgroup_path.split('/'))
 
+      sys = OsCtl::Lib::Sys.new
+
       # syslog namespace
       if syslogns_tag
-        OsCtl::Lib::Sys.new.create_syslogns(syslogns_tag)
-      elsif syslogns_pid
-        OsCtl::Lib::Sys.new.attach_syslogns(syslogns_pid)
+        create_syslogns(sys, syslogns_tag)
       end
 
       # Switch
       Process.groups = [ugid]
-      sys = OsCtl::Lib::Sys.new
       sys.setresgid(ugid, ugid, ugid)
       sys.setresuid(ugid, ugid, ugid)
     end
@@ -201,5 +195,25 @@ module OsCtld
         k.start_with?('RUBY') || k.start_with?('BUNDLE') || k.start_with?('GEM')
       end
     end
+
+    def self.create_syslogns(sys, tag)
+      attempts = 0
+      prefix = tag.sub(/-[0-9a-f]{4}\z/, '')
+                  .byteslice(0, OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE - 5)
+                  .sub(/[^A-Za-z0-9]+\z/, '')
+
+      begin
+        attempts += 1
+        sys.create_syslogns(tag)
+      rescue Errno::EEXIST
+        raise if attempts >= 8
+
+        # Short run tags can collide with a still-live namespace. Create a
+        # fresh one rather than joining it or weakening kernel isolation.
+        tag = "#{prefix}-#{SecureRandom.hex(2)}"
+        retry
+      end
+    end
+    private_class_method :create_syslogns
   end
 end

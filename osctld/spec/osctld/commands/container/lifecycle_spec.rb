@@ -249,7 +249,7 @@ RSpec.describe 'container lifecycle commands' do
         FileUtils.mkdir_p(console_dir)
         File.write(sock_path, '')
 
-        run_conf = Struct.new(:mount).new(nil)
+        run_conf = Struct.new(:mount, :run_id).new(nil, nil)
         allow(run_conf).to receive(:mount)
         mounts = Struct.new(:added) do
           def prune; end
@@ -277,7 +277,6 @@ RSpec.describe 'container lifecycle commands' do
           :lxc_home,
           :wrapper_cgroup_path,
           :prlimits,
-          :syslogns_tag,
           keyword_init: true
         ) do
           def can_start?
@@ -285,6 +284,10 @@ RSpec.describe 'container lifecycle commands' do
           end
 
           def init_run_conf; end
+
+          def syslogns_tag(run_id: nil)
+            run_id ? "#{id}:#{run_id}" : id
+          end
         end.new(
           pool: Struct.new(:name, :console_dir).new('tank', console_dir),
           id: 'ct1',
@@ -298,8 +301,7 @@ RSpec.describe 'container lifecycle commands' do
           lxc_config:,
           lxc_home: '/var/lib/lxc',
           wrapper_cgroup_path: '/sys/fs/cgroup/wrapper',
-          prlimits:,
-          syslogns_tag: 'ct1'
+          prlimits:
         )
         console = stub_const('OsCtld::Console', Class.new do
           def self.socket_path(_ct); end

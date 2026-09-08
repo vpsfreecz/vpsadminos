@@ -13,7 +13,7 @@ module OsCtld
       # @option opts [String] :dst target mountpoint
       # @return [true]
       def execute(opts)
-        ret = exec_runner(args: [opts])
+        ret = exec_runner(args: [opts], switch_extra_namespaces: false)
         ret.ok? || ret
       end
     end
@@ -27,7 +27,7 @@ module OsCtld
         ct = lxc_ct
         r, w = IO.pipe
 
-        pid = ct.attach(stdout: w) do
+        exit_status = lxc_attach_wait(stdout: w) do
           r.close
 
           begin
@@ -54,10 +54,15 @@ module OsCtld
 
         w.close
 
-        line = r.readline
-        Process.wait(pid)
-        r.close
-        log(:warn, ct, "Mounter exited with #{$?.exitstatus}") if $?.exitstatus != 0
+        begin
+          line = r.readline
+        rescue EOFError
+          return error("mounter exited with #{exit_status} without output")
+        ensure
+          r.close
+        end
+
+        log(:warn, ct, "Mounter exited with #{exit_status}") if exit_status != 0
 
         i = line.index(':')
         return error("invalid return value: #{line.inspect}") unless i
