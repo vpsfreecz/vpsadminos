@@ -164,6 +164,22 @@ import ../../make-test.nix (
                   $'log_mustnot not_shared $TESTDIR/shared\nlog_fail "$TESTPOOL/$TESTFS/shared was actually unshared!"' \
                   'log_must is_shared $TESTDIR/shared'
 
+              # Historical slowness/hang reports are not platform exclusions.
+              # Run these bodies under the existing native runner deadlines,
+              # preserving their assertions and reporting any real failure.
+              functional=$out/share/zfs/zfs-tests/tests/functional
+              substituteInPlace "$functional/cli_root/zpool_import/zpool_import_missing_003_pos.ksh" \
+                --replace-fail 'log_unsupported "Test case may be slow"' \
+                  'log_note "Exercising historical slow import case (issue 6839)"' \
+                --replace-fail 'read -r checksum1 < <(cksum $MYTESTFILE)' \
+                  'read -r checksum1 _ < <(cksum $MYTESTFILE)'
+              substituteInPlace "$functional/pool_checkpoint/checkpoint_discard_busy.ksh" \
+                --replace-fail 'log_unsupported "Skipping, issue https://github.com/openzfs/zfs/issues/12053"' \
+                  'log_note "Exercising historical busy-discard case (issue 12053)"'
+              substituteInPlace "$functional/rsend/rsend_008_pos.ksh" \
+                --replace-fail 'log_unsupported "Occasionally hangs"' \
+                  'log_note "Exercising historical promoted-send case (issue 6066)"'
+
               # OpenZFS 2.3.8 predates upstream 6f17052743, which makes the
               # L2ARC wrap test's intended write volume deterministic.
               substituteInPlace $out/share/zfs/zfs-tests/tests/functional/cache/cache_012_pos.ksh \
