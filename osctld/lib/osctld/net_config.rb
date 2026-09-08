@@ -51,6 +51,10 @@ module OsCtld
           end
 
         when :routed
+          # An IPv6-only interface cannot supply an IPv4 gateway/source, and
+          # vice versa. Do not install defaults for unconfigured families.
+          next unless n.ips.any? { |ip| ip.version == ip_v }
+
           begin
             via = netif.default_via(ip_v).to_s
             n.routes << Route.new(ip_v, via, ip_v == 4 ? 32 : 128, nil)
@@ -69,6 +73,7 @@ module OsCtld
     # Apply configuration using netlink
     def setup
       nl = Linux::Netlink::Route::Socket.new
+      wait_for_netifs(nl)
 
       netifs.each do |netif|
         netif.ips.each do |ip|
@@ -115,6 +120,25 @@ module OsCtld
     end
 
     protected
+
+    def wait_for_netifs(nl, timeout: 10)
+      names = netifs.map(&:name).uniq
+      return if names.empty?
+
+      deadline = Time.now + timeout
+      missing = []
+
+      loop do
+        existing = nl.link.list.map(&:ifname)
+        missing = names - existing
+        return if missing.empty?
+        break if Time.now >= deadline
+
+        sleep(0.1)
+      end
+
+      raise "network interfaces not found: #{missing.join(', ')}"
+    end
 
     def default_route_addr(ip_v)
       ip_v == 4 ? '0.0.0.0' : '::'

@@ -1,5 +1,6 @@
 require 'libosctl'
 require 'json'
+require 'socket'
 
 module OsCtld
   class Cli::Runner
@@ -22,6 +23,8 @@ module OsCtld
       stdin = cfg[:stdin] && IO.new(cfg[:stdin])
       stdout = IO.new(cfg[:stdout])
       stderr = IO.new(cfg[:stderr])
+      network_socket = cfg[:network_socket] && UNIXSocket.for_fd(cfg[:network_socket])
+      network_socket.close_on_exec = true if network_socket
 
       [ret, stdin, stdout, stderr].compact.each do |io|
         io.close_on_exec = true
@@ -35,7 +38,8 @@ module OsCtld
         log_file: cfg[:log_file],
         stdin:,
         stdout:,
-        stderr:
+        stderr:,
+        network_socket:
       )
       val = runner.execute(*cfg[:args], **cfg[:kwargs])
       ret.puts(val.to_json)

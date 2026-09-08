@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'ipaddress'
 require 'osctld/net_config'
 
 RSpec.describe OsCtld::NetConfig do
@@ -59,10 +60,28 @@ RSpec.describe OsCtld::NetConfig do
     )
   end
 
+  it 'only routes configured address families on split dual-stack interfaces' do
+    routed = [4, 6].map do |version|
+      build_netif(
+        name: "eth#{version}",
+        type: :routed,
+        ips_by_version: {
+          version => [IPAddress.parse(version == 4 ? '192.0.2.10/32' : '2001:db8::10/128')]
+        },
+        gateways: {},
+        default_via_by_version: { 4 => '255.255.255.254', 6 => 'fe80::1' }
+      )
+    end
+
+    cfg = described_class.create(Struct.new(:netifs).new(routed))
+
+    expect(cfg.netifs.map { |netif| netif.routes.map(&:version) }).to eq([[4, 4], [6, 6]])
+  end
+
   it 'applies addresses and routes through netlink and ignores EEXIST' do
     addr_calls = []
     route_calls = []
-    socket = Struct.new(:addr, :route).new(
+    socket = Struct.new(:addr, :route, :link).new(
       Object.new.tap do |handler|
         handler.define_singleton_method(:add) do |**kwargs|
           raise Errno::EEXIST if kwargs[:local] == '192.0.2.10'
@@ -75,6 +94,11 @@ RSpec.describe OsCtld::NetConfig do
           raise Errno::EEXIST if kwargs[:dst] == '0.0.0.0'
 
           route_calls << kwargs
+        end
+      end,
+      Object.new.tap do |handler|
+        handler.define_singleton_method(:list) do
+          [Struct.new(:ifname).new('eth0')]
         end
       end
     )
@@ -100,5 +124,46 @@ RSpec.describe OsCtld::NetConfig do
 
     expect(addr_calls).to eq([{ index: 'eth0', local: '2001:db8::10', prefixlen: 64 }])
     expect(route_calls).to eq([{ oif: 'eth0', dst: '::', dst_len: 0, gateway: 'fe80::1' }])
+  end
+
+  it 'waits for network interfaces to appear before applying config' do
+    addr_calls = []
+    route_calls = []
+    link_calls = 0
+    socket = Struct.new(:addr, :route, :link).new(
+      Object.new.tap do |handler|
+        handler.define_singleton_method(:add) { |**kwargs| addr_calls << kwargs }
+      end,
+      Object.new.tap do |handler|
+        handler.define_singleton_method(:add) { |**kwargs| route_calls << kwargs }
+      end,
+      Object.new.tap do |handler|
+        handler.define_singleton_method(:list) do
+          link_calls += 1
+          next [] if link_calls == 1
+
+          [Struct.new(:ifname).new('eth0')]
+        end
+      end
+    )
+    allow(Linux::Netlink::Route::Socket).to receive(:new).and_return(socket)
+
+    cfg = described_class.import(
+      [
+        {
+          name: 'eth0',
+          ips: [
+            { version: 4, address: '192.0.2.10', prefix: 24 }
+          ],
+          routes: []
+        }
+      ]
+    )
+
+    cfg.setup
+
+    expect(link_calls).to eq(2)
+    expect(addr_calls).to eq([{ index: 'eth0', local: '192.0.2.10', prefixlen: 24 }])
+    expect(route_calls).to eq([])
   end
 end
