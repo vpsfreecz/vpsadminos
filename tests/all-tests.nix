@@ -115,6 +115,7 @@ let
           "ctstartmenu/setup"
           "declarative-containers"
           "defaults"
+          "dist-config/netif-bridge"
           {
             test = "dist-config/netif-routed";
             args = {
