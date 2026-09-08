@@ -79,8 +79,7 @@ RSpec.describe OsCtl::Lib::CGroup::PathReader do
       write_sysfs_file(dir, File.join(parent, 'memory.max'), "max\n")
       write_sysfs_file(dir, File.join(parent, 'cpu.max'), "max 100000\n")
 
-      allow(OsCtl::Lib::CGroup).to receive(:v1?).and_return(false)
-      stub_const('OsCtl::Lib::CGroup::FS', dir)
+      allow(OsCtl::Lib::CGroup).to receive_messages(v1?: false, fs: dir)
 
       reader = described_class.new({}, path)
 
@@ -133,8 +132,7 @@ RSpec.describe OsCtl::Lib::CGroup::PathReader do
       write_sysfs_file(root, File.join(parent, 'cpu.max'), "200000 100000\n")
       write_sysfs_file(root, File.join(child, 'pids.current'), "42\n")
 
-      allow(OsCtl::Lib::CGroup).to receive(:v1?).and_return(false)
-      stub_const('OsCtl::Lib::CGroup::FS', root)
+      allow(OsCtl::Lib::CGroup).to receive_messages(v1?: false, fs: root)
 
       described_class.new({}, path)
     end
