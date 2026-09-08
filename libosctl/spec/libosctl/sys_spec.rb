@@ -38,6 +38,14 @@ RSpec.describe OsCtl::Lib::Sys do
                   [1000, 1001, 1002], {},
                   [1000, 1001, 1002]
 
+  it 'makes an adopted hierarchy recursively private' do
+    allow(described_class::Int).to receive(:mount).with(
+      'none', '/run/osctl/cgroup', 0, described_class::MS_REC | described_class::MS_PRIVATE, 0
+    ).and_return(0)
+
+    expect(sys.make_rprivate('/run/osctl/cgroup')).to eq(0)
+  end
+
   it_behaves_like 'simple Int wrapper',
                   :move_mount, :mount,
                   ['/src', '/dst'], {},

@@ -90,7 +90,7 @@ module OsCtld
       @stopping = false
 
       Thread.abort_on_exception = true
-      CGroup.init
+      CGroup.init(setup_host_mount: true)
       DB::Users.instance
       DB::Groups.instance
       DB::Containers.instance
