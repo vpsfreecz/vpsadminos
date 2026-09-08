@@ -1,9 +1,10 @@
-# Shared native test; each named case pins only its predecessor revision.
+# Shared native test; each named case pins its predecessor generations.
 {
   name,
   revision,
   kernelPrefix,
   configuration ? null,
+  activated ? null,
 }:
 args:
 let
@@ -12,6 +13,33 @@ let
   system = args.system or builtins.currentSystem;
   cgroupVersion = args.cgroupVersion or 2;
   cgroupConfig.boot.enableUnifiedCgroupHierarchy = cgroupVersion == 2;
+  activatedSource =
+    if activated == null then
+      null
+    else
+      builtins.getFlake "github:vpsfreecz/vpsadminos/${activated.revision}";
+  activatedSystem =
+    if activated == null then
+      null
+    else
+      (activatedSource.lib.vpsadminosSystem {
+        inherit system;
+        configuration =
+          if (activated.configuration or null) == null then
+            null
+          else
+            import (activatedSource.outPath + "/${activated.configuration}");
+        modules = [
+          (activatedSource.outPath + "/tests/configs/vpsadminos/base.nix")
+          (activatedSource.outPath + "/tests/configs/vpsadminos/pool-tank.nix")
+          {
+            disabledModules = [ (activatedSource.outPath + "/os/modules/osctl/test-shell.nix") ];
+            imports = [ ../../../os/modules/osctl/test-shell.nix ];
+            osctl.test-shell.shells = 1;
+          }
+          cgroupConfig
+        ];
+      }).config.system.build.toplevel;
   nextSystem =
     (current.lib.vpsadminosSystem {
       inherit system;
@@ -108,7 +136,10 @@ import (previous.outPath + "/tests/make-test.nix")
             ../../../os/modules/osctl/test-shell.nix
             cgroupConfig
           ];
-          system.extraDependencies = [ nextSystem ];
+          system.extraDependencies = [
+            nextSystem
+          ]
+          ++ (if activatedSystem == null then [ ] else [ activatedSystem ]);
         };
       };
 
@@ -126,6 +157,8 @@ import (previous.outPath + "/tests/make-test.nix")
         expect(before_kernel).to start_with('${kernelPrefix}')
         expect(machine.succeeds('readlink -f /run/current-system')[1].strip).not_to eq('${nextSystem}')
         before_boot = machine.succeeds('cat /proc/sys/kernel/random/boot_id')[1].strip
+        booted_system = machine.succeeds('readlink -f /run/booted-system')[1].strip
+        expect(machine.succeeds('readlink -f /run/current-system')[1].strip).to eq(booted_system)
         before_bpffs = machine.succeeds('stat -c %d:%i /sys/fs/bpf')[1].strip
         daemon_identity = lambda do
           status = machine.succeeds('sv status osctld')[1]
@@ -137,7 +170,6 @@ import (previous.outPath + "/tests/make-test.nix")
           pid = pids.first
           [pid, machine.succeeds("awk '{print $22}' /proc/#{pid}/stat")[1].strip]
         end
-        before_daemon = daemon_identity.call
         machine.push_file('${consoleClient}', '/root/upgrade-console.rb')
         machine.push_file('${stoppedNetwork}', '/root/upgrade-stopped-network')
         machine.succeeds('chmod 500 /root/upgrade-stopped-network')
@@ -262,8 +294,7 @@ import (previous.outPath + "/tests/make-test.nix")
         )
 
         snapshots = {}
-        %w[upgrade1 upgrade2].each_with_index do |ctid, index|
-          address = "192.0.2.#{10 + index}"
+        create_workload = lambda do |ctid, address|
           machine.all_succeed(
             "osctl ct new --distribution alpine #{ctid}",
             "osctl ct unset start-menu #{ctid}",
@@ -307,16 +338,6 @@ import (previous.outPath + "/tests/make-test.nix")
           }
         end
 
-        # 'test' is normal live generation activation without bootloader changes.
-        machine.succeeds('${nextSystem}/bin/switch-to-configuration test', timeout: 300)
-        machine.wait_for_osctl_pool('tank')
-        expect(machine.succeeds('uname -r')[1].strip).to eq(before_kernel)
-        expect(machine.succeeds('cat /proc/sys/kernel/random/boot_id')[1].strip).to eq(before_boot)
-        expect(machine.succeeds('readlink -f /run/current-system')[1].strip).to eq('${nextSystem}')
-        expect(daemon_identity.call).not_to eq(before_daemon)
-        expect(machine.succeeds('stat -c %d:%i /run/osctl/bpf')[1].strip).to eq(before_bpffs)
-        expect(machine.succeeds('stat -f -c %T /run/osctl/bpf')[1].strip).to eq('bpf_fs')
-
         assert_retained = lambda do
           expect(machine.osctl_json('ct show limited').fetch('init_pid')).to eq(limited_init)
           machine.succeeds('osctl ct exec limited grep -Fx inherited-bind /mnt/inherited/marker')
@@ -346,7 +367,38 @@ import (previous.outPath + "/tests/make-test.nix")
             )
           end
         end
-        assert_retained.call
+        %w[upgrade1 upgrade2].each_with_index do |ctid, index|
+          create_workload.call(ctid, "192.0.2.#{10 + index}")
+        end
+
+        activate_generation = lambda do |target|
+          prior_daemon = daemon_identity.call
+          machine.succeeds("#{target}/bin/switch-to-configuration test", timeout: 300)
+          machine.wait_for_osctl_pool('tank')
+          expect(machine.succeeds('uname -r')[1].strip).to eq(before_kernel)
+          expect(machine.succeeds('cat /proc/sys/kernel/random/boot_id')[1].strip).to eq(before_boot)
+          expect(machine.succeeds('readlink -f /run/booted-system')[1].strip).to eq(booted_system)
+          expect(machine.succeeds('readlink -f /run/current-system')[1].strip).to eq(target)
+          expect(daemon_identity.call).not_to eq(prior_daemon)
+          expect(machine.succeeds('stat -c %d:%i /run/osctl/bpf')[1].strip).to eq(before_bpffs)
+          expect(machine.succeeds('stat -f -c %T /run/osctl/bpf')[1].strip).to eq('bpf_fs')
+          assert_retained.call
+        end
+
+        ${
+          if activatedSystem == null then
+            ""
+          else
+            ''
+              # Booted B remains unchanged while state from B and activated A
+              # coexist. The named case fixes A's revision; no live inventory.
+              activate_generation.call('${activatedSystem}')
+              expect('${activatedSystem}').not_to eq(booted_system)
+              create_workload.call('activegeneration', '192.0.2.13')
+              assert_limits.call(25, 64)
+            ''
+        }
+        activate_generation.call('${nextSystem}')
 
         # Reusing a private hierarchy must be idempotent after restrictions
         # have settled, not just during the first daemon startup.
@@ -404,7 +456,7 @@ import (previous.outPath + "/tests/make-test.nix")
           machine.fails('osctl ct exec limited test -e /mnt/inherited/marker')
           machine.succeeds('osctl ct mounts new --fs /tank/upgrade-bind --type bind --opts bind,create=dir --mountpoint /mnt/inherited limited')
           machine.succeeds("osctl ct exec limited sh -c 'echo guest-owned > /mnt/inherited/guest-marker; test \"$(stat -c %u:%g /mnt/inherited/guest-marker)\" = 0:0'")
-          %w[upgrade1 upgrade2].each do |ctid|
+          snapshots.each_key do |ctid|
             machine.fails("osctl ct exec #{ctid} test -e /mnt/inherited/marker")
           end
           expect(machine.succeeds('findmnt -n -o ID,TARGET,SOURCE -T /tank/upgrade-bind')[1]).to eq(source_mount)
