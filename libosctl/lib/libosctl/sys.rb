@@ -21,6 +21,7 @@ module OsCtl::Lib
     MS_BIND = 4096
     MS_MOVE = 8192
     MS_REC = 16_384
+    MS_PRIVATE = 1 << 18
     MS_SLAVE = 1 << 19
     MS_SHARED = 1 << 20
 
@@ -105,6 +106,13 @@ module OsCtl::Lib
 
     def make_shared(dst)
       ret = Int.mount('none', dst, 0, MS_SHARED, 0)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
+    def make_rprivate(dst)
+      ret = Int.mount('none', dst, 0, MS_REC | MS_PRIVATE, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
 
       ret
