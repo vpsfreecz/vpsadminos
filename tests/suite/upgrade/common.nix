@@ -269,7 +269,7 @@ import (previous.outPath + "/tests/make-test.nix")
           pids_denied = counter.call(pids_events, 'max')
           machine.succeeds('timeout 40 osctl ct exec limited /bin/upgrade-resource-probe pids', timeout: 60)
           expect(counter.call(pids_events, 'max')).to be > pids_denied
-          memory_file, memory_key = cgroup_version == 2 ? ['memory.events', 'oom_kill'] : ['memory.failcnt', nil]
+          memory_file, memory_key = cgroup_version == 2 ? ['memory.events', 'oom_kill'] : ['user-owned/lxc.payload.limited/memory.oom_control', 'oom_kill']
           memory_denied = counter.call(memory_file, memory_key)
           machine.succeeds('timeout 40 osctl ct exec limited /bin/upgrade-resource-probe memory', timeout: 60)
           expect(counter.call(memory_file, memory_key)).to be > memory_denied
