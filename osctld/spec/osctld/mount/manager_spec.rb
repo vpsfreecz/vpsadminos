@@ -114,8 +114,11 @@ RSpec.describe OsCtld::Mount::Manager do
     allow(manager.shared_dir).to receive(:propagate)
 
     expect(manager.dump).to eq([configured.dump, auto.dump, temp.dump])
-    expect(manager.all_entries.map(&:mountpoint)).to include('dev/.osctl-mount-helper', '/a', '/b')
-    expect(manager.all_entries.map(&:mountpoint)).not_to include('/c')
+    entries = manager.all_entries
+    expect(entries.map(&:mountpoint)).to include('dev/.osctl-mount-helper', '/sys/fs/bpf', '/a', '/b')
+    expect(entries.map(&:mountpoint)).not_to include('/c')
+    expect(entries.find { |entry| entry.mountpoint == '/sys/fs/bpf' }.fs)
+      .to eq('/run/osctl/ct-bpf/tank/ct1')
 
     manager.activate('/b')
     expect(manager.shared_dir).to have_received(:propagate).with(auto)
