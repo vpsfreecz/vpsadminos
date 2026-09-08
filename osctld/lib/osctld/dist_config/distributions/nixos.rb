@@ -36,7 +36,9 @@ module OsCtld
       ContainerControl::Commands::WithMountns.run!(
         ct,
         ns_pid: opts[:ns_pid],
+        mnt_ns: opts[:mnt_ns],
         chroot: opts[:rootfs_mount],
+        root_dir: opts[:root_dir],
         block: proc do
           # If /sbin/init already exists, it means we're *not* in impermanence mode
           # right now, even if it is enabled. While in impermanence mode, we start
