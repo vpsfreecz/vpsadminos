@@ -77,8 +77,13 @@ let
       [ ];
   livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" ] else [ ];
   credGuardTests = if credGuardSelectors.requested then [ "kernel/cred-guard" ] else [ ];
+  upgradeTests = lib.optional (builtins.getEnv "VPSADMINOS_UPGRADE_FROM" != "") "osctld/upgrade";
   localOnlyTests = lib.unique (
-    proactiveSwapTests ++ schedProxyExecTests ++ schedProxyExecLockBadneighborTests ++ credGuardTests
+    proactiveSwapTests
+    ++ schedProxyExecTests
+    ++ schedProxyExecLockBadneighborTests
+    ++ credGuardTests
+    ++ upgradeTests
   );
 
   selectedTests =
