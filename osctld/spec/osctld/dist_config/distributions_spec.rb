@@ -20,6 +20,20 @@ RSpec.describe 'DistConfig distributions' do
     OsCtl::Lib::Logger.setup(:none)
   end
 
+  it 'passes the legacy mounted root path to both NixOS post-mount helpers' do
+    ct = double('Container', impermanence: true)
+    ctrc = double('RunConfig', ct:, distribution: 'nixos', version: '24.05')
+    distro = OsCtld::DistConfig::Distributions::NixOS.new(ctrc)
+    allow(OsCtld::ContainerControl::Commands::WithMountns).to receive(:run!)
+
+    distro.post_mount(ns_pid: 123, rootfs_mount: '/var/lib/lxc/ct1/rootfs')
+
+    expect(OsCtld::ContainerControl::Commands::WithMountns).to have_received(:run!).with(
+      ct,
+      hash_including(ns_pid: 123, chroot: '/var/lib/lxc/ct1/rootfs')
+    ).twice
+  end
+
   it 'registers distribution families and aliases' do
     expect(OsCtld::DistConfig.for(:debian)).to eq(OsCtld::DistConfig::Distributions::Debian)
     expect(OsCtld::DistConfig.for(:ubuntu)).to eq(OsCtld::DistConfig::Distributions::Ubuntu)

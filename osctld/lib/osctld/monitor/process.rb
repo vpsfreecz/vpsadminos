@@ -153,10 +153,11 @@ module OsCtld
         begin
           init_pid = wait_for_init_pid(ct)
           if init_pid
-            ct.set_init_pid(init_pid)
-            ct.ensure_run_conf.nfs_cancellation.capture(init_pid)
+            init_pid = ct.set_init_pid(init_pid)
+            ct.ensure_run_conf.nfs_cancellation.capture(init_pid) if init_pid
           end
-        rescue ContainerControl::Error => e
+        rescue ContainerControl::Error, SystemCallError, IOError => e
+          init_pid = nil
           log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
         end
 
