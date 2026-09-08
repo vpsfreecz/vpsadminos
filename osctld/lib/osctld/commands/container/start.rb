@@ -183,7 +183,7 @@ module OsCtld
         prlimits: ct.prlimits.export,
         oom_score_adj: -1000,
         keep_fds: [w],
-        syslogns_tag: ct.syslogns_tag
+        syslogns_tag: ct.syslogns_tag(run_id: ct.run_conf.run_id)
       ) do
         # Closed by SwitchUser.fork_and_switch_to
         # r.close
