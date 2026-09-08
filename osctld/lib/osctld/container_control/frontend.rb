@@ -1,3 +1,5 @@
+require 'osctld/container_control/transient_network'
+
 module OsCtld
   # Frontend is run from osctld in daemon mode, when it is running as root
   class ContainerControl::Frontend
@@ -44,6 +46,9 @@ module OsCtld
     #
     # @return [ContainerControl::Result]
     def exec_runner(opts = {})
+      transient_network = ContainerControl::TransientNetwork.new(ct) if opts[:transient_network]
+      network_socket = transient_network&.runner_socket
+
       # Used to send command to the runner
       cmd_r, cmd_w = IO.pipe
 
@@ -54,15 +59,26 @@ module OsCtld
       stdin = opts[:stdin]
       stdout = opts.fetch(:stdout, $stdout)
       stderr = opts.fetch(:stderr, $stderr)
-
       # User configuration
       sysuser = ct.user.sysusername
       ugid = ct.user.ugid
       homedir = ct.user.homedir
-      cgroup_path = ct.entry_cgroup_path
       prlimits = ct.prlimits.export
-      syslogns_pid = ct.init_pid
-      syslogns_tag = syslogns_pid.nil? && ct.syslogns_tag
+      switch_extra_namespaces = opts.fetch(:switch_extra_namespaces, true)
+      cgroup_path = opts.fetch(
+        :cgroup_path,
+        switch_extra_namespaces ? ct.entry_cgroup_path : ct.attach_cgroup_path
+      )
+      cleanup_cgroup_path = !switch_extra_namespaces && cgroup_path == ct.attach_cgroup_path
+
+      if switch_extra_namespaces
+        # This path creates a boundary only for a new transient run. Running
+        # attachment belongs to LXC's pidfd transition, never root setns of a
+        # late numeric PID (or separate syslog/tracing namespace descriptors).
+        raise ContainerControl::Error, 'container started before transient helper launch' if ct.init_pid
+
+        syslogns_tag = ct.syslogns_tag(run_id: ct.run_conf&.run_id)
+      end
 
       # Runner configuration
       runner_opts = {
@@ -78,6 +94,7 @@ module OsCtld
         kwargs: opts.fetch(:kwargs, {}),
 
         return: ret_w.fileno,
+        network_socket: network_socket&.fileno,
         stdin: stdin && stdin.fileno,
         stdout: stdout.fileno,
         stderr: stderr.fileno
@@ -98,7 +115,8 @@ module OsCtld
           ret_w,
           stdin,
           stdout,
-          stderr
+          stderr,
+          network_socket
         ].compact
       ) do
         # Closed by SwitchUser.fork
@@ -107,7 +125,7 @@ module OsCtld
 
         $stdin.reopen(cmd_r)
 
-        [cmd_r, ret_w, stdin, stdout, stderr].compact.each do |io|
+        [cmd_r, ret_w, stdin, stdout, stderr, network_socket].compact.each do |io|
           io.close_on_exec = false
         end
 
@@ -117,7 +135,6 @@ module OsCtld
           ugid,
           homedir,
           cgroup_path,
-          syslogns_pid:,
           syslogns_tag:
         )
         Process.exec(::OsCtld.bin('osctld-ct-runner'))
@@ -128,23 +145,46 @@ module OsCtld
       stdout.close if stdout != $stdout
       stderr.close if stderr != $stderr
 
+      # The child blocks on its command pipe until this exact identity is
+      # pinned. Numeric PID reuse therefore cannot select another helper.
+      runner_identity = ProcessIdentity.open(pid) if transient_network
+      network_socket&.close
+
       cmd_w.write(runner_opts.to_json)
       cmd_w.close
 
       ret_w.close
+      transient_network&.serve(runner_identity)
 
       begin
         ret = JSON.parse(ret_r.readline, symbolize_names: true)
-        Process.wait(pid)
         ContainerControl::Result.from_runner(ret)
       rescue EOFError
-        Process.wait(pid)
         ContainerControl::Result.new(
           false,
           message: 'user runner failed',
           user_runner: true
         )
       end
+    ensure
+      transient_network&.close
+      runner_identity&.close
+      # Release a helper still waiting for its command when pinning or command
+      # transport fails, then reap it just as on the successful result path.
+      [cmd_r, cmd_w, ret_r, ret_w].compact.each { |io| io.close unless io.closed? }
+      if pid
+        begin
+          Process.wait(pid)
+        ensure
+          cleanup_runner_cgroup(cgroup_path) if cleanup_cgroup_path
+        end
+      end
+    end
+
+    def cleanup_runner_cgroup(cgroup_path)
+      CGroup.rmpath_all(cgroup_path)
+    rescue SystemCallError => e
+      ct.log(:warn, "Unable to remove runner cgroup #{cgroup_path}: #{e.message}")
     end
 
     # Fork to the container user and invoke the runner.

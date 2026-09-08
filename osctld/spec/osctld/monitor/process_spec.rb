@@ -54,6 +54,10 @@ RSpec.describe OsCtld::Monitor::Process do
       def init_pid
         run_conf.init_pid
       end
+
+      def set_init_pid(pid)
+        run_conf.init_pid = pid
+      end
     end.new(
       id:,
       pool:,

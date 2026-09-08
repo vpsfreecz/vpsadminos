@@ -85,6 +85,10 @@ is a bounded rollback resource leak, not a reason to drain containers during
 forward userspace activation. Do not remove a live container's mounts merely
 to downgrade management userspace.
 
+Container syslog namespace tags are normalized to the kernel ABI and include
+a run-specific suffix. Host log processing must not assume that the old
+container/pool label is unchanged between normal container starts.
+
 ## Kernel livepatch coverage
 
 Livepatch availability and vulnerability coverage are specific to the boot

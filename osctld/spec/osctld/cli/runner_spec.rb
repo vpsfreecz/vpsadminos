@@ -31,7 +31,7 @@ RSpec.describe OsCtld::Cli::Runner do
 
       attr_reader :kwargs, :args, :stdin, :stdout, :stderr, :pool, :id, :lxc_home, :user_home, :log_file
 
-      def initialize(pool:, id:, lxc_home:, user_home:, log_file:, stdin:, stdout:, stderr:)
+      def initialize(pool:, id:, lxc_home:, user_home:, log_file:, stdin:, stdout:, stderr:, network_socket: nil)
         @pool = pool
         @id = id
         @lxc_home = lxc_home
