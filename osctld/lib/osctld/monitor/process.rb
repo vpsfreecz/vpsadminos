@@ -123,8 +123,8 @@ module OsCtld
       case ct.state
       when :running
         begin
-          init_pid = ContainerControl::Commands::State.run!(ct).init_pid
-          ct.ensure_run_conf.init_pid = init_pid
+          init_pid = wait_for_init_pid(ct)
+          ct.set_init_pid(init_pid) if init_pid
         rescue ContainerControl::Error => e
           log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
         end
@@ -147,6 +147,22 @@ module OsCtld
       when :stopped, :aborted
         ct.mounts.prune
       end
+    end
+
+    def wait_for_init_pid(ct)
+      deadline = Time.now + 10
+      st = nil
+
+      loop do
+        st = ContainerControl::Commands::State.run!(ct)
+        return st.init_pid if st.init_pid
+        break if Time.now >= deadline
+
+        sleep(0.1)
+      end
+
+      log(:warn, :monitor, "Container #{ct.ident} is running without an init PID, last LXC state was #{st&.state || 'unknown'}")
+      nil
     end
   end
 end

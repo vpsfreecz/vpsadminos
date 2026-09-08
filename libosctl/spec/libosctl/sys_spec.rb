@@ -46,6 +46,17 @@ RSpec.describe OsCtl::Lib::Sys do
     expect(sys.make_rprivate('/run/osctl/cgroup')).to eq(0)
   end
 
+  it 'opens the actual kernel owner of a network namespace with CLOEXEC' do
+    File.open('/proc/self/ns/net') do |network|
+      owner = sys.namespace_userns(network)
+      expect(owner.close_on_exec?).to be(true)
+      expect(owner.stat.ino).to eq(File.stat('/proc/self/ns/user').ino)
+      expect(owner.stat.dev).to eq(File.stat('/proc/self/ns/user').dev)
+    ensure
+      owner&.close
+    end
+  end
+
   it 'opens pidfds and reports whether the process is still alive' do
     pidfd = instance_double(IO)
     allow(described_class::Int).to receive(:pidfd_open).with(123, 0).and_return(7)
