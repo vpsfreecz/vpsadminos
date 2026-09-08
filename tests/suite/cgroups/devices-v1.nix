@@ -61,7 +61,7 @@ import ../../make-test.nix (
       )
 
       # Verify cgroup configuration of the default list of allowed devices
-      _, output = machine.succeeds("cat /sys/fs/cgroup/devices/osctl/pool.tank/group.default/user.testct/ct.testct/devices.list")
+      _, output = machine.succeeds("cat /run/osctl/cgroup/devices/osctl/pool.tank/group.default/user.testct/ct.testct/devices.list")
       device_list = output.strip.split("\n").map { |line| line.strip.split(" ") }
       check_allowlist(allowed_devices, device_list)
 
@@ -106,7 +106,7 @@ import ../../make-test.nix (
 
       # Add custom device and verify cgroup configuration
       machine.succeeds("osctl ct devices add -p testct char 10 200 rwm /dev/net/tun")
-      _, output = machine.succeeds("cat /sys/fs/cgroup/devices/osctl/pool.tank/group.default/user.testct/ct.testct/devices.list")
+      _, output = machine.succeeds("cat /run/osctl/cgroup/devices/osctl/pool.tank/group.default/user.testct/ct.testct/devices.list")
       device_list = output.strip.split("\n").map { |line| line.strip.split(" ") }
       check_allowlist(allowed_devices + [%w(c 10:200 rwm /dev/net/tun)], device_list)
 

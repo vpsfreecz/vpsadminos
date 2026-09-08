@@ -32,18 +32,17 @@ RSpec.describe OsCtld::CGroup::Params do
   before do
     OsCtl::Lib::Logger.setup(:none)
     state = cgroup_state
-    OsCtld::CGroup.define_singleton_method(:version) { state.version }
-    OsCtld::CGroup.define_singleton_method(:v1?) { state.version == 1 }
-    OsCtld::CGroup.define_singleton_method(:v2?) { state.version == 2 }
-    OsCtld::CGroup.define_singleton_method(:real_subsystem) { |subsystem| subsystem }
-    OsCtld::CGroup.define_singleton_method(:abs_cgroup_path) do |subsystem|
-      File.join('/sys/fs/cgroup', subsystem)
+    allow(OsCtld::CGroup).to receive(:version) { state.version }
+    allow(OsCtld::CGroup).to receive(:v1?) { state.version == 1 }
+    allow(OsCtld::CGroup).to receive(:v2?) { state.version == 2 }
+    allow(OsCtld::CGroup).to receive(:real_subsystem) { |subsystem| subsystem }
+    allow(OsCtld::CGroup).to receive(:abs_cgroup_path) do |subsystem, path = nil|
+      File.join(*['/sys/fs/cgroup', subsystem, path].compact)
     end
-    OsCtld::CGroup.define_singleton_method(:set_param) do |path, value|
+    allow(OsCtld::CGroup).to receive(:set_param) do |path, value|
       state.set_param_calls << [path, value]
       true
     end
-    OsCtld::CGroup.define_singleton_method(:set_param_calls) { state.set_param_calls }
     allow(File).to receive(:exist?).and_call_original
   end
 
@@ -77,7 +76,7 @@ RSpec.describe OsCtld::CGroup::Params do
     params.set([param(2, 'cpu', 'cpu.max', ['50000 100000'], false)])
     params.apply { |subsystem| File.join('/cg', subsystem) }
 
-    expect(OsCtld::CGroup.set_param_calls).to include(
+    expect(cgroup_state.set_param_calls).to include(
       ['/cg/memory/memory.max', [100_000, 50_000]],
       ['/cg/cpu/cpu.max', ['50000 100000']]
     )
@@ -90,7 +89,7 @@ RSpec.describe OsCtld::CGroup::Params do
     expect(params).to have_received(:reset).with(instance_of(OsCtld::CGroup::Param), true)
 
     params.reset(param(2, 'memory', 'memory.max', [1]), false) { |subsystem| File.join('/cg', subsystem) }
-    expect(OsCtld::CGroup.set_param_calls).to include(['/cg/memory/memory.max', ['max']])
+    expect(cgroup_state.set_param_calls).to include(['/cg/memory/memory.max', ['max']])
 
     expect(params.dump).to eq([{ 'version' => 2, 'subsystem' => 'memory', 'name' => 'memory.high', 'value' => [1], 'persistent' => true }])
 
