@@ -206,6 +206,7 @@ let
           "osctl/nfs-cancellation"
           "osctl/pool/export-cleanup"
           "osctl-exportfs/mount"
+          "osctld/direct-start"
           "osctld/resilience"
           "osctld/restart"
           "prometheus/exporters"
