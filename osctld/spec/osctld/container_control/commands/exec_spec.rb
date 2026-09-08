@@ -24,6 +24,10 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
         running
       end
 
+      def current_state
+        running? ? :running : :stopped
+      end
+
       def ensure_run_conf
         self.ensure_calls += 1
       end
@@ -67,6 +71,8 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
     expect(call[:stdout]).to be_a(StringIO)
     expect(call[:stderr]).to be_a(StringIO)
     expect(call[:reset_subtree_control]).to be(false)
+    expect(call[:switch_extra_namespaces]).to be(false)
+    expect(call).not_to have_key(:attach_extra_namespaces)
     expect(frontend.cleanup_calls).to eq(1)
   end
 
