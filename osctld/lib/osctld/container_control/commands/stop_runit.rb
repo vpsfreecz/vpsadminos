@@ -20,7 +20,10 @@ module OsCtld
                 make_message(opts[:message])
               end
 
-        ret = exec_runner(args: [{ message: msg }])
+        ret = exec_runner(
+          args: [{ message: msg }],
+          switch_extra_namespaces: false
+        )
         ret.ok? || ret
       end
     end
@@ -40,7 +43,7 @@ module OsCtld
           end
         end
 
-        pid = lxc_ct.attach do
+        exit_status = lxc_attach_wait do
           setup_exec_env
           ENV['HOME'] = '/root'
           ENV['USER'] = 'root'
@@ -57,12 +60,10 @@ module OsCtld
           File.chmod(0o100, '/etc/runit/stopit')
         end
 
-        Process.wait(pid)
-
-        if $?.exitstatus == 0
+        if exit_status == 0
           ok
         else
-          error("runit-stop failed with exit status #{$?.exitstatus}")
+          error("runit-stop failed with exit status #{exit_status}")
         end
       end
     end

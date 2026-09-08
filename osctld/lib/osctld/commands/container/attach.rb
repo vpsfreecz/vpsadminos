@@ -17,6 +17,7 @@ module OsCtld
       base_args = [
         'lxc-attach', '-P', ct.lxc_home,
         '-n', ct.id,
+        '--elevated-privileges=CGROUP',
         '--clear-env',
         '--keep-var', 'TERM',
         '-v', 'USER=root',

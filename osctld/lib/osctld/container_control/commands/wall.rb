@@ -16,7 +16,10 @@ module OsCtld
           raise ContainerControl::Error, 'container not running'
         end
 
-        ret = exec_runner(args: [make_message(message, banner:)])
+        ret = exec_runner(
+          args: [make_message(message, banner:)],
+          switch_extra_namespaces: false
+        )
         ret.ok? || ret
       end
     end
@@ -25,15 +28,12 @@ module OsCtld
       include ContainerControl::Utils::Wall::Runner
 
       def execute(message)
-        st = ct_wall(message)
-        exitstatus = st.respond_to?(:exitstatus) ? st.exitstatus : nil
+        exit_status = ct_wall(message)
 
-        if exitstatus == 0
+        if exit_status == 0
           ok
-        elsif exitstatus
-          error("failed to send message: exit status #{exitstatus}")
         else
-          error('failed to send message')
+          error("failed to send message: exit status #{exit_status}")
         end
       end
     end
