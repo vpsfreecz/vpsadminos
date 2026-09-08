@@ -21,7 +21,10 @@ RSpec.describe OsCtld::Mount::SharedDir do
       def self.run!(*); end
     end)
     allow(OsCtld::ContainerControl::Commands::Mount).to receive(:run!)
-    allow(shared_dir).to receive(:syscmd).and_return(OsCtl::Lib::SystemCommandResult.new(0, ''))
+    allow(shared_dir).to receive_messages(
+      syscmd: OsCtl::Lib::SystemCommandResult.new(0, ''),
+      syscmd_argv: OsCtl::Lib::SystemCommandResult.new(0, '')
+    )
   end
 
   after do
@@ -190,9 +193,17 @@ RSpec.describe OsCtld::Mount::SharedDir do
     dir = Dir.mktmpdir('push-src')
     host_path = shared_dir.host_path_for(dir)
 
-    expect(shared_dir.map_and_push(dir, 123)).to eq(host_path)
-    expect(shared_dir).to have_received(:syscmd).with(
-      "mount --bind -o X-mount.idmap=/proc/123/ns/user #{dir} #{host_path}"
+    user_ns = instance_double(IO, fileno: 17)
+
+    expect(shared_dir.map_and_push(dir, user_ns)).to eq(host_path)
+    expect(shared_dir).to have_received(:syscmd_argv).with(
+      [
+        'mount',
+        '--bind',
+        '-o', "X-mount.idmap=/proc/#{Process.pid}/fd/17",
+        dir,
+        host_path
+      ]
     )
 
     shared_dir.cleanup_pushed(dir)
