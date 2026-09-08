@@ -208,6 +208,8 @@ let
           "osctl/ct-passwd"
           "osctl/ct-runscript-v1"
           "osctl/ct-runscript-v2"
+          "osctl/ct-transient-failures-v1"
+          "osctl/ct-transient-failures-v2"
           "osctl/ct-send-recv"
           "osctl/ct-uid-gid"
           "osctl/pool/export-cleanup"
