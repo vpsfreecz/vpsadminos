@@ -42,7 +42,11 @@ module OsCtl::ExportFS
 
     # @return [Array<String>]
     def allowed_versions
-      versions
+      # rpc.nfsd treats version 4 as all supported minor versions. Expand it
+      # before computing exclusions so those minors are not disabled again.
+      VERSIONS.select do |version|
+        versions.include?(version) || (versions.include?('4') && version.start_with?('4.'))
+      end
     end
 
     # @return [Array<String>]
