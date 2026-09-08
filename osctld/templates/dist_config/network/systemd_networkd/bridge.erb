@@ -12,4 +12,7 @@ DHCP=<%= netif.dhcp ? 'true' : 'false' %>
 <%   netif.ips(v).each do |addr| -%>
 Address=<%= addr.to_string %>
 <%   end -%>
+<%   if !netif.dhcp && netif.has_gateway?(v) -%>
+Gateway=<%= netif.gateway(v) %>
+<%   end -%>
 <% end -%>
