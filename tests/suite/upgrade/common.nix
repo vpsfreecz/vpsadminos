@@ -128,6 +128,8 @@ import (previous.outPath + "/tests/make-test.nix")
         end
         before_daemon = daemon_identity.call
         machine.push_file('${consoleClient}', '/root/upgrade-console.rb')
+        machine.push_file('${stoppedNetwork}', '/root/upgrade-stopped-network')
+        machine.succeeds('chmod 500 /root/upgrade-stopped-network')
 
         # Include all three inherited stopped states, not only fresh objects
         # created by the new daemon. Do not start or mount neverstarted here.
@@ -264,7 +266,7 @@ import (previous.outPath + "/tests/make-test.nix")
         # without starting it or losing its persistent root filesystem.
         machine.all_succeed(
           'osctl ct exec -rn previouslyrun ping -c 1 255.255.255.254',
-          'osctl ct runscript -rn previouslyrun ${stoppedNetwork}',
+          'osctl ct runscript -rn previouslyrun /root/upgrade-stopped-network',
           'osctl ct exec -r previouslyrun grep -Fx stopped-runscript-data /root/stopped-runscript',
         )
         expect(machine.osctl_json('ct show previouslyrun').fetch('state')).to eq('stopped')

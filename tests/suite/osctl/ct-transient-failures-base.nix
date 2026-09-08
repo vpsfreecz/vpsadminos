@@ -43,6 +43,9 @@ import ../../make-test.nix (
       machine.start
       machine.wait_for_osctl_pool('tank')
       machine.wait_until_online
+      machine.push_file('${guestShell}', '/root/transient-fault-shell')
+      machine.push_file('${payload}', '/root/transient-failure-payload')
+      machine.succeeds('chmod 500 /root/transient-failure-payload')
       machine.all_succeed(
         'osctl ct new --distribution alpine stalled',
         'osctl ct unset start-menu stalled',
@@ -62,7 +65,7 @@ import ../../make-test.nix (
       machine.all_succeed(
         "test -L #{rootfs}/bin/sh",
         "rm #{rootfs}/bin/sh",
-        "install -m 555 ${guestShell} #{rootfs}/bin/sh",
+        "install -m 555 /root/transient-fault-shell #{rootfs}/bin/sh",
       )
       host_loopback = machine.succeeds('ip -o address show dev lo')[1]
 
@@ -70,7 +73,7 @@ import ../../make-test.nix (
       # No daemon code or timeout is replaced: exercise actual LXC, pipes,
       # private readiness transport and the production cleanup bounds.
       %w[missing partial malformed early_exit].each do |mode|
-        ['exec -rn stalled touch /root/unexpected-payload', 'runscript -rn stalled ${payload}'].each do |operation|
+        ['exec -rn stalled touch /root/unexpected-payload', 'runscript -rn stalled /root/transient-failure-payload'].each do |operation|
           machine.all_succeed(
             "echo #{mode} > #{rootfs}/transient-mode",
             "rm -f #{rootfs}/transient-entered #{rootfs}/root/unexpected-payload",
@@ -102,7 +105,7 @@ import ../../make-test.nix (
       machine.all_succeed(
         "echo normal > #{rootfs}/transient-mode",
         'osctl ct exec -rn stalled ping -c 1 255.255.255.254',
-        'osctl ct runscript -rn stalled ${payload}',
+        'osctl ct runscript -rn stalled /root/transient-failure-payload',
         "grep -Fx must-not-run #{rootfs}/root/unexpected-payload",
         'osctl ct start stalled',
       )
