@@ -196,9 +196,12 @@ import (previous.outPath + "/tests/make-test.nix")
           throttled = counter.call('cpu.stat', 'nr_throttled')
           machine.succeeds('timeout 40 osctl ct exec limited /bin/upgrade-resource-probe cpu', timeout: 60)
           expect(counter.call('cpu.stat', 'nr_throttled')).to be > throttled
-          pids_denied = counter.call('pids.events', 'max')
+          # v1 counts failed forks at their leaf, whereas v2 propagates max
+          # events to the limiting parent. Read the kernel's actual semantics.
+          pids_events = cgroup_version == 2 ? 'pids.events' : 'user-owned/lxc.payload.limited/pids.events'
+          pids_denied = counter.call(pids_events, 'max')
           machine.succeeds('timeout 40 osctl ct exec limited /bin/upgrade-resource-probe pids', timeout: 60)
-          expect(counter.call('pids.events', 'max')).to be > pids_denied
+          expect(counter.call(pids_events, 'max')).to be > pids_denied
           memory_file, memory_key = cgroup_version == 2 ? ['memory.events', 'oom_kill'] : ['memory.failcnt', nil]
           memory_denied = counter.call(memory_file, memory_key)
           machine.succeeds('timeout 40 osctl ct exec limited /bin/upgrade-resource-probe memory', timeout: 60)
@@ -224,8 +227,13 @@ import (previous.outPath + "/tests/make-test.nix")
           expect(program.fetch('map_ids', [])).to eq([])
           pins = machine.succeeds("for root in /run/osctl/bpf /sys/fs/bpf; do if test -d \"$root/osctl/pools/tank/links\"; then find \"$root/osctl/pools/tank/links\" -maxdepth 1 -name '*#{ctid}*'; fi; done")[1].lines.map(&:strip).uniq
           expect(pins).not_to be_empty
+          # The predecessor bpftool's single-link query prints valid data but
+          # returns stale errno. Its full listing has a proper success path.
+          all_links = JSON.parse(machine.succeeds('bpftool -j -f link show')[1])
           links = pins.map do |pin|
-            link = JSON.parse(machine.succeeds("bpftool -j link show pinned #{Shellwords.escape(pin)}")[1])
+            matches = all_links.select { |link| link.fetch('pinned', []).include?(pin) }
+            expect(matches.length).to eq(1)
+            link = matches.first
             [File.basename(pin), link.fetch('id'), link.fetch('prog_id')]
           end.uniq.sort
           expect(links.map(&:last).uniq).to eq([id])
