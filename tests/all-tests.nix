@@ -94,6 +94,8 @@ let
     else
       lib.unique (
         [
+          "upgrade/from-6.12"
+          "upgrade/from-6.18"
           "cgroups/devices-v1"
           "cgroups/devices-v2"
           {
