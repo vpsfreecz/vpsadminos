@@ -103,6 +103,13 @@ module OsCtl::Lib
       ret
     end
 
+    def mount_sysfs(dst)
+      ret = Int.mount('none', dst, 'sysfs', MS_NOSUID | MS_NODEV | MS_NOEXEC, 0)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
     def make_shared(dst)
       ret = Int.mount('none', dst, 0, MS_SHARED, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0

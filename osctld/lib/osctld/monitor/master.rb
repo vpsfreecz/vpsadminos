@@ -37,13 +37,14 @@ module OsCtld
         if @monitors.has_key?(k)
           next if @monitors[k].cts.include?(ct.id)
 
-          @monitors[k].cts << ct.id
+          @monitors[k].cts[ct.id] = ct
           update_state(ct)
           next
         end
 
-        t = Thread.new { handle_monitor(ct) }
-        @monitors[k] = Entry.new(t, nil, [])
+        entry = Entry.new(nil, nil, { ct.id => ct })
+        @monitors[k] = entry
+        entry.thread = Thread.new { handle_monitor(ct, entry) }
       end
 
       true
@@ -87,7 +88,9 @@ module OsCtld
 
     private
 
-    def handle_monitor(ct)
+    def handle_monitor(ct, entry)
+      monitor_key = key(ct)
+
       loop do
         log(
           :info,
@@ -99,12 +102,13 @@ module OsCtld
         update_state(ct)
 
         sync do
-          entry = @monitors[key(ct)]
           entry.pid = pid
-          entry.cts << ct.id
         end
 
-        p = Monitor::Process.new(ct.pool, ct.user, ct.group, stdout)
+        p = Monitor::Process.new(
+          ct.pool, ct.user, ct.group, stdout,
+          containers: -> { monitored_containers(monitor_key, entry) }
+        )
         Process.wait(pid) if p.monitor
 
         log(
@@ -113,7 +117,15 @@ module OsCtld
           "Monitor of pool/user/group #{ct.pool.name}:#{ct.user.name}:#{ct.group.name} exited"
         )
 
-        break if sync { !@monitors.has_key?(key(ct)) }
+        break if sync { !@monitors[monitor_key].equal?(entry) }
+      end
+    end
+
+    def monitored_containers(monitor_key, entry)
+      sync do
+        next [] unless @monitors[monitor_key].equal?(entry)
+
+        entry.cts.values
       end
     end
 
@@ -125,6 +137,7 @@ module OsCtld
 
       if st.init_pid
         ct.ensure_run_conf.init_pid = st.init_pid
+        ct.ensure_run_conf.nfs_cancellation.capture(st.init_pid)
         Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid: st.init_pid)
       end
     rescue ContainerControl::Error => e
