@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'osctld/container/nfs_cancellation'
 require 'stringio'
 require 'osctld/container_control/command'
 require 'osctld/container_control/commands/state'
@@ -7,7 +8,7 @@ require 'osctld/monitor'
 require 'osctld/monitor/process'
 
 RSpec.describe OsCtld::Monitor::Process do
-  subject(:process) { described_class.new(pool, user, group, stdout) }
+  subject(:process) { described_class.new(pool, user, group, stdout, containers: -> { monitored }) }
 
   let(:pool) { Struct.new(:name).new('tank') }
   let(:user) { Struct.new(:name, :sysusername, :ugid, :homedir).new('alice', 'alice', 1234, '/home/alice') }
@@ -19,6 +20,7 @@ RSpec.describe OsCtld::Monitor::Process do
     end.new('default')
   end
   let(:stdout) { StringIO.new }
+  let(:monitored) { [] }
 
   around do |example|
     old_child_status = $?
@@ -32,7 +34,8 @@ RSpec.describe OsCtld::Monitor::Process do
   end
 
   def build_ct(id: 'ct1')
-    run_conf = Struct.new(:init_pid, :aborted).new(nil, false)
+    cancellation = instance_double(OsCtld::Container::NfsCancellation, capture: nil, abort: 0, abort_if_exiting: 0)
+    run_conf = Struct.new(:init_pid, :aborted, :nfs_cancellation).new(nil, false, cancellation)
     mounts = Struct.new(:pruned) do
       def prune
         self.pruned = true
@@ -106,6 +109,7 @@ RSpec.describe OsCtld::Monitor::Process do
 
     expect(ct.state).to eq(:running)
     expect(ct.ensure_run_conf.init_pid).to eq(5678)
+    expect(ct.ensure_run_conf.nfs_cancellation).to have_received(:capture).with(5678)
     expect(eventd).to have_received(:report).with(:state, pool: 'tank', id: 'ct1', state: :running)
     expect(eventd).to have_received(:report).with(:ct_init_pid, pool: 'tank', id: 'ct1', init_pid: 5678)
     expect(hook).to have_received(:run).with(ct, :post_start, init_pid: 5678)
@@ -176,6 +180,69 @@ RSpec.describe OsCtld::Monitor::Process do
     process.send(:update_state, pool: 'tank', ctid: 'ct1', state: :stopping)
 
     expect(hook).to have_received(:run).with(ct, :on_stop)
+  end
+
+  it 'cancels the exited run before publishing STOPPED' do
+    ct = build_ct
+    db = stub_const('OsCtld::DB::Containers', Class.new do
+      def self.find(_id, _pool); end
+    end)
+    eventd = stub_const('OsCtld::Eventd', Class.new do
+      def self.report(*); end
+    end)
+    calls = []
+    allow(db).to receive(:find).and_return(ct)
+    allow(ct.run_conf.nfs_cancellation).to receive(:abort) { calls << :abort }
+    allow(eventd).to receive(:report) { calls << :state }
+
+    process.send(:update_state, pool: 'tank', ctid: 'ct1', state: :stopped)
+
+    expect(calls).to eq(%i[abort state])
+    expect(ct.mounts.pruned).to be(true)
+  end
+
+  it 'logs cancellation failure without losing the shared state monitor' do
+    ct = build_ct
+    db = stub_const('OsCtld::DB::Containers', Class.new do
+      def self.find(_id, _pool); end
+    end)
+    eventd = stub_const('OsCtld::Eventd', Class.new do
+      def self.report(*); end
+    end)
+    allow(db).to receive(:find).and_return(ct)
+    allow(eventd).to receive(:report)
+    allow(ct.run_conf.nfs_cancellation).to receive(:abort).and_raise(IOError, 'shutdown failed')
+
+    expect { process.send(:update_state, pool: 'tank', ctid: 'ct1', state: :stopped) }.not_to raise_error
+    expect(ct.state).to eq(:stopped)
+    expect(OsCtl::Lib::Logger).to have_received(:log).with(
+      :warn,
+      '[monitor] Unable to cancel NFS for exited container tank:ct1: shutdown failed'
+    )
+  end
+
+  it 'checks early exit only for its own pool, user and group' do
+    ct = build_ct
+    other = build_ct(id: 'ct2')
+    other.user = Struct.new(:name).new('other')
+    ct.run_conf.init_pid = 123
+    monitored.push(ct, other)
+
+    process.send(:check_exiting_runs)
+
+    expect(ct.run_conf.nfs_cancellation).to have_received(:capture).with(123)
+    expect(ct.run_conf.nfs_cancellation).to have_received(:abort_if_exiting)
+    expect(other.run_conf.nfs_cancellation).not_to have_received(:abort_if_exiting)
+  end
+
+  it 'keeps checking other containers after one early-exit check fails' do
+    first = build_ct
+    second = build_ct(id: 'ct2')
+    monitored.push(first, second)
+    allow(first.run_conf.nfs_cancellation).to receive(:abort_if_exiting).and_raise(IOError, 'failed')
+
+    expect { process.send(:check_exiting_runs) }.not_to raise_error
+    expect(second.run_conf.nfs_cancellation).to have_received(:abort_if_exiting)
   end
 
   it 'warns when state updates refer to missing containers' do

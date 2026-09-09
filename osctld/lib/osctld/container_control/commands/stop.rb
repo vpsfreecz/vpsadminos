@@ -26,8 +26,6 @@ module OsCtld
           raise ArgumentError, "invalid stop mode '#{mode}'"
         end
 
-        CGroup.thaw_tree(ct.cgroup_path) if mode == :kill
-
         if opts[:message] && ct.running?
           opts = opts.merge(message: make_message(opts[:message]))
         else
@@ -35,7 +33,9 @@ module OsCtld
         end
 
         ret =
-          if %i[stop shutdown].include?(mode) && ct.running?
+          if mode == :kill
+            with_forced_teardown { fork_runner(args: [mode, opts]) }
+          elsif ct.running?
             exec_runner(args: [mode, opts.merge(halt_from_inside: true)])
           else
             fork_runner(args: [mode, opts])
@@ -45,13 +45,33 @@ module OsCtld
           true
 
         elsif mode == :stop
-          CGroup.thaw_tree(ct.cgroup_path)
-          ret = fork_runner(args: [:kill, opts])
+          ret = with_forced_teardown { fork_runner(args: [:kill, opts]) }
           ret.ok? || ret
 
         else
           ret
         end
+      end
+
+      protected
+
+      def with_forced_teardown
+        run_conf = ct.get_run_conf
+        # Leave the LXC monitor runnable to receive the stop command.
+        payload = File.join(ct.cgroup_path, "lxc.payload.#{ct.id}")
+        run_conf.nfs_cancellation.capture(run_conf.init_pid)
+        # A previously frozen parent also freezes the LXC monitor. Replace
+        # that freeze with a payload-only one before establishing the barrier.
+        CGroup.thaw_tree(ct.cgroup_path)
+        CGroup.freeze_tree(payload)
+        # Cancel first: a task blocked on NFS might not freeze until woken.
+        run_conf.nfs_cancellation.abort
+        CGroup.wait_frozen(payload)
+        # Capture work admitted while the initial freeze was in progress.
+        run_conf.nfs_cancellation.abort
+        yield
+      ensure
+        CGroup.thaw_tree(payload) if payload
       end
     end
 
