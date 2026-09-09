@@ -1,0 +1,83 @@
+diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
+--- a/kernel/bpf/core.c
++++ b/kernel/bpf/core.c
+@@ -39,6 +39,8 @@
+ #include <linux/memcontrol.h>
+ #include <linux/execmem.h>
+ #include <linux/vpsadminos-livepatch.h>
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch-build.h>
+ #ifdef CONFIG_LIVEPATCH
+ #include <linux/livepatch.h>
+ #endif
+@@ -919,6 +921,54 @@
+ 	.version = 2,
+ };
+ 
++#define VPSADMINOS_UTS_RELEASE_STATE_ID	0x008aa4605ec26339UL
++#define VPSADMINOS_UTS_RELEASE_STATE_ACTIVE	((void *)1UL)
++
++static struct klp_state vpsadminos_uts_release_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_UTS_RELEASE_STATE_ID,
++	.version = 1,
++};
++
++static char vpsadminos_livepatch_old_release[__NEW_UTS_LEN + 1] =
++	LIVEPATCH_ORIG_KERNEL_VERSION;
++static bool vpsadminos_livepatch_uname_changed;
++
++static void vpsadminos_livepatch_set_uname(void)
++{
++	struct klp_state *prev_state;
++
++	down_write(&uts_sem);
++	scnprintf(init_uts_ns.name.release,
++		  sizeof(init_uts_ns.name.release), "%s.%s",
++		  LIVEPATCH_ORIG_KERNEL_VERSION, LIVEPATCH_NAME);
++	vpsadminos_livepatch_uname_changed = true;
++	up_write(&uts_sem);
++	uts_proc_notify(UTS_PROC_OSRELEASE);
++
++	WRITE_ONCE(vpsadminos_uts_release_state.data,
++		   VPSADMINOS_UTS_RELEASE_STATE_ACTIVE);
++	prev_state = klp_get_prev_state(VPSADMINOS_UTS_RELEASE_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == VPSADMINOS_UTS_RELEASE_STATE_ACTIVE)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++static void vpsadminos_livepatch_restore_uname(void)
++{
++	down_write(&uts_sem);
++	if (vpsadminos_livepatch_uname_changed) {
++		strscpy(init_uts_ns.name.release,
++			vpsadminos_livepatch_old_release,
++			sizeof(init_uts_ns.name.release));
++		vpsadminos_livepatch_uname_changed = false;
++	}
++	up_write(&uts_sem);
++	uts_proc_notify(UTS_PROC_OSRELEASE);
++	WRITE_ONCE(vpsadminos_uts_release_state.data, NULL);
++}
++
+ static void vpsadminos_pipapo_livepatch_post_patch(void)
+ {
+ 	struct klp_state *prev_state;
+@@ -1004,6 +1054,7 @@
+ 	vpsadminos_xfrm_livepatch_post_patch();
+ 	vpsadminos_bpf_jit_ibpb();
+ 	vpsadminos_livepatch_flush_tlb_all();
++	vpsadminos_livepatch_set_uname();
+ }
+ 
+ static void vpsadminos_livepatch_pre_unpatch(struct klp_object *obj)
+@@ -1019,6 +1070,7 @@
+ 	vpsadminos_pipapo_livepatch_post_unpatch();
+ 	vpsadminos_rhashtable_livepatch_post_unpatch();
+ 	vpsadminos_saferet_livepatch_post_unpatch();
++	vpsadminos_livepatch_restore_uname();
+ }
+ 
+ static struct vpsadminos_pre_patch_callback vpsadminos_pre_patch_data

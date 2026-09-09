@@ -48,15 +48,19 @@ let
           kernels.${kernelVersion}.structuredExtraConfig
         else
           { };
-      features = lib.mkMerge [
-        (
-          if builtins.hasAttr "features" kernels.${kernelVersion} then
-            kernels.${kernelVersion}.features
-          else
-            { }
-        )
-        { zfsBuiltin = true; }
-      ];
+      features =
+        let
+          baseFeatures = kernels.${kernelVersion}.features or { };
+        in
+        if (baseFeatures.livepatchVariant or null) != null then
+          # callPackage expects an attribute set, not a module merge marker.
+          baseFeatures // { zfsBuiltin = true; }
+        else
+          # Keep legacy boot artifacts stable for their existing livepatches.
+          lib.mkMerge [
+            baseFeatures
+            { zfsBuiltin = true; }
+          ];
     });
 
   genZfsBuiltinPackage =

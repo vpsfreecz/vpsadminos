@@ -142,6 +142,7 @@ let
           instances = livepatchLifecycleInstances;
         }
         "kernel/vpsadminos"
+        "kernel/livepatch-kernel-identity"
         "kernel/module-autoload"
         "osctl/ct-cat"
         "osctl/ct-chown-filecaps"

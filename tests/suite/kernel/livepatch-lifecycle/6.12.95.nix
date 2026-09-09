@@ -30,8 +30,10 @@ let
     };
 in
 {
-  # The candidate comes from the current tree and its locked kernel/toolchain
-  # inputs, so its raw module checksum legitimately changes with dependency
+  bootModule = ../../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
+
+  # The candidate uses current packaging/toolchain on the frozen boot base,
+  # so its raw module checksum legitimately changes with dependency
   # updates. Historical predecessors are evaluated from immutable revisions
   # and remain checksummed to ensure that the intended shipped bytes are used.
   predecessors = {

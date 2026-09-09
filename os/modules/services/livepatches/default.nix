@@ -9,11 +9,13 @@ with lib;
 
 let
   cfg = config.services.live-patches;
-  zfsBuiltinPkg = config.boot.zfsBuiltinPkg;
+  zfsBuiltinPkg = if config.boot.zfsBuiltin then config.boot.zfsBuiltinPkg else null;
+  patchVariant = config.boot.kernelPackage.features.livepatchVariant or null;
   patchesDir = ../../../livepatches;
   availablePatches = import (patchesDir + /available-patches.nix) {
     inherit lib;
     version = config.boot.kernelVersion;
+    variant = patchVariant;
   };
   availablePatchesList = availablePatches.patchList;
   availablePatchTargets = availablePatches.patchTargets;
@@ -25,9 +27,27 @@ let
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) { };
 
   patchName = "${toString patchVersion}";
-  patchModuleName = "livepatch_${toString patchVersion}";
+  patchModuleName =
+    "livepatch_${toString patchVersion}"
+    + optionalString (patchVariant != null) "_${replaceStrings [ "-" ] [ "_" ] patchVariant}";
   installModDir = "lib/modules/${kernel.modDirVersion}/extra";
   installModPath = "${installModDir}/${patchModuleName}.ko";
+
+  # The running boot kernel exposes this section, including its build ID.
+  # Uname alone does not identify a same-version kernel rebuild.
+  kernelNotes =
+    pkgs.runCommand "livepatch-kernel-notes-${kernel.modDirVersion}"
+      {
+        nativeBuildInputs = [ pkgs.buildPackages.binutils ];
+      }
+      ''
+        ${optionalString (patchVariant != null) ''
+          # A nonempty notes section without NT_GNU_BUILD_ID is not an identity.
+          readelf -n ${kernel.dev}/vmlinux | grep -Eq 'Build ID: [[:xdigit:]]{40}'
+        ''}
+        objcopy -O binary --only-section=.notes ${kernel.dev}/vmlinux "$out"
+        test -s "$out"
+      '';
 
   buildLivePatch =
     {
@@ -98,7 +118,10 @@ let
         # with ./vmlinux (from kernel.dev) and .config
         mv $sourceRoot src
         export KERNEL_SRCDIR=$(pwd)/src
+        # Store-backed source archives may preserve read-only permissions.
+        chmod -R u+w src
         cp -r ${kernel.dev}/. ./src/
+        chmod -R u+w src
         ln -snf ${kernel.configfile.outPath} ./src/.config
 
         echo patchShebangs src/scripts
@@ -295,6 +318,13 @@ let
       exit 0
     ''
     + optionalString (buildEnable) ''
+      if [ "$(readlink -f /run/booted-system/kernel)" != "${kernel}/bzImage" ] || \
+         ! ${pkgs.diffutils}/bin/cmp -s ${kernelNotes} /sys/kernel/notes; then
+        echo "live-patches: configured module does not match the running boot kernel" >&2
+        echo "live-patches: existing livepatches are unchanged; boot the configured kernel before managing this module" >&2
+        exit 1
+      fi
+
       case "$1" in
       load)
         ${moduleLoadContent}
@@ -348,6 +378,8 @@ in
         kernelVersion = config.boot.kernelVersion;
         module = patchModuleName;
         inherit patchVersion;
+        kernelNotes = toString kernelNotes;
+        kernelImage = "${kernel}/bzImage";
         patches = map (patch: {
           inherit (patch) name;
           version = availablePatches.getPatchVersion patch;

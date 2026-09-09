@@ -45,6 +45,7 @@ import ../../make-template.nix (
         machineConfig =
           { lib, ... }:
           {
+            imports = lib.optional (line ? bootModule) line.bootModule;
             boot.kernelVersion = lib.mkForce kernelVersion;
             services.live-patches.enable = true;
             runit.services.live-patches.run = lib.mkForce "sleep inf";

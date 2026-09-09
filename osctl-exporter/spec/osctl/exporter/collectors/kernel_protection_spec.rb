@@ -141,6 +141,114 @@ RSpec.describe OsCtl::Exporter::Collectors::KernelProtection do
     end
   end
 
+  def with_livepatch_kernel_configs
+    with_tmpdir do |dir|
+      current = File.join(dir, 'current.json')
+      booted = File.join(dir, 'booted.json')
+      expected = File.join(dir, 'expected-notes')
+      running = File.join(dir, 'running-notes')
+      sysfs = File.join(dir, 'livepatch')
+      image = File.join(dir, 'kernel-image')
+      booted_image = File.join(dir, 'booted-image')
+      stub_const("#{described_class}::EBPF_CONFIG_PATH", File.join(dir, 'missing-ebpf.json'))
+      stub_const("#{described_class}::LIVEPATCH_CONFIG_PATH", current)
+      stub_const("#{described_class}::BOOTED_LIVEPATCH_CONFIG_PATH", booted)
+      stub_const("#{described_class}::KERNEL_NOTES_PATH", running)
+      stub_const("#{described_class}::LIVEPATCH_SYSFS", sysfs)
+      stub_const("#{described_class}::BOOTED_KERNEL_IMAGE_PATH", booted_image)
+      File.write(image, 'kernel-image')
+      File.symlink(image, booted_image)
+      File.binwrite(expected, "new-kernel\x00notes")
+      File.binwrite(running, "new-kernel\x00notes")
+      write_json(current, {
+                   'module' => 'livepatch_6_nfs_cancel', 'patchVersion' => 6,
+                   'kernelNotes' => expected, 'kernelImage' => image
+                 })
+      %w[livepatch_6 livepatch_6_nfs_cancel].each do |name|
+        path = File.join(sysfs, name)
+        FileUtils.mkdir_p(path)
+        File.write(File.join(path, 'enabled'), "1\n")
+        File.write(File.join(path, 'transition'), "0\n")
+      end
+      yield booted, running, expected
+    end
+  end
+
+  it 'monitors the current variant only when its exact boot notes match' do
+    with_livepatch_kernel_configs do
+      collect
+
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
+        { { module: 'livepatch_6_nfs_cancel', patch_version: '6' } => 1.0 }
+      )
+    end
+  end
+
+  it 'monitors the booted generation after an OS switch before reboot' do
+    with_livepatch_kernel_configs do |booted, running, _expected|
+      File.binwrite(running, "old-kernel\x00notes")
+      write_json(booted, { 'module' => 'livepatch_6', 'patchVersion' => 6 })
+      collect
+
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
+        { { module: 'livepatch_6', patch_version: '6' } => 1.0 }
+      )
+      expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+        { { component: 'livepatch' } => 1.0 }
+      )
+    end
+  end
+
+  it 'fails monitoring when neither generation matches the running kernel' do
+    with_livepatch_kernel_configs do |booted, running, expected|
+      File.binwrite(running, "unknown-kernel\x00notes")
+      write_json(booted, { 'module' => 'livepatch_6', 'patchVersion' => 6, 'kernelNotes' => expected })
+      collect
+
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to be_empty
+      expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+        { { component: 'livepatch' } => 0.0 }
+      )
+    end
+  end
+
+  it 'does not accept identical legacy notes for a different boot image' do
+    with_livepatch_kernel_configs do |booted, _running, _expected|
+      cfg = JSON.parse(File.read(described_class::LIVEPATCH_CONFIG_PATH))
+      cfg['kernelImage'] = '/different-kernel-image'
+      write_json(described_class::LIVEPATCH_CONFIG_PATH, cfg)
+      write_json(booted, { 'module' => 'livepatch_6', 'patchVersion' => 6 })
+      collect
+
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
+        { { module: 'livepatch_6', patch_version: '6' } => 1.0 }
+      )
+    end
+  end
+
+  it 'fails monitoring if the boot image cannot be identified' do
+    with_livepatch_kernel_configs do
+      File.unlink(described_class::BOOTED_KERNEL_IMAGE_PATH)
+      collect
+
+      expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+        { { component: 'livepatch' } => 0.0 }
+      )
+    end
+  end
+
+  it 'does not consider empty kernel notes an identity match' do
+    with_livepatch_kernel_configs do |_booted, running, expected|
+      File.binwrite(running, '')
+      File.binwrite(expected, '')
+      collect
+
+      expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+        { { component: 'livepatch' } => 0.0 }
+      )
+    end
+  end
+
   it 'exports kernel livepatch status from sysfs' do
     with_tmpdir do |dir|
       livepatch_config = File.join(dir, 'livepatch.json')

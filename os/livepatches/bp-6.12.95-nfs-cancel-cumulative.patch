@@ -1,0 +1,4704 @@
+diff --git a/arch/x86/entry/entry_64.S b/arch/x86/entry/entry_64.S
+index 9c6a110a52d48c08d185762354bbd23acf5d4233..94d83426796d93167ebf36246c82b2852c29fb37 100644
+--- a/arch/x86/entry/entry_64.S
++++ b/arch/x86/entry/entry_64.S
+@@ -938,0 +939,2 @@ SYM_CODE_START(paranoid_entry)
++	HANDLE_INTR_SAFERET 8(%rsp)
++
+@@ -1040,0 +1043,5 @@ SYM_CODE_START(error_entry)
++
++	VALIDATE_UNRET_END
++
++	HANDLE_INTR_SAFERET 8(%rsp)
++
+@@ -1059 +1065,0 @@ SYM_CODE_START(error_entry)
+-	VALIDATE_UNRET_END
+@@ -1087,0 +1094,83 @@ SYM_CODE_END(error_entry)
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_MITIGATION_SRSO)
++/*
++ * A running kernel cannot grow paranoid_entry() and error_entry() in place.
++ * The cumulative livepatch redirects their existing terminal return-thunk
++ * jumps to the matching stub below.  Keep the interrupted Safe-RET handling
++ * identical to HANDLE_INTR_SAFERET and preserve the selected return thunk.
++ */
++	.pushsection .text.vpsadminos.saferet, "ax"
++SYM_CODE_START(vpsadminos_saferet_paranoid_srso)
++	UNWIND_HINT_FUNC
++	__HANDLE_INTR_SAFERET(srso_safe_ret, 8(%rsp))
++	jmp	srso_return_thunk
++SYM_CODE_END(vpsadminos_saferet_paranoid_srso)
++
++SYM_CODE_START(vpsadminos_saferet_paranoid_alias)
++	UNWIND_HINT_FUNC
++	__HANDLE_INTR_SAFERET(srso_alias_safe_ret, 8(%rsp))
++	jmp	srso_alias_return_thunk
++SYM_CODE_END(vpsadminos_saferet_paranoid_alias)
++
++SYM_CODE_START(vpsadminos_saferet_error_srso)
++	UNWIND_HINT_FUNC
++	__HANDLE_INTR_SAFERET(srso_safe_ret, 8(%rsp))
++	leaq	error_entry-0x16d(%rip), %rcx
++	cmpq	%rcx, RIP+8(%rsp)
++	jne	.Lvpsadminos_saferet_error_srso_done
++	swapgs
++.Lvpsadminos_saferet_error_srso_done:
++	leaq	error_entry+0xc9(%rip), %rax
++	JMP_NOSPEC rax
++SYM_CODE_END(vpsadminos_saferet_error_srso)
++
++SYM_CODE_START(vpsadminos_saferet_error_alias)
++	UNWIND_HINT_FUNC
++	__HANDLE_INTR_SAFERET(srso_alias_safe_ret, 8(%rsp))
++	leaq	error_entry-0x16d(%rip), %rcx
++	cmpq	%rcx, RIP+8(%rsp)
++	jne	.Lvpsadminos_saferet_error_alias_done
++	swapgs
++.Lvpsadminos_saferet_error_alias_done:
++	leaq	error_entry+0xc9(%rip), %rax
++	JMP_NOSPEC rax
++SYM_CODE_END(vpsadminos_saferet_error_alias)
++	.popsection
++
++	/*
++	 * SYM_CODE symbols are STT_NOTYPE and share the non-bundlable
++	 * .entry.text section, so kpatch's STT_FUNC-only function-ignore record
++	 * cannot describe these entries.  The boot-only HANDLE_INTR_SAFERET
++	 * expansion also changes the owning object's alternative-instruction
++	 * metadata and replacement payload.  Ignore all three boot-only sections
++	 * from their owning object and keep the livepatch stubs in the separate
++	 * section above so create-diff-object still bundles them.
++	 */
++	.pushsection .rodata, "a"
++.Lvpsadminos_kpatch_ignore_entry_text:
++	.string ".entry.text"
++.Lvpsadminos_kpatch_ignore_altinstructions:
++	.string ".altinstructions"
++.Lvpsadminos_kpatch_ignore_altinstr_replacement:
++	.string ".altinstr_replacement"
++	.popsection
++
++	.pushsection .kpatch.ignore.sections, "aw"
++	.balign 8
++	.globl __UNIQUE_ID_kpatch_ignore_section_vpsadminos_entry_text
++	.type __UNIQUE_ID_kpatch_ignore_section_vpsadminos_entry_text, @object
++	.size __UNIQUE_ID_kpatch_ignore_section_vpsadminos_entry_text, 8
++__UNIQUE_ID_kpatch_ignore_section_vpsadminos_entry_text:
++	.quad .Lvpsadminos_kpatch_ignore_entry_text
++	.globl __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstructions
++	.type __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstructions, @object
++	.size __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstructions, 8
++__UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstructions:
++	.quad .Lvpsadminos_kpatch_ignore_altinstructions
++	.globl __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstr_replacement
++	.type __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstr_replacement, @object
++	.size __UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstr_replacement, 8
++__UNIQUE_ID_kpatch_ignore_section_vpsadminos_altinstr_replacement:
++	.quad .Lvpsadminos_kpatch_ignore_altinstr_replacement
++	.popsection
++#endif
++
+diff --git a/arch/x86/include/asm/nospec-branch.h b/arch/x86/include/asm/nospec-branch.h
+index f2cc7754918c0d3b663e677f4c8f4df7d31dfa21..c2feb9f733434d5e1f42298d7f7876166a9ee424 100644
+--- a/arch/x86/include/asm/nospec-branch.h
++++ b/arch/x86/include/asm/nospec-branch.h
+@@ -179,0 +180,47 @@
++/*
++ * Helper for detecting if an interrupt occurred at an unsafe location within
++ * Safe-RET.  If Safe-RET is interrupted after the CALL or LEA the RSB may get
++ * poisoned by the interrupt handler.
++ *
++ * The Safe-RET sequence is:
++ *
++ * CALL
++ * LEA 8(%RSP), %RSP
++ * RET
++ *
++ * The two CMPs below check whether RIP points to after the CALL or after the
++ * LEA.
++ *
++ * The LFENCE below is to address this particular speculation case:
++ *
++ * 1. Userspace runs and poisons the BTB around the safe-RET routine
++ *
++ * 2. Userspace triggers some kind of exception
++ *
++ * 3. Kernel executes error_entry() and mis-speculates the branch into thinking
++ *    it actually came from kernel space
++ *
++ * 4. The kernel then further mis-speculates that the exception occurred due
++ *    to an interrupted safe-RET
++ *
++ * 5. The handle_interrupted_saferet() routine speculatively executes and
++ *    speculatively does a safe-RET. But this is unsafe since it was never
++ *    untrained.
++ *
++ * The LFENCE fixes this by ensuring step 5 is never reached speculatively.
++ * Note that this LFENCE only occurs if safe-RET was actually interrupted (so
++ * it's outside of the normal path).
++ *
++ * (The 128 below is RIP offset, used as a naked number here for ease of
++ * backporting).
++ */
++#define __HANDLE_INTR_SAFERET(name, pt_regs)		\
++	cmpq	$(name), 128+pt_regs;			\
++	jb	1f;					\
++	cmpq	$(name)+5, 128+pt_regs;			\
++	ja	1f;					\
++	lfence;						\
++	leaq	pt_regs, %rdi;				\
++	call	handle_interrupted_saferet;		\
++	1:
++
+@@ -308,0 +356,8 @@
++.macro HANDLE_INTR_SAFERET pt_regs
++#ifdef CONFIG_MITIGATION_SRSO
++	ALTERNATIVE_2 "", \
++	__stringify(__HANDLE_INTR_SAFERET(srso_safe_ret, \pt_regs)), X86_FEATURE_SRSO, \
++	__stringify(__HANDLE_INTR_SAFERET(srso_alias_safe_ret, \pt_regs)), X86_FEATURE_SRSO_ALIAS
++
++#endif
++.endm
+@@ -637,0 +693,4 @@ static __always_inline void x86_idle_clear_cpu_buffers(void)
++void srso_safe_ret(void);
++void srso_alias_safe_ret(void);
++void handle_interrupted_saferet(struct pt_regs *regs);
++
+diff --git a/arch/x86/include/asm/text-patching.h b/arch/x86/include/asm/text-patching.h
+index bb3fd7f2c2d4a347020e398994cef7f932e522d9..963dde70ded70ec2c9f1d752faeebcf01fa99a77 100644
+--- a/arch/x86/include/asm/text-patching.h
++++ b/arch/x86/include/asm/text-patching.h
+@@ -34,0 +35 @@ extern void *text_poke(void *addr, const void *opcode, size_t len);
++int text_poke_cmpxchg64(void *addr, u64 old, u64 new);
+diff --git a/arch/x86/include/asm/tlbflush.h b/arch/x86/include/asm/tlbflush.h
+index 3da645139748538daac70166618d8ad95116eb74..fd665bd454e3b0168d558636272bf08d7cd532af 100644
+--- a/arch/x86/include/asm/tlbflush.h
++++ b/arch/x86/include/asm/tlbflush.h
+@@ -247,0 +248,3 @@ extern void flush_tlb_all(void);
++#ifdef CONFIG_LIVEPATCH
++void vpsadminos_livepatch_flush_tlb_all(void);
++#endif
+diff --git a/arch/x86/kernel/alternative.c b/arch/x86/kernel/alternative.c
+index a0550398313d80e264aadcddc9c59534d0b48575..edf593244e867b415424b02dd80b7200abfd83da 100644
+--- a/arch/x86/kernel/alternative.c
++++ b/arch/x86/kernel/alternative.c
+@@ -21,0 +22 @@
++#include <linux/vpsadminos-livepatch.h>
+@@ -22,0 +24 @@
++#include <asm/cmpxchg.h>
+@@ -2085,0 +2088,14 @@ typedef void text_poke_f(void *dst, const void *src, size_t len);
++struct text_poke_cmpxchg64_args {
++	u64 old;
++	u64 new;
++	u64 result;
++};
++
++static void text_poke_cmpxchg64_fn(void *dst, const void *src, size_t len)
++{
++	struct text_poke_cmpxchg64_args *args = (void *)src;
++
++	(void)len;
++	args->result = arch_sync_cmpxchg((u64 *)dst, args->old, args->new);
++}
++
+@@ -2214,0 +2231,43 @@ void *text_poke(void *addr, const void *opcode, size_t len)
++/**
++ * text_poke_cmpxchg64 - Atomically replace one aligned 64-bit text block
++ * @addr: address of the block to modify
++ * @old: exact block value required before the replacement
++ * @new: coherent block value to install
++ *
++ * The caller must hold text_mutex and ensure that both complete block values
++ * are safe to execute.  The block must be naturally aligned and contained in
++ * one page.  Call text_poke_sync() after the complete text transition.
++ */
++int text_poke_cmpxchg64(void *addr, u64 old, u64 new)
++{
++	struct text_poke_cmpxchg64_args args = {
++		.old = old,
++		.new = new,
++	};
++
++	lockdep_assert_held(&text_mutex);
++
++	if (WARN_ON_ONCE(!IS_ALIGNED((unsigned long)addr, sizeof(u64)) ||
++			 offset_in_page(addr) + sizeof(u64) > PAGE_SIZE))
++		return -EINVAL;
++
++	__text_poke(text_poke_cmpxchg64_fn, addr, &args, sizeof(u64));
++
++	return args.result == old ? 0 : -EAGAIN;
++}
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_X86_64)
++int vpsadminos_livepatch_text_poke_cmpxchg64(void *addr, u64 old, u64 new)
++{
++	int ret;
++
++	mutex_lock(&text_mutex);
++	ret = text_poke_cmpxchg64(addr, old, new);
++	if (!ret)
++		text_poke_sync();
++	mutex_unlock(&text_mutex);
++
++	return ret;
++}
++#endif
++
+diff --git a/arch/x86/kernel/cpu/bugs.c b/arch/x86/kernel/cpu/bugs.c
+index 939401b5d2ef04d3cda281ed432f91af9029b63b..ef41ec2cb5d55349d47a88ee89fb0296adb89e98 100644
+--- a/arch/x86/kernel/cpu/bugs.c
++++ b/arch/x86/kernel/cpu/bugs.c
+@@ -18,0 +19,5 @@
++#ifdef CONFIG_LIVEPATCH
++#include <linux/livepatch.h>
++#include <linux/memory.h>
++#include <linux/vpsadminos-livepatch.h>
++#endif
+@@ -33,0 +39,3 @@
++#ifdef CONFIG_LIVEPATCH
++#include <asm/text-patching.h>
++#endif
+@@ -1870,0 +1879,22 @@ static void __init bhi_select_mitigation(void)
++#ifdef CONFIG_BPF_JIT
++void vpsadminos_bpf_jit_ibpb(void);
++
++static void vpsadminos_bpf_jit_ibpb_cpu(void *unused)
++{
++	entry_ibpb();
++}
++
++void vpsadminos_bpf_jit_ibpb(void)
++{
++	if (spectre_v2_enabled == SPECTRE_V2_NONE ||
++	    (boot_cpu_has(X86_FEATURE_RETPOLINE) &&
++	     !boot_cpu_has(X86_FEATURE_RETPOLINE_LFENCE)) ||
++	    !boot_cpu_has(X86_FEATURE_IBPB))
++		return;
++
++	cpus_read_lock();
++	on_each_cpu(vpsadminos_bpf_jit_ibpb_cpu, NULL, 1);
++	cpus_read_unlock();
++}
++#endif
++
+@@ -3485,0 +3516,337 @@ void __warn_thunk(void)
++
++#ifdef CONFIG_MITIGATION_SRSO
++/*
++ * Called during exception/interrupt entry if interrupted during the
++ * safe-RET sequence.  The safe-RET sequence consists of 3 instructions:
++ *
++ *	CALL
++ *	LEA 8(%RSP), %RSP
++ *	RET
++ *
++ * An interrupt after the CALL or after the LEA could potentially lead
++ * to branch predictor poisoning and results in the sequence not being
++ * able to be safely resumed.
++ *
++ * Therefore, modify the regs state as if the remaining part of the
++ * safe-RET sequence executed so the interrupt returns back to the
++ * desired return target, instead of the to the safe-RET sequence.
++ */
++void noinstr handle_interrupted_saferet(struct pt_regs *regs)
++{
++	unsigned long rip = regs->ip;
++
++	if (rip == (unsigned long) srso_safe_ret ||
++	    rip == (unsigned long) srso_alias_safe_ret) {
++	    /* Modify stack pointer as if LEA executed: */
++	    regs->sp += 8;
++	}
++
++	/*
++	 * Adjust registers as if RET executed:
++	 *
++	 * 1. Read the return address off the stack and into rIP:
++	 */
++	regs->ip = *(unsigned long *)(regs->sp);
++
++	/* 2. Pop rIP off the stack: */
++	regs->sp += 8;
++}
++
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_SAFERET_STATE_ID	0x7e7f81cf6f5ca331UL
++#define VPSADMINOS_SAFERET_STATE_VERSION	2
++#define VPSADMINOS_PARANOID_BLOCK_OFFSET	0xe0
++#define VPSADMINOS_PARANOID_JUMP_OFFSET		1
++#define VPSADMINOS_ERROR_BLOCK_OFFSET		0xb8
++
++union vpsadminos_saferet_block {
++	u64 word;
++	u8 text[sizeof(u64)];
++};
++
++static struct klp_state vpsadminos_saferet_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_SAFERET_STATE_ID,
++	.version = VPSADMINOS_SAFERET_STATE_VERSION,
++};
++
++struct vpsadminos_saferet_transition {
++	/* Boot-kernel bytes propagated for final clean removal. */
++	u64 original_paranoid;
++	u64 original_error;
++	/* Current owner's bytes verified by a cumulative successor. */
++	u64 patched_paranoid;
++	u64 patched_error;
++};
++
++static struct vpsadminos_saferet_transition vpsadminos_saferet_transition;
++static struct vpsadminos_saferet_transition *vpsadminos_saferet_predecessor;
++static u64 vpsadminos_saferet_previous_paranoid;
++static u64 vpsadminos_saferet_previous_error;
++static bool vpsadminos_saferet_text_patched;
++
++static void *vpsadminos_saferet_paranoid_site(void)
++{
++	return (void *)((unsigned long)paranoid_entry +
++			VPSADMINOS_PARANOID_BLOCK_OFFSET);
++}
++
++static void *vpsadminos_saferet_error_site(void)
++{
++	return (void *)((unsigned long)error_entry +
++			VPSADMINOS_ERROR_BLOCK_OFFSET);
++}
++
++static int vpsadminos_saferet_make_jump(u8 *text, void *site, void *target)
++{
++	union text_poke_insn insn;
++	s64 displacement = (s64)(unsigned long)target -
++			   ((s64)(unsigned long)site + JMP32_INSN_SIZE);
++
++	if (displacement != (s64)(s32)displacement)
++		return -ERANGE;
++
++	__text_gen_insn(&insn, JMP32_INSN_OPCODE, site, target,
++			JMP32_INSN_SIZE);
++	memcpy(text, insn.text, JMP32_INSN_SIZE);
++	return 0;
++}
++
++static int vpsadminos_saferet_boot_blocks(u8 *paranoid_jump,
++					  union vpsadminos_saferet_block *error)
++{
++	void *paranoid_site = vpsadminos_saferet_paranoid_site();
++	void *paranoid_jump_site =
++		paranoid_site + VPSADMINOS_PARANOID_JUMP_OFFSET;
++
++	if (vpsadminos_saferet_make_jump(paranoid_jump, paranoid_jump_site,
++					 x86_return_thunk))
++		return -ERANGE;
++
++	/* cmpq $error_entry-0x16d, 0x88(%rsp), first aligned word */
++	error->text[0] = 0x48;
++	error->text[1] = 0x81;
++	error->text[2] = 0xbc;
++	error->text[3] = 0x24;
++	error->text[4] = 0x88;
++	error->text[5] = 0x00;
++	error->text[6] = 0x00;
++	error->text[7] = 0x00;
++
++	return 0;
++}
++
++static int vpsadminos_saferet_select_stubs(void **paranoid_stub,
++					   void **error_stub)
++{
++	if (boot_cpu_has(X86_FEATURE_SRSO_ALIAS)) {
++		*paranoid_stub = vpsadminos_saferet_paranoid_alias;
++		*error_stub = vpsadminos_saferet_error_alias;
++		return 1;
++	}
++
++	if (boot_cpu_has(X86_FEATURE_SRSO)) {
++		*paranoid_stub = vpsadminos_saferet_paranoid_srso;
++		*error_stub = vpsadminos_saferet_error_srso;
++		return 1;
++	}
++
++	return 0;
++}
++
++int vpsadminos_saferet_livepatch_pre_patch(void)
++{
++	struct vpsadminos_saferet_transition *prev_transition = NULL;
++	struct klp_state *prev_state;
++	union vpsadminos_saferet_block expected_paranoid = {};
++	union vpsadminos_saferet_block expected_error = {};
++	union vpsadminos_saferet_block patched_paranoid;
++	union vpsadminos_saferet_block patched_error;
++	u8 expected_paranoid_jump[JMP32_INSN_SIZE];
++	u8 patched_paranoid_jump[JMP32_INSN_SIZE];
++	u64 original_paranoid;
++	u64 original_error;
++	void *paranoid_site = vpsadminos_saferet_paranoid_site();
++	void *error_site = vpsadminos_saferet_error_site();
++	void *paranoid_jump_site =
++		paranoid_site + VPSADMINOS_PARANOID_JUMP_OFFSET;
++	void *paranoid_stub;
++	void *error_stub;
++	int rollback_ret;
++	int ret;
++
++	if (!vpsadminos_saferet_select_stubs(&paranoid_stub, &error_stub))
++		return 0;
++
++	if (vpsadminos_saferet_text_patched)
++		return -EBUSY;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_SAFERET_STATE_ID);
++	if (prev_state) {
++		if (prev_state->version == 1) {
++			if (READ_ONCE(prev_state->data)) {
++				pr_err("livepatch Safe-RET v1 active state is incompatible\n");
++				return -EINVAL;
++			}
++		} else if (prev_state->version ==
++			   VPSADMINOS_SAFERET_STATE_VERSION) {
++			prev_transition = READ_ONCE(prev_state->data);
++		} else {
++			pr_err("livepatch Safe-RET predecessor state version %u is incompatible\n",
++			       prev_state->version);
++			return -EINVAL;
++		}
++	}
++
++	if (prev_transition) {
++		expected_paranoid.word =
++			READ_ONCE(prev_transition->patched_paranoid);
++		expected_error.word = READ_ONCE(prev_transition->patched_error);
++		original_paranoid = READ_ONCE(prev_transition->original_paranoid);
++		original_error = READ_ONCE(prev_transition->original_error);
++	} else {
++		ret = vpsadminos_saferet_boot_blocks(expected_paranoid_jump,
++						     &expected_error);
++		if (ret)
++			return ret;
++
++		original_error = expected_error.word;
++	}
++
++	ret = vpsadminos_saferet_make_jump(patched_paranoid_jump,
++					   paranoid_jump_site, paranoid_stub);
++	if (ret)
++		return ret;
++	memset(patched_error.text, 0x90, sizeof(patched_error.text));
++	ret = vpsadminos_saferet_make_jump(patched_error.text, error_site,
++					   error_stub);
++	if (ret)
++		return ret;
++
++	mutex_lock(&text_mutex);
++	if (!prev_transition) {
++		/*
++		 * The byte immediately before the return-thunk jump belongs to
++		 * HANDLE_INTR_SAFERET's runtime-selected alternative. Preserve
++		 * that byte, and the padding after the jump, while requiring the
++		 * complete five-byte boot jump to have the expected target.
++		 */
++		expected_paranoid.word = READ_ONCE(*(u64 *)paranoid_site);
++		if (memcmp(expected_paranoid.text +
++			   VPSADMINOS_PARANOID_JUMP_OFFSET,
++			   expected_paranoid_jump, JMP32_INSN_SIZE)) {
++			pr_err("livepatch Safe-RET paranoid jump does not match 6.12.95\n");
++			ret = -EINVAL;
++			goto unlock;
++		}
++		original_paranoid = expected_paranoid.word;
++	}
++
++	patched_paranoid = expected_paranoid;
++	memcpy(patched_paranoid.text + VPSADMINOS_PARANOID_JUMP_OFFSET,
++	       patched_paranoid_jump, JMP32_INSN_SIZE);
++
++	vpsadminos_saferet_previous_paranoid = expected_paranoid.word;
++	vpsadminos_saferet_previous_error = expected_error.word;
++	vpsadminos_saferet_transition.original_paranoid = original_paranoid;
++	vpsadminos_saferet_transition.original_error = original_error;
++	vpsadminos_saferet_transition.patched_paranoid = patched_paranoid.word;
++	vpsadminos_saferet_transition.patched_error = patched_error.word;
++	vpsadminos_saferet_predecessor = prev_transition;
++
++	ret = text_poke_cmpxchg64(paranoid_site, expected_paranoid.word,
++				  patched_paranoid.word);
++	if (ret) {
++		pr_err("livepatch Safe-RET paranoid text does not match 6.12.95\n");
++		goto unlock;
++	}
++
++	ret = text_poke_cmpxchg64(error_site, expected_error.word,
++				  patched_error.word);
++	if (ret) {
++		rollback_ret = text_poke_cmpxchg64(paranoid_site,
++						   patched_paranoid.word,
++						   expected_paranoid.word);
++		text_poke_sync();
++		if (rollback_ret)
++			panic("livepatch Safe-RET cannot roll back paranoid_entry text");
++		pr_err("livepatch Safe-RET error text does not match 6.12.95\n");
++		goto unlock;
++	}
++
++	text_poke_sync();
++	vpsadminos_saferet_text_patched = true;
++	ret = 0;
++
++unlock:
++	mutex_unlock(&text_mutex);
++	return ret;
++}
++
++void vpsadminos_saferet_livepatch_post_patch(void)
++{
++	struct klp_state *prev_state;
++
++	if (!vpsadminos_saferet_text_patched)
++		return;
++
++	WRITE_ONCE(vpsadminos_saferet_state.data,
++		   &vpsadminos_saferet_transition);
++	prev_state = klp_get_prev_state(VPSADMINOS_SAFERET_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == vpsadminos_saferet_predecessor)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++void vpsadminos_saferet_livepatch_post_unpatch(void)
++{
++	u64 restore_paranoid;
++	u64 restore_error;
++	bool committed;
++	void *paranoid_site = vpsadminos_saferet_paranoid_site();
++	void *error_site = vpsadminos_saferet_error_site();
++	int rollback_ret;
++	int ret;
++
++	committed = READ_ONCE(vpsadminos_saferet_state.data) ==
++		    &vpsadminos_saferet_transition;
++	if (!vpsadminos_saferet_text_patched)
++		return;
++
++	if (committed) {
++		restore_paranoid =
++			vpsadminos_saferet_transition.original_paranoid;
++		restore_error = vpsadminos_saferet_transition.original_error;
++	} else {
++		restore_paranoid = vpsadminos_saferet_previous_paranoid;
++		restore_error = vpsadminos_saferet_previous_error;
++	}
++
++	mutex_lock(&text_mutex);
++	ret = text_poke_cmpxchg64(paranoid_site,
++				  vpsadminos_saferet_transition.patched_paranoid,
++				  restore_paranoid);
++	if (ret)
++		panic("livepatch Safe-RET cannot safely restore paranoid_entry text");
++
++	ret = text_poke_cmpxchg64(error_site,
++				  vpsadminos_saferet_transition.patched_error,
++				  restore_error);
++	if (ret) {
++		rollback_ret = text_poke_cmpxchg64(paranoid_site, restore_paranoid,
++						   vpsadminos_saferet_transition.patched_paranoid);
++		text_poke_sync();
++		if (rollback_ret)
++			panic("livepatch Safe-RET cannot retain or restore entry text");
++		panic("livepatch Safe-RET cannot safely restore error_entry text");
++	}
++
++	text_poke_sync();
++	vpsadminos_saferet_text_patched = false;
++	vpsadminos_saferet_predecessor = NULL;
++	WRITE_ONCE(vpsadminos_saferet_state.data, NULL);
++	mutex_unlock(&text_mutex);
++}
++#endif /* CONFIG_LIVEPATCH */
++#endif /* CONFIG_MITIGATION_SRSO */
+diff --git a/arch/x86/kvm/mmu/mmu.c b/arch/x86/kvm/mmu/mmu.c
+index aab26f90c28551d57e57949b3194697374957684..ad17b84aee06bfe0d0daf8745753e3ebbe5102b4 100644
+--- a/arch/x86/kvm/mmu/mmu.c
++++ b/arch/x86/kvm/mmu/mmu.c
+@@ -4604 +4603,0 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
+-	r = RET_PF_RETRY;
+@@ -4607,3 +4605,0 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
+-	if (is_page_fault_stale(vcpu, fault))
+-		goto out_unlock;
+-
+@@ -4613,0 +4610,5 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
++	if (is_page_fault_stale(vcpu, fault)) {
++		r = RET_PF_RETRY;
++		goto out_unlock;
++	}
++
+diff --git a/arch/x86/kvm/mmu/paging_tmpl.h b/arch/x86/kvm/mmu/paging_tmpl.h
+index b08017683920f026a2985df73130e0cb2194fc94..ce467bc3383c99c617a112f1b2ebe9663a2bc3a3 100644
+--- a/arch/x86/kvm/mmu/paging_tmpl.h
++++ b/arch/x86/kvm/mmu/paging_tmpl.h
+@@ -842 +841,0 @@ static int FNAME(page_fault)(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
+-	r = RET_PF_RETRY;
+@@ -845,3 +843,0 @@ static int FNAME(page_fault)(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
+-	if (is_page_fault_stale(vcpu, fault))
+-		goto out_unlock;
+-
+@@ -850,0 +847,6 @@ static int FNAME(page_fault)(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
++
++	if (is_page_fault_stale(vcpu, fault)) {
++		r = RET_PF_RETRY;
++		goto out_unlock;
++	}
++
+diff --git a/arch/x86/kvm/svm/avic.c b/arch/x86/kvm/svm/avic.c
+index 9e1fccb39eab6070a231b31973872dde9f16ce83..744a72d11ed95ca3f83dde27c2cfaeb27d31c9fa 100644
+--- a/arch/x86/kvm/svm/avic.c
++++ b/arch/x86/kvm/svm/avic.c
+@@ -170,8 +169,0 @@ static void avic_deactivate_vmcb(struct vcpu_svm *svm)
+-	/*
+-	 * If running nested and the guest uses its own MSR bitmap, there
+-	 * is no need to update L0's msr bitmap
+-	 */
+-	if (is_guest_mode(&svm->vcpu) &&
+-	    vmcb12_is_intercept(&svm->nested.ctl, INTERCEPT_MSR_PROT))
+-		return;
+-
+diff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c
+index 83062c98308f27e362c19d79f36a2d8d5904f177..8804686fe1805c78292bc12c1745cfa758f4692d 100644
+--- a/arch/x86/kvm/svm/svm.c
++++ b/arch/x86/kvm/svm/svm.c
+@@ -30,0 +31,3 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/livepatch.h>
++#endif
+@@ -251,0 +255,40 @@ DEFINE_PER_CPU(struct svm_cpu_data, svm_data);
++#ifdef CONFIG_LIVEPATCH
++struct vpsadminos_svm_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_svm_pre_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++static void vpsadminos_svm_bump_asid_generation_cpu(void *unused)
++{
++	struct svm_cpu_data *sd = this_cpu_ptr(&svm_data);
++
++	(void)unused;
++	sd->asid_generation++;
++}
++
++static void vpsadminos_svm_bump_asid_generation(struct klp_object *obj)
++{
++	(void)obj;
++	on_each_cpu(vpsadminos_svm_bump_asid_generation_cpu, NULL, 1);
++}
++
++static struct vpsadminos_svm_post_patch_callback
++vpsadminos_svm_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_svm_bump_asid_generation,
++	.objname = NULL,
++};
++
++static struct vpsadminos_svm_pre_unpatch_callback
++vpsadminos_svm_pre_unpatch_data
++__section(".kpatch.callbacks.pre_unpatch") __used = {
++	.fn = vpsadminos_svm_bump_asid_generation,
++	.objname = NULL,
++};
++#endif
++
+@@ -629 +672,6 @@ static int svm_enable_virtualization_cpu(void)
+-	sd->asid_generation = 1;
++	/*
++	 * Bump the current asid_generation value to ensure any vCPU that
++	 * previously ran on this CPU sees a stale generation and is forced
++	 * to acquire a new ASID, preventing a latent ASID collision.
++	 */
++	sd->asid_generation++;
+@@ -4357,0 +4406,12 @@ static __no_kcsan fastpath_t svm_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
++	/*
++	 * A vCPU may have had AVIC inhibited while running L2 before this
++	 * livepatch was activated, leaving L0's x2APIC MSR bitmap permissive.
++	 * Repair the cached bitmap before any subsequent VMRUN of L1 or L2.
++	 * Expand kvm_vcpu_apicv_active() with static_key_enabled() because a
++	 * livepatch replacement cannot carry a module-owned jump-label site.
++	 */
++	if (!((!static_key_enabled(&kvm_has_noapic_vcpu) || vcpu->arch.apic) &&
++	      vcpu->arch.apic->apicv_active) &&
++	    !svm->x2avic_msrs_intercepted)
++		svm_set_x2apic_msr_interception(svm, true);
++
+diff --git a/arch/x86/kvm/vmx/nested.c b/arch/x86/kvm/vmx/nested.c
+index 1a7a12af4a3a847d0472012f808d99ee8c9d626a..40078d5e6b29173f71f13edca5e53337ba18f514 100644
+--- a/arch/x86/kvm/vmx/nested.c
++++ b/arch/x86/kvm/vmx/nested.c
+@@ -327,0 +328 @@ static void free_nested(struct kvm_vcpu *vcpu)
++	struct vmcs *shadow_vmcs;
+@@ -345,2 +346,7 @@ static void free_nested(struct kvm_vcpu *vcpu)
+-		vmcs_clear(vmx->vmcs01.shadow_vmcs);
+-		free_vmcs(vmx->vmcs01.shadow_vmcs);
++
++		/*
++		 * Keep the pointer visible until after VMCLEAR, so migration
++		 * can clear an active shadow VMCS on the old CPU.
++		 */
++		shadow_vmcs = vmx->vmcs01.shadow_vmcs;
++		vmcs_clear(shadow_vmcs);
+@@ -347,0 +354 @@ static void free_nested(struct kvm_vcpu *vcpu)
++		free_vmcs(shadow_vmcs);
+diff --git a/arch/x86/lib/retpoline.S b/arch/x86/lib/retpoline.S
+index 614fb9aee2ff65c36db2d3bfb4450780e091ea9f..bc66ce29ccc8b5c9ff56ae0e5c89b696276b4f6d 100644
+--- a/arch/x86/lib/retpoline.S
++++ b/arch/x86/lib/retpoline.S
+@@ -170,0 +171,11 @@ SYM_CODE_START_NOALIGN(srso_alias_safe_ret)
++
++	/*
++	 * Tell objtool that those are not function pointers referenced by
++	 * __HANDLE_INTR_SAFERET(). Below too.
++	 */
++	ANNOTATE_NOENDBR
++
++	/*
++	 * Safe-RET sequence. If you need to change it, adjust
++	 * handle_interrupted_saferet() too.
++	 */
+@@ -172,0 +184,2 @@ SYM_CODE_START_NOALIGN(srso_alias_safe_ret)
++
++	ANNOTATE_NOENDBR
+@@ -174,0 +188 @@ SYM_CODE_START_NOALIGN(srso_alias_safe_ret)
++	/* End of Safe-RET sequence */
+@@ -208,0 +223,4 @@ SYM_INNER_LABEL(srso_safe_ret, SYM_L_GLOBAL)
++	/*
++	 * Safe-RET sequence. If you need to change it, adjust
++	 * handle_interrupted_saferet() too.
++	 */
+@@ -210,0 +229,2 @@ SYM_INNER_LABEL(srso_safe_ret, SYM_L_GLOBAL)
++	/* End of Safe-RET sequence */
++
+diff --git a/arch/x86/mm/tlb.c b/arch/x86/mm/tlb.c
+index 8629d90fdcd922c4dbe55e809d06e4a3354af700..d6bfdb2d087c8f93ceba2430efe948bf24d46bef 100644
+--- a/arch/x86/mm/tlb.c
++++ b/arch/x86/mm/tlb.c
+@@ -608,0 +609,8 @@ void switch_mm_irqs_off(struct mm_struct *unused, struct mm_struct *next,
++		/*
++		 * Indicate that CR3 is about to change. nmi_uaccess_okay()
++		 * and others are sensitive to the window where mm_cpumask(),
++		 * CR3 and cpu_tlbstate.loaded_mm are not all in sync.
++		 */
++		this_cpu_write(cpu_tlbstate.loaded_mm, LOADED_MM_SWITCHING);
++		barrier();
++
+@@ -626,8 +633,0 @@ void switch_mm_irqs_off(struct mm_struct *unused, struct mm_struct *next,
+-
+-		/*
+-		 * Indicate that CR3 is about to change. nmi_uaccess_okay()
+-		 * and others are sensitive to the window where mm_cpumask(),
+-		 * CR3 and cpu_tlbstate.loaded_mm are not all in sync.
+- 		 */
+-		this_cpu_write(cpu_tlbstate.loaded_mm, LOADED_MM_SWITCHING);
+-		barrier();
+@@ -1098,0 +1099,16 @@ void flush_tlb_all(void)
++#ifdef CONFIG_LIVEPATCH
++/*
++ * A livepatch can replace switch_mm_irqs_off() only after vulnerable calls
++ * have already missed a shootdown.  Once the replacement is active across
++ * all tasks, discard every such stale translation.  Keep the online mask
++ * stable so that no CPU can come online without either receiving this IPI or
++ * taking the normal hotplug TLB reinitialization path afterward.
++ */
++void vpsadminos_livepatch_flush_tlb_all(void)
++{
++	cpus_read_lock();
++	flush_tlb_all();
++	cpus_read_unlock();
++}
++#endif
++
+diff --git a/block/blk-mq.c b/block/blk-mq.c
+index 5bfaa8e4b9cf67df812d609360d5da8eb4c8c1b7..6af42682af7d629a3bca347558944011c790336e 100644
+--- a/block/blk-mq.c
++++ b/block/blk-mq.c
+@@ -2992 +2992 @@ static struct request *blk_mq_get_new_requests(struct request_queue *q,
+-static struct request *blk_mq_peek_cached_request(struct blk_plug *plug,
++static struct request *blk_mq_get_cached_request(struct blk_plug *plug,
+@@ -3007,0 +3008 @@ static struct request *blk_mq_peek_cached_request(struct blk_plug *plug,
++	rq_list_pop(&plug->cached_rqs);
+@@ -3011,18 +3011,0 @@ static struct request *blk_mq_peek_cached_request(struct blk_plug *plug,
+-static void blk_mq_use_cached_rq(struct request *rq, struct blk_plug *plug,
+-		struct bio *bio)
+-{
+-	if (rq_list_pop(&plug->cached_rqs) != rq)
+-		WARN_ON_ONCE(1);
+-
+-	/*
+-	 * If any qos ->throttle() end up blocking, we will have flushed the
+-	 * plug and hence killed the cached_rq list as well. Pop this entry
+-	 * before we throttle.
+-	 */
+-	rq_qos_throttle(rq->q, bio);
+-
+-	blk_mq_rq_time_init(rq, 0);
+-	rq->cmd_flags = bio->bi_opf;
+-	INIT_LIST_HEAD(&rq->queuelist);
+-}
+-
+@@ -3066 +3049 @@ void blk_mq_submit_bio(struct bio *bio)
+-	rq = blk_mq_peek_cached_request(plug, q, bio->bi_opf);
++	rq = blk_mq_get_cached_request(plug, q, bio->bi_opf);
+@@ -3124 +3107,6 @@ void blk_mq_submit_bio(struct bio *bio)
+-	if (!rq) {
++	if (rq) {
++		rq_qos_throttle(rq->q, bio);
++		blk_mq_rq_time_init(rq, blk_time_get_ns());
++		rq->cmd_flags = bio->bi_opf;
++		INIT_LIST_HEAD(&rq->queuelist);
++	} else {
+@@ -3128,2 +3115,0 @@ void blk_mq_submit_bio(struct bio *bio)
+-	} else {
+-		blk_mq_use_cached_rq(rq, plug, bio);
+@@ -3168,4 +3153,0 @@ void blk_mq_submit_bio(struct bio *bio)
+-	/*
+-	 * Don't drop the queue reference if we were trying to use a cached
+-	 * request and thus didn't acquire one.
+-	 */
+@@ -3173,0 +3156,2 @@ void blk_mq_submit_bio(struct bio *bio)
++	else
++		rq_list_add_head(&plug->cached_rqs, rq);
+diff --git a/drivers/net/ppp/ppp_generic.c b/drivers/net/ppp/ppp_generic.c
+index c70994c6a265e3c29c5dfa3914812b9972410ecf..4f48d426209e40c33cc05e479ea4e42122869a54 100644
+--- a/drivers/net/ppp/ppp_generic.c
++++ b/drivers/net/ppp/ppp_generic.c
+@@ -3572,0 +3573,2 @@ static void ppp_destroy_channel(struct channel *pch)
++	/* A late ppp_input() may still queue an skb on pch->file.rq. */
++	synchronize_rcu();
+diff --git a/drivers/net/vxlan/vxlan_core.c b/drivers/net/vxlan/vxlan_core.c
+index 765d25eee2fe4883a634ac8fd11bb2f85f727943..fa01b04a02afcca66d0d72eeaf0269f314efab4f 100644
+--- a/drivers/net/vxlan/vxlan_core.c
++++ b/drivers/net/vxlan/vxlan_core.c
+@@ -2945,0 +2946 @@ static void vxlan_uninit(struct net_device *dev)
++	del_timer_sync(&vxlan->age_timer);
+@@ -4451 +4452 @@ static int vxlan_changelink(struct net_device *dev, struct nlattr *tb[],
+-	if (conf.age_interval != vxlan->cfg.age_interval)
++	if (netif_running(dev) && conf.age_interval != vxlan->cfg.age_interval)
+diff --git a/fs/ceph/caps.c b/fs/ceph/caps.c
+index bed34fc11c9195d926d400524b5d1ba055a5d602..52e02996d2eb61d82045c6a4bfce1a8d6c2e2630 100644
+--- a/fs/ceph/caps.c
++++ b/fs/ceph/caps.c
+@@ -4380,0 +4381 @@ void ceph_handle_caps(struct ceph_mds_session *session,
++	ceph_decode_need(&snaptrace, end, snaptrace_len, bad);
+diff --git a/fs/fuse/dev.c b/fs/fuse/dev.c
+index f7e305c9ad4e8be3320d5fe38da833125529f0c5..bd3e321572c7e07c7256ffe031e712d605b3f39f 100644
+--- a/fs/fuse/dev.c
++++ b/fs/fuse/dev.c
+@@ -68,0 +69,13 @@ static void fuse_request_free(struct fuse_req *req)
++	struct fuse_iqueue *fiq = &req->fm->fc->iq;
++
++	/*
++	 * A request resent before a livepatch transition can still have its
++	 * interrupt entry linked after the old pending-removal path drops the
++	 * queue reference.  Serialize with interrupt dequeue before freeing it.
++	 */
++	if (test_bit(FR_INTERRUPTED, &req->flags)) {
++		spin_lock(&fiq->lock);
++		list_del_init(&req->intr_entry);
++		spin_unlock(&fiq->lock);
++	}
++	WARN_ON(!list_empty(&req->intr_entry));
+@@ -963 +976 @@ static int fuse_ref_page(struct fuse_copy_state *cs, struct page *page,
+-	return 0;
++	return lock_request(cs->req);
+@@ -1883,0 +1897,8 @@ static void fuse_resend(struct fuse_conn *fc)
++	/*
++	 * Remove interrupt entries for resent requests to prevent stale
++	 * intr_entry on fiq->interrupts after the request is re-queued.
++	 */
++	list_for_each_entry(req, &to_queue, list) {
++		if (test_bit(FR_INTERRUPTED, &req->flags))
++			list_del_init(&req->intr_entry);
++	}
+diff --git a/include/linux/inetdevice.h b/include/linux/inetdevice.h
+index 9c0f263e2cd2884248f11b1965e3f6eb2477f236..d1a51865fc2a54e2ddfeee3ad3175e201542b590 100644
+--- a/include/linux/inetdevice.h
++++ b/include/linux/inetdevice.h
+@@ -286,0 +287,5 @@ static inline void in_dev_put(struct in_device *idev)
++static inline bool in_dev_hold_safe(struct in_device *idev)
++{
++	return refcount_inc_not_zero(&idev->refcnt);
++}
++
+diff --git a/include/linux/netdevice.h b/include/linux/netdevice.h
+index ea9b40b196de2883cd7cc4127c4ebafb5aeaede6..694a7806e603db36bf9f2a63aba2c4d2e79136eb 100644
+--- a/include/linux/netdevice.h
++++ b/include/linux/netdevice.h
+@@ -300,2 +300,2 @@ struct hh_cache {
+-#define LL_RESERVED_SPACE(dev) \
+-	((((dev)->hard_header_len + READ_ONCE((dev)->needed_headroom)) \
++#define LL_RESERVED_SPACE_EX(dev, hlen) \
++	((((hlen) + READ_ONCE((dev)->needed_headroom)) \
+@@ -302,0 +303,2 @@ struct hh_cache {
++#define LL_RESERVED_SPACE(dev) \
++	LL_RESERVED_SPACE_EX(dev, (dev)->hard_header_len)
+diff --git a/include/linux/netfilter/nf_conntrack_sip.h b/include/linux/netfilter/nf_conntrack_sip.h
+index dbc614dfe0d5652f4de9594a3327c9bfabfc4eed..aafa0c04f917ebec565be614e226aaeee96934c4 100644
+--- a/include/linux/netfilter/nf_conntrack_sip.h
++++ b/include/linux/netfilter/nf_conntrack_sip.h
+@@ -118 +118 @@ struct nf_nat_sip_hooks {
+-			   unsigned int protoff, s16 off);
++			   unsigned int protoff, s32 off);
+diff --git a/include/linux/netfilter/nfnetlink.h b/include/linux/netfilter/nfnetlink.h
+index e9a9ab34a7ccc35db2b355cdd281d40935d1f044..5c80b94467a15a9902bfdbc9d4dbebb197781117 100644
+--- a/include/linux/netfilter/nfnetlink.h
++++ b/include/linux/netfilter/nfnetlink.h
+@@ -52,0 +53,3 @@ int nfnetlink_subsys_unregister(const struct nfnetlink_subsystem *n);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_nfnl_try_unregister(const struct nfnetlink_subsystem *n);
++#endif
+diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
+new file mode 100644
+--- /dev/null
++++ b/include/linux/vpsadminos-livepatch.h
+@@ -0,0 +1,90 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
++#define _LINUX_VPSADMINOS_LIVEPATCH_H
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_XFRM)
++int vpsadminos_xfrm_livepatch_pre_patch(void);
++void vpsadminos_xfrm_livepatch_post_patch(void);
++void vpsadminos_xfrm_livepatch_pre_unpatch(void);
++#else
++static inline int vpsadminos_xfrm_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_xfrm_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_xfrm_livepatch_pre_unpatch(void)
++{
++}
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_NETFILTER)
++void vpsadminos_nfqueue_livepatch_post_patch(void);
++void vpsadminos_nfqueue_livepatch_post_unpatch(void);
++#else
++static inline void vpsadminos_nfqueue_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_nfqueue_livepatch_post_unpatch(void)
++{
++}
++#endif
++
++#ifdef CONFIG_LIVEPATCH
++void vpsadminos_pipapo_livepatch_cleanup(void);
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_X86_64)
++struct rhashtable_iter;
++
++int vpsadminos_livepatch_text_poke_cmpxchg64(void *addr, u64 old, u64 new);
++int vpsadminos_rhashtable_walk_start_check(struct rhashtable_iter *iter);
++int vpsadminos_rhashtable_livepatch_pre_patch(void);
++void vpsadminos_rhashtable_livepatch_post_patch(void);
++void vpsadminos_rhashtable_livepatch_post_unpatch(void);
++#else
++static inline int vpsadminos_rhashtable_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_rhashtable_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_rhashtable_livepatch_post_unpatch(void)
++{
++}
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_X86) && \
++	defined(CONFIG_MITIGATION_SRSO)
++void error_entry(void);
++void paranoid_entry(void);
++void vpsadminos_saferet_paranoid_srso(void);
++void vpsadminos_saferet_paranoid_alias(void);
++void vpsadminos_saferet_error_srso(void);
++void vpsadminos_saferet_error_alias(void);
++int vpsadminos_saferet_livepatch_pre_patch(void);
++void vpsadminos_saferet_livepatch_post_patch(void);
++void vpsadminos_saferet_livepatch_post_unpatch(void);
++#else
++static inline int vpsadminos_saferet_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_saferet_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_saferet_livepatch_post_unpatch(void)
++{
++}
++#endif
++
++#endif
+diff --git a/include/net/addrconf.h b/include/net/addrconf.h
+index 363dd63babe72f67f2b494bcf7fc0fd5153c6f3a..135a927407e5206df6631605d61c07af3b88f239 100644
+--- a/include/net/addrconf.h
++++ b/include/net/addrconf.h
+@@ -371 +371 @@ static inline struct inet6_dev *__in6_dev_get_safely(const struct net_device *de
+-static inline struct inet6_dev *in6_dev_get(const struct net_device *dev)
++static __always_inline struct inet6_dev *in6_dev_get(const struct net_device *dev)
+@@ -377,2 +377,2 @@ static inline struct inet6_dev *in6_dev_get(const struct net_device *dev)
+-	if (idev)
+-		refcount_inc(&idev->refcnt);
++	if (idev && !refcount_inc_not_zero(&idev->refcnt))
++		idev = NULL;
+@@ -417,0 +418,5 @@ static inline void in6_dev_hold(struct inet6_dev *idev)
++static inline bool in6_dev_hold_safe(struct inet6_dev *idev)
++{
++	return refcount_inc_not_zero(&idev->refcnt);
++}
++
+diff --git a/include/net/ip_vs.h b/include/net/ip_vs.h
+index d70268cf1af82e39e46b474e199950202c0c02ca..80110ec025002a99c274803203c2217d0fed055f 100644
+--- a/include/net/ip_vs.h
++++ b/include/net/ip_vs.h
+@@ -26,0 +27 @@
++#include <net/route.h>
+@@ -27,0 +29 @@
++#include <net/ip6_fib.h>
+@@ -519 +521,2 @@ struct ip_vs_protocol {
+-				 struct ip_vs_proto_data *pd);
++				 struct ip_vs_proto_data *pd,
++				 unsigned int iph_len);
+@@ -1626,2 +1629,2 @@ int ip_vs_icmp_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-		    struct ip_vs_protocol *pp, int offset,
+-		    unsigned int hooknum, struct ip_vs_iphdr *iph);
++		    struct ip_vs_protocol *pp, unsigned int toff,
++		    unsigned int hooknum, struct ip_vs_iphdr *ciph);
+@@ -1640,2 +1643,2 @@ int ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
+-		       struct ip_vs_protocol *pp, int offset,
+-		       unsigned int hooknum, struct ip_vs_iphdr *iph);
++		       struct ip_vs_protocol *pp, unsigned int toff,
++		       unsigned int hooknum, struct ip_vs_iphdr *ciph);
+@@ -1706 +1709,2 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		    struct ip_vs_conn *cp, int dir);
++		    struct ip_vs_conn *cp, int dir, unsigned int toff,
++		    bool has_ports, struct ip_vs_iphdr *ciph);
+@@ -1710 +1714,2 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		       struct ip_vs_conn *cp, int dir);
++		       struct ip_vs_conn *cp, int dir, unsigned int toff,
++		       bool has_ports, struct ip_vs_iphdr *ciph);
+@@ -1713,2 +1717,0 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-__sum16 ip_vs_checksum_complete(struct sk_buff *skb, int offset);
+-
+@@ -1739,0 +1743,27 @@ static inline __wsum ip_vs_check_diff2(__be16 old, __be16 new, __wsum oldsum)
++static inline bool ip_vs_checksum_needed(struct sk_buff *skb, int af)
++{
++	/* Checksum unnecessary or already validated? */
++	if (skb_csum_unnecessary(skb))
++		return false;
++	/* LOCAL_OUT ? */
++	if (!skb->dev || skb->dev->flags & IFF_LOOPBACK)
++		return false;
++	/* !LOCAL_IN (FORWARD) ? */
++	if (af == AF_INET6) {
++		if (!(dst_rt6_info(skb_dst(skb))->rt6i_flags & RTF_LOCAL))
++			return false;
++	} else {
++		if (!(skb_rtable(skb)->rt_flags & RTCF_LOCAL))
++			return false;
++	}
++	return true;
++}
++
++static inline bool ip_vs_checksum_common_check(struct sk_buff *skb,
++					       int offset, int proto, int af)
++{
++	if (!ip_vs_checksum_needed(skb, af))
++		return true;
++	return !nf_checksum(skb, NF_INET_LOCAL_IN, offset, proto, af);
++}
++
+diff --git a/include/net/neighbour.h b/include/net/neighbour.h
+index cb5f835a5d61b4f883282c647d37abb3c134d3c0..0272d0f0e89d6b59ed74d7a94d2290ddc2afb498 100644
+--- a/include/net/neighbour.h
++++ b/include/net/neighbour.h
+@@ -479 +479,6 @@ static inline int neigh_hh_bridge(struct hh_cache *hh, struct sk_buff *skb)
+-	unsigned int seq, hh_alen;
++	unsigned int seq, hh_alen = HH_DATA_ALIGN(ETH_HLEN);
++	int err;
++
++	err = skb_cow_head(skb, hh_alen);
++	if (err)
++		return err;
+@@ -483 +487,0 @@ static inline int neigh_hh_bridge(struct hh_cache *hh, struct sk_buff *skb)
+-		hh_alen = HH_DATA_ALIGN(ETH_HLEN);
+diff --git a/include/net/net_namespace.h b/include/net/net_namespace.h
+index 7ee37be62005852df283fdc315b7e5ea40db93c4..637db952987961fc1f796f99be404946b319128c 100644
+--- a/include/net/net_namespace.h
++++ b/include/net/net_namespace.h
+@@ -498,0 +499,3 @@ void unregister_pernet_device(struct pernet_operations *);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_pernet_try_register(struct pernet_operations *ops);
++#endif
+diff --git a/include/net/netfilter/nf_queue.h b/include/net/netfilter/nf_queue.h
+index 3978c3174cdbe0c2329fe4dde28342e619c96d8b..9d080ec1382d6b35be77f8a733f9986233e5dc06 100644
+--- a/include/net/netfilter/nf_queue.h
++++ b/include/net/netfilter/nf_queue.h
+@@ -20,0 +21,3 @@ struct nf_queue_entry {
++#if !defined(CONFIG_LIVEPATCH)
++	struct net_device	*bridge_dev;
++#endif
+@@ -30,0 +34,4 @@ struct nf_queue_entry {
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID	0xc0318879138399d1UL
++#endif
++
+diff --git a/include/net/route.h b/include/net/route.h
+index cbb4d55230627c85befa48ff61efb6c679a42c38..76f526e051aa36e3ae33ee37bd8c8c2e19ef9ba6 100644
+--- a/include/net/route.h
++++ b/include/net/route.h
+@@ -260,0 +261,2 @@ int fib_dump_info_fnhe(struct sk_buff *skb, struct netlink_callback *cb,
++void fnhe_update_pmtu(struct fib_nh_exception *fnhe, u32 new, u32 orig);
++
+diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
+--- a/kernel/bpf/core.c
++++ b/kernel/bpf/core.c
+@@ -38,9 +38,17 @@
+ #include <linux/bpf_mem_alloc.h>
+ #include <linux/memcontrol.h>
+ #include <linux/execmem.h>
++#include <linux/vpsadminos-livepatch.h>
++#ifdef CONFIG_LIVEPATCH
++#include <linux/livepatch.h>
++#endif
+ 
+ #include <asm/barrier.h>
+ #include <linux/unaligned.h>
++
++#ifdef CONFIG_X86
++#include <asm/tlbflush.h>
++#endif
+ 
+ /* Registers */
+ #define BPF_R0	regs[BPF_REG_0]
+@@ -892,6 +900,164 @@
+ 	memset(area, 0, size);
+ }
+ 
++#if defined(CONFIG_X86) && defined(CONFIG_BPF_JIT)
++void vpsadminos_bpf_jit_ibpb(void);
++#else
++static inline void vpsadminos_bpf_jit_ibpb(void)
++{
++}
++#endif
++
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_PIPAPO_STATE_ID	0x7a1f024282b3489dUL
++#define VPSADMINOS_PIPAPO_STATE_ACTIVE	((void *)1UL)
++
++static struct klp_state vpsadminos_pipapo_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_PIPAPO_STATE_ID,
++	.version = 2,
++};
++
++static void vpsadminos_pipapo_livepatch_post_patch(void)
++{
++	struct klp_state *prev_state;
++
++	WRITE_ONCE(vpsadminos_pipapo_state.data,
++		   VPSADMINOS_PIPAPO_STATE_ACTIVE);
++	prev_state = klp_get_prev_state(VPSADMINOS_PIPAPO_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == VPSADMINOS_PIPAPO_STATE_ACTIVE)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++static void vpsadminos_pipapo_livepatch_post_unpatch(void)
++{
++	WRITE_ONCE(vpsadminos_pipapo_state.data, NULL);
++}
++
++#ifndef CONFIG_X86
++static inline void vpsadminos_livepatch_flush_tlb_all(void)
++{
++}
++#endif
++
++struct klp_object;
++
++struct vpsadminos_pre_patch_callback {
++	int (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_pre_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_post_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++/*
++ * Kpatch accepts only one callback of each type for a target object.  Keep all
++ * vmlinux transition work in these coordinators.
++ */
++static int vpsadminos_livepatch_pre_patch(struct klp_object *obj)
++{
++	int ret;
++
++	(void)obj;
++	ret = vpsadminos_saferet_livepatch_pre_patch();
++	if (ret)
++		return ret;
++
++	ret = vpsadminos_rhashtable_livepatch_pre_patch();
++	if (ret)
++		goto restore_saferet;
++
++	ret = vpsadminos_xfrm_livepatch_pre_patch();
++	if (ret)
++		goto restore_rhashtable;
++
++	return 0;
++
++restore_rhashtable:
++	vpsadminos_rhashtable_livepatch_post_unpatch();
++restore_saferet:
++	vpsadminos_saferet_livepatch_post_unpatch();
++	return ret;
++}
++
++static void vpsadminos_livepatch_post_patch(struct klp_object *obj)
++{
++	(void)obj;
++	vpsadminos_saferet_livepatch_post_patch();
++	vpsadminos_rhashtable_livepatch_post_patch();
++	vpsadminos_pipapo_livepatch_post_patch();
++	vpsadminos_nfqueue_livepatch_post_patch();
++	vpsadminos_xfrm_livepatch_post_patch();
++	vpsadminos_bpf_jit_ibpb();
++	vpsadminos_livepatch_flush_tlb_all();
++}
++
++static void vpsadminos_livepatch_pre_unpatch(struct klp_object *obj)
++{
++	(void)obj;
++	vpsadminos_xfrm_livepatch_pre_unpatch();
++}
++
++static void vpsadminos_livepatch_post_unpatch(struct klp_object *obj)
++{
++	(void)obj;
++	vpsadminos_nfqueue_livepatch_post_unpatch();
++	vpsadminos_pipapo_livepatch_post_unpatch();
++	vpsadminos_rhashtable_livepatch_post_unpatch();
++	vpsadminos_saferet_livepatch_post_unpatch();
++}
++
++static struct vpsadminos_pre_patch_callback vpsadminos_pre_patch_data
++__section(".kpatch.callbacks.pre_patch") __used = {
++	.fn = vpsadminos_livepatch_pre_patch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_post_patch_callback vpsadminos_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_livepatch_post_patch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_pre_unpatch_callback vpsadminos_pre_unpatch_data
++__section(".kpatch.callbacks.pre_unpatch") __used = {
++	.fn = vpsadminos_livepatch_pre_unpatch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_post_unpatch_callback vpsadminos_post_unpatch_data
++__section(".kpatch.callbacks.post_unpatch") __used = {
++	.fn = vpsadminos_livepatch_post_unpatch,
++	.objname = NULL,
++};
++
++/*
++ * Kpatch collects system-state records from the built-in diff object.  Keep
++ * the state owned by the modular KVM SVM callback here so it is registered by
++ * the generated cumulative livepatch even when kvm-amd is not loaded yet.
++ */
++static struct klp_state vpsadminos_svm_asid_generation_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = 0x25f744ffa0c8e799UL,
++	.version = 2,
++};
++#endif
++
+ #define BPF_PROG_SIZE_TO_NBITS(size)	(round_up(size, BPF_PROG_CHUNK_SIZE) / BPF_PROG_CHUNK_SIZE)
+ 
+ static DEFINE_MUTEX(pack_mutex);
+@@ -981,6 +1147,7 @@
+ 	pos = 0;
+ 
+ found_free_area:
++	vpsadminos_bpf_jit_ibpb();
+ 	bitmap_set(pack->bitmap, pos, nbits);
+ 	ptr = (void *)(pack->ptr) + (pos << BPF_PROG_CHUNK_SHIFT);
+ 
+diff --git a/kernel/events/core.c b/kernel/events/core.c
+index 9099c0cc933be2221b9103036518f84ce1ffe395..6fdae4f923f3e333135849df4775178aff6fd7de 100644
+--- a/kernel/events/core.c
++++ b/kernel/events/core.c
+@@ -2208,0 +2209,3 @@ static inline struct list_head *get_event_list(struct perf_event *event)
++static void
++event_sched_out(struct perf_event *event, struct perf_event_context *ctx);
++
+@@ -2253,0 +2257,10 @@ static void perf_group_detach(struct perf_event *event)
++		/*
++		 * A leader removed by an old remove-on-exec path is no
++		 * longer attached to the context, but its siblings can still
++		 * be active.  Schedule those siblings out before promoting
++		 * them so they are not added to the PMU twice later.
++		 */
++		if (!(event->attach_state & PERF_ATTACH_CONTEXT) &&
++		    sibling->state == PERF_EVENT_STATE_ACTIVE)
++			event_sched_out(sibling, ctx);
++
+@@ -3958,0 +3972,10 @@ static int merge_sched_in(struct perf_event *event, void *data)
++	/*
++	 * An old remove-on-exec path can leave an active sibling promoted to a
++	 * singleton and linked on the PMU active list before livepatch
++	 * activation.  It is already programmed; do not schedule or link it a
++	 * second time.
++	 */
++	if (event->state == PERF_EVENT_STATE_ACTIVE &&
++	    !list_empty(&event->active_list))
++		return 0;
++
+@@ -4540 +4563,2 @@ static void perf_event_exit_event(struct perf_event *event,
+-				  struct perf_event_context *ctx);
++				  struct perf_event_context *ctx,
++				  unsigned long detach_flags);
+@@ -4567 +4591 @@ static void perf_event_remove_on_exec(struct perf_event_context *ctx)
+-		perf_event_exit_event(event, ctx);
++		perf_event_exit_event(event, ctx, DETACH_GROUP);
+@@ -13481 +13505,3 @@ static void
+-perf_event_exit_event(struct perf_event *event, struct perf_event_context *ctx)
++perf_event_exit_event(struct perf_event *event,
++		      struct perf_event_context *ctx,
++		      unsigned long detach_flags)
+@@ -13484 +13509,0 @@ perf_event_exit_event(struct perf_event *event, struct perf_event_context *ctx)
+-	unsigned long detach_flags = 0;
+@@ -13499 +13524 @@ perf_event_exit_event(struct perf_event *event, struct perf_event_context *ctx)
+-		detach_flags = DETACH_GROUP | DETACH_CHILD;
++		detach_flags |= DETACH_GROUP | DETACH_CHILD;
+@@ -13578 +13603 @@ static void perf_event_exit_task_context(struct task_struct *child)
+-		perf_event_exit_event(child_event, child_ctx);
++		perf_event_exit_event(child_event, child_ctx, 0);
+diff --git a/kernel/exit.c b/kernel/exit.c
+index 4f5abcf777a7c6ac0ce402c4b4b6599d595a533a..e9048e5731dadfc70a2b5321b62860d21b7d576a 100644
+--- a/kernel/exit.c
++++ b/kernel/exit.c
+@@ -209 +209,7 @@ static void __exit_signal(struct task_struct *tsk)
+-	tsk->sighand = NULL;
++
++	/*
++	 * Ensure that all preceeding state is visible. Pairs with
++	 * the smp_acquire__after_ctrl_dep() in the sighand == NULL
++	 * path of lock_task_sighand().
++	 */
++	smp_store_release(&tsk->sighand, NULL);
+diff --git a/kernel/livepatch/Makefile b/kernel/livepatch/Makefile
+index cf03d4bdfc663f97078aaf09b69427b22538c7c4..0eedad5e9dcc40f12f117a4035f3d3ef9c5ff5f5 100644
+--- a/kernel/livepatch/Makefile
++++ b/kernel/livepatch/Makefile
+@@ -4,0 +5 @@ livepatch-objs := core.o patch.o shadow.o state.o transition.o
++livepatch-$(CONFIG_X86_64) += vpsadminos_rhashtable.o
+diff --git a/kernel/livepatch/vpsadminos_rhashtable.c b/kernel/livepatch/vpsadminos_rhashtable.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..18c3041b860c2ef96d028b579da5d312b09a8f9d
+--- /dev/null
++++ b/kernel/livepatch/vpsadminos_rhashtable.c
+@@ -0,0 +1,215 @@
++// SPDX-License-Identifier: GPL-2.0-only
++#include <linux/kernel.h>
++#include <linux/livepatch.h>
++#include <linux/memory.h>
++#include <linux/rcupdate.h>
++#include <linux/rhashtable.h>
++#include <linux/string.h>
++#include <linux/vpsadminos-livepatch.h>
++
++#include <asm/text-patching.h>
++
++#define VPSADMINOS_RHASHTABLE_STATE_ID		0x8173f7e2ce67e6caUL
++#define VPSADMINOS_RHASHTABLE_STATE_VERSION	1
++
++union vpsadminos_rhashtable_block {
++	u64 word;
++	u8 text[sizeof(u64)];
++};
++
++static const union vpsadminos_rhashtable_block
++vpsadminos_rhashtable_boot_entry = {
++	.text = { 0x55, 0x48, 0x89, 0xe5, 0x41, 0x56, 0x41, 0x55 },
++};
++
++struct vpsadminos_rhashtable_transition {
++	u64 original;
++	u64 patched;
++};
++
++static struct klp_state vpsadminos_rhashtable_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_RHASHTABLE_STATE_ID,
++	.version = VPSADMINOS_RHASHTABLE_STATE_VERSION,
++};
++
++static struct vpsadminos_rhashtable_transition
++vpsadminos_rhashtable_transition;
++static struct vpsadminos_rhashtable_transition
++*vpsadminos_rhashtable_predecessor;
++static u64 vpsadminos_rhashtable_previous;
++static bool vpsadminos_rhashtable_text_patched;
++
++noinline int
++vpsadminos_rhashtable_walk_start_check(struct rhashtable_iter *iter)
++	__acquires(RCU)
++{
++	struct rhashtable *ht = iter->ht;
++	bool rhlist = ht->rhlist;
++
++	rcu_read_lock();
++
++	spin_lock(&ht->lock);
++	if (iter->walker.tbl)
++		list_del(&iter->walker.list);
++	spin_unlock(&ht->lock);
++
++	if (iter->end_of_table)
++		return 0;
++	if (!iter->walker.tbl) {
++		iter->walker.tbl = rht_dereference_rcu(ht->tbl, ht);
++		iter->slot = 0;
++		iter->skip = 0;
++		iter->p = NULL;
++		return -EAGAIN;
++	}
++
++	if (iter->p && !rhlist) {
++		struct rhash_head *p;
++		int skip = 0;
++
++		rht_for_each_rcu(p, iter->walker.tbl, iter->slot) {
++			skip++;
++			if (p == iter->p) {
++				iter->skip = skip;
++				goto found;
++			}
++		}
++		iter->p = NULL;
++	} else if (iter->p && rhlist) {
++		struct rhash_head *p;
++		struct rhlist_head *list;
++		int skip = 0;
++
++		rht_for_each_rcu(p, iter->walker.tbl, iter->slot) {
++			for (list = container_of(p, struct rhlist_head, rhead);
++			     list;
++			     list = rcu_dereference(list->next)) {
++				skip++;
++				if (list == iter->list) {
++					iter->p = p;
++					iter->skip = skip;
++					goto found;
++				}
++			}
++		}
++		iter->p = NULL;
++	}
++found:
++	return 0;
++}
++
++static int vpsadminos_rhashtable_make_jump(u8 *text, void *target)
++{
++	void *site = rhashtable_walk_start_check;
++	union text_poke_insn insn;
++	s64 displacement = (s64)(unsigned long)target -
++			   ((s64)(unsigned long)site + JMP32_INSN_SIZE);
++
++	if (displacement != (s64)(s32)displacement)
++		return -ERANGE;
++
++	__text_gen_insn(&insn, JMP32_INSN_OPCODE, site, target,
++			JMP32_INSN_SIZE);
++	memcpy(text, insn.text, JMP32_INSN_SIZE);
++	return 0;
++}
++
++int vpsadminos_rhashtable_livepatch_pre_patch(void)
++{
++	struct vpsadminos_rhashtable_transition *prev_transition = NULL;
++	struct klp_state *prev_state;
++	union vpsadminos_rhashtable_block expected;
++	union vpsadminos_rhashtable_block patched;
++	void *site = rhashtable_walk_start_check;
++	void *target = vpsadminos_rhashtable_walk_start_check;
++	int ret;
++
++	if (vpsadminos_rhashtable_text_patched)
++		return -EBUSY;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_RHASHTABLE_STATE_ID);
++	if (prev_state) {
++		if (prev_state->version != VPSADMINOS_RHASHTABLE_STATE_VERSION) {
++			pr_err("livepatch rhashtable predecessor state version %u is incompatible\n",
++			       prev_state->version);
++			return -EINVAL;
++		}
++		prev_transition = READ_ONCE(prev_state->data);
++	}
++
++	if (prev_transition) {
++		expected.word = READ_ONCE(prev_transition->patched);
++		vpsadminos_rhashtable_transition.original =
++			READ_ONCE(prev_transition->original);
++	} else {
++		expected = vpsadminos_rhashtable_boot_entry;
++		vpsadminos_rhashtable_transition.original = expected.word;
++	}
++
++	memset(patched.text, 0x90, sizeof(patched.text));
++	ret = vpsadminos_rhashtable_make_jump(patched.text, target);
++	if (ret)
++		return ret;
++
++	vpsadminos_rhashtable_previous = expected.word;
++	vpsadminos_rhashtable_transition.patched = patched.word;
++	vpsadminos_rhashtable_predecessor = prev_transition;
++
++	ret = vpsadminos_livepatch_text_poke_cmpxchg64(site, expected.word, patched.word);
++	if (ret) {
++		pr_err("livepatch rhashtable entry text does not match 6.12.95\n");
++		return ret;
++	}
++	vpsadminos_rhashtable_text_patched = true;
++
++	return 0;
++}
++
++void vpsadminos_rhashtable_livepatch_post_patch(void)
++{
++	struct klp_state *prev_state;
++
++	if (!vpsadminos_rhashtable_text_patched)
++		return;
++
++	WRITE_ONCE(vpsadminos_rhashtable_state.data,
++		   &vpsadminos_rhashtable_transition);
++	/* No new entry can reach predecessor text after the installed jump. */
++	synchronize_rcu_tasks();
++	prev_state = klp_get_prev_state(VPSADMINOS_RHASHTABLE_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == vpsadminos_rhashtable_predecessor)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++void vpsadminos_rhashtable_livepatch_post_unpatch(void)
++{
++	u64 patched;
++	u64 restore;
++	bool committed;
++	void *site = rhashtable_walk_start_check;
++	int ret;
++
++	committed = READ_ONCE(vpsadminos_rhashtable_state.data) ==
++		    &vpsadminos_rhashtable_transition;
++	if (!vpsadminos_rhashtable_text_patched)
++		return;
++
++	if (committed)
++		restore = vpsadminos_rhashtable_transition.original;
++	else
++		restore = vpsadminos_rhashtable_previous;
++
++	patched = vpsadminos_rhashtable_transition.patched;
++	ret = vpsadminos_livepatch_text_poke_cmpxchg64(site, patched, restore);
++	if (ret)
++		panic("livepatch rhashtable cannot safely restore entry text");
++
++	/* Drain callers redirected before the restoration completed. */
++	synchronize_rcu_tasks();
++	vpsadminos_rhashtable_text_patched = false;
++	vpsadminos_rhashtable_predecessor = NULL;
++	WRITE_ONCE(vpsadminos_rhashtable_state.data, NULL);
++}
+diff --git a/kernel/signal.c b/kernel/signal.c
+index b832158a9c46084bc3734151138afb7e9a7a702c..e6e812f8b80ffc79c293df43c0569943596c1430 100644
+--- a/kernel/signal.c
++++ b/kernel/signal.c
+@@ -1398 +1398,8 @@ struct sighand_struct *__lock_task_sighand(struct task_struct *tsk,
+-		if (unlikely(sighand == NULL))
++		if (unlikely(sighand == NULL)) {
++			/*
++			 * Pairs with the smp_store_release() in
++			 * __exit_signal().  It ensures that all state
++			 * modifications to the task preceeding the store are
++			 * visible to the callers of lock_task_sighand().
++			 */
++			smp_acquire__after_ctrl_dep();
+@@ -1399,0 +1407 @@ struct sighand_struct *__lock_task_sighand(struct task_struct *tsk,
++		}
+diff --git a/kernel/time/posix-cpu-timers.c b/kernel/time/posix-cpu-timers.c
+index d44641108ba81f5809d5874f49a3fc6feee61b37..0c65b15813437e2e6dc68e749bc4169622fc06aa 100644
+--- a/kernel/time/posix-cpu-timers.c
++++ b/kernel/time/posix-cpu-timers.c
+@@ -464,0 +465,103 @@ static void disarm_timer(struct k_itimer *timer, struct task_struct *p)
++/*
++ * Lookup the task via timer->it.cpu.pid and attempt to lock the task's sighand.
++ *
++ * This can race with the reaping of the task:
++ *
++ * CPU0					CPU1
++ *
++ * // Finds task
++ * p = pid_task(pid, pid_type);		__exit_signal(p)
++ *					  lock(p, sighand);
++ *					  posix_cpu_timers*_exit();
++ * sighand = lock_task_sighand(p);	  unhash_task(p);
++ *					  p->sighand = NULL;
++ *					  unlock(sighand);
++ *
++ * In this case sighand is NULL, which means the task and the associated timer
++ * queue cannot be longer accessed safely.
++ *
++ * __exit_signal() invokes posix_cpu_timers_exit() and if the thread group is
++ * dead it also invokes posix_cpu_timers_group_exit(). These functions delete
++ * all pending timers from the related timer queues. The POSIX timers (k_itimer)
++ * themself are still accessible, but not longer connected to the task.
++ *
++ * exec() works slightly differently. The task which exec()'s terminates all
++ * other threads in the thread group and runs __exit_signal() on them. As the
++ * thread group is not dead they only clean up the per task timers via
++ * posix_cpu_timers_exit().
++ *
++ * As the TGID on exec() stays the same per process timers stay queued, if they
++ * are armed. This works without a problem when exec() is done by the thread
++ * group leader. If a non-leader thread exec()'s this can end up in the
++ * following scenario:
++ *
++ * CPU0					CPU1
++ * // Returns old leader
++ * p = pid_task(pid, pid_type);		de_thread()
++ *					switch_leader()
++ *					release_task(old leader)
++ *					  __exit_signal()
++ *					  old_leader->sighand = NULL;
++ * // Returns NULL
++ * sighand = lock_task_sighand(p)
++ *
++ * That's problematic for several functions:
++ *
++ *  - posix_cpu_timer_del(): If the timer is still enqueued on the task the
++ *    underlying k_itimer will be freed which results in a UAF in
++ *    run_posix_cpu_timers() or on timerqueue related add/delete operations.
++ *    If the timer is not enqueued, the failure is harmless
++ *
++ *  - posix_cpu_timer_set(): Independent of the enqueued state that results in a
++ *    transient failure which is user space visible (-ESRCH) for regular posix
++ *    timers. But for the use case in do_cpu_nanosleep() it's the same UAF
++ *    problem just that the timer is allocated on the stack.
++ *
++ *  - posix_cpu_timer_rearm(): Timer is not enqueued at that point, but this
++ *    silently ignores the rearm request, which is a functional problem as the
++ *    timer wont expire anymore.
++ */
++static struct task_struct *timer_lock_sighand(struct k_itimer *timer, unsigned long *flags)
++{
++	enum pid_type type = clock_pid_type(timer->it_clock);
++	struct cpu_timer *ctmr = &timer->it.cpu;
++
++	guard(rcu)();
++
++	for (;;) {
++		struct task_struct *t = pid_task(timer->it.cpu.pid, type);
++
++		/* Fail if the task cannot be found. */
++		if (!t)
++			break;
++
++		/* Try to lock the task's sighand */
++		if (lock_task_sighand(t, flags))
++			return t;
++
++		/*
++		 * The next PID lookup might either fail or return the new
++		 * leader. This is correct for both exit() and exec().
++		 */
++	}
++
++	/*
++	 * If the timer is still enqueued, warn. There is nothing safe to do
++	 * here as there might be two timers in there which are removed in
++	 * parallel and that will cause more damage than good. This should never
++	 * happen!
++	 *
++	 * Ensure that the stores to the timer and timerqueue are visible:
++	 *
++	 * __exit_signal()
++	 *   posix_cpu_timers*_exit()
++	 *   write_seqlock(seqlock)
++	 *	smp_wmb(); <-------
++	 *   __unhash_process()	  |	!pid_task()
++	 *			  ---->	smp_rmb();
++	 *				WARN_ON_ONCE(...)
++	 */
++	smp_rmb();
++	WARN_ON_ONCE(ctmr->head || timerqueue_node_queued(&ctmr->node));
++	return NULL;
++}
+@@ -474,2 +576,0 @@ static int posix_cpu_timer_del(struct k_itimer *timer)
+-	struct cpu_timer *ctmr = &timer->it.cpu;
+-	struct sighand_struct *sighand;
+@@ -480,4 +581 @@ static int posix_cpu_timer_del(struct k_itimer *timer)
+-	rcu_read_lock();
+-	p = cpu_timer_task_rcu(timer);
+-	if (!p)
+-		goto out;
++	p = timer_lock_sighand(timer, &flags);
+@@ -485,12 +583 @@ static int posix_cpu_timer_del(struct k_itimer *timer)
+-	/*
+-	 * Protect against sighand release/switch in exit/exec and process/
+-	 * thread timer list entry concurrent read/writes.
+-	 */
+-	sighand = lock_task_sighand(p, &flags);
+-	if (unlikely(sighand == NULL)) {
+-		/*
+-		 * This raced with the reaping of the task. The exit cleanup
+-		 * should have removed this timer from the timer queue.
+-		 */
+-		WARN_ON_ONCE(ctmr->head || timerqueue_node_queued(&ctmr->node));
+-	} else {
++	if (likely(p)) {
+@@ -505,2 +591,0 @@ static int posix_cpu_timer_del(struct k_itimer *timer)
+-out:
+-	rcu_read_unlock();
+@@ -508 +593 @@ static int posix_cpu_timer_del(struct k_itimer *timer)
+-		put_pid(ctmr->pid);
++		put_pid(timer->it.cpu.pid);
+@@ -630 +714,0 @@ static int posix_cpu_timer_set(struct k_itimer *timer, int timer_flags,
+-	struct sighand_struct *sighand;
+@@ -635,8 +719,6 @@ static int posix_cpu_timer_set(struct k_itimer *timer, int timer_flags,
+-	rcu_read_lock();
+-	p = cpu_timer_task_rcu(timer);
+-	if (!p) {
+-		/*
+-		 * If p has just been reaped, we can no
+-		 * longer get any information about it at all.
+-		 */
+-		rcu_read_unlock();
++	p = timer_lock_sighand(timer, &flags);
++	/*
++	 * If p has just been reaped, we can no longer get any information about
++	 * it at all.
++	 */
++	if (!p)
+@@ -644 +725,0 @@ static int posix_cpu_timer_set(struct k_itimer *timer, int timer_flags,
+-	}
+@@ -652,14 +732,0 @@ static int posix_cpu_timer_set(struct k_itimer *timer, int timer_flags,
+-	/*
+-	 * Protect against sighand release/switch in exit/exec and p->cpu_timers
+-	 * and p->signal->cpu_timers read/write in arm_timer()
+-	 */
+-	sighand = lock_task_sighand(p, &flags);
+-	/*
+-	 * If p has just been reaped, we can no
+-	 * longer get any information about it at all.
+-	 */
+-	if (unlikely(sighand == NULL)) {
+-		rcu_read_unlock();
+-		return -ESRCH;
+-	}
+-
+@@ -696 +763 @@ static int posix_cpu_timer_set(struct k_itimer *timer, int timer_flags,
+-		goto out;
++		return ret;
+@@ -731,2 +797,0 @@ static int posix_cpu_timer_set(struct k_itimer *timer, int timer_flags,
+-out:
+-	rcu_read_unlock();
+@@ -1014 +1078,0 @@ static void posix_cpu_timer_rearm(struct k_itimer *timer)
+-	struct sighand_struct *sighand;
+@@ -1018,9 +1082,3 @@ static void posix_cpu_timer_rearm(struct k_itimer *timer)
+-	rcu_read_lock();
+-	p = cpu_timer_task_rcu(timer);
+-	if (!p)
+-		goto out;
+-
+-	/* Protect timer list r/w in arm_timer() */
+-	sighand = lock_task_sighand(p, &flags);
+-	if (unlikely(sighand == NULL))
+-		goto out;
++	p = timer_lock_sighand(timer, &flags);
++	if (unlikely(!p))
++		return;
+@@ -1043,2 +1100,0 @@ static void posix_cpu_timer_rearm(struct k_itimer *timer)
+-out:
+-	rcu_read_unlock();
+diff --git a/lib/rhashtable.c b/lib/rhashtable.c
+index 0e9a1d4cf89be0cd67b3da4173be2c5ea039c33d..16d2ce87c22e246e976cc9bef31d62d3ecc8b4fc 100644
+--- a/lib/rhashtable.c
++++ b/lib/rhashtable.c
+@@ -744,0 +745 @@ int rhashtable_walk_start_check(struct rhashtable_iter *iter)
++		iter->p = NULL;
+diff --git a/mm/huge_memory.c b/mm/huge_memory.c
+index e60c21b924644a500526e62bc370fa051f81ba7c..0c4ec01b074fc6704ec0e3059e2f813c72db4d11 100644
+--- a/mm/huge_memory.c
++++ b/mm/huge_memory.c
+@@ -43,0 +44 @@
++#include <linux/cleanup.h>
+@@ -79,0 +81 @@ static atomic_t huge_zero_refcount;
++static DEFINE_SPINLOCK(huge_zero_lock);
+@@ -200 +202,2 @@ static bool get_huge_zero_page(void)
+-retry:
++
++	/* Paired with atomic_set_release(). */
+@@ -212,3 +215,7 @@ static bool get_huge_zero_page(void)
+-	preempt_disable();
+-	if (cmpxchg(&huge_zero_folio, NULL, zero_folio)) {
+-		preempt_enable();
++
++	/* Paired with critical section in shrink_huge_zero_folio_scan(). */
++	spin_lock(&huge_zero_lock);
++	if (huge_zero_folio) {
++		/* Somebody else already installed it. */
++		atomic_inc(&huge_zero_refcount);
++		spin_unlock(&huge_zero_lock);
+@@ -216 +223 @@ static bool get_huge_zero_page(void)
+-		goto retry;
++		return true;
+@@ -217,0 +225 @@ static bool get_huge_zero_page(void)
++	WRITE_ONCE(huge_zero_folio, zero_folio);
+@@ -218,0 +227,3 @@ static bool get_huge_zero_page(void)
++	/* Paired with atomic_inc_not_zero(). +1 for shrinker pin. */
++	atomic_set_release(&huge_zero_refcount, 2);
++	spin_unlock(&huge_zero_lock);
+@@ -220,3 +230,0 @@ static bool get_huge_zero_page(void)
+-	/* We take additional reference here. It will be put back by shrinker */
+-	atomic_set(&huge_zero_refcount, 2);
+-	preempt_enable();
+@@ -266,3 +274,11 @@ static unsigned long shrink_huge_zero_page_scan(struct shrinker *shrink,
+-	if (atomic_cmpxchg(&huge_zero_refcount, 1, 0) == 1) {
+-		struct folio *zero_folio = xchg(&huge_zero_folio, NULL);
+-		BUG_ON(zero_folio == NULL);
++	struct folio *zero_folio;
++
++	/* Paired with critical section in get_huge_zero_folio(). */
++	scoped_guard(spinlock, &huge_zero_lock) {
++		/* Paired with atomic_inc_not_zero() in get_huge_zero_folio(). */
++		if (atomic_cmpxchg(&huge_zero_refcount, 1, 0) != 1)
++			return 0;
++
++		zero_folio = huge_zero_folio;
++		VM_WARN_ON_ONCE(!zero_folio);
++		WRITE_ONCE(huge_zero_folio, NULL);
+@@ -270,2 +285,0 @@ static unsigned long shrink_huge_zero_page_scan(struct shrinker *shrink,
+-		folio_put(zero_folio);
+-		return HPAGE_PMD_NR;
+@@ -274 +288,2 @@ static unsigned long shrink_huge_zero_page_scan(struct shrinker *shrink,
+-	return 0;
++	folio_put(zero_folio);
++	return HPAGE_PMD_NR;
+diff --git a/mm/vmalloc.c b/mm/vmalloc.c
+index 1d2262fb541850e0a9613a95bfde293adcae5a1e..d4a42980b4d028a5ffda2c6cb3edfff5503abdc7 100644
+--- a/mm/vmalloc.c
++++ b/mm/vmalloc.c
+@@ -5206,0 +5207 @@ vmap_node_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
++	guard(mutex)(&vmap_purge_lock);
+diff --git a/net/bridge/br_if.c b/net/bridge/br_if.c
+index 6ffc81eedf0748a6a3cc8b8484d16537ef979ebd..eee6ceb7cddab030edd2376c40a6eeeb7d2e65ab 100644
+--- a/net/bridge/br_if.c
++++ b/net/bridge/br_if.c
+@@ -393,0 +394,3 @@ void br_dev_delete(struct net_device *dev, struct list_head *head)
++	timer_shutdown_sync(&br->hello_timer);
++	timer_shutdown_sync(&br->topology_change_timer);
++	timer_shutdown_sync(&br->tcn_timer);
+diff --git a/net/bridge/br_multicast.c b/net/bridge/br_multicast.c
+index 3194344529a54972300bb576603c3243116b5d55..d43b39ed61c760ed94bd2d6e43875ec5b02ae895 100644
+--- a/net/bridge/br_multicast.c
++++ b/net/bridge/br_multicast.c
+@@ -3687,0 +3688 @@ br_multicast_leave_group(struct net_bridge_mcast *brmctx,
++			break;
+diff --git a/net/bridge/br_netfilter_hooks.c b/net/bridge/br_netfilter_hooks.c
+index 5ad3f3ef4ca75f7d9f755546f5083be2f0908ed0..c550907b92dd484f2afa450de162be55ace87498 100644
+--- a/net/bridge/br_netfilter_hooks.c
++++ b/net/bridge/br_netfilter_hooks.c
+@@ -299 +299,5 @@ int br_nf_pre_routing_finish_bridge(struct net *net, struct sock *sk, struct sk_
+-			neigh_hh_bridge(&neigh->hh, skb);
++			if (neigh_hh_bridge(&neigh->hh, skb)) {
++				neigh_release(neigh);
++				goto free_skb;
++			}
++
+diff --git a/net/bridge/br_stp.c b/net/bridge/br_stp.c
+index 7d27b2e6038fb7bec698fd8c056f93ebdc761540..4cfebf5fcdf54db2ec9876ce196a9ff1b8cde0cb 100644
+--- a/net/bridge/br_stp.c
++++ b/net/bridge/br_stp.c
+@@ -374 +374,2 @@ void br_topology_change_detection(struct net_bridge *br)
+-	if (br->stp_enabled != BR_KERNEL_STP)
++	if (br->stp_enabled != BR_KERNEL_STP ||
++	    !(br->dev->flags & IFF_UP))
+diff --git a/net/ceph/auth_x.c b/net/ceph/auth_x.c
+index a21c157daf7dd32dd81292dfe5d340e587b88957..28dcf313ef8e9f02cdc80158bbbac4b7b0428a5f 100644
+--- a/net/ceph/auth_x.c
++++ b/net/ceph/auth_x.c
+@@ -783,0 +784,2 @@ static int ceph_x_update_authorizer(
++		int ret;
++
+@@ -786 +788,3 @@ static int ceph_x_update_authorizer(
+-		return ceph_x_build_authorizer(ac, th, au);
++		ret = ceph_x_build_authorizer(ac, th, au);
++		if (ret)
++			return ret;
+@@ -787,0 +792,2 @@ static int ceph_x_update_authorizer(
++	auth->authorizer_buf = au->buf->vec.iov_base;
++	auth->authorizer_buf_len = au->buf->vec.iov_len;
+diff --git a/net/ceph/crush/mapper.c b/net/ceph/crush/mapper.c
+index 3a5bd1cd1e99f44c9fc688c2912618b1b0634c0c..84789e6e62fb784cca6262486f96019da9d9d5cd 100644
+--- a/net/ceph/crush/mapper.c
++++ b/net/ceph/crush/mapper.c
+@@ -417 +417 @@ static int is_out(const struct crush_map *map,
+-	if (item >= weight_max)
++	if (item < 0 || item >= weight_max)
+diff --git a/net/ceph/messenger_v1.c b/net/ceph/messenger_v1.c
+index 0cb61c76b9b87da0746294cb371bc62defec0f81..2e6094aa93069c3813a33f386a8e1d43fe92d00b 100644
+--- a/net/ceph/messenger_v1.c
++++ b/net/ceph/messenger_v1.c
+@@ -414,0 +415,32 @@ static int prepare_write_connect(struct ceph_connection *con)
++static int validate_connect_authorizer(struct ceph_connection *con)
++{
++	struct ceph_auth_handshake *auth;
++	struct kvec *auth_kvec;
++	size_t auth_len;
++	int auth_proto;
++
++	if (con->state != CEPH_CON_S_V1_CONNECT_MSG || !con->v1.auth)
++		return 0;
++	if (!con->ops->get_authorizer || !con->v1.out_kvec_left)
++		return -ESTALE;
++
++	auth = con->ops->get_authorizer(con, &auth_proto, 0);
++	if (IS_ERR(auth))
++		return PTR_ERR(auth);
++	if (auth != con->v1.auth ||
++	    le32_to_cpu(con->v1.out_connect.authorizer_protocol) != auth_proto)
++		return -ESTALE;
++
++	auth_len = auth->authorizer_buf_len;
++	if (le32_to_cpu(con->v1.out_connect.authorizer_len) != auth_len)
++		return -ESTALE;
++
++	auth_kvec = &con->v1.out_kvec_cur[con->v1.out_kvec_left - 1];
++	if (auth_kvec->iov_len > auth_len ||
++	    auth_kvec->iov_base != (char *)auth->authorizer_buf +
++				   auth_len - auth_kvec->iov_len)
++		return -ESTALE;
++
++	return 0;
++}
++
+@@ -424,0 +457,4 @@ static int write_partial_kvec(struct ceph_connection *con)
++	ret = validate_connect_authorizer(con);
++	if (ret)
++		return ret;
++
+diff --git a/net/ceph/osdmap.c b/net/ceph/osdmap.c
+index c34a5bf86831b3e9f2767523495ccc4d2988a336..f6fe0dfe2a569d59c3bad9673761d0727c25a074 100644
+--- a/net/ceph/osdmap.c
++++ b/net/ceph/osdmap.c
+@@ -12,0 +13,3 @@
++#ifdef CONFIG_LIVEPATCH
++#include "kpatch-macros.h"
++#endif
+@@ -522,0 +526,2 @@ static struct crush_map *crush_decode(void *pbyval, void *end)
++		if (b->type == 0)
++			goto bad;
+@@ -1846,0 +1852,2 @@ static int decode_new_up_state_weight(void **p, void *end, u8 struct_v,
++	const u32 new_state_item_size =
++	    sizeof(u32) + (struct_v >= 5 ? sizeof(u32) : sizeof(u8));
+@@ -1867 +1874,2 @@ static int decode_new_up_state_weight(void **p, void *end, u8 struct_v,
+-	len *= sizeof(u32) + (struct_v >= 5 ? sizeof(u32) : sizeof(u8));
++	if (check_mul_overflow(len, new_state_item_size, &len))
++		goto e_inval;
+@@ -3112,0 +3121,5 @@ int ceph_get_crush_locality(struct ceph_osdmap *osdmap, int id,
++
++#ifdef CONFIG_LIVEPATCH
++KPATCH_IGNORE_FUNCTION(ceph_osds_copy)
++KPATCH_IGNORE_FUNCTION(ceph_pg_to_up_acting_osds)
++#endif
+diff --git a/net/core/net_namespace.c b/net/core/net_namespace.c
+index 16b646f0c1d58c54a869082f25dd299a858c7def..cc54ed289d2b0961d3d551648df2e8f65a29b004 100644
+--- a/net/core/net_namespace.c
++++ b/net/core/net_namespace.c
+@@ -340,0 +341,6 @@ static __net_init void preinit_net(struct net *net, struct user_namespace *user_
++/* Make setup_net() and cleanup_net() livepatch transition anchors. */
++static noinline void vpsadminos_netns_lifecycle_barrier(void)
++{
++	barrier();
++}
++
+@@ -351,0 +358,2 @@ static __net_init int setup_net(struct net *net)
++	vpsadminos_netns_lifecycle_barrier();
++
+@@ -593,0 +602,2 @@ static void cleanup_net(struct work_struct *work)
++	vpsadminos_netns_lifecycle_barrier();
++
+@@ -1378,0 +1389,14 @@ EXPORT_SYMBOL_GPL(register_pernet_subsys);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_pernet_try_register(struct pernet_operations *ops)
++{
++	int error;
++
++	if (!down_write_trylock(&pernet_ops_rwsem))
++		return -EBUSY;
++	error = register_pernet_operations(first_device, ops);
++	up_write(&pernet_ops_rwsem);
++
++	return error;
++}
++#endif
++
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index fede3aa3ddbc102978ef60c5e512f7f8b6c3a123..fa2a37c1488a05f1aa0c1043c70c01eacfa842a1 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -1098,0 +1099,3 @@ static void skb_release_data(struct sk_buff *skb, enum skb_drop_reason reason)
++	if (unlikely(skb_zcopy_managed(skb) && !skb_zcopy(skb)))
++		skb_zcopy_downgrade_managed(skb);
++
+diff --git a/net/ipv4/fib_semantics.c b/net/ipv4/fib_semantics.c
+index ba2df3d2ac15cffb95dedddf40103a865c909363..b8c9fa4a5866ded347186e3cce55978294bd22f7 100644
+--- a/net/ipv4/fib_semantics.c
++++ b/net/ipv4/fib_semantics.c
+@@ -1928,9 +1928,3 @@ static int call_fib_nh_notifiers(struct fib_nh *nh,
+-/* Update the PMTU of exceptions when:
+- * - the new MTU of the first hop becomes smaller than the PMTU
+- * - the old MTU was the same as the PMTU, and it limited discovery of
+- *   larger MTUs on the path. With that limit raised, we can now
+- *   discover larger MTUs
+- * A special case is locked exceptions, for which the PMTU is smaller
+- * than the minimal accepted PMTU:
+- * - if the new MTU is greater than the PMTU, don't make any change
+- * - otherwise, unlock and set PMTU
++/* Walk the exceptions of a nexthop after its first hop MTU changed. The
++ * chain is RCU protected here, while fnhe_update_pmtu() takes fnhe_lock
++ * for the update of each entry.
+@@ -1943 +1937,2 @@ void fib_nhc_update_mtu(struct fib_nh_common *nhc, u32 new, u32 orig)
+-	bucket = rcu_dereference_protected(nhc->nhc_exceptions, 1);
++	rcu_read_lock();
++	bucket = rcu_dereference(nhc->nhc_exceptions);
+@@ -1945 +1940 @@ void fib_nhc_update_mtu(struct fib_nh_common *nhc, u32 new, u32 orig)
+-		return;
++		goto out;
+@@ -1950 +1945 @@ void fib_nhc_update_mtu(struct fib_nh_common *nhc, u32 new, u32 orig)
+-		for (fnhe = rcu_dereference_protected(bucket[i].chain, 1);
++		for (fnhe = rcu_dereference(bucket[i].chain);
+@@ -1952,11 +1947,2 @@ void fib_nhc_update_mtu(struct fib_nh_common *nhc, u32 new, u32 orig)
+-		     fnhe = rcu_dereference_protected(fnhe->fnhe_next, 1)) {
+-			if (fnhe->fnhe_mtu_locked) {
+-				if (new <= fnhe->fnhe_pmtu) {
+-					fnhe->fnhe_pmtu = new;
+-					fnhe->fnhe_mtu_locked = false;
+-				}
+-			} else if (new < fnhe->fnhe_pmtu ||
+-				   orig == fnhe->fnhe_pmtu) {
+-				fnhe->fnhe_pmtu = new;
+-			}
+-		}
++		     fnhe = rcu_dereference(fnhe->fnhe_next))
++			fnhe_update_pmtu(fnhe, new, orig);
+@@ -1963,0 +1950,2 @@ void fib_nhc_update_mtu(struct fib_nh_common *nhc, u32 new, u32 orig)
++out:
++	rcu_read_unlock();
+diff --git a/net/ipv4/igmp.c b/net/ipv4/igmp.c
+index 52c661c6749f367aeb2a663b084638e06cc7a9ec..3a6e0a371127e78021862325240b5911774bde58 100644
+--- a/net/ipv4/igmp.c
++++ b/net/ipv4/igmp.c
+@@ -235,2 +235,4 @@ static void igmp_gq_start_timer(struct in_device *in_dev)
+-	if (!mod_timer(&in_dev->mr_gq_timer, exp))
+-		in_dev_hold(in_dev);
++	if (in_dev_hold_safe(in_dev)) {
++		if (mod_timer(&in_dev->mr_gq_timer, exp))
++			in_dev_put(in_dev);
++	}
+@@ -241 +243,2 @@ static void igmp_ifc_start_timer(struct in_device *in_dev, int delay)
+-	int tv = get_random_u32_below(delay);
++	if (in_dev_hold_safe(in_dev)) {
++		int tv = get_random_u32_below(delay);
+@@ -243,2 +246,3 @@ static void igmp_ifc_start_timer(struct in_device *in_dev, int delay)
+-	if (!mod_timer(&in_dev->mr_ifc_timer, jiffies+tv+2))
+-		in_dev_hold(in_dev);
++		if (mod_timer(&in_dev->mr_ifc_timer, jiffies + tv + 2))
++			in_dev_put(in_dev);
++	}
+@@ -1818,0 +1823 @@ void ip_mc_destroy_dev(struct in_device *in_dev)
++		ip_mc_hash_remove(in_dev, i);
+diff --git a/net/ipv4/route.c b/net/ipv4/route.c
+index 4dce0de6ab8982dcc54d9cc061f910460536d7c1..d6262db7df12a4fa52b1a2c403e956eeb9098b97 100644
+--- a/net/ipv4/route.c
++++ b/net/ipv4/route.c
+@@ -741,0 +742,29 @@ static void update_or_create_fnhe(struct fib_nh_common *nhc, __be32 daddr,
++/* Update the PMTU of an exception when:
++ * - the new MTU of the first hop becomes smaller than the PMTU
++ * - the old MTU was the same as the PMTU, and it limited discovery of
++ *   larger MTUs on the path. With that limit raised, we can now
++ *   discover larger MTUs
++ * A special case is locked exceptions, for which the PMTU is smaller
++ * than the minimal accepted PMTU:
++ * - if the new MTU is greater than the PMTU, don't make any change
++ * - otherwise, unlock and set PMTU
++ *
++ * fnhe_lock keeps fnhe_pmtu and fnhe_mtu_locked consistent against
++ * update_or_create_fnhe(), which sets both under the same lock.
++ */
++void fnhe_update_pmtu(struct fib_nh_exception *fnhe, u32 new, u32 orig)
++{
++	spin_lock_bh(&fnhe_lock);
++
++	if (fnhe->fnhe_mtu_locked) {
++		if (new <= fnhe->fnhe_pmtu) {
++			fnhe->fnhe_pmtu = new;
++			fnhe->fnhe_mtu_locked = false;
++		}
++	} else if (new < fnhe->fnhe_pmtu || orig == fnhe->fnhe_pmtu) {
++		fnhe->fnhe_pmtu = new;
++	}
++
++	spin_unlock_bh(&fnhe_lock);
++}
++
+diff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c
+index 59f0ddd0ffceecc4d9cfc006bf1910a7bbc49f8b..f77ba850865792b19d51f919941ee60531c372be 100644
+--- a/net/ipv4/tcp_output.c
++++ b/net/ipv4/tcp_output.c
+@@ -2455 +2455 @@ static int tcp_mtu_probe(struct sock *sk)
+-	int size_needed;
++	u64 size_needed;
+@@ -2479 +2479 @@ static int tcp_mtu_probe(struct sock *sk)
+-	size_needed = probe_size + (tp->reordering + 1) * tp->mss_cache;
++	size_needed = probe_size + ((u64)tp->reordering + 1) * tp->mss_cache;
+diff --git a/net/ipv6/ip6_tunnel.c b/net/ipv6/ip6_tunnel.c
+index f0a8350eb52eb0131e3233d19bd70926179291e5..4ad8d22cbac521aa4d4f6efc58171bfbe8e8f228 100644
+--- a/net/ipv6/ip6_tunnel.c
++++ b/net/ipv6/ip6_tunnel.c
+@@ -679,0 +680,3 @@ ip6ip6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
++		/* Remove debris left by outer IPv6 stack. */
++		memset(IP6CB(skb2), 0, sizeof(*IP6CB(skb2)));
++
+diff --git a/net/ipv6/mcast.c b/net/ipv6/mcast.c
+index b769e856a068d241774b02c72dfeb63667d6f635..92f321635e4ec3f173a443e3ae383d2ec84b4bbd 100644
+--- a/net/ipv6/mcast.c
++++ b/net/ipv6/mcast.c
+@@ -108,3 +108,3 @@ int sysctl_mld_qrv __read_mostly = MLD_QRV_DEFAULT;
+-/*
+- *	socket join on multicast group
+- */
++#define mc_assert_locked(idev)			\
++	lockdep_assert_held(&(idev)->mc_lock)
++
+@@ -168,0 +169,3 @@ static int unsolicited_report_interval(struct inet6_dev *idev)
++/*
++ *	socket join on multicast group
++ */
+@@ -668 +670,0 @@ bool inet6_mc_check(const struct sock *sk, const struct in6_addr *mc_addr,
+-/* called with mc_lock */
+@@ -673,0 +676,2 @@ static void igmp6_group_added(struct ifmcaddr6 *mc)
++	mc_assert_locked(mc->idev);
++
+@@ -703 +706,0 @@ static void igmp6_group_added(struct ifmcaddr6 *mc)
+-/* called with mc_lock */
+@@ -708,0 +712,2 @@ static void igmp6_group_dropped(struct ifmcaddr6 *mc)
++	mc_assert_locked(mc->idev);
++
+@@ -729,4 +734 @@ static void igmp6_group_dropped(struct ifmcaddr6 *mc)
+-/*
+- * deleted ifmcaddr6 manipulation
+- * called with mc_lock
+- */
++/* deleted ifmcaddr6 manipulation */
+@@ -736,0 +739,2 @@ static void mld_add_delrec(struct inet6_dev *idev, struct ifmcaddr6 *im)
++	mc_assert_locked(idev);
++
+@@ -770 +773,0 @@ static void mld_add_delrec(struct inet6_dev *idev, struct ifmcaddr6 *im)
+-/* called with mc_lock */
+@@ -776,0 +780,2 @@ static void mld_del_delrec(struct inet6_dev *idev, struct ifmcaddr6 *im)
++	mc_assert_locked(idev);
++
+@@ -813 +817,0 @@ static void mld_del_delrec(struct inet6_dev *idev, struct ifmcaddr6 *im)
+-/* called with mc_lock */
+@@ -817,0 +822,2 @@ static void mld_clear_delrec(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -874 +879,0 @@ static void ma_put(struct ifmcaddr6 *mc)
+-/* called with mc_lock */
+@@ -880,0 +886,2 @@ static struct ifmcaddr6 *mca_alloc(struct inet6_dev *idev,
++	mc_assert_locked(idev);
++
+@@ -1050 +1056,0 @@ bool ipv6_chk_mcast_addr(struct net_device *dev, const struct in6_addr *group,
+-/* called with mc_lock */
+@@ -1054,0 +1061,2 @@ static void mld_gq_start_work(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -1056,2 +1064,4 @@ static void mld_gq_start_work(struct inet6_dev *idev)
+-	if (!mod_delayed_work(mld_wq, &idev->mc_gq_work, tv + 2))
+-		in6_dev_hold(idev);
++	if (in6_dev_hold_safe(idev)) {
++		if (mod_delayed_work(mld_wq, &idev->mc_gq_work, tv + 2))
++			in6_dev_put(idev);
++	}
+@@ -1060 +1069,0 @@ static void mld_gq_start_work(struct inet6_dev *idev)
+-/* called with mc_lock */
+@@ -1062,0 +1072,2 @@ static void mld_gq_stop_work(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -1068 +1078,0 @@ static void mld_gq_stop_work(struct inet6_dev *idev)
+-/* called with mc_lock */
+@@ -1073,2 +1083,6 @@ static void mld_ifc_start_work(struct inet6_dev *idev, unsigned long delay)
+-	if (!mod_delayed_work(mld_wq, &idev->mc_ifc_work, tv + 2))
+-		in6_dev_hold(idev);
++	mc_assert_locked(idev);
++
++	if (in6_dev_hold_safe(idev)) {
++		if (mod_delayed_work(mld_wq, &idev->mc_ifc_work, tv + 2))
++			in6_dev_put(idev);
++	}
+@@ -1077 +1090,0 @@ static void mld_ifc_start_work(struct inet6_dev *idev, unsigned long delay)
+-/* called with mc_lock */
+@@ -1079,0 +1093,2 @@ static void mld_ifc_stop_work(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -1085 +1099,0 @@ static void mld_ifc_stop_work(struct inet6_dev *idev)
+-/* called with mc_lock */
+@@ -1090,2 +1104,6 @@ static void mld_dad_start_work(struct inet6_dev *idev, unsigned long delay)
+-	if (!mod_delayed_work(mld_wq, &idev->mc_dad_work, tv + 2))
+-		in6_dev_hold(idev);
++	mc_assert_locked(idev);
++
++	if (in6_dev_hold_safe(idev)) {
++		if (mod_delayed_work(mld_wq, &idev->mc_dad_work, tv + 2))
++			in6_dev_put(idev);
++	}
+@@ -1114,4 +1132 @@ static void mld_report_stop_work(struct inet6_dev *idev)
+-/*
+- * IGMP handling (alias multicast ICMPv6 messages)
+- * called with mc_lock
+- */
++/* IGMP handling (alias multicast ICMPv6 messages) */
+@@ -1121,0 +1137,2 @@ static void igmp6_group_queried(struct ifmcaddr6 *ma, unsigned long resptime)
++	mc_assert_locked(ma->idev);
++
+@@ -1140,3 +1157 @@ static void igmp6_group_queried(struct ifmcaddr6 *ma, unsigned long resptime)
+-/* mark EXCLUDE-mode sources
+- * called with mc_lock
+- */
++/* mark EXCLUDE-mode sources */
+@@ -1148,0 +1164,2 @@ static bool mld_xmarksources(struct ifmcaddr6 *pmc, int nsrcs,
++	mc_assert_locked(pmc->idev);
++
+@@ -1171 +1187,0 @@ static bool mld_xmarksources(struct ifmcaddr6 *pmc, int nsrcs,
+-/* called with mc_lock */
+@@ -1177,0 +1194,2 @@ static bool mld_marksources(struct ifmcaddr6 *pmc, int nsrcs,
++	mc_assert_locked(pmc->idev);
++
+@@ -1376,0 +1395 @@ void igmp6_event_query(struct sk_buff *skb)
++	bool put = false;
+@@ -1382 +1401,2 @@ void igmp6_event_query(struct sk_buff *skb)
+-	if (skb_queue_len(&idev->mc_query_queue) < MLD_MAX_SKBS) {
++	if (skb_queue_len(&idev->mc_query_queue) < MLD_MAX_SKBS &&
++	    in6_dev_hold_safe(idev)) {
+@@ -1384,2 +1404,2 @@ void igmp6_event_query(struct sk_buff *skb)
+-		if (!mod_delayed_work(mld_wq, &idev->mc_query_work, 0))
+-			in6_dev_hold(idev);
++		if (mod_delayed_work(mld_wq, &idev->mc_query_work, 0))
++			put = true;
+@@ -1388,0 +1409,3 @@ void igmp6_event_query(struct sk_buff *skb)
++
++	if (put)
++		in6_dev_put(idev);
+@@ -1544,0 +1568 @@ void igmp6_event_report(struct sk_buff *skb)
++	bool put = false;
+@@ -1550 +1574,2 @@ void igmp6_event_report(struct sk_buff *skb)
+-	if (skb_queue_len(&idev->mc_report_queue) < MLD_MAX_SKBS) {
++	if (skb_queue_len(&idev->mc_report_queue) < MLD_MAX_SKBS &&
++	    in6_dev_hold_safe(idev)) {
+@@ -1552,2 +1577,2 @@ void igmp6_event_report(struct sk_buff *skb)
+-		if (!mod_delayed_work(mld_wq, &idev->mc_report_work, 0))
+-			in6_dev_hold(idev);
++		if (mod_delayed_work(mld_wq, &idev->mc_report_work, 0))
++			put = true;
+@@ -1556,0 +1582,3 @@ void igmp6_event_report(struct sk_buff *skb)
++
++	if (put)
++		in6_dev_put(idev);
+@@ -1872 +1899,0 @@ static struct sk_buff *add_grhead(struct sk_buff *skb, struct ifmcaddr6 *pmc,
+-/* called with mc_lock */
+@@ -1885,0 +1913,2 @@ static struct sk_buff *add_grec(struct sk_buff *skb, struct ifmcaddr6 *pmc,
++	mc_assert_locked(idev);
++
+@@ -2004 +2032,0 @@ static struct sk_buff *add_grec(struct sk_buff *skb, struct ifmcaddr6 *pmc,
+-/* called with mc_lock */
+@@ -2009,0 +2038,2 @@ static void mld_send_report(struct inet6_dev *idev, struct ifmcaddr6 *pmc)
++	mc_assert_locked(idev);
++
+@@ -2031,4 +2061 @@ static void mld_send_report(struct inet6_dev *idev, struct ifmcaddr6 *pmc)
+-/*
+- * remove zero-count source records from a source filter list
+- * called with mc_lock
+- */
++/* remove zero-count source records from a source filter list */
+@@ -2058 +2084,0 @@ static void mld_clear_zeros(struct ip6_sf_list __rcu **ppsf, struct inet6_dev *i
+-/* called with mc_lock */
+@@ -2222 +2247,0 @@ static void igmp6_send(struct in6_addr *addr, struct net_device *dev, int type)
+-/* called with mc_lock */
+@@ -2225 +2249,0 @@ static void mld_send_initial_cr(struct inet6_dev *idev)
+-	struct sk_buff *skb;
+@@ -2226,0 +2251 @@ static void mld_send_initial_cr(struct inet6_dev *idev)
++	struct sk_buff *skb;
+@@ -2228,0 +2254,2 @@ static void mld_send_initial_cr(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+@@ -2275 +2301,0 @@ static void mld_dad_work(struct work_struct *work)
+-/* called with mc_lock */
+@@ -2277 +2303 @@ static int ip6_mc_del1_src(struct ifmcaddr6 *pmc, int sfmode,
+-	const struct in6_addr *psfsrc)
++			   const struct in6_addr *psfsrc)
+@@ -2281,0 +2308,2 @@ static int ip6_mc_del1_src(struct ifmcaddr6 *pmc, int sfmode,
++	mc_assert_locked(pmc->idev);
++
+@@ -2318 +2345,0 @@ static int ip6_mc_del1_src(struct ifmcaddr6 *pmc, int sfmode,
+-/* called with mc_lock */
+@@ -2329,0 +2357,2 @@ static int ip6_mc_del_src(struct inet6_dev *idev, const struct in6_addr *pmca,
++	mc_assert_locked(idev);
++
+@@ -2371,4 +2400 @@ static int ip6_mc_del_src(struct inet6_dev *idev, const struct in6_addr *pmca,
+-/*
+- * Add multicast single-source filter to the interface list
+- * called with mc_lock
+- */
++/* Add multicast single-source filter to the interface list */
+@@ -2376 +2402 @@ static int ip6_mc_add1_src(struct ifmcaddr6 *pmc, int sfmode,
+-	const struct in6_addr *psfsrc)
++			   const struct in6_addr *psfsrc)
+@@ -2379,0 +2406,2 @@ static int ip6_mc_add1_src(struct ifmcaddr6 *pmc, int sfmode,
++	mc_assert_locked(pmc->idev);
++
+@@ -2402 +2429,0 @@ static int ip6_mc_add1_src(struct ifmcaddr6 *pmc, int sfmode,
+-/* called with mc_lock */
+@@ -2405 +2431,0 @@ static void sf_markstate(struct ifmcaddr6 *pmc)
+-	struct ip6_sf_list *psf;
+@@ -2406,0 +2433,3 @@ static void sf_markstate(struct ifmcaddr6 *pmc)
++	struct ip6_sf_list *psf;
++
++	mc_assert_locked(pmc->idev);
+@@ -2419 +2447,0 @@ static void sf_markstate(struct ifmcaddr6 *pmc)
+-/* called with mc_lock */
+@@ -2422 +2449,0 @@ static int sf_setstate(struct ifmcaddr6 *pmc)
+-	struct ip6_sf_list *psf, *dpsf;
+@@ -2423,0 +2451 @@ static int sf_setstate(struct ifmcaddr6 *pmc)
++	struct ip6_sf_list *psf, *dpsf;
+@@ -2426,0 +2455,2 @@ static int sf_setstate(struct ifmcaddr6 *pmc)
++	mc_assert_locked(pmc->idev);
++
+@@ -2485,4 +2515 @@ static int sf_setstate(struct ifmcaddr6 *pmc)
+-/*
+- * Add multicast source filter list to the interface list
+- * called with mc_lock
+- */
++/* Add multicast source filter list to the interface list */
+@@ -2499,0 +2527,2 @@ static int ip6_mc_add_src(struct inet6_dev *idev, const struct in6_addr *pmca,
++	mc_assert_locked(idev);
++
+@@ -2545 +2573,0 @@ static int ip6_mc_add_src(struct inet6_dev *idev, const struct in6_addr *pmca,
+-/* called with mc_lock */
+@@ -2549,0 +2578,2 @@ static void ip6_mc_clear_src(struct ifmcaddr6 *pmc)
++	mc_assert_locked(pmc->idev);
++
+@@ -2569 +2598,0 @@ static void ip6_mc_clear_src(struct ifmcaddr6 *pmc)
+-/* called with mc_lock */
+@@ -2573,0 +2603,2 @@ static void igmp6_join_group(struct ifmcaddr6 *ma)
++	mc_assert_locked(ma->idev);
++
+@@ -2620 +2650,0 @@ static int ip6_mc_leave_src(struct sock *sk, struct ipv6_mc_socklist *iml,
+-/* called with mc_lock */
+@@ -2622,0 +2653,2 @@ static void igmp6_leave_group(struct ifmcaddr6 *ma)
++	mc_assert_locked(ma->idev);
++
+@@ -2667 +2698,0 @@ static void mld_ifc_work(struct work_struct *work)
+-/* called with mc_lock */
+@@ -2669,0 +2701,2 @@ static void mld_ifc_event(struct inet6_dev *idev)
++	mc_assert_locked(idev);
++
+diff --git a/net/ipv6/netfilter.c b/net/ipv6/netfilter.c
+index 4541836ee3da207b163123f432d45647b6f869f7..2fd2c3e315ee873b833a46208b0928b26f374be4 100644
+--- a/net/ipv6/netfilter.c
++++ b/net/ipv6/netfilter.c
+@@ -134 +134 @@ int br_ip6_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
+-	unsigned int mtu, hlen;
++	unsigned int mtu, hlen, nexthdr_offset;
+@@ -142,0 +143 @@ int br_ip6_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
++	nexthdr_offset = prevhdr - skb_network_header(skb);
+@@ -160,0 +162 @@ int br_ip6_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
++	prevhdr = skb_network_header(skb) + nexthdr_offset;
+diff --git a/net/ipv6/route.c b/net/ipv6/route.c
+index 9e7470e8154429e190ab97c67e7e1ae29a51f2bf..4fb5196213524e62f4711826dbd2fc99838ae2bb 100644
+--- a/net/ipv6/route.c
++++ b/net/ipv6/route.c
+@@ -66,0 +67,4 @@
++#ifdef CONFIG_LIVEPATCH
++#include "kpatch-macros.h"
++#endif
++
+@@ -77,0 +82,5 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(fib6_table_lookup);
++#ifdef CONFIG_LIVEPATCH
++/* This boot-only section has finished before any livepatch can activate. */
++KPATCH_IGNORE_SECTION(".init.text")
++#endif
++
+@@ -991 +1000,2 @@ int rt6_route_rcv(struct net_device *dev, u8 *opt, int len,
+-		if (rinfo->length < 2) {
++		/* RFC 4191: Length MUST be 3 when Prefix Length > 64 */
++		if (rinfo->length < 3)
+@@ -993 +1002,0 @@ int rt6_route_rcv(struct net_device *dev, u8 *opt, int len,
+-		}
+@@ -995 +1004,2 @@ int rt6_route_rcv(struct net_device *dev, u8 *opt, int len,
+-		if (rinfo->length < 1) {
++		/* RFC 4191: Length MUST be 2 or 3 when Prefix Length > 0 */
++		if (rinfo->length < 2)
+@@ -997 +1006,0 @@ int rt6_route_rcv(struct net_device *dev, u8 *opt, int len,
+-		}
+diff --git a/net/ipv6/xfrm6_policy.c b/net/ipv6/xfrm6_policy.c
+index 125ea9a5b8a082052380b7fd7ed7123f5247d7cc..052fd5f8c53626139471f7b2417f602d94f935d9 100644
+--- a/net/ipv6/xfrm6_policy.c
++++ b/net/ipv6/xfrm6_policy.c
+@@ -90,0 +91 @@ static int xfrm6_fill_dst(struct xfrm_dst *xdst, struct net_device *dev,
++		xdst->u.dst.dev = NULL;
+@@ -133,0 +135,2 @@ static void xfrm6_dst_destroy(struct dst_entry *dst)
++	else
++		dst->dev = NULL;
+diff --git a/net/netfilter/ipset/ip_set_core.c b/net/netfilter/ipset/ip_set_core.c
+index a4e1d7951b2c604c97d9dae57bf4f9ab1c803320..46a1bbda48437b44b07c6b27fbffdb83fb7a5df8 100644
+--- a/net/netfilter/ipset/ip_set_core.c
++++ b/net/netfilter/ipset/ip_set_core.c
+@@ -23,0 +24,3 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/livepatch.h>
++#endif
+@@ -1483 +1486,5 @@ ip_set_dump_done(struct netlink_callback *cb)
+-		struct ip_set *set = ip_set_ref_netlink(inst, index);
++		struct ip_set *set;
++
++		rcu_read_lock();
++		set = ip_set_ref_netlink(inst, index);
++		rcu_read_unlock();
+@@ -1687,0 +1695 @@ ip_set_dump_do(struct sk_buff *skb, struct netlink_callback *cb)
++		rcu_read_lock();
+@@ -1688,0 +1697 @@ ip_set_dump_do(struct sk_buff *skb, struct netlink_callback *cb)
++		rcu_read_unlock();
+@@ -2238,0 +2248,95 @@ static struct nfnetlink_subsystem ip_set_netlink_subsys __read_mostly = {
++#ifdef CONFIG_LIVEPATCH
++struct vpsadminos_ipset_pre_patch_callback {
++	int (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_ipset_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_ipset_post_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++static bool vpsadminos_ipset_transition_quiesced;
++
++static int vpsadminos_ipset_netns_hold(struct net *net)
++{
++	if (!maybe_get_net(net))
++		return -ENOENT;
++	return 0;
++}
++
++static void vpsadminos_ipset_netns_release(struct net *net)
++{
++	put_net(net);
++}
++
++static struct pernet_operations vpsadminos_ipset_netns_guard = {
++	.init = vpsadminos_ipset_netns_hold,
++	.exit = vpsadminos_ipset_netns_release,
++};
++
++static int vpsadminos_ipset_livepatch_quiesce(struct klp_object *obj)
++{
++	int ret;
++
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return 0;
++	if (WARN_ON_ONCE(vpsadminos_ipset_transition_quiesced))
++		return -EBUSY;
++
++	ret = vpsadminos_pernet_try_register(&vpsadminos_ipset_netns_guard);
++	if (ret)
++		return ret;
++
++	ret = vpsadminos_nfnl_try_unregister(&ip_set_netlink_subsys);
++	if (ret) {
++		unregister_pernet_subsys(&vpsadminos_ipset_netns_guard);
++		return ret;
++	}
++
++	WRITE_ONCE(vpsadminos_ipset_transition_quiesced, true);
++	return 0;
++}
++
++static void vpsadminos_ipset_livepatch_restore(struct klp_object *obj)
++{
++	int ret;
++
++	if (!READ_ONCE(vpsadminos_ipset_transition_quiesced))
++		return;
++
++	ret = nfnetlink_subsys_register(&ip_set_netlink_subsys);
++	if (ret)
++		pr_err("ip_set: livepatch failed to restore NFNETLINK: %d\n",
++		       ret);
++	unregister_pernet_subsys(&vpsadminos_ipset_netns_guard);
++	WRITE_ONCE(vpsadminos_ipset_transition_quiesced, false);
++}
++
++static struct vpsadminos_ipset_pre_patch_callback
++vpsadminos_ipset_pre_patch_data
++__section(".kpatch.callbacks.pre_patch") __used = {
++	.fn = vpsadminos_ipset_livepatch_quiesce,
++	.objname = NULL,
++};
++
++static struct vpsadminos_ipset_post_patch_callback
++vpsadminos_ipset_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_ipset_livepatch_restore,
++	.objname = NULL,
++};
++
++static struct vpsadminos_ipset_post_unpatch_callback
++vpsadminos_ipset_post_unpatch_data
++__section(".kpatch.callbacks.post_unpatch") __used = {
++	.fn = vpsadminos_ipset_livepatch_restore,
++	.objname = NULL,
++};
++#endif
++
+diff --git a/net/netfilter/ipset/ip_set_hash_gen.h b/net/netfilter/ipset/ip_set_hash_gen.h
+index 4e56269efef28e5add411799397c3d7365abb298..c92944eaeac58379fe92b499912ec9de39d33c5c 100644
+--- a/net/netfilter/ipset/ip_set_hash_gen.h
++++ b/net/netfilter/ipset/ip_set_hash_gen.h
+@@ -454,0 +455,2 @@ mtype_destroy(struct ip_set *set)
++	if (SET_WITH_TIMEOUT(set))
++		disable_delayed_work_sync(&h->gc.dwork);
+@@ -607 +609 @@ mtype_cancel_gc(struct ip_set *set)
+-		cancel_delayed_work_sync(&h->gc.dwork);
++		disable_delayed_work_sync(&h->gc.dwork);
+diff --git a/net/netfilter/ipvs/ip_vs_app.c b/net/netfilter/ipvs/ip_vs_app.c
+index fdacbc3c15bef972cbc8237add6567d3123d3354..0c690a30a85dc4cf0e96f859441cce74cc9b1e7a 100644
+--- a/net/netfilter/ipvs/ip_vs_app.c
++++ b/net/netfilter/ipvs/ip_vs_app.c
+@@ -365 +364,0 @@ static inline int app_tcp_pkt_out(struct ip_vs_conn *cp, struct sk_buff *skb,
+-	const unsigned int tcp_offset = ip_hdrlen(skb);
+@@ -369 +368 @@ static inline int app_tcp_pkt_out(struct ip_vs_conn *cp, struct sk_buff *skb,
+-	if (skb_ensure_writable(skb, tcp_offset + sizeof(*th)))
++	if (skb_ensure_writable(skb, ipvsh->len + sizeof(*th)))
+@@ -372 +371 @@ static inline int app_tcp_pkt_out(struct ip_vs_conn *cp, struct sk_buff *skb,
+-	th = (struct tcphdr *)(skb_network_header(skb) + tcp_offset);
++	th = (struct tcphdr *)(skb->data + ipvsh->len);
+@@ -442 +440,0 @@ static inline int app_tcp_pkt_in(struct ip_vs_conn *cp, struct sk_buff *skb,
+-	const unsigned int tcp_offset = ip_hdrlen(skb);
+@@ -446 +444 @@ static inline int app_tcp_pkt_in(struct ip_vs_conn *cp, struct sk_buff *skb,
+-	if (skb_ensure_writable(skb, tcp_offset + sizeof(*th)))
++	if (skb_ensure_writable(skb, ipvsh->len + sizeof(*th)))
+@@ -449 +447 @@ static inline int app_tcp_pkt_in(struct ip_vs_conn *cp, struct sk_buff *skb,
+-	th = (struct tcphdr *)(skb_network_header(skb) + tcp_offset);
++	th = (struct tcphdr *)(skb->data + ipvsh->len);
+diff --git a/net/netfilter/ipvs/ip_vs_core.c b/net/netfilter/ipvs/ip_vs_core.c
+index 5ea7ab8bf4dcc2e9e7f96c6d8b1952a286aa4598..d121ea3d16bc95ab13ec5a709b7ad5467a0c014c 100644
+--- a/net/netfilter/ipvs/ip_vs_core.c
++++ b/net/netfilter/ipvs/ip_vs_core.c
+@@ -223 +223 @@ ip_vs_set_state(struct ip_vs_conn *cp, int direction,
+-		struct ip_vs_proto_data *pd)
++		struct ip_vs_proto_data *pd, unsigned int iph_len)
+@@ -226 +226 @@ ip_vs_set_state(struct ip_vs_conn *cp, int direction,
+-		pd->pp->state_transition(cp, direction, skb, pd);
++		pd->pp->state_transition(cp, direction, skb, pd, iph_len);
+@@ -628 +628 @@ int ip_vs_leave(struct ip_vs_service *svc, struct sk_buff *skb,
+-		ip_vs_set_state(cp, IP_VS_DIR_INPUT, skb, pd);
++		ip_vs_set_state(cp, IP_VS_DIR_INPUT, skb, pd, iph->len);
+@@ -692 +692 @@ static int sysctl_nat_icmp_send(struct netns_ipvs *ipvs) { return 0; }
+-__sum16 ip_vs_checksum_complete(struct sk_buff *skb, int offset)
++static __sum16 ip_vs_checksum_complete(struct sk_buff *skb, int offset)
+@@ -749 +749,2 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		    struct ip_vs_conn *cp, int inout)
++		    struct ip_vs_conn *cp, int inout, unsigned int toff,
++		    bool has_ports, struct ip_vs_iphdr *ciph)
+@@ -752,4 +753,2 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	unsigned int icmp_offset = iph->ihl*4;
+-	struct icmphdr *icmph	 = (struct icmphdr *)(skb_network_header(skb) +
+-						      icmp_offset);
+-	struct iphdr *ciph	 = (struct iphdr *)(icmph + 1);
++	struct icmphdr *icmph	 = (struct icmphdr *)(skb->data + toff);
++	struct iphdr *cih	 = (struct iphdr *)(icmph + 1);
+@@ -760,2 +759,2 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		ciph->daddr = cp->vaddr.ip;
+-		ip_send_check(ciph);
++		cih->daddr = cp->vaddr.ip;
++		ip_send_check(cih);
+@@ -765,2 +764,2 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		ciph->saddr = cp->daddr.ip;
+-		ip_send_check(ciph);
++		cih->saddr = cp->daddr.ip;
++		ip_send_check(cih);
+@@ -770,3 +769,2 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	if (IPPROTO_TCP == ciph->protocol || IPPROTO_UDP == ciph->protocol ||
+-	    IPPROTO_SCTP == ciph->protocol) {
+-		__be16 *ports = (void *)ciph + ciph->ihl*4;
++	if (has_ports) {
++		__be16 *ports = (void *)(skb->data + ciph->len);
+@@ -782 +780 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	icmph->checksum = ip_vs_checksum_complete(skb, icmp_offset);
++	icmph->checksum = ip_vs_checksum_complete(skb, toff);
+@@ -786,2 +784,2 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		IP_VS_DBG_PKT(11, AF_INET, pp, skb, (void *)ciph - (void *)iph,
+-			"Forwarding altered outgoing ICMP");
++		IP_VS_DBG_PKT(11, AF_INET, pp, skb, ciph->off,
++			      "Forwarding altered outgoing ICMP");
+@@ -789,2 +787,2 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		IP_VS_DBG_PKT(11, AF_INET, pp, skb, (void *)ciph - (void *)iph,
+-			"Forwarding altered incoming ICMP");
++		IP_VS_DBG_PKT(11, AF_INET, pp, skb, ciph->off,
++			      "Forwarding altered incoming ICMP");
+@@ -795 +793,2 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		    struct ip_vs_conn *cp, int inout)
++		       struct ip_vs_conn *cp, int inout, unsigned int toff,
++		       bool has_ports, struct ip_vs_iphdr *ciph)
+@@ -798,3 +796,0 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	unsigned int icmp_offset = 0;
+-	unsigned int offs	 = 0; /* header offset*/
+-	int protocol;
+@@ -802,2 +798 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	struct ipv6hdr *ciph;
+-	unsigned short fragoffs;
++	struct ipv6hdr *cih;
+@@ -805,6 +800,2 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	ipv6_find_hdr(skb, &icmp_offset, IPPROTO_ICMPV6, &fragoffs, NULL);
+-	icmph = (struct icmp6hdr *)(skb_network_header(skb) + icmp_offset);
+-	offs = icmp_offset + sizeof(struct icmp6hdr);
+-	ciph = (struct ipv6hdr *)(skb_network_header(skb) + offs);
+-
+-	protocol = ipv6_find_hdr(skb, &offs, -1, &fragoffs, NULL);
++	icmph = (struct icmp6hdr *)(skb->data + toff);
++	cih = (struct ipv6hdr *)(skb->data + ciph->off);
+@@ -814 +805 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		ciph->daddr = cp->vaddr.in6;
++		cih->daddr = cp->vaddr.in6;
+@@ -817 +808 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		ciph->saddr = cp->daddr.in6;
++		cih->saddr = cp->daddr.in6;
+@@ -821,3 +812,2 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	if (!fragoffs && (IPPROTO_TCP == protocol || IPPROTO_UDP == protocol ||
+-			  IPPROTO_SCTP == protocol)) {
+-		__be16 *ports = (void *)(skb_network_header(skb) + offs);
++	if (has_ports) {
++		__be16 *ports = (void *)(skb->data + ciph->len);
+@@ -836 +826 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-					      skb->len - icmp_offset,
++					      skb->len - toff,
+@@ -838 +828 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	skb->csum_start = skb_network_header(skb) - skb->head + icmp_offset;
++	skb->csum_start = skb_headroom(skb) + toff;
+@@ -843,2 +833 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		IP_VS_DBG_PKT(11, AF_INET6, pp, skb,
+-			      (void *)ciph - (void *)iph,
++		IP_VS_DBG_PKT(11, AF_INET6, pp, skb, ciph->off,
+@@ -847,2 +836 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		IP_VS_DBG_PKT(11, AF_INET6, pp, skb,
+-			      (void *)ciph - (void *)iph,
++		IP_VS_DBG_PKT(11, AF_INET6, pp, skb, ciph->off,
+@@ -858 +846 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
+-				__u8 protocol, struct ip_vs_conn *cp,
++				struct ip_vs_conn *cp,
+@@ -860,2 +848,2 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
+-				unsigned int offset, unsigned int ihl,
+-				unsigned int hooknum)
++				struct ip_vs_iphdr *ciph,
++				unsigned int toff, unsigned int hooknum)
+@@ -862,0 +851 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
++	int iproto = af == AF_INET6 ? IPPROTO_ICMPV6 : IPPROTO_ICMP;
+@@ -863,0 +853,2 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
++	unsigned int ctoff = ciph->len;
++	bool has_ports = false;
+@@ -869 +860 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
+-	if (!skb_csum_unnecessary(skb) && ip_vs_checksum_complete(skb, ihl)) {
++	if (!ip_vs_checksum_common_check(skb, toff, iproto, af)) {
+@@ -876,4 +867,6 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
+-	if (IPPROTO_TCP == protocol || IPPROTO_UDP == protocol ||
+-	    IPPROTO_SCTP == protocol)
+-		offset += 2 * sizeof(__u16);
+-	if (skb_ensure_writable(skb, offset))
++	if (ciph->protocol == IPPROTO_TCP || ciph->protocol == IPPROTO_UDP ||
++	    ciph->protocol == IPPROTO_SCTP) {
++		ctoff += 2 * sizeof(__u16);
++		has_ports = true;
++	}
++	if (skb_ensure_writable(skb, ctoff))
+@@ -884 +877 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
+-		ip_vs_nat_icmp_v6(skb, pp, cp, 1);
++		ip_vs_nat_icmp_v6(skb, pp, cp, 1, toff, has_ports, ciph);
+@@ -887 +880 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
+-		ip_vs_nat_icmp(skb, pp, cp, 1);
++		ip_vs_nat_icmp(skb, pp, cp, 1, toff, has_ports, ciph);
+@@ -915 +908,2 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-			  int *related, unsigned int hooknum)
++			  int *related, unsigned int hooknum,
++			  struct ip_vs_iphdr *ipvsh)
+@@ -917 +910,0 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	struct iphdr *iph;
+@@ -923 +916 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	unsigned int offset, ihl;
++	unsigned int offset;
+@@ -931,0 +925,2 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
++		if (!ip_vs_fill_iph_skb(AF_INET, skb, false, ipvsh))
++			return NF_ACCEPT;
+@@ -934,2 +929 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	iph = ip_hdr(skb);
+-	offset = ihl = iph->ihl * 4;
++	offset = ipvsh->len;
+@@ -942 +936 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-		  &iph->saddr, &iph->daddr);
++		  &ipvsh->saddr.ip, &ipvsh->daddr.ip);
+@@ -959,0 +954,3 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
++	if (!ip_vs_fill_iph_skb_icmp(AF_INET, skb, offset, true, &ciph))
++		return NF_ACCEPT; /* The packet looks wrong, ignore */
++
+@@ -961 +958,2 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	if (cih == NULL)
++	if (!(cih && cih->version == 4 &&
++	      ciph.len - ciph.off >= sizeof(struct iphdr)))
+@@ -964 +962 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	pp = ip_vs_proto_get(cih->protocol);
++	pp = ip_vs_proto_get(ciph.protocol);
+@@ -969,2 +967 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	if (unlikely(cih->frag_off & htons(IP_OFFSET) &&
+-		     pp->dont_defrag))
++	if (unlikely(cih->frag_off & htons(IP_OFFSET) && !pp->dont_defrag))
+@@ -976,2 +972,0 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	ip_vs_fill_iph_skb_icmp(AF_INET, skb, offset, true, &ciph);
+-
+@@ -984,3 +979,3 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	snet.ip = iph->saddr;
+-	return handle_response_icmp(AF_INET, skb, &snet, cih->protocol, cp,
+-				    pp, ciph.len, ihl, hooknum);
++	snet.ip = ipvsh->saddr.ip;
++	return handle_response_icmp(AF_INET, skb, &snet, cp, pp, &ciph,
++				    ipvsh->len, hooknum);
+@@ -999 +993,0 @@ static int ip_vs_out_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	unsigned int offset;
+@@ -1034,0 +1029,4 @@ static int ip_vs_out_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
++	/* Is the embedded protocol header present? */
++	if (unlikely(ciph.fragoffs && !pp->dont_defrag))
++		return NF_ACCEPT;
++
+@@ -1042,4 +1040,2 @@ static int ip_vs_out_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	offset = ciph.len;
+-	return handle_response_icmp(AF_INET6, skb, &snet, ciph.protocol, cp,
+-				    pp, offset, sizeof(struct ipv6hdr),
+-				    hooknum);
++	return handle_response_icmp(AF_INET6, skb, &snet, cp, pp, &ciph,
++				    ipvsh->len, hooknum);
+@@ -1309 +1305 @@ handle_response(int af, struct sk_buff *skb, struct ip_vs_proto_data *pd,
+-	ip_vs_set_state(cp, IP_VS_DIR_OUTPUT, skb, pd);
++	ip_vs_set_state(cp, IP_VS_DIR_OUTPUT, skb, pd, iph->len);
+@@ -1371 +1367,2 @@ ip_vs_out_hook(void *priv, struct sk_buff *skb, const struct nf_hook_state *stat
+-			int verdict = ip_vs_out_icmp(ipvs, skb, &related, hooknum);
++			int verdict = ip_vs_out_icmp(ipvs, skb, &related,
++						     hooknum, &iph);
+@@ -1579 +1576 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	      unsigned int hooknum)
++	      unsigned int hooknum, struct ip_vs_iphdr *iph)
+@@ -1581 +1577,0 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	struct iphdr *iph;
+@@ -1591 +1587,3 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	char *outer_proto = "IPIP";
++	char *outer_proto __maybe_unused = "IPIP";
++	unsigned int hlen_ipip;
++	int ulen = 0;
+@@ -1598,0 +1597,2 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
++		if (!ip_vs_fill_iph_skb(AF_INET, skb, false, iph))
++			return NF_ACCEPT;
+@@ -1601,2 +1601,2 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	iph = ip_hdr(skb);
+-	offset = ihl = iph->ihl * 4;
++	ihl = iph->len;
++	offset = iph->len;
+@@ -1609 +1609 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-		  &iph->saddr, &iph->daddr);
++		  &iph->saddr.ip, &iph->daddr.ip);
+@@ -1628 +1628,4 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	if (cih == NULL)
++	if (!cih)
++		return NF_ACCEPT; /* The packet looks wrong, ignore */
++	hlen_ipip = cih->ihl * 4;
++	if (!(cih->version == 4 && hlen_ipip >= sizeof(struct iphdr)))
+@@ -1646,4 +1649 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-		offset += cih->ihl * 4;
+-		cih = skb_header_pointer(skb, offset, sizeof(_ciph), &_ciph);
+-		if (cih == NULL)
+-			return NF_ACCEPT; /* The packet looks wrong, ignore */
++		offset += hlen_ipip;
+@@ -1656 +1655,0 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-		int ulen;
+@@ -1661 +1660 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-		offset2 = offset + cih->ihl * 4;
++		offset2 = offset + hlen_ipip;
+@@ -1675,4 +1674 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-			cih = skb_header_pointer(skb, offset, sizeof(_ciph),
+-						 &_ciph);
+-			if (cih && cih->version == 4 && cih->ihl >= 5 &&
+-			    iproto == IPPROTO_IPIP)
++			if (iproto == IPPROTO_IPIP)
+@@ -1685 +1681,3 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	pd = ip_vs_proto_data_get(ipvs, cih->protocol);
++	if (!ip_vs_fill_iph_skb_icmp(AF_INET, skb, offset, !tunnel, &ciph))
++		return NF_ACCEPT;
++	pd = ip_vs_proto_data_get(ipvs, ciph.protocol);
+@@ -1689,0 +1688,5 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
++	cih = skb_header_pointer(skb, offset, sizeof(_ciph), &_ciph);
++	if (!(cih && cih->version == 4 &&
++	      ciph.len - ciph.off >= sizeof(struct iphdr)))
++		return NF_ACCEPT; /* The packet looks wrong, ignore */
++
+@@ -1691,2 +1694 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	if (unlikely(cih->frag_off & htons(IP_OFFSET) &&
+-		     pp->dont_defrag))
++	if (unlikely(cih->frag_off & htons(IP_OFFSET) && !pp->dont_defrag))
+@@ -1698,4 +1699,0 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	offset2 = offset;
+-	ip_vs_fill_iph_skb_icmp(AF_INET, skb, offset, !tunnel, &ciph);
+-	offset = ciph.len;
+-
+@@ -1722 +1720,2 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	if (!skb_csum_unnecessary(skb) && ip_vs_checksum_complete(skb, ihl)) {
++	if ((IP_VS_FWD_METHOD(cp) == IP_VS_CONN_F_MASQ || tunnel) &&
++	    !ip_vs_checksum_common_check(skb, ihl, IPPROTO_ICMP, AF_INET)) {
+@@ -1725 +1724 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-			  &iph->saddr);
++			  &iph->saddr.ip);
+@@ -1729,0 +1729 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
++		unsigned int hlen_orig = ciph.len - ciph.off;
+@@ -1733,0 +1734 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
++		offset2 = offset;
+@@ -1745,0 +1747,3 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
++			/* Ensure the IP header is present in headroom */
++			if (!pskb_may_pull(skb, hlen_ipip))
++				goto ignore_tunnel;
+@@ -1761,2 +1765,2 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-			if (mtu > 68 + sizeof(struct iphdr))
+-				mtu -= sizeof(struct iphdr);
++			if (mtu > 68 + hlen_ipip + ulen)
++				mtu -= hlen_ipip + ulen;
+@@ -1770,0 +1775,4 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
++		memset(&(IPCB(skb)->opt), 0, sizeof(IPCB(skb)->opt));
++		/* Ensure the IP header is present in headroom */
++		if (!pskb_may_pull(skb, hlen_orig))
++			goto ignore_tunnel;
+@@ -1786,4 +1794 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
+-	if (IPPROTO_TCP == cih->protocol || IPPROTO_UDP == cih->protocol ||
+-	    IPPROTO_SCTP == cih->protocol)
+-		offset += 2 * sizeof(__u16);
+-	verdict = ip_vs_icmp_xmit(skb, cp, pp, offset, hooknum, &ciph);
++	verdict = ip_vs_icmp_xmit(skb, cp, pp, iph->len, hooknum, &ciph);
+@@ -1849,2 +1854,2 @@ static int ip_vs_in_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	/* Cannot handle fragmented embedded protocol */
+-	if (ciph.fragoffs)
++	/* Is the embedded protocol header present? */
++	if (ciph.fragoffs && !pp->dont_defrag)
+@@ -1874,4 +1879,9 @@ static int ip_vs_in_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	/* VS/TUN, VS/DR and LOCALNODE just let it go */
+-	if ((hooknum == NF_INET_LOCAL_OUT) &&
+-	    (IP_VS_FWD_METHOD(cp) != IP_VS_CONN_F_MASQ)) {
+-		verdict = NF_ACCEPT;
++	verdict = NF_DROP;
++
++	/* Ensure the checksum is correct */
++	if (IP_VS_FWD_METHOD(cp) == IP_VS_CONN_F_MASQ &&
++	    !ip_vs_checksum_common_check(skb, iph->len, IPPROTO_ICMPV6,
++					 AF_INET6)) {
++		/* Failed checksum! */
++		IP_VS_DBG(1, "Incoming ICMPv6: failed checksum from %pI6c!\n",
++			  &iph->saddr);
+@@ -1884,7 +1894 @@ static int ip_vs_in_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
+-	/* Need to mangle contained IPv6 header in ICMPv6 packet */
+-	offset = ciph.len;
+-	if (IPPROTO_TCP == ciph.protocol || IPPROTO_UDP == ciph.protocol ||
+-	    IPPROTO_SCTP == ciph.protocol)
+-		offset += 2 * sizeof(__u16); /* Also mangle ports */
+-
+-	verdict = ip_vs_icmp_xmit_v6(skb, cp, pp, offset, hooknum, &ciph);
++	verdict = ip_vs_icmp_xmit_v6(skb, cp, pp, iph->len, hooknum, &ciph);
+@@ -1969 +1973 @@ ip_vs_in_hook(void *priv, struct sk_buff *skb, const struct nf_hook_state *state
+-						    hooknum);
++						    hooknum, &iph);
+@@ -2058 +2062 @@ ip_vs_in_hook(void *priv, struct sk_buff *skb, const struct nf_hook_state *state
+-	ip_vs_set_state(cp, IP_VS_DIR_INPUT, skb, pd);
++	ip_vs_set_state(cp, IP_VS_DIR_INPUT, skb, pd, iph.len);
+@@ -2104,0 +2109 @@ ip_vs_forward_icmp(void *priv, struct sk_buff *skb,
++	struct ip_vs_iphdr iphdr;
+@@ -2113,0 +2119 @@ ip_vs_forward_icmp(void *priv, struct sk_buff *skb,
++		ip_vs_fill_iph_skb(AF_INET, skb, false, &iphdr);
+@@ -2116,2 +2121,0 @@ ip_vs_forward_icmp(void *priv, struct sk_buff *skb,
+-		struct ip_vs_iphdr iphdr;
+-
+@@ -2127 +2131 @@ ip_vs_forward_icmp(void *priv, struct sk_buff *skb,
+-	return ip_vs_in_icmp(ipvs, skb, &r, state->hook);
++	return ip_vs_in_icmp(ipvs, skb, &r, state->hook, &iphdr);
+diff --git a/net/netfilter/ipvs/ip_vs_proto_sctp.c b/net/netfilter/ipvs/ip_vs_proto_sctp.c
+index 63c78a1f3918a79690616227c217a4c8edac05f5..38f41c3d8ea6f6efc648336c3ce15c917069602f 100644
+--- a/net/netfilter/ipvs/ip_vs_proto_sctp.c
++++ b/net/netfilter/ipvs/ip_vs_proto_sctp.c
+@@ -14 +14 @@ sctp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		unsigned int sctphoff);
++		struct ip_vs_iphdr *iph);
+@@ -112 +112 @@ sctp_snat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		if (!sctp_csum_check(cp->af, skb, pp, sctphoff))
++		if (!sctp_csum_check(cp->af, skb, pp, iph))
+@@ -124 +124 @@ sctp_snat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	sctph = (void *) skb_network_header(skb) + sctphoff;
++	sctph = (void *)skb->data + sctphoff;
+@@ -160 +160 @@ sctp_dnat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		if (!sctp_csum_check(cp->af, skb, pp, sctphoff))
++		if (!sctp_csum_check(cp->af, skb, pp, iph))
+@@ -172 +172 @@ sctp_dnat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	sctph = (void *) skb_network_header(skb) + sctphoff;
++	sctph = (void *)skb->data + sctphoff;
+@@ -190 +190 @@ sctp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		unsigned int sctphoff)
++		struct ip_vs_iphdr *iph)
+@@ -191,0 +192 @@ sctp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
++	unsigned int sctphoff = iph->len;
+@@ -194,0 +196,2 @@ sctp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
++	if (!ip_vs_checksum_needed(skb, af))
++		return 1;
+@@ -201,2 +204,2 @@ sctp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		IP_VS_DBG_RL_PKT(0, af, pp, skb, 0,
+-				"Failed checksum for");
++		IP_VS_DBG_RL_PKT(0, af, pp, skb, iph->off,
++				 "Failed checksum for");
+@@ -471 +474,2 @@ sctp_state_transition(struct ip_vs_conn *cp, int direction,
+-		const struct sk_buff *skb, struct ip_vs_proto_data *pd)
++		const struct sk_buff *skb, struct ip_vs_proto_data *pd,
++		unsigned int iph_len)
+diff --git a/net/netfilter/ipvs/ip_vs_proto_tcp.c b/net/netfilter/ipvs/ip_vs_proto_tcp.c
+index ede4fa3b63f52d22a7ac3167edff0c414c64f881..f847d566102c74c6ac377a72489649f024101e24 100644
+--- a/net/netfilter/ipvs/ip_vs_proto_tcp.c
++++ b/net/netfilter/ipvs/ip_vs_proto_tcp.c
+@@ -33 +33 @@ tcp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	       unsigned int tcphoff);
++	       struct ip_vs_iphdr *iph);
+@@ -170 +170 @@ tcp_snat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		if (!tcp_csum_check(cp->af, skb, pp, tcphoff))
++		if (!tcp_csum_check(cp->af, skb, pp, iph))
+@@ -183 +183 @@ tcp_snat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	tcph = (void *)skb_network_header(skb) + tcphoff;
++	tcph = (void *)skb->data + tcphoff;
+@@ -248 +248 @@ tcp_dnat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		if (!tcp_csum_check(cp->af, skb, pp, tcphoff))
++		if (!tcp_csum_check(cp->af, skb, pp, iph))
+@@ -264 +264 @@ tcp_dnat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	tcph = (void *)skb_network_header(skb) + tcphoff;
++	tcph = (void *)skb->data + tcphoff;
+@@ -306 +306 @@ tcp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	       unsigned int tcphoff)
++	       struct ip_vs_iphdr *iph)
+@@ -308,31 +308,4 @@ tcp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	switch (skb->ip_summed) {
+-	case CHECKSUM_NONE:
+-		skb->csum = skb_checksum(skb, tcphoff, skb->len - tcphoff, 0);
+-		fallthrough;
+-	case CHECKSUM_COMPLETE:
+-#ifdef CONFIG_IP_VS_IPV6
+-		if (af == AF_INET6) {
+-			if (csum_ipv6_magic(&ipv6_hdr(skb)->saddr,
+-					    &ipv6_hdr(skb)->daddr,
+-					    skb->len - tcphoff,
+-					    IPPROTO_TCP,
+-					    skb->csum)) {
+-				IP_VS_DBG_RL_PKT(0, af, pp, skb, 0,
+-						 "Failed checksum for");
+-				return 0;
+-			}
+-		} else
+-#endif
+-			if (csum_tcpudp_magic(ip_hdr(skb)->saddr,
+-					      ip_hdr(skb)->daddr,
+-					      skb->len - tcphoff,
+-					      ip_hdr(skb)->protocol,
+-					      skb->csum)) {
+-				IP_VS_DBG_RL_PKT(0, af, pp, skb, 0,
+-						 "Failed checksum for");
+-				return 0;
+-			}
+-		break;
+-	default:
+-		/* No need to checksum. */
+-		break;
++	if (!ip_vs_checksum_common_check(skb, iph->len, IPPROTO_TCP, af)) {
++		IP_VS_DBG_RL_PKT(0, af, pp, skb, iph->off,
++				 "Failed checksum for");
++		return 0;
+@@ -340 +312,0 @@ tcp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-
+@@ -583 +555,2 @@ tcp_state_transition(struct ip_vs_conn *cp, int direction,
+-		     struct ip_vs_proto_data *pd)
++		     struct ip_vs_proto_data *pd,
++		     unsigned int iph_len)
+diff --git a/net/netfilter/ipvs/ip_vs_proto_udp.c b/net/netfilter/ipvs/ip_vs_proto_udp.c
+index ffbebda547fc105897648841ace263182499cc0e..96ac882df15c1ff756e12f0a57fb262b0a593aef 100644
+--- a/net/netfilter/ipvs/ip_vs_proto_udp.c
++++ b/net/netfilter/ipvs/ip_vs_proto_udp.c
+@@ -29 +29 @@ udp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	       unsigned int udphoff);
++	       struct ip_vs_iphdr *iph);
+@@ -159 +159 @@ udp_snat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		if (!udp_csum_check(cp->af, skb, pp, udphoff))
++		if (!udp_csum_check(cp->af, skb, pp, iph))
+@@ -174 +174 @@ udp_snat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	udph = (void *)skb_network_header(skb) + udphoff;
++	udph = (void *)skb->data + udphoff;
+@@ -242 +242 @@ udp_dnat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-		if (!udp_csum_check(cp->af, skb, pp, udphoff))
++		if (!udp_csum_check(cp->af, skb, pp, iph))
+@@ -258 +258 @@ udp_dnat_handler(struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	udph = (void *)skb_network_header(skb) + udphoff;
++	udph = (void *)skb->data + udphoff;
+@@ -302 +302 @@ udp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	       unsigned int udphoff)
++	       struct ip_vs_iphdr *iph)
+@@ -306 +306 @@ udp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	uh = skb_header_pointer(skb, udphoff, sizeof(_udph), &_udph);
++	uh = skb_header_pointer(skb, iph->len, sizeof(_udph), &_udph);
+@@ -310,34 +310,6 @@ udp_csum_check(int af, struct sk_buff *skb, struct ip_vs_protocol *pp,
+-	if (uh->check != 0) {
+-		switch (skb->ip_summed) {
+-		case CHECKSUM_NONE:
+-			skb->csum = skb_checksum(skb, udphoff,
+-						 skb->len - udphoff, 0);
+-			fallthrough;
+-		case CHECKSUM_COMPLETE:
+-#ifdef CONFIG_IP_VS_IPV6
+-			if (af == AF_INET6) {
+-				if (csum_ipv6_magic(&ipv6_hdr(skb)->saddr,
+-						    &ipv6_hdr(skb)->daddr,
+-						    skb->len - udphoff,
+-						    IPPROTO_UDP,
+-						    skb->csum)) {
+-					IP_VS_DBG_RL_PKT(0, af, pp, skb, 0,
+-							 "Failed checksum for");
+-					return 0;
+-				}
+-			} else
+-#endif
+-				if (csum_tcpudp_magic(ip_hdr(skb)->saddr,
+-						      ip_hdr(skb)->daddr,
+-						      skb->len - udphoff,
+-						      ip_hdr(skb)->protocol,
+-						      skb->csum)) {
+-					IP_VS_DBG_RL_PKT(0, af, pp, skb, 0,
+-							 "Failed checksum for");
+-					return 0;
+-				}
+-			break;
+-		default:
+-			/* No need to checksum. */
+-			break;
+-		}
++	if (!uh->check)
++		return 1;
++	if (!ip_vs_checksum_common_check(skb, iph->len, IPPROTO_UDP, af)) {
++		IP_VS_DBG_RL_PKT(0, af, pp, skb, iph->off,
++				 "Failed checksum for");
++		return 0;
+@@ -448 +420,2 @@ udp_state_transition(struct ip_vs_conn *cp, int direction,
+-		     struct ip_vs_proto_data *pd)
++		     struct ip_vs_proto_data *pd,
++		     unsigned int iph_len)
+diff --git a/net/netfilter/ipvs/ip_vs_xmit.c b/net/netfilter/ipvs/ip_vs_xmit.c
+index ed8b2616cf178280b923c7f74165f89510c95b14..240378e37741a1f98f250ace60c3589041a4eb45 100644
+--- a/net/netfilter/ipvs/ip_vs_xmit.c
++++ b/net/netfilter/ipvs/ip_vs_xmit.c
+@@ -736,3 +736 @@ ip_vs_bypass_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-	struct iphdr  *iph = ip_hdr(skb);
+-
+-	if (__ip_vs_get_out_rt(cp->ipvs, cp->af, skb, NULL, iph->daddr,
++	if (__ip_vs_get_out_rt(cp->ipvs, cp->af, skb, NULL, ip_hdr(skb)->daddr,
+@@ -742 +740 @@ ip_vs_bypass_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-	ip_send_check(iph);
++	ip_send_check(ip_hdr(skb));
+@@ -1504,2 +1502,2 @@ ip_vs_icmp_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-		struct ip_vs_protocol *pp, int offset, unsigned int hooknum,
+-		struct ip_vs_iphdr *iph)
++		struct ip_vs_protocol *pp, unsigned int toff,
++		unsigned int hooknum, struct ip_vs_iphdr *ciph)
+@@ -1510,0 +1509,2 @@ ip_vs_icmp_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
++	bool has_ports = false;
++	unsigned int wlen;
+@@ -1517 +1517 @@ ip_vs_icmp_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-			rc = cp->packet_xmit(skb, cp, pp, iph);
++			rc = cp->packet_xmit(skb, cp, pp, ciph);
+@@ -1535 +1535 @@ ip_vs_icmp_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-				   NULL, iph);
++				   NULL, ciph);
+@@ -1565,0 +1566,7 @@ ip_vs_icmp_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
++	wlen = ciph->len;
++	if (ciph->protocol == IPPROTO_TCP || ciph->protocol == IPPROTO_UDP ||
++	    ciph->protocol == IPPROTO_SCTP) {
++		wlen += 2 * sizeof(__u16); /* Also mangle ports */
++		has_ports = true;
++	}
++
+@@ -1567 +1574 @@ ip_vs_icmp_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-	if (skb_ensure_writable(skb, offset))
++	if (skb_ensure_writable(skb, wlen))
+@@ -1573 +1580 @@ ip_vs_icmp_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
+-	ip_vs_nat_icmp(skb, pp, cp, 0);
++	ip_vs_nat_icmp(skb, pp, cp, 0, toff, has_ports, ciph);
+@@ -1589,2 +1596,2 @@ ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
+-		struct ip_vs_protocol *pp, int offset, unsigned int hooknum,
+-		struct ip_vs_iphdr *ipvsh)
++		struct ip_vs_protocol *pp, unsigned int toff,
++		unsigned int hooknum, struct ip_vs_iphdr *ciph)
+@@ -1591,0 +1599 @@ ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
++	bool has_ports = false;
+@@ -1592,0 +1601 @@ ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
++	unsigned int wlen;
+@@ -1602 +1611 @@ ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
+-			rc = cp->packet_xmit(skb, cp, pp, ipvsh);
++			rc = cp->packet_xmit(skb, cp, pp, ciph);
+@@ -1619 +1628 @@ ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
+-				      &cp->daddr.in6, NULL, ipvsh, 0, rt_mode);
++				      &cp->daddr.in6, NULL, ciph, 0, rt_mode);
+@@ -1649,0 +1659,7 @@ ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
++	wlen = ciph->len;
++	if (ciph->protocol == IPPROTO_TCP || ciph->protocol == IPPROTO_UDP ||
++	    ciph->protocol == IPPROTO_SCTP) {
++		wlen += 2 * sizeof(__u16); /* Also mangle ports */
++		has_ports = true;
++	}
++
+@@ -1651 +1667 @@ ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
+-	if (skb_ensure_writable(skb, offset))
++	if (skb_ensure_writable(skb, wlen))
+@@ -1657 +1673 @@ ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
+-	ip_vs_nat_icmp_v6(skb, pp, cp, 0);
++	ip_vs_nat_icmp_v6(skb, pp, cp, 0, toff, has_ports, ciph);
+diff --git a/net/netfilter/nf_conntrack_core.c b/net/netfilter/nf_conntrack_core.c
+index f5bde4f13958e13495f96ee9500e30a731d83f05..070160e45426d0a5bd4e4a7e98184fef731ba039 100644
+--- a/net/netfilter/nf_conntrack_core.c
++++ b/net/netfilter/nf_conntrack_core.c
+@@ -567,0 +568 @@ static void destroy_gre_conntrack(struct nf_conn *ct)
++	struct nf_conn_help *help;
+@@ -569,2 +570,15 @@ static void destroy_gre_conntrack(struct nf_conn *ct)
+-	if (master)
+-		nf_ct_gre_keymap_destroy(master);
++	if (!master)
++		return;
++
++	help = nfct_help(master);
++	if (help) {
++		struct nf_conntrack_helper *helper;
++
++		rcu_read_lock();
++		helper = rcu_dereference(help->helper);
++		/* Only pptp helper has a destroy callback. */
++		if (helper && helper->destroy)
++			nf_ct_gre_keymap_destroy(master);
++
++		rcu_read_unlock();
++	}
+diff --git a/net/netfilter/nf_conntrack_sip.c b/net/netfilter/nf_conntrack_sip.c
+index ec31611b7a290bf486f9a139c4eb39c9b8b47e55..eda963c8e2ef03321ce0b479530351fd2c17e2e2 100644
+--- a/net/netfilter/nf_conntrack_sip.c
++++ b/net/netfilter/nf_conntrack_sip.c
+@@ -1630 +1630 @@ static int sip_help_tcp(struct sk_buff *skb, unsigned int protoff,
+-	s16 diff, tdiff = 0;
++	s32 diff, tdiff = 0;
+diff --git a/net/netfilter/nf_nat_sip.c b/net/netfilter/nf_nat_sip.c
+index 00838c0cc5bb28264fccf87f83aa969775b0d2cb..68deacfc8ca486b7a229bcc89a85474dd46debb7 100644
+--- a/net/netfilter/nf_nat_sip.c
++++ b/net/netfilter/nf_nat_sip.c
+@@ -307 +307 @@ static void nf_nat_sip_seq_adjust(struct sk_buff *skb, unsigned int protoff,
+-				  s16 off)
++				  s32 off)
+diff --git a/net/netfilter/nf_queue.c b/net/netfilter/nf_queue.c
+index dd416c8532c551c28cbcc99093f114c2e4167c77..0c0a1f20e853f987d7994dc6c6981af42643dea3 100644
+--- a/net/netfilter/nf_queue.c
++++ b/net/netfilter/nf_queue.c
+@@ -17,0 +18,4 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/livepatch.h>
++#include <linux/vpsadminos-livepatch.h>
++#endif
+@@ -25,0 +30,34 @@ static const struct nf_queue_handler __rcu *nf_queue_handler;
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_NFQUEUE_STATE_ID	0x0f02b3341af9ad9aUL
++#define VPSADMINOS_NFQUEUE_STATE_ACTIVE	((void *)1UL)
++
++static struct klp_state vpsadminos_nfqueue_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_NFQUEUE_STATE_ID,
++	.version = 1,
++};
++
++void vpsadminos_nfqueue_livepatch_post_patch(void)
++{
++	struct klp_state *prev_state;
++
++	WRITE_ONCE(vpsadminos_nfqueue_state.data,
++		   VPSADMINOS_NFQUEUE_STATE_ACTIVE);
++	prev_state = klp_get_prev_state(VPSADMINOS_NFQUEUE_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == VPSADMINOS_NFQUEUE_STATE_ACTIVE)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++void vpsadminos_nfqueue_livepatch_post_unpatch(void)
++{
++	/*
++	 * A compatible predecessor keeps its own active marker and shadow
++	 * contract.  This patch owns only its marker, so both a reversed
++	 * transition and a clean removal clear the same local field.
++	 */
++	WRITE_ONCE(vpsadminos_nfqueue_state.data, NULL);
++}
++#endif
++
+@@ -60,0 +99,3 @@ static void nf_queue_entry_release_refs(struct nf_queue_entry *entry)
++#if IS_ENABLED(CONFIG_BRIDGE_NETFILTER) && defined(CONFIG_LIVEPATCH)
++	struct net_device **bridge_dev;
++#endif
+@@ -69,0 +111,9 @@ static void nf_queue_entry_release_refs(struct nf_queue_entry *entry)
++#ifdef CONFIG_LIVEPATCH
++	bridge_dev = klp_shadow_get(entry,
++				    VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID);
++	if (bridge_dev)
++		dev_put(*bridge_dev);
++	klp_shadow_free(entry, VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID, NULL);
++#else
++	dev_put(entry->bridge_dev);
++#endif
+@@ -85,0 +136,4 @@ static void __nf_queue_entry_init_physdevs(struct nf_queue_entry *entry)
++#if !defined(CONFIG_LIVEPATCH)
++	struct dst_entry *dst = skb_dst(skb);
++	struct net_device *dev = NULL;
++#endif
+@@ -93,0 +148,11 @@ static void __nf_queue_entry_init_physdevs(struct nf_queue_entry *entry)
++
++#if !defined(CONFIG_LIVEPATCH)
++	if (entry->state.pf == NFPROTO_BRIDGE &&
++	    dst && (dst->flags & DST_FAKE_RTABLE))
++		dev = dst_dev_rcu(dst);
++
++	/* Must hold a reference on the bridge device: dst_hold() protects
++	 * the dst itself, but the fake rtable is embedded in bridge-private
++	 * storage that netdevice teardown can free independently.
++	 */
++	entry->bridge_dev = dev;
+@@ -94,0 +160,13 @@ static void __nf_queue_entry_init_physdevs(struct nf_queue_entry *entry)
++#endif
++}
++
++#if IS_ENABLED(CONFIG_BRIDGE_NETFILTER) && defined(CONFIG_LIVEPATCH)
++static struct net_device *
++vpsadminos_nfqueue_bridge_dev(const struct nf_queue_entry *entry)
++{
++	struct dst_entry *dst = skb_dst(entry->skb);
++
++	if (entry->state.pf == NFPROTO_BRIDGE &&
++	    dst && (dst->flags & DST_FAKE_RTABLE))
++		return dst_dev_rcu(dst);
++	return NULL;
+@@ -96,0 +175,10 @@ static void __nf_queue_entry_init_physdevs(struct nf_queue_entry *entry)
++static int vpsadminos_nfqueue_bridge_shadow_ctor(void *obj, void *shadow_data,
++						 void *ctor_data)
++{
++	struct net_device **bridge_dev = shadow_data;
++
++	*bridge_dev = ctor_data;
++	return 0;
++}
++#endif
++
+@@ -100,0 +189,4 @@ bool nf_queue_entry_get_refs(struct nf_queue_entry *entry)
++#if IS_ENABLED(CONFIG_BRIDGE_NETFILTER) && defined(CONFIG_LIVEPATCH)
++	struct net_device **bridge_shadow;
++	struct net_device *bridge_dev;
++#endif
+@@ -109,0 +202,20 @@ bool nf_queue_entry_get_refs(struct nf_queue_entry *entry)
++#ifdef CONFIG_LIVEPATCH
++	dev_hold(entry->physin);
++	dev_hold(entry->physout);
++
++	bridge_dev = vpsadminos_nfqueue_bridge_dev(entry);
++	if (bridge_dev) {
++		dev_hold(bridge_dev);
++		bridge_shadow = klp_shadow_alloc
++				(entry, VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID,
++				 sizeof(*bridge_shadow), GFP_ATOMIC,
++				 vpsadminos_nfqueue_bridge_shadow_ctor,
++				 bridge_dev);
++		if (!bridge_shadow) {
++			dev_put(bridge_dev);
++			nf_queue_entry_release_refs(entry);
++			return false;
++		}
++	}
++#else
++	dev_hold(entry->bridge_dev);
+@@ -111,0 +224 @@ bool nf_queue_entry_get_refs(struct nf_queue_entry *entry)
++#endif
+diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
+index 838c9f49e4e01a9745227c26e94caf375e3829f7..7638c59e67889578b3f8b215f6f28e6151cfeb29 100644
+--- a/net/netfilter/nf_tables_api.c
++++ b/net/netfilter/nf_tables_api.c
+@@ -18,0 +19,4 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/livepatch.h>
++#include <linux/vpsadminos-livepatch.h>
++#endif
+@@ -7754 +7757,0 @@ struct nft_object *nft_obj_lookup(const struct net *net,
+-	struct nft_object_hash_key k = { .table = table };
+@@ -7756 +7758,0 @@ struct nft_object *nft_obj_lookup(const struct net *net,
+-	struct rhlist_head *tmp, *list;
+@@ -7760 +7761,0 @@ struct nft_object *nft_obj_lookup(const struct net *net,
+-	k.name = search;
+@@ -7766,6 +7767,3 @@ struct nft_object *nft_obj_lookup(const struct net *net,
+-	list = rhltable_lookup(&nft_objname_ht, &k, nft_objname_ht_params);
+-	if (!list)
+-		goto out;
+-
+-	rhl_for_each_entry_rcu(obj, tmp, list, rhlhead) {
+-		if (objtype == obj->ops->type->type &&
++	list_for_each_entry_rcu(obj, &table->objects, list) {
++		if (!strcmp(obj->key.name, search) &&
++		    objtype == obj->ops->type->type &&
+@@ -8243 +8240,0 @@ nf_tables_getobj_single(u32 portid, const struct nfnl_info *info,
+-	const struct nft_table *table;
+@@ -8244,0 +8242 @@ nf_tables_getobj_single(u32 portid, const struct nfnl_info *info,
++	struct nft_table *table;
+@@ -11124,0 +11123,166 @@ static const struct nfnetlink_subsystem nf_tables_subsys = {
++#ifdef CONFIG_LIVEPATCH
++struct vpsadminos_nftables_pre_patch_callback {
++	int (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nftables_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nftables_pre_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nftables_post_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++static bool vpsadminos_nftables_transition_quiesced;
++static bool vpsadminos_nftables_patch_active;
++
++static noinline void vpsadminos_nftables_livepatch_notifier_frame(void)
++{
++	barrier();
++}
++
++static int vpsadminos_nftables_netns_hold(struct net *net)
++{
++	if (!maybe_get_net(net))
++		return -ENOENT;
++	return 0;
++}
++
++static void vpsadminos_nftables_netns_release(struct net *net)
++{
++	put_net(net);
++}
++
++static struct pernet_operations vpsadminos_nftables_netns_guard = {
++	.init = vpsadminos_nftables_netns_hold,
++	.exit = vpsadminos_nftables_netns_release,
++};
++
++static int
++vpsadminos_nftables_livepatch_quiesce(struct klp_object *obj)
++{
++	int ret;
++
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return 0;
++	if (WARN_ON_ONCE(vpsadminos_nftables_transition_quiesced))
++		return -EBUSY;
++
++	ret = vpsadminos_pernet_try_register
++				(&vpsadminos_nftables_netns_guard);
++	if (ret)
++		return ret;
++
++	ret = vpsadminos_nfnl_try_unregister(&nf_tables_subsys);
++	if (ret) {
++		unregister_pernet_subsys(&vpsadminos_nftables_netns_guard);
++		return ret;
++	}
++
++	WRITE_ONCE(vpsadminos_nftables_transition_quiesced, true);
++	return 0;
++}
++
++static void
++vpsadminos_nftables_livepatch_quiesce_blocking(struct klp_object *obj)
++{
++	int ret;
++
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return;
++	if (WARN_ON_ONCE(vpsadminos_nftables_transition_quiesced))
++		return;
++
++	do {
++		ret = register_pernet_subsys
++				(&vpsadminos_nftables_netns_guard);
++		if (ret)
++			cond_resched();
++	} while (ret);
++
++	nfnetlink_subsys_unregister(&nf_tables_subsys);
++	WRITE_ONCE(vpsadminos_nftables_transition_quiesced, true);
++}
++
++static void
++vpsadminos_nftables_livepatch_pre_unpatch(struct klp_object *obj)
++{
++	vpsadminos_nftables_livepatch_quiesce_blocking(obj);
++	if (READ_ONCE(vpsadminos_nftables_transition_quiesced) &&
++	    READ_ONCE(vpsadminos_nftables_patch_active))
++		vpsadminos_pipapo_livepatch_cleanup();
++}
++
++static void vpsadminos_nftables_livepatch_restore(void)
++{
++	int ret;
++
++	if (!READ_ONCE(vpsadminos_nftables_transition_quiesced))
++		return;
++
++	ret = nfnetlink_subsys_register(&nf_tables_subsys);
++	if (ret)
++		pr_err("livepatch failed to restore NF_TABLES: %d\n", ret);
++	unregister_pernet_subsys(&vpsadminos_nftables_netns_guard);
++	WRITE_ONCE(vpsadminos_nftables_transition_quiesced, false);
++}
++
++static void
++vpsadminos_nftables_livepatch_post_patch(struct klp_object *obj)
++{
++	if (!obj->mod || obj->mod->state == MODULE_STATE_GOING)
++		return;
++
++	WRITE_ONCE(vpsadminos_nftables_patch_active, true);
++	vpsadminos_nftables_livepatch_restore();
++}
++
++static void
++vpsadminos_nftables_livepatch_post_unpatch(struct klp_object *obj)
++{
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE) {
++		WRITE_ONCE(vpsadminos_nftables_patch_active, false);
++		return;
++	}
++
++	WRITE_ONCE(vpsadminos_nftables_patch_active, false);
++	vpsadminos_nftables_livepatch_restore();
++}
++
++static struct vpsadminos_nftables_pre_patch_callback
++vpsadminos_nftables_pre_patch_data
++__section(".kpatch.callbacks.pre_patch") __used = {
++	.fn = vpsadminos_nftables_livepatch_quiesce,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nftables_post_patch_callback
++vpsadminos_nftables_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_nftables_livepatch_post_patch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nftables_pre_unpatch_callback
++vpsadminos_nftables_pre_unpatch_data
++__section(".kpatch.callbacks.pre_unpatch") __used = {
++	.fn = vpsadminos_nftables_livepatch_pre_unpatch,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nftables_post_unpatch_callback
++vpsadminos_nftables_post_unpatch_data
++__section(".kpatch.callbacks.post_unpatch") __used = {
++	.fn = vpsadminos_nftables_livepatch_post_unpatch,
++	.objname = NULL,
++};
++#endif
++
+@@ -11718,0 +11883,4 @@ static int nft_rcv_nl_event(struct notifier_block *this, unsigned long event,
++#ifdef CONFIG_LIVEPATCH
++	vpsadminos_nftables_livepatch_notifier_frame();
++#endif
++
+diff --git a/net/netfilter/nfnetlink.c b/net/netfilter/nfnetlink.c
+index f12d0d229aaa5334c14ed7ad43a332ca16003243..7961a391ab849ace198b013d4521d73747e70ec5 100644
+--- a/net/netfilter/nfnetlink.c
++++ b/net/netfilter/nfnetlink.c
+@@ -146,0 +147,17 @@ EXPORT_SYMBOL_GPL(nfnetlink_subsys_unregister);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_nfnl_try_unregister(const struct nfnetlink_subsystem *n)
++{
++	if (!mutex_trylock(&table[n->subsys_id].mutex))
++		return -EBUSY;
++	if (rcu_access_pointer(table[n->subsys_id].subsys) != n) {
++		mutex_unlock(&table[n->subsys_id].mutex);
++		return -ENOENT;
++	}
++	RCU_INIT_POINTER(table[n->subsys_id].subsys, NULL);
++	mutex_unlock(&table[n->subsys_id].mutex);
++	synchronize_rcu();
++
++	return 0;
++}
++#endif
++
+@@ -370,0 +388,7 @@ enum {
++#ifdef CONFIG_LIVEPATCH
++static noinline void vpsadminos_nfnl_livepatch_batch_frame(void)
++{
++	barrier();
++}
++#endif
++
+@@ -383,0 +408,4 @@ static void nfnetlink_rcv_batch(struct sk_buff *skb, struct nlmsghdr *nlh,
++#ifdef CONFIG_LIVEPATCH
++	vpsadminos_nfnl_livepatch_batch_frame();
++#endif
++
+diff --git a/net/netfilter/nfnetlink_queue.c b/net/netfilter/nfnetlink_queue.c
+index 1b517cd2bb58cc3722b7e6577934154f96921ee0..e03cbc7738ec94149e2fd7cdee17c5355c16dba9 100644
+--- a/net/netfilter/nfnetlink_queue.c
++++ b/net/netfilter/nfnetlink_queue.c
+@@ -34,0 +35,4 @@
++#ifdef CONFIG_LIVEPATCH
++#include <linux/livepatch.h>
++#include <linux/rtnetlink.h>
++#endif
+@@ -35,0 +40 @@
++#include <net/net_namespace.h>
+@@ -1239,0 +1245,3 @@ dev_cmp(struct nf_queue_entry *entry, unsigned long ifindex)
++#ifdef CONFIG_LIVEPATCH
++	struct net_device **bridge_dev;
++#endif
+@@ -1245,0 +1254,10 @@ dev_cmp(struct nf_queue_entry *entry, unsigned long ifindex)
++
++#ifdef CONFIG_LIVEPATCH
++	bridge_dev = klp_shadow_get(entry,
++				    VPSADMINOS_NFQUEUE_BRIDGE_SHADOW_ID);
++	if (bridge_dev && (*bridge_dev)->ifindex == ifindex)
++		return 1;
++#else
++	if (entry->bridge_dev && entry->bridge_dev->ifindex == ifindex)
++		return 1;
++#endif
+@@ -1759,0 +1778,139 @@ static const struct nfnetlink_subsystem nfqnl_subsys = {
++#ifdef CONFIG_LIVEPATCH
++struct vpsadminos_nfqueue_pre_patch_callback {
++	int (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nfqueue_post_patch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nfqueue_pre_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++struct vpsadminos_nfqueue_post_unpatch_callback {
++	void (*fn)(struct klp_object *obj);
++	char *objname;
++};
++
++static bool vpsadminos_nfqueue_transition_quiesced;
++
++static void vpsadminos_nfqueue_drain_all(void)
++{
++	struct net *net;
++
++	rcu_read_lock();
++	for_each_net_rcu(net)
++		nfqnl_nf_hook_drop(net);
++	rcu_read_unlock();
++}
++
++static int
++vpsadminos_nfqueue_livepatch_quiesce(struct klp_object *obj)
++{
++	int ret = -EBUSY;
++
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return 0;
++	if (WARN_ON_ONCE(vpsadminos_nfqueue_transition_quiesced))
++		return -EBUSY;
++
++	if (!down_write_trylock(&pernet_ops_rwsem))
++		return -EBUSY;
++	if (!rtnl_trylock())
++		goto out_unlock_pernet;
++
++	ret = vpsadminos_nfnl_try_unregister(&nfqnl_subsys);
++	if (ret)
++		goto out_unlock_rtnl;
++
++	nf_unregister_queue_handler();
++	synchronize_net();
++	vpsadminos_nfqueue_drain_all();
++	rcu_barrier();
++	flush_workqueue(nfq_cleanup_wq);
++
++	WRITE_ONCE(vpsadminos_nfqueue_transition_quiesced, true);
++	rtnl_unlock();
++	up_write(&pernet_ops_rwsem);
++	return 0;
++
++out_unlock_rtnl:
++	rtnl_unlock();
++out_unlock_pernet:
++	up_write(&pernet_ops_rwsem);
++	return ret;
++}
++
++static void
++vpsadminos_nfqueue_livepatch_quiesce_blocking(struct klp_object *obj)
++{
++	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
++		return;
++	if (WARN_ON_ONCE(vpsadminos_nfqueue_transition_quiesced))
++		return;
++
++	down_write(&pernet_ops_rwsem);
++	rtnl_lock();
++	nfnetlink_subsys_unregister(&nfqnl_subsys);
++	nf_unregister_queue_handler();
++	synchronize_net();
++	vpsadminos_nfqueue_drain_all();
++	rcu_barrier();
++	flush_workqueue(nfq_cleanup_wq);
++
++	WRITE_ONCE(vpsadminos_nfqueue_transition_quiesced, true);
++	rtnl_unlock();
++	up_write(&pernet_ops_rwsem);
++}
++
++static void
++vpsadminos_nfqueue_livepatch_restore(struct klp_object *obj)
++{
++	int ret;
++
++	if (!READ_ONCE(vpsadminos_nfqueue_transition_quiesced))
++		return;
++
++	ret = nfnetlink_subsys_register(&nfqnl_subsys);
++	if (ret) {
++		pr_err("livepatch failed to restore NFNETLINK_QUEUE: %d\n",
++		       ret);
++	} else {
++		nf_register_queue_handler(&nfqh);
++	}
++	WRITE_ONCE(vpsadminos_nfqueue_transition_quiesced, false);
++}
++
++static struct vpsadminos_nfqueue_pre_patch_callback
++vpsadminos_nfqueue_pre_patch_data
++__section(".kpatch.callbacks.pre_patch") __used = {
++	.fn = vpsadminos_nfqueue_livepatch_quiesce,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nfqueue_post_patch_callback
++vpsadminos_nfqueue_post_patch_data
++__section(".kpatch.callbacks.post_patch") __used = {
++	.fn = vpsadminos_nfqueue_livepatch_restore,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nfqueue_pre_unpatch_callback
++vpsadminos_nfqueue_pre_unpatch_data
++__section(".kpatch.callbacks.pre_unpatch") __used = {
++	.fn = vpsadminos_nfqueue_livepatch_quiesce_blocking,
++	.objname = NULL,
++};
++
++static struct vpsadminos_nfqueue_post_unpatch_callback
++vpsadminos_nfqueue_post_unpatch_data
++__section(".kpatch.callbacks.post_unpatch") __used = {
++	.fn = vpsadminos_nfqueue_livepatch_restore,
++	.objname = NULL,
++};
++#endif
++
+diff --git a/net/netfilter/nft_set_pipapo.c b/net/netfilter/nft_set_pipapo.c
+index a2dd1212e0f0dfdfb02baa978996c57772c0270b..2ed97e802290e6e4b158413fb1753b457037a319 100644
+--- a/net/netfilter/nft_set_pipapo.c
++++ b/net/netfilter/nft_set_pipapo.c
+@@ -340,0 +341,5 @@
++#ifdef CONFIG_LIVEPATCH
++#include <linux/livepatch.h>
++#include <linux/rtnetlink.h>
++#include <linux/vpsadminos-livepatch.h>
++#endif
+@@ -344,0 +350,94 @@
++static void nft_pipapo_abort(const struct nft_set *set);
++static void pipapo_free_match(struct nft_pipapo_match *m);
++
++#ifdef CONFIG_LIVEPATCH
++static int vpsadminos_pipapo_clone_state_ctor(void *obj, void *shadow_data,
++					      void *ctor_data)
++{
++	u8 *state = shadow_data;
++
++	*state = NFT_PIPAPO_CLONE_NEW;
++	return 0;
++}
++
++static u8 *
++vpsadminos_pipapo_clone_state(const struct nft_pipapo_match *m)
++{
++	return klp_shadow_get((void *)m,
++			      VPSADMINOS_PIPAPO_CLONE_SHADOW_ID);
++}
++
++static int
++vpsadminos_pipapo_clone_state_alloc(struct nft_pipapo_match *m)
++{
++	u8 *state;
++
++	state = klp_shadow_alloc(m, VPSADMINOS_PIPAPO_CLONE_SHADOW_ID,
++				 sizeof(*state), GFP_KERNEL_ACCOUNT,
++				 vpsadminos_pipapo_clone_state_ctor, NULL);
++	return state ? 0 : -ENOMEM;
++}
++
++static enum nft_pipapo_clone_state
++vpsadminos_pipapo_clone_state_get(const struct nft_pipapo_match *m)
++{
++	u8 *state = vpsadminos_pipapo_clone_state(m);
++
++	return state ? *state : NFT_PIPAPO_CLONE_ERR;
++}
++
++static void
++vpsadminos_pipapo_clone_state_set(struct nft_pipapo_match *m,
++				  enum nft_pipapo_clone_state value)
++{
++	u8 *state = vpsadminos_pipapo_clone_state(m);
++
++	if (WARN_ON_ONCE(!state))
++		return;
++	*state = value;
++}
++
++static void
++vpsadminos_pipapo_clone_state_free(struct nft_pipapo_match *m)
++{
++	klp_shadow_free(m, VPSADMINOS_PIPAPO_CLONE_SHADOW_ID, NULL);
++}
++
++static bool
++vpsadminos_pipapo_clone_state_missing(const struct nft_pipapo_match *m)
++{
++	return !vpsadminos_pipapo_clone_state(m);
++}
++#else
++static int
++vpsadminos_pipapo_clone_state_alloc(struct nft_pipapo_match *m)
++{
++	m->state = NFT_PIPAPO_CLONE_NEW;
++	return 0;
++}
++
++static enum nft_pipapo_clone_state
++vpsadminos_pipapo_clone_state_get(const struct nft_pipapo_match *m)
++{
++	return m->state;
++}
++
++static void
++vpsadminos_pipapo_clone_state_set(struct nft_pipapo_match *m,
++				  enum nft_pipapo_clone_state value)
++{
++	m->state = value;
++}
++
++static void
++vpsadminos_pipapo_clone_state_free(struct nft_pipapo_match *m)
++{
++}
++
++static bool
++vpsadminos_pipapo_clone_state_missing(const struct nft_pipapo_match *m)
++{
++	return false;
++}
++#endif
++
+@@ -1253,2 +1352,12 @@ static struct nft_pipapo_match *pipapo_maybe_clone(const struct nft_set *set)
+-	if (priv->clone)
+-		return priv->clone;
++	if (priv->clone) {
++		if (!vpsadminos_pipapo_clone_state_missing(priv->clone))
++			return priv->clone;
++
++		/*
++		 * A clone without livepatch state predates activation.  It may
++		 * be the inconsistent clone left by the old first-insert
++		 * failure, so discard it without inspecting its tables.
++		 */
++		pipapo_free_match(priv->clone);
++		priv->clone = NULL;
++	}
+@@ -1287 +1396,2 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
+-	if (!m)
++	if (!m || vpsadminos_pipapo_clone_state_get(m) ==
++		  NFT_PIPAPO_CLONE_ERR)
+@@ -1358,2 +1468,4 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
+-		if (ret < 0)
+-			return ret;
++		if (ret < 0) {
++			err = ret;
++			goto abort;
++		}
+@@ -1375 +1487 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
+-			return err;
++			goto abort;
+@@ -1386,0 +1499 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
++	vpsadminos_pipapo_clone_state_set(m, NFT_PIPAPO_CLONE_MOD);
+@@ -1387,0 +1501,20 @@ static int nft_pipapo_insert(const struct net *net, const struct nft_set *set,
++abort:
++	DEBUG_NET_WARN_ON_ONCE(vpsadminos_pipapo_clone_state_get(m) ==
++			       NFT_PIPAPO_CLONE_ERR);
++
++	/* Two rollback cases:
++	 * 1) no previous changes.  nft_pipapo_abort is not
++	 * guaranteed to be invoked (there might be no further
++	 * add/delete requests coming after this).
++	 *
++	 * 2) we had previous changes: there are transaction
++	 * records pointing to this set.  Leave the rollback to
++	 * the transaction handling.
++	 */
++	if (vpsadminos_pipapo_clone_state_get(m) ==
++	    NFT_PIPAPO_CLONE_NEW)
++		nft_pipapo_abort(set); /* releases m */
++	else
++		vpsadminos_pipapo_clone_state_set(m, NFT_PIPAPO_CLONE_ERR);
++
++	return err;
+@@ -1464,0 +1598,2 @@ static struct nft_pipapo_match *pipapo_clone(struct nft_pipapo_match *old)
++	if (vpsadminos_pipapo_clone_state_alloc(new))
++		goto out_state;
+@@ -1466,0 +1602,3 @@ static struct nft_pipapo_match *pipapo_clone(struct nft_pipapo_match *old)
++out_state:
++	pipapo_free_match(new);
++	return NULL;
+@@ -1782,0 +1921,2 @@ static void pipapo_free_match(struct nft_pipapo_match *m)
++	vpsadminos_pipapo_clone_state_free(m);
++
+@@ -1826,0 +1967,6 @@ static void nft_pipapo_commit(struct nft_set *set)
++	if (vpsadminos_pipapo_clone_state_get(priv->clone) ==
++	    NFT_PIPAPO_CLONE_ERR) {
++		nft_pipapo_abort(set);
++		return;
++	}
++
+@@ -1829,0 +1976 @@ static void nft_pipapo_commit(struct nft_set *set)
++	vpsadminos_pipapo_clone_state_free(priv->clone);
+@@ -1888 +2035,2 @@ nft_pipapo_deactivate(const struct net *net, const struct nft_set *set,
+-	if (!m)
++	if (!m || vpsadminos_pipapo_clone_state_get(m) ==
++		  NFT_PIPAPO_CLONE_ERR)
+@@ -1896,0 +2045 @@ nft_pipapo_deactivate(const struct net *net, const struct nft_set *set,
++	vpsadminos_pipapo_clone_state_set(m, NFT_PIPAPO_CLONE_MOD);
+@@ -2062,0 +2212,5 @@ static void nft_pipapo_remove(const struct net *net, const struct nft_set *set,
++	if (WARN_ON_ONCE(!m ||
++			 vpsadminos_pipapo_clone_state_get(m) ==
++			 NFT_PIPAPO_CLONE_ERR))
++		return;
++
+@@ -2350 +2504,5 @@ static void nft_pipapo_destroy(const struct nft_ctx *ctx,
+-		nft_set_pipapo_match_destroy(ctx, set, priv->clone);
++		if (vpsadminos_pipapo_clone_state_get(priv->clone) ==
++		    NFT_PIPAPO_CLONE_ERR)
++			nft_set_pipapo_match_destroy(ctx, set, m);
++		else
++			nft_set_pipapo_match_destroy(ctx, set, priv->clone);
+@@ -2375,0 +2534,64 @@ static void nft_pipapo_gc_init(const struct nft_set *set)
++#ifdef CONFIG_LIVEPATCH
++static bool vpsadminos_is_pipapo_set(const struct nft_set *set)
++{
++	if (set->ops == &nft_set_pipapo_type.ops)
++		return true;
++#if defined(CONFIG_X86_64) && !defined(CONFIG_UML)
++	if (set->ops == &nft_set_pipapo_avx2_type.ops)
++		return true;
++#endif
++	return false;
++}
++
++void vpsadminos_pipapo_livepatch_cleanup(void)
++{
++	struct nftables_pernet *nft_net;
++	struct nft_pipapo_match *clone;
++	struct nft_pipapo *priv;
++	struct nft_table *table;
++	struct nft_set *set;
++	struct net *net;
++
++	down_read(&net_rwsem);
++	for_each_net(net) {
++		nft_net = nft_pernet(net);
++
++		/*
++		 * NFtables is no longer accepting new batches.  Cross the
++		 * commit mutex once so every batch which acquired the
++		 * subsystem before it was unregistered has published any
++		 * deferred destruction, then drain that work while patched
++		 * destroy functions are still active.
++		 */
++		mutex_lock(&nft_net->commit_mutex);
++		mutex_unlock(&nft_net->commit_mutex);
++		nf_tables_trans_destroy_flush_work(net);
++
++		mutex_lock(&nft_net->commit_mutex);
++
++		list_for_each_entry(table, &nft_net->tables, list) {
++			list_for_each_entry(set, &table->sets, list) {
++				if (!vpsadminos_is_pipapo_set(set))
++					continue;
++
++				priv = nft_set_priv(set);
++				clone = priv->clone;
++				if (!clone)
++					continue;
++
++				if (vpsadminos_pipapo_clone_state_get(clone) ==
++				    NFT_PIPAPO_CLONE_ERR) {
++					pipapo_free_match(clone);
++					priv->clone = NULL;
++				} else {
++					vpsadminos_pipapo_clone_state_free(clone);
++				}
++			}
++		}
++
++		mutex_unlock(&nft_net->commit_mutex);
++	}
++	up_read(&net_rwsem);
++}
++#endif
++
+diff --git a/net/netfilter/nft_set_pipapo.h b/net/netfilter/nft_set_pipapo.h
+index 49000f5510b28892a06fc171d237dacdaca7303f..47d3ba27f6b79db00919b74bd7c3aaf8978fe3d9 100644
+--- a/net/netfilter/nft_set_pipapo.h
++++ b/net/netfilter/nft_set_pipapo.h
+@@ -136,0 +137,6 @@ struct nft_pipapo_scratch {
++enum nft_pipapo_clone_state {
++	NFT_PIPAPO_CLONE_NEW,
++	NFT_PIPAPO_CLONE_MOD,
++	NFT_PIPAPO_CLONE_ERR,
++};
++
+@@ -139,0 +146 @@ struct nft_pipapo_scratch {
++ * @state:		add/delete state; used from control plane
+@@ -146,0 +154,3 @@ struct nft_pipapo_match {
++#ifndef CONFIG_LIVEPATCH
++	enum nft_pipapo_clone_state state:8;
++#endif
+@@ -152,0 +163,4 @@ struct nft_pipapo_match {
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_PIPAPO_CLONE_SHADOW_ID	0xb9c17a5984451080UL
++#endif
++
+diff --git a/net/packet/af_packet.c b/net/packet/af_packet.c
+index 562c860cca577afed24361d38bc18215553cee95..598435111c6b17c88fb78b674680783f11316994 100644
+--- a/net/packet/af_packet.c
++++ b/net/packet/af_packet.c
+@@ -2008 +2008 @@ static int packet_sendmsg_spkt(struct socket *sock, struct msghdr *msg,
+-	int err;
++	int hard_header_len;
+@@ -2009,0 +2010 @@ static int packet_sendmsg_spkt(struct socket *sock, struct msghdr *msg,
++	int err;
+@@ -2051,0 +2053,4 @@ static int packet_sendmsg_spkt(struct socket *sock, struct msghdr *msg,
++	/* Keep the allocation-time header length across retry. */
++	if (!skb)
++		hard_header_len = READ_ONCE(dev->hard_header_len);
++
+@@ -2053 +2058 @@ static int packet_sendmsg_spkt(struct socket *sock, struct msghdr *msg,
+-	if (len > dev->mtu + dev->hard_header_len + VLAN_HLEN + extra_len)
++	if (len > dev->mtu + hard_header_len + VLAN_HLEN + extra_len)
+@@ -2057 +2062 @@ static int packet_sendmsg_spkt(struct socket *sock, struct msghdr *msg,
+-		size_t reserved = LL_RESERVED_SPACE(dev);
++		size_t reserved = LL_RESERVED_SPACE_EX(dev, hard_header_len);
+@@ -2059 +2064 @@ static int packet_sendmsg_spkt(struct socket *sock, struct msghdr *msg,
+-		unsigned int hhlen = dev->header_ops ? dev->hard_header_len : 0;
++		unsigned int hhlen = dev->header_ops ? hard_header_len : 0;
+@@ -2089 +2094 @@ static int packet_sendmsg_spkt(struct socket *sock, struct msghdr *msg,
+-	if (len > (dev->mtu + dev->hard_header_len + extra_len) &&
++	if (len > (dev->mtu + hard_header_len + extra_len) &&
+@@ -2623,0 +2629 @@ static int tpacket_fill_skb(struct packet_sock *po, struct sk_buff *skb,
++		int hard_header_len,
+@@ -2655,2 +2661,2 @@ static int tpacket_fill_skb(struct packet_sock *po, struct sk_buff *skb,
+-		skb_push(skb, dev->hard_header_len);
+-		skb_put(skb, copylen - dev->hard_header_len);
++		skb_push(skb, hard_header_len);
++		skb_put(skb, copylen - hard_header_len);
+@@ -2787 +2793 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+-	int hlen, tlen, copylen = 0;
++	int hard_header_len, hlen, tlen, copylen = 0;
+@@ -2833,0 +2840 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
++	hard_header_len = READ_ONCE(dev->hard_header_len);
+@@ -2835 +2842 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+-		reserve = dev->hard_header_len;
++		reserve = hard_header_len;
+@@ -2872 +2879 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+-		hlen = LL_RESERVED_SPACE(dev);
++		hlen = LL_RESERVED_SPACE_EX(dev, hard_header_len);
+@@ -2890 +2897 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+-		copylen = max_t(int, copylen, dev->hard_header_len);
++		copylen = max_t(int, copylen, hard_header_len);
+@@ -2893 +2900 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+-				(copylen - dev->hard_header_len),
++				(copylen - hard_header_len),
+@@ -2903 +2910,2 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+-					  addr, hlen, copylen, &sockc);
++					  addr, hlen, copylen, hard_header_len,
++					  &sockc);
+@@ -3011 +3019 @@ static int packet_snd(struct socket *sock, struct msghdr *msg, size_t len)
+-	int hlen, tlen, linear;
++	int hard_header_len, hlen, tlen, linear;
+@@ -3051,0 +3060 @@ static int packet_snd(struct socket *sock, struct msghdr *msg, size_t len)
++	hard_header_len = READ_ONCE(dev->hard_header_len);
+@@ -3053 +3062 @@ static int packet_snd(struct socket *sock, struct msghdr *msg, size_t len)
+-		reserve = dev->hard_header_len;
++		reserve = hard_header_len;
+@@ -3074 +3083 @@ static int packet_snd(struct socket *sock, struct msghdr *msg, size_t len)
+-	hlen = LL_RESERVED_SPACE(dev);
++	hlen = LL_RESERVED_SPACE_EX(dev, hard_header_len);
+@@ -3077 +3086 @@ static int packet_snd(struct socket *sock, struct msghdr *msg, size_t len)
+-	linear = max(linear, min_t(int, len, dev->hard_header_len));
++	linear = max(linear, min_t(int, len, hard_header_len));
+@@ -3093 +3102 @@ static int packet_snd(struct socket *sock, struct msghdr *msg, size_t len)
+-		    dev->min_header_len != dev->hard_header_len)
++		    dev->min_header_len != hard_header_len)
+@@ -4607 +4616,5 @@ static int packet_set_ring(struct sock *sk, union tpacket_req_u *req_u,
+-	if (was_running)
++	/*
++	 * NETDEV_UNREGISTER may have invalidated the binding while bind_lock
++	 * was dropped above.  Do not re-add a fanout hook to a dead device.
++	 */
++	if (was_running && READ_ONCE(po->ifindex) != -1)
+diff --git a/net/sctp/associola.c b/net/sctp/associola.c
+index 0b0794f164cf2e05db01fcffaec94c1a8546273a..f409b9f6b228f5a77578a60d14a20f578567cf9b 100644
+--- a/net/sctp/associola.c
++++ b/net/sctp/associola.c
+@@ -545,0 +546,3 @@ void sctp_assoc_rm_peer(struct sctp_association *asoc,
++	if (asoc->new_transport == peer)
++		asoc->new_transport = NULL;
++
+@@ -575,0 +579,4 @@ void sctp_assoc_rm_peer(struct sctp_association *asoc,
++	list_for_each_entry(ch, &asoc->outqueue.control_chunk_list, list)
++		if (ch->transport == peer)
++			ch->transport = NULL;
++
+@@ -616,0 +624,3 @@ struct sctp_transport *sctp_assoc_add_peer(struct sctp_association *asoc,
++	if (asoc->peer.transport_count == U16_MAX)
++		return NULL;
++
+@@ -1727 +1737 @@ void sctp_asconf_queue_teardown(struct sctp_association *asoc)
+-	if (asoc->addip_last_asconf)
++	if (asoc->addip_last_asconf) {
+@@ -1728,0 +1739,2 @@ void sctp_asconf_queue_teardown(struct sctp_association *asoc)
++		asoc->addip_last_asconf = NULL;
++	}
+diff --git a/net/sctp/diag.c b/net/sctp/diag.c
+index ff4f8a679ffcb4f3fa9f7ef1233c43e1ea6aa2e1..1491b9c4a38b444493be679cf58d4b5359bff975 100644
+--- a/net/sctp/diag.c
++++ b/net/sctp/diag.c
+@@ -99,0 +100,16 @@ static int inet_diag_msg_sctpladdrs_fill(struct sk_buff *skb,
++static int sctp_diag_peer_count(struct sctp_association *asoc, size_t *count)
++{
++	struct sctp_transport *transport;
++	size_t n = 0;
++
++	list_for_each_entry(transport, &asoc->peer.transport_addr_list,
++			    transports) {
++		if (n == INT_MAX / sizeof(struct sockaddr_storage))
++			return -EOVERFLOW;
++		n++;
++	}
++
++	*count = n;
++	return 0;
++}
++
+@@ -101 +117,2 @@ static int inet_diag_msg_sctpaddrs_fill(struct sk_buff *skb,
+-					struct sctp_association *asoc)
++					struct sctp_association *asoc,
++					size_t addrcnt)
+@@ -108,2 +125 @@ static int inet_diag_msg_sctpaddrs_fill(struct sk_buff *skb,
+-	attr = nla_reserve(skb, INET_DIAG_PEERS,
+-			   addrlen * asoc->peer.transport_count);
++	attr = nla_reserve(skb, INET_DIAG_PEERS, addrlen * addrcnt);
+@@ -115,0 +132,2 @@ static int inet_diag_msg_sctpaddrs_fill(struct sk_buff *skb,
++		if (!addrcnt)
++			break;
+@@ -119,0 +138 @@ static int inet_diag_msg_sctpaddrs_fill(struct sk_buff *skb,
++		addrcnt--;
+@@ -139,0 +159 @@ static int inet_sctp_diag_fill(struct sock *sk, struct sctp_association *asoc,
++	size_t peer_count = 0;
+@@ -141,0 +162,3 @@ static int inet_sctp_diag_fill(struct sock *sk, struct sctp_association *asoc,
++	if (asoc && sctp_diag_peer_count(asoc, &peer_count))
++		return -EMSGSIZE;
++
+@@ -213 +236 @@ static int inet_sctp_diag_fill(struct sock *sk, struct sctp_association *asoc,
+-	if (asoc && inet_diag_msg_sctpaddrs_fill(skb, asoc))
++	if (asoc && inet_diag_msg_sctpaddrs_fill(skb, asoc, peer_count))
+@@ -237,0 +261 @@ static size_t inet_assoc_attr_size(struct sock *sk,
++	size_t peer_count;
+@@ -238,0 +263,4 @@ static size_t inet_assoc_attr_size(struct sock *sk,
++	size_t size;
++
++	if (sctp_diag_peer_count(asoc, &peer_count))
++		return 0;
+@@ -244,7 +272,20 @@ static size_t inet_assoc_attr_size(struct sock *sk,
+-	return	  nla_total_size(sizeof(struct sctp_info))
+-		+ nla_total_size(addrlen * asoc->peer.transport_count)
+-		+ nla_total_size(addrlen * addrcnt)
+-		+ nla_total_size(sizeof(struct inet_diag_msg))
+-		+ inet_diag_msg_attrs_size()
+-		+ nla_total_size(sizeof(struct inet_diag_meminfo))
+-		+ 64;
++	size = nla_total_size(sizeof(struct sctp_info));
++	if (check_add_overflow(size,
++			       (size_t)nla_total_size(addrlen * peer_count),
++			       &size) ||
++	    check_add_overflow(size,
++			       (size_t)nla_total_size(addrlen * addrcnt),
++			       &size) ||
++	    check_add_overflow(size,
++			       (size_t)nla_total_size(sizeof(struct inet_diag_msg)),
++			       &size) ||
++	    check_add_overflow(size, inet_diag_msg_attrs_size(), &size) ||
++	    check_add_overflow(size,
++			       (size_t)nla_total_size(sizeof(struct inet_diag_meminfo)),
++			       &size) ||
++	    check_add_overflow(size, (size_t)64, &size))
++		return 0;
++	if (size > INT_MAX - NLMSG_HDRLEN - (NLMSG_ALIGNTO - 1))
++		return 0;
++
++	return size;
+@@ -260,0 +302 @@ static int sctp_sock_dump_one(struct sctp_endpoint *ep, struct sctp_transport *t
++	size_t attr_size;
+@@ -274 +316,7 @@ static int sctp_sock_dump_one(struct sctp_endpoint *ep, struct sctp_transport *t
+-	rep = nlmsg_new(inet_assoc_attr_size(sk, assoc), GFP_KERNEL);
++	attr_size = inet_assoc_attr_size(sk, assoc);
++	if (!attr_size) {
++		err = -EMSGSIZE;
++		goto out_unlock;
++	}
++
++	rep = nlmsg_new(attr_size, GFP_KERNEL);
+diff --git a/net/sctp/outqueue.c b/net/sctp/outqueue.c
+index 0dc6b8ab996317d302f9f6247c574eeb5054e784..d749982c079cbd1e8f4f0ce972c9e546c9b13d36 100644
+--- a/net/sctp/outqueue.c
++++ b/net/sctp/outqueue.c
+@@ -652,0 +653 @@ static int __sctp_outq_flush_rtx(struct sctp_outq *q, struct sctp_packet *pkt,
++			chunk->transport = transport;
+@@ -1460,0 +1462,3 @@ static void sctp_check_transmitted(struct sctp_outq *q,
++		if (transport && tchunk->transport &&
++		    tchunk->transport != transport)
++			tchunk->transport = transport;
+diff --git a/net/sctp/protocol.c b/net/sctp/protocol.c
+index 6ea15361088bcf9ed5bed9026a1372f8b4e33080..0b4f60fdc0ddbaf5204f972285a9e72bf6238514 100644
+--- a/net/sctp/protocol.c
++++ b/net/sctp/protocol.c
+@@ -1400,4 +1399,0 @@ static int __net_init sctp_defaults_init(struct net *net)
+-	status = sctp_sysctl_net_register(net);
+-	if (status)
+-		goto err_sysctl_register;
+-
+@@ -1437,2 +1432,0 @@ static int __net_init sctp_defaults_init(struct net *net)
+-	sctp_sysctl_net_unregister(net);
+-err_sysctl_register:
+@@ -1453 +1446,0 @@ static void __net_exit sctp_defaults_exit(struct net *net)
+-	sctp_sysctl_net_unregister(net);
+@@ -1467 +1460 @@ static int __net_init sctp_ctrlsock_init(struct net *net)
+-	if (status)
++	if (status) {
+@@ -1468,0 +1462,8 @@ static int __net_init sctp_ctrlsock_init(struct net *net)
++		return status;
++	}
++
++	status = sctp_sysctl_net_register(net);
++	if (status) {
++		inet_ctl_sock_destroy(net->sctp.ctl_sock);
++		net->sctp.ctl_sock = NULL;
++	}
+@@ -1474,0 +1476,2 @@ static void __net_exit sctp_ctrlsock_exit(struct net *net)
++	sctp_sysctl_net_unregister(net);
++
+@@ -1476,0 +1480 @@ static void __net_exit sctp_ctrlsock_exit(struct net *net)
++	net->sctp.ctl_sock = NULL;
+diff --git a/net/sctp/sm_make_chunk.c b/net/sctp/sm_make_chunk.c
+index 96ca400120e608156c7ca30068d0bab134d553a4..fe9b6cf02920b4458b01c4bf5477d482ac80621a 100644
+--- a/net/sctp/sm_make_chunk.c
++++ b/net/sctp/sm_make_chunk.c
+@@ -2189,0 +2190 @@ static enum sctp_ierror sctp_verify_param(struct net *net,
++		break;
+@@ -2190,0 +2192,5 @@ static enum sctp_ierror sctp_verify_param(struct net *net,
++		if (ntohs(param.p->length) != sizeof(*param.aind)) {
++			sctp_process_inv_paramlength(asoc, param.p,
++						     chunk, err_chunk);
++			retval = SCTP_IERROR_ABORT;
++		}
+@@ -3167,0 +3174,6 @@ static __be16 sctp_process_asconf_param(struct sctp_association *asoc,
++		/* Don't free asconf->transport; a later wildcard DEL-IP
++		 * parameter reuses it.
++		 */
++		if (peer == asconf->transport)
++			return SCTP_ERROR_REQ_REFUSED;
++
+diff --git a/net/sctp/sm_statefuns.c b/net/sctp/sm_statefuns.c
+index 613c5c3fa8462e67f46cf1e3ef4bc50519870abb..607c9eb3412dca8efa3c50110c71a7bb352a6562 100644
+--- a/net/sctp/sm_statefuns.c
++++ b/net/sctp/sm_statefuns.c
+@@ -77 +77,2 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-					struct sctp_cmd_seq *commands);
++					struct sctp_cmd_seq *commands,
++					struct sctp_errhdr *err);
+@@ -2497,3 +2498,9 @@ enum sctp_disposition sctp_sf_cookie_echoed_err(
+-		if (SCTP_ERROR_STALE_COOKIE == err->cause)
+-			return sctp_sf_do_5_2_6_stale(net, ep, asoc, type,
+-							arg, commands);
++		if (err->cause != SCTP_ERROR_STALE_COOKIE)
++			continue;
++		/* The staleness is only meaningful if the cause is long
++		 * enough to hold it; a shorter one is malformed.
++		 */
++		if (ntohs(err->length) < sizeof(*err) + sizeof(__be32))
++			break;
++		return sctp_sf_do_5_2_6_stale(net, ep, asoc, type,
++					      arg, commands, err);
+@@ -2541 +2548,2 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-					struct sctp_cmd_seq *commands)
++					struct sctp_cmd_seq *commands,
++					struct sctp_errhdr *err)
+@@ -2544 +2551,0 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-	struct sctp_chunk *chunk = arg, *reply;
+@@ -2547 +2554 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-	struct sctp_errhdr *err;
++	struct sctp_chunk *reply;
+@@ -2558,2 +2564,0 @@ static enum sctp_disposition sctp_sf_do_5_2_6_stale(
+-	err = (struct sctp_errhdr *)(chunk->skb->data);
+-
+@@ -6108 +6113,4 @@ enum sctp_disposition sctp_sf_t4_timer_expire(
+-	struct sctp_transport *transport = chunk->transport;
++	struct sctp_transport *transport;
++
++	if (!chunk)
++		return SCTP_DISPOSITION_CONSUME;
+@@ -6109,0 +6118 @@ enum sctp_disposition sctp_sf_t4_timer_expire(
++	transport = chunk->transport;
+diff --git a/net/sctp/sysctl.c b/net/sctp/sysctl.c
+index ee3eac338a9deef064f273e29bb59b057835d3f1..da3479ed517a12b4954f34f3bff3e8dd769dec80 100644
+--- a/net/sctp/sysctl.c
++++ b/net/sctp/sysctl.c
+@@ -628,0 +629 @@ void sctp_sysctl_net_unregister(struct net *net)
++	struct ctl_table_header *header = net->sctp.sysctl_header;
+@@ -631,2 +632,5 @@ void sctp_sysctl_net_unregister(struct net *net)
+-	table = net->sctp.sysctl_header->ctl_table_arg;
+-	unregister_net_sysctl_table(net->sctp.sysctl_header);
++	if (!header)
++		return;
++
++	table = header->ctl_table_arg;
++	unregister_net_sysctl_table(header);
+@@ -633,0 +638 @@ void sctp_sysctl_net_unregister(struct net *net)
++	net->sctp.sysctl_header = NULL;
+diff --git a/net/vmw_vsock/virtio_transport_common.c b/net/vmw_vsock/virtio_transport_common.c
+index 95170c7be7586d4fc187edb6613eb17d180388ec..c3547d783db23ca2cac69e1157fc1e699f2faa2d 100644
+--- a/net/vmw_vsock/virtio_transport_common.c
++++ b/net/vmw_vsock/virtio_transport_common.c
+@@ -75,29 +74,0 @@ static bool virtio_transport_can_zcopy(const struct virtio_transport *t_ops,
+-static int virtio_transport_init_zcopy_skb(struct vsock_sock *vsk,
+-					   struct sk_buff *skb,
+-					   struct msghdr *msg,
+-					   bool zerocopy)
+-{
+-	struct ubuf_info *uarg;
+-
+-	if (msg->msg_ubuf) {
+-		uarg = msg->msg_ubuf;
+-		net_zcopy_get(uarg);
+-	} else {
+-		struct iov_iter *iter = &msg->msg_iter;
+-		struct ubuf_info_msgzc *uarg_zc;
+-
+-		uarg = msg_zerocopy_realloc(sk_vsock(vsk),
+-					    iter->count,
+-					    NULL);
+-		if (!uarg)
+-			return -1;
+-
+-		uarg_zc = uarg_to_msgzc(uarg);
+-		uarg_zc->zerocopy = zerocopy ? 1 : 0;
+-	}
+-
+-	skb_zcopy_init(skb, uarg);
+-
+-	return 0;
+-}
+-
+@@ -323,0 +295 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
++	struct ubuf_info *uarg = NULL;
+@@ -325,0 +298 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
++	bool have_uref = false;
+@@ -366,0 +340,19 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
++
++		if (info->msg->msg_flags & MSG_ZEROCOPY &&
++		    info->op == VIRTIO_VSOCK_OP_RW) {
++			uarg = info->msg->msg_ubuf;
++
++			if (!uarg) {
++				uarg = msg_zerocopy_realloc(sk_vsock(vsk),
++							    pkt_len, NULL);
++				if (!uarg) {
++					virtio_transport_put_credit(vvs, pkt_len);
++					return -ENOMEM;
++				}
++
++				if (!can_zcopy)
++					uarg_to_msgzc(uarg)->zerocopy = 0;
++
++				have_uref = true;
++			}
++		}
+@@ -385,15 +377 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
+-		/* We process buffer part by part, allocating skb on
+-		 * each iteration. If this is last skb for this buffer
+-		 * and MSG_ZEROCOPY mode is in use - we must allocate
+-		 * completion for the current syscall.
+-		 */
+-		if (info->msg && info->msg->msg_flags & MSG_ZEROCOPY &&
+-		    skb_len == rest_len && info->op == VIRTIO_VSOCK_OP_RW) {
+-			if (virtio_transport_init_zcopy_skb(vsk, skb,
+-							    info->msg,
+-							    can_zcopy)) {
+-				kfree_skb(skb);
+-				ret = -ENOMEM;
+-				break;
+-			}
+-		}
++		skb_zcopy_set(skb, uarg, NULL);
+@@ -422,0 +401,12 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
++	/* msg_zerocopy_realloc() initializes the ubuf_info refcnt to 1.
++	 * skb_zcopy_set() increases it for each skb, so we can drop that
++	 * initial reference to keep it balanced.
++	 */
++	if (have_uref) {
++		if (rest_len == pkt_len)
++			/* No data sent, abort the notification. */
++			net_zcopy_put_abort(uarg, true);
++		else
++			net_zcopy_put(uarg);
++	}
++
+diff --git a/net/xfrm/xfrm_nat_keepalive.c b/net/xfrm/xfrm_nat_keepalive.c
+index 8a0379c8c41c8b0d4c73b331bc5d84efb8041c7a..8d7080b954d97aa390091bc446704ac39b5e794b 100644
+--- a/net/xfrm/xfrm_nat_keepalive.c
++++ b/net/xfrm/xfrm_nat_keepalive.c
+@@ -54 +54,2 @@ static int nat_keepalive_send_ipv4(struct sk_buff *skb,
+-	if (IS_ERR(rt))
++	if (IS_ERR(rt)) {
++		kfree_skb(skb);
+@@ -55,0 +57 @@ static int nat_keepalive_send_ipv4(struct sk_buff *skb,
++	}
+@@ -95 +97,2 @@ static int nat_keepalive_send_ipv6(struct sk_buff *skb,
+-	if (IS_ERR(dst))
++	if (IS_ERR(dst)) {
++		kfree_skb(skb);
+@@ -96,0 +100 @@ static int nat_keepalive_send_ipv6(struct sk_buff *skb,
++	}
+@@ -111 +114,0 @@ static void nat_keepalive_send(struct nat_keepalive *ka)
+-	int err = -EAFNOSUPPORT;
+@@ -133 +136 @@ static void nat_keepalive_send(struct nat_keepalive *ka)
+-		err = nat_keepalive_send_ipv4(skb, ka);
++		nat_keepalive_send_ipv4(skb, ka);
+@@ -137 +140 @@ static void nat_keepalive_send(struct nat_keepalive *ka)
+-		err = nat_keepalive_send_ipv6(skb, ka, uh);
++		nat_keepalive_send_ipv6(skb, ka, uh);
+@@ -140,2 +143 @@ static void nat_keepalive_send(struct nat_keepalive *ka)
+-	}
+-	if (err)
++	default:
+@@ -142,0 +145,2 @@ static void nat_keepalive_send(struct nat_keepalive *ka)
++		break;
++	}
+diff --git a/net/xfrm/xfrm_state.c b/net/xfrm/xfrm_state.c
+index 04cb201638027d0b45f174353180962c1db5ba55..3df03b2d35990c4753d4171893358e1a5219b27e 100644
+--- a/net/xfrm/xfrm_state.c
++++ b/net/xfrm/xfrm_state.c
+@@ -29,0 +30,4 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <linux/vpsadminos-livepatch.h>
++#include <linux/livepatch.h>
++#endif
+@@ -32,0 +37,4 @@
++#if defined(CONFIG_LIVEPATCH) && !defined(__GENKSYMS__)
++#include <net/net_namespace.h>
++#endif
++
+@@ -60,0 +69,25 @@ static inline bool xfrm_state_hold_rcu(struct xfrm_state __rcu *x)
++#ifdef CONFIG_LIVEPATCH
++#define VPSADMINOS_XFRM_INPUT_CACHE_STATE_ID	0xddd3d0132920319aUL
++#define VPSADMINOS_XFRM_INPUT_CACHE_RETIRED	((void *)1UL)
++
++static bool vpsadminos_xfrm_input_cache_retired;
++
++static struct klp_state vpsadminos_xfrm_input_cache_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_XFRM_INPUT_CACHE_STATE_ID,
++	.version = 1,
++};
++
++static bool vpsadminos_xfrm_input_cache_is_retired(void)
++{
++	/* Pair with the callback release stores publishing cache state. */
++	return smp_load_acquire(&vpsadminos_xfrm_input_cache_retired);
++}
++#else
++static bool vpsadminos_xfrm_input_cache_is_retired(void)
++{
++	return false;
++}
++#endif
++
+@@ -750,0 +784 @@ int __xfrm_state_delete(struct xfrm_state *x)
++	bool input_cache_retired;
+@@ -752,0 +787,2 @@ int __xfrm_state_delete(struct xfrm_state *x)
++	input_cache_retired = vpsadminos_xfrm_input_cache_is_retired();
++
+@@ -764 +800,4 @@ int __xfrm_state_delete(struct xfrm_state *x)
+-		if (!hlist_unhashed(&x->state_cache_input))
++		if (input_cache_retired ||
++		    vpsadminos_xfrm_input_cache_is_retired())
++			INIT_HLIST_NODE(&x->state_cache_input);
++		else if (!hlist_unhashed(&x->state_cache_input))
+@@ -1144 +1183 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-	struct hlist_head *state_cache_input;
++	struct hlist_head *state_cache_input = NULL;
+@@ -1147 +1186,2 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-	state_cache_input = raw_cpu_ptr(net->xfrm.state_cache_input);
++	/* BH is always disabled on the input path. */
++	lockdep_assert_in_softirq();
+@@ -1149,7 +1189,2 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-	rcu_read_lock();
+-	hlist_for_each_entry_rcu(x, state_cache_input, state_cache_input) {
+-		if (x->props.family != family ||
+-		    x->id.spi       != spi ||
+-		    x->id.proto     != proto ||
+-		    !xfrm_addr_equal(&x->id.daddr, daddr, family))
+-			continue;
++	if (!vpsadminos_xfrm_input_cache_is_retired())
++		state_cache_input = raw_cpu_ptr(net->xfrm.state_cache_input);
+@@ -1157,6 +1192,15 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-		if ((mark & x->mark.m) != x->mark.v)
+-			continue;
+-		if (!xfrm_state_hold_rcu(x))
+-			continue;
+-		goto out;
+-	}
++	if (state_cache_input)
++		hlist_for_each_entry_rcu(x, state_cache_input,
++					 state_cache_input) {
++			if (x->props.family != family ||
++			    x->id.spi       != spi ||
++			    x->id.proto     != proto ||
++			    !xfrm_addr_equal(&x->id.daddr, daddr, family))
++				continue;
++
++			if ((mark & x->mark.m) != x->mark.v)
++				continue;
++			if (!xfrm_state_hold_rcu(x))
++				continue;
++			goto out;
++		}
+@@ -1167,4 +1211,10 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-
+-	if (x && x->km.state == XFRM_STATE_VALID) {
+-		spin_lock_bh(&net->xfrm.xfrm_state_lock);
+-		if (hlist_unhashed(&x->state_cache_input)) {
++	if (x && state_cache_input) {
++		spin_lock(&net->xfrm.xfrm_state_lock);
++		if (x->km.state != XFRM_STATE_VALID) {
++			/*
++			 * The state is about to be destroyed.
++			 *
++			 * Don't add it to the cache but still
++			 * return it to the caller.
++			 */
++		} else if (hlist_unhashed(&x->state_cache_input)) {
+@@ -1176 +1226 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-		spin_unlock_bh(&net->xfrm.xfrm_state_lock);
++		spin_unlock(&net->xfrm.xfrm_state_lock);
+@@ -1180 +1229,0 @@ struct xfrm_state *xfrm_input_state_lookup(struct net *net, u32 mark,
+-	rcu_read_unlock();
+@@ -3409,0 +3459,80 @@ EXPORT_SYMBOL_GPL(xfrm_audit_state_icvfail);
++
++#ifdef CONFIG_LIVEPATCH
++static void vpsadminos_xfrm_input_cache_reset(bool restore_nodes)
++{
++	struct xfrm_state_walk *walk;
++	struct xfrm_state *state;
++	struct net *net;
++	int cpu;
++
++	down_read(&net_rwsem);
++	for_each_net(net) {
++		spin_lock_bh(&net->xfrm.xfrm_state_lock);
++
++		for_each_possible_cpu(cpu)
++			INIT_HLIST_HEAD(per_cpu_ptr(net->xfrm.state_cache_input,
++						    cpu));
++
++		if (restore_nodes) {
++			/*
++			 * state_all also contains active walk cursors.  They
++			 * use XFRM_STATE_DEAD and are not embedded in an
++			 * xfrm_state.
++			 */
++			list_for_each_entry(walk, &net->xfrm.state_all, all) {
++				if (walk->state == XFRM_STATE_DEAD)
++					continue;
++
++				state = container_of(walk, struct xfrm_state, km);
++				INIT_HLIST_NODE(&state->state_cache_input);
++			}
++		}
++
++		spin_unlock_bh(&net->xfrm.xfrm_state_lock);
++	}
++	up_read(&net_rwsem);
++}
++
++int vpsadminos_xfrm_livepatch_pre_patch(void)
++{
++	struct klp_state *prev_state;
++	bool inherited;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_XFRM_INPUT_CACHE_STATE_ID);
++	inherited = prev_state &&
++		    READ_ONCE(prev_state->data) ==
++		    VPSADMINOS_XFRM_INPUT_CACHE_RETIRED;
++	/* Publish the inherited contract before replacement functions run. */
++	smp_store_release(&vpsadminos_xfrm_input_cache_retired, inherited);
++
++	return 0;
++}
++
++void vpsadminos_xfrm_livepatch_post_patch(void)
++{
++	/* Stop new cache users before draining readers which saw false. */
++	smp_store_release(&vpsadminos_xfrm_input_cache_retired, true);
++
++	/*
++	 * Input lookups run in network RCU read-side sections.  Drain every
++	 * lookup which observed the non-retired state before abandoning the
++	 * cache heads.
++	 */
++	synchronize_net();
++	vpsadminos_xfrm_input_cache_reset(false);
++	WRITE_ONCE(vpsadminos_xfrm_input_cache_state.data,
++		   VPSADMINOS_XFRM_INPUT_CACHE_RETIRED);
++}
++
++void vpsadminos_xfrm_livepatch_pre_unpatch(void)
++{
++	/*
++	 * Lookups still bypass the cache here.  Repair the empty heads and
++	 * every live node before either replacement or boot code may use it.
++	 */
++	vpsadminos_xfrm_input_cache_reset(true);
++	/* Publish the repaired heads and nodes before allowing cache use. */
++	smp_store_release(&vpsadminos_xfrm_input_cache_retired, false);
++	WRITE_ONCE(vpsadminos_xfrm_input_cache_state.data, NULL);
++}
++#endif
