@@ -513,7 +513,7 @@ module TestRunner
         log("#{prefix} Running test '#{test.path}' (#{script_list})")
       end
 
-      result = run_test(test, scripts, prefix:)
+      result = run_test(test, scripts, prefix:, attempt:)
 
       secs = result.elapsed_time.round(2)
 
@@ -534,7 +534,12 @@ module TestRunner
           log("#{prefix} Test '#{test.path}' failed after #{secs} seconds, see #{result.state_dir}")
         end
 
-        stop_work! if opts[:stop_on_failure]
+        unexpected_scripts = result.script_results.select(&:unexpected_result?)
+        if opts[:stop_on_failure] && (
+          unexpected_scripts.empty? || unexpected_scripts.any? { |sr| attempt + 1 >= sr.test_script.attempts }
+        )
+          stop_work!
+        end
       end
 
       result
@@ -555,7 +560,7 @@ module TestRunner
       )
     end
 
-    def run_test(test, scripts, prefix:)
+    def run_test(test, scripts, prefix:, attempt: 0)
       t1 = Time.now
       dir = test_state_dir(test)
       r, w = IO.pipe
@@ -659,7 +664,7 @@ module TestRunner
                 log("#{prefix} Script '#{test_script.path}' failed after #{secs} seconds")
               end
 
-              stop_work! if opts[:stop_on_failure]
+              stop_work! if opts[:stop_on_failure] && attempt + 1 >= test_script.attempts
             end
           when 'example'
             status =

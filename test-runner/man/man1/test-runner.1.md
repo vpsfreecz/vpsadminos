@@ -133,9 +133,11 @@ selected tests and reporting results.
       themselves. In seconds, defaults to `900`.
 
     `--stop-on-failure`
-      Stop scheduling new tests after the first unexpected failure or
-      unexpected success. Tests that are already running finish normally so
-      their logs and results are retained. Disabled by default.
+      Stop scheduling new tests after an unexpected failure or unexpected
+      success exhausts its configured script attempts. Guest kernel failures
+      stop scheduling immediately and are never retried. Tests that are
+      already running finish normally so their logs and results are retained.
+      Disabled by default.
 
     `--destructive`
       Determines whether machine disk files are kept

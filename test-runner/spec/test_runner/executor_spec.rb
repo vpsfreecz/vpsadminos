@@ -4,10 +4,16 @@ require 'spec_helper'
 require 'timeout'
 
 RSpec.describe TestRunner::Executor do
+  let(:executor_state_dir) { Dir.mktmpdir('executor-spec') }
+
+  after do
+    FileUtils.remove_entry(executor_state_dir)
+  end
+
   def build_executor(test_scripts, **opts)
     described_class.new(
       test_scripts,
-      state_dir: '/tmp/os-test-runner',
+      state_dir: executor_state_dir,
       jobs: 1,
       jobs_auto: false,
       max_memory_mib: nil,
@@ -27,7 +33,7 @@ RSpec.describe TestRunner::Executor do
     )
   end
 
-  def run_test_with_output(executor, test, scripts, lines:, exitstatus: 0, writer_close_delay: 0)
+  def run_test_with_output(executor, test, scripts, lines:, exitstatus: 0, writer_close_delay: 0, attempt: 0)
     dir = executor.send(:test_state_dir, test)
     FileUtils.mkdir_p(dir)
 
@@ -49,7 +55,7 @@ RSpec.describe TestRunner::Executor do
     allow(OsVm::PortReservation).to receive(:release_ports)
     allow(executor).to receive(:log) { |msg = ''| logs << msg }
 
-    result = executor.send(:run_test, test, scripts, prefix: '[1/1]')
+    result = executor.send(:run_test, test, scripts, prefix: '[1/1]', attempt:)
 
     writer_thread.join
     [result, logs, dir]
@@ -631,6 +637,7 @@ RSpec.describe TestRunner::Executor do
       successful?: false,
       failed?: true,
       kernel_failure?: false,
+      script_results: [TestRunner::TestScriptResult.new(script, false, 1.0)],
       state_dir: '/tmp/state'
     )
     executor = build_executor([script], stop_on_failure: true)
@@ -640,6 +647,101 @@ RSpec.describe TestRunner::Executor do
     executor.send(:run_test_attempt, 0, test, [script], 0)
 
     expect(executor.send(:stop_work?)).to be(true)
+  end
+
+  it 'honors script retries before stopping work on failure' do
+    test = build_test(attempts: 2)
+    script = build_test_script(test)
+    failed = TestRunner::TestResult.new(
+      test, [TestRunner::TestScriptResult.new(script, false, 0.1)], false, 0.1, executor_state_dir
+    )
+    passed = TestRunner::TestResult.new(
+      test, [TestRunner::TestScriptResult.new(script, true, 0.2)], true, 0.2, executor_state_dir
+    )
+    executor = build_executor([script], stop_on_failure: true)
+    allow(executor).to receive(:run_test).and_return(failed, passed)
+    allow(executor).to receive(:sleep)
+    allow(executor).to receive(:log)
+
+    result = executor.send(:run_test_with_retries, 0, test, [script])
+
+    expect(result).to be_successful
+    expect(result.elapsed_time).to be_within(0.001).of(0.3)
+    expect(executor).to have_received(:run_test).with(test, [script], prefix: '[1/1]', attempt: 0)
+    expect(executor).to have_received(:run_test).with(test, [script], prefix: '[1/1]', attempt: 1)
+    expect(executor.send(:stop_work?)).to be(false)
+  end
+
+  it 'stops work once a failing script exhausts its retries' do
+    test = build_test(attempts: 2)
+    script = build_test_script(test)
+    failed = TestRunner::TestResult.new(
+      test, [TestRunner::TestScriptResult.new(script, false, 0.1)], false, 0.1, executor_state_dir
+    )
+    executor = build_executor([script], stop_on_failure: true)
+    allow(executor).to receive(:run_test).and_return(failed)
+    allow(executor).to receive(:sleep)
+    allow(executor).to receive(:log)
+
+    result = executor.send(:run_test_with_retries, 0, test, [script])
+
+    expect(result).to be_unexpected_result
+    expect(executor).to have_received(:run_test).twice
+    expect(executor.send(:stop_work?)).to be(true)
+  end
+
+  it 'stops for an exhausted script even when a sibling has retries left' do
+    test = build_test(scripts: { 'once' => {}, 'retryable' => { 'attempts' => 3 } })
+    scripts = test.test_scripts.values
+    failed = TestRunner::TestResult.new(
+      test, scripts.map { |script| TestRunner::TestScriptResult.new(script, false, 0.1) },
+      false, 0.2, executor_state_dir
+    )
+    executor = build_executor(scripts, stop_on_failure: true)
+    allow(executor).to receive(:run_test).and_return(failed)
+    allow(executor).to receive(:log)
+
+    executor.send(:run_test_with_retries, 0, test, scripts)
+
+    expect(executor).to have_received(:run_test).once
+    expect(executor.send(:stop_work?)).to be(true)
+  end
+
+  it 'stops immediately on kernel failure even with retries remaining' do
+    test = build_test(attempts: 3)
+    script = build_test_script(test)
+    failed = TestRunner::TestResult.new(
+      test, [TestRunner::TestScriptResult.new(script, false, 0.1)], false, 0.1,
+      executor_state_dir, kernel_failure: true
+    )
+    executor = build_executor([script], stop_on_failure: true)
+    allow(executor).to receive(:run_test).and_return(failed)
+    allow(executor).to receive(:log)
+
+    result = executor.send(:run_test_with_retries, 0, test, [script])
+
+    expect(result).to be_kernel_failure
+    expect(executor).to have_received(:run_test).once
+    expect(executor.send(:stop_work?)).to be(true)
+  end
+
+  [0, 1].each do |attempt|
+    [false, true].each do |expect_failure|
+      it "stops on streamed unexpected result only after retries: attempt #{attempt}, expect_failure #{expect_failure}" do
+        test = build_test(
+          scripts: { 'retryable' => { 'attempts' => 2, 'expectFailure' => expect_failure }, 'sibling' => {} }
+        )
+        script = test.test_scripts.fetch('retryable')
+        executor = build_executor(test.test_scripts.values, stop_on_failure: true)
+        unexpected = TestRunner::TestScriptResult.new(script, expect_failure, 0.1)
+
+        run_test_with_output(
+          executor, test, [script], lines: [unexpected.to_json], exitstatus: 1, attempt:
+        )
+
+        expect(executor.send(:stop_work?)).to eq(attempt == 1)
+      end
+    end
   end
 
   it 'parses example and script json lines from run_test' do
