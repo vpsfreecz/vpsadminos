@@ -86,10 +86,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.org" ];
-      sha256 = "17m3qhmq2zg93zrk4i6fvsmn70zgww26jlhwsh632fhcayip83y8";
+      sha256 = "1pqrpn0wkxvhcrwm4i0z9ailjj7if45zkkih0hij2k1q25xpwvcf";
       type = "gem";
     };
-    version = "3.0.1";
+    version = "3.0.2";
   };
   libosctl = {
     dependencies = [
