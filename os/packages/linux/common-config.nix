@@ -59,7 +59,7 @@ let
     };
 
     zfs = optionalAttrs (zfsBuiltin) {
-      SPL = yes;
+      # OpenZFS includes SPL under CONFIG_ZFS, without a separate SPL option.
       ZFS = yes;
     };
 

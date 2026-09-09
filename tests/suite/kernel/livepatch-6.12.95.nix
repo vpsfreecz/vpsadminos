@@ -379,6 +379,7 @@ import ../../make-test.nix (
         };
       in
       {
+        imports = [ ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix ];
         boot.kernelVersion = lib.mkForce "6.12.95";
         services.live-patches.enable = false;
         services.nfs.server = {
