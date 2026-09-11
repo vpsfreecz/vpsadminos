@@ -32,6 +32,10 @@ class FakeMachine
     calls << :kill_after_kernel_failure
   end
 
+  def destroy_disks
+    calls << :destroy_disks
+  end
+
   def destroy
     calls << :destroy
   end

@@ -73,6 +73,33 @@ RSpec.describe TestRunner::TestEvaluator do
     expect(evaluator.alpha).to eq(machine)
   end
 
+  [true, false].product([true, false], [true, false]).each do |fresh, destructive, failed|
+    it "resets once and cleans up with fresh=#{fresh}, destructive=#{destructive}, failed=#{failed}" do
+      machine = build_fake_machine
+      test = build_test
+      evaluator = build_evaluator(
+        test:,
+        machines: [machine],
+        recreate_disks: fresh,
+        destructive:,
+        config_data: {
+          'machines' => { 'machine' => { 'spin' => 'vpsadminos' } },
+          'framework' => {},
+          'testScripts' => { 'default' => {
+            'script' => "machine.start; machine.stop; machine.start; #{failed ? "raise 'fixture failure'" : 'nil'}"
+          } }
+        }
+      )
+
+      evaluator.run { |result| expect(result).not_to be_nil }
+
+      expect(machine.calls.count(:destroy_disks)).to eq(fresh ? 1 : 0)
+      expect(machine.calls.count(:destroy)).to eq(destructive ? 1 : 0)
+      expect(machine.calls.count(:start)).to eq(2)
+      expect(machine.calls.last(2)).to eq(%i[finalize cleanup])
+    end
+  end
+
   it 'returns framework test_config data' do
     evaluator = build_evaluator(
       config_data: {

@@ -1,6 +1,6 @@
 require 'fileutils'
 require 'json'
-require 'digest'
+require 'test-runner/test_state'
 require 'test-runner/resource_pool'
 
 module TestRunner
@@ -166,7 +166,14 @@ module TestRunner
     end
 
     def wait_for_workers
-      workers.each(&:join)
+      errors = workers.filter_map do |worker|
+        worker.join
+        nil
+      rescue StandardError => e
+        stop_work!
+        e
+      end
+      raise errors.first unless errors.empty?
     end
 
     def run_worker(_w_i)
@@ -561,6 +568,12 @@ module TestRunner
     end
 
     def run_test(test, scripts, prefix:, attempt: 0)
+      TestState.with_lock(test_state_dir(test)) do |state_lock|
+        run_test_locked(test, scripts, prefix:, attempt:, state_lock:)
+      end
+    end
+
+    def run_test_locked(test, scripts, prefix:, attempt:, state_lock:)
       t1 = Time.now
       dir = test_state_dir(test)
       r, w = IO.pipe
@@ -568,10 +581,8 @@ module TestRunner
       # 4 ports for use with boot.qemu.networks.[i].socket.mcast.port
       mcast_ports = OsVm::PortReservation.get_ports(key: "test:#{test.path}", size: 4)
 
-      pid = Process.fork do
+      pid = TestState.fork(keep: state_lock) do
         r.close
-        FileUtils.mkdir_p(dir)
-
         out = File.open(File.join(dir, 'test-runner.log'), 'w')
         $stdout.reopen(out)
         $stderr.reopen(out)
@@ -740,7 +751,7 @@ module TestRunner
     end
 
     def test_state_dir(test)
-      File.join(state_dir, "os-test-#{test_state_key(test)}")
+      TestState.directory(state_dir, test)
     end
 
     def test_sock_dir
@@ -749,11 +760,6 @@ module TestRunner
 
     def state_dir
       opts[:state_dir]
-    end
-
-    def test_state_key(test)
-      slug = test.path.gsub(/[^A-Za-z0-9_.-]+/, '__')
-      "#{slug}-#{Digest::SHA256.hexdigest(test.path)[0, 8]}"
     end
 
     def last_nonempty_line(path, max_bytes: 8192)

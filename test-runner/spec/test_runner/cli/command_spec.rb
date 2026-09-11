@@ -41,6 +41,10 @@ RSpec.describe TestRunner::Cli::Command do
   end
   let(:args) { [] }
 
+  before do
+    allow(TestRunner::TestState).to receive(:with_lock).and_yield
+  end
+
   it 'prints selected script paths from list' do
     scripts = [
       instance_double(TestRunner::TestScript, path: 'suite/a'),
@@ -129,28 +133,31 @@ RSpec.describe TestRunner::Cli::Command do
     )
   end
 
-  it 'resolves scripts and starts debug evaluators interactively' do
-    test = build_test(name: 'debug-test')
-    script = test.test_scripts['default']
-    list = instance_double(TestRunner::TestScriptList, by_path: script)
-    evaluator = instance_double(TestRunner::TestEvaluator, interactive: nil)
-    allow(TestRunner::TestScriptList).to receive(:new).and_return(list)
-    allow(TestRunner::TestEvaluator).to receive(:new).and_return(evaluator)
+  [false, true].each do |fresh|
+    it "starts debug with fresh=#{fresh}" do
+      test = build_test(name: 'debug-test')
+      script = test.test_scripts['default']
+      list = instance_double(TestRunner::TestScriptList, by_path: script)
+      evaluator = instance_double(TestRunner::TestEvaluator, interactive: nil)
+      allow(TestRunner::TestScriptList).to receive(:new).and_return(list)
+      allow(TestRunner::TestEvaluator).to receive(:new).and_return(evaluator)
 
-    described_class.new({}, opts, ['suite/example']).debug
+      described_class.new({}, opts.merge('fresh' => fresh), ['suite/example']).debug
 
-    expect(TestRunner::TestEvaluator).to have_received(:new).with(
-      test,
-      [script],
-      system: 'x86_64-linux',
-      test_config_path: nil,
-      repo_root: REPO_ROOT,
-      state_dir: '/tmp/os-test-runner/os-test-debug-test',
-      sock_dir: '/tmp/os-test-runner/socks',
-      default_timeout: 60,
-      destructive: false
-    )
-    expect(evaluator).to have_received(:interactive)
+      expect(TestRunner::TestEvaluator).to have_received(:new).with(
+        test,
+        [script],
+        system: 'x86_64-linux',
+        test_config_path: nil,
+        repo_root: REPO_ROOT,
+        state_dir: TestRunner::TestState.directory('/tmp/os-test-runner', test),
+        sock_dir: '/tmp/os-test-runner/socks',
+        default_timeout: 60,
+        destructive: false,
+        recreate_disks: fresh
+      )
+      expect(evaluator).to have_received(:interactive)
+    end
   end
 
   it 'filters scripts by path pattern, labels, and tags' do

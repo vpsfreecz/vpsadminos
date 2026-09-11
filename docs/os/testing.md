@@ -54,6 +54,72 @@ import ../make-test.nix ({ pkgs }: {
 })
 ```
 
+## Disk lifecycle
+
+Managed file-backed disks preserve their contents on VM startup by default.
+This includes NixOS root disks. A stop/start within a test reuses those disks;
+set `preserve = false` on a disk to recreate it on each start.
+
+vpsAdminOS VMs booted from squashfs still have a temporary root filesystem.
+Files in that root disappear on reboot, while data on attached disks, including
+ZFS pools and containers, remains. Firmware-booted installations keep their
+installed root on the attached disk.
+
+| Command | Initial reset | Cleanup on exit |
+| --- | --- | --- |
+| `test` | None | Delete managed disks |
+| `test --fresh` | All managed disks, once per attempt | Delete managed disks |
+| `test --no-destructive` | None | Keep disks |
+| `test --no-destructive --fresh` | All managed disks, once per attempt | Keep disks |
+| `debug` | None | Keep disks |
+| `debug --fresh` | All managed disks, before the REPL opens | Keep disks |
+
+The initial reset from `-f, --fresh` applies regardless of `preserve`. It does
+not reset disks again between examples or VM restarts. A disk with
+`preserve = false` is recreated when the VM starts, even in debug mode.
+`machine.destroy_disks` explicitly removes managed disks regardless of their
+preservation setting. Block devices and files with `create = false` are
+externally managed and are never created, replaced, or deleted by these actions.
+They cannot use `preserve = false`.
+
+Test and debug use the same state directory for a given test path and
+`--state-dir`. For example, retain a failed run and inspect it with:
+
+```sh
+./test-runner.sh test --no-destructive --fresh driver/nixos
+./test-runner.sh debug driver/nixos
+```
+
+Each test has a lock held through VM cleanup and result publication. A second
+command targeting the same state fails while that lock is held. Scripts of the
+same test share its state. Use separate `--state-dir` values for independent
+runs, including tests from different repositories.
+
+Retaining a disk does not resize it or copy a newer source image into it.
+NixOS direct boot requires the selected system closure to exist on its root
+filesystem. After changing a test's NixOS configuration, use `--fresh` to start
+from its new image, or copy and activate the closure in the running VM before
+restarting it.
+
+A managed disk can use `image = /path/to/source.img` instead of `size`. OSVM
+copies the image when creating the disk. Preparation uses a temporary file next
+to the destination; a failed copy or resize leaves the previous disk intact.
+
+For a NixOS machine, `rootDisk` overrides the generated root disk descriptor:
+
+```nix
+machine = {
+  spin = "nixos";
+  rootDisk.preserve = false;
+  config.system.stateVersion = "26.05";
+};
+```
+
+The generated root uses `{machine}-root.img` and is attached before additional
+disks. Root and additional disks use the same `device`, `type`, `create`,
+`preserve`, `image`, and `size` fields. JSON configurations using `diskImage`
+remain readable; they cannot also specify `rootDisk`.
+
 Disks can be added as:
 
 ```nix
@@ -70,6 +136,8 @@ import ../make-test.nix ({ pkgs }: {
       # 10 GB file sda.img will be created in the test's state directory
       # and added to the virtual machine
       { type = "file"; device = "sda.img"; size = "10G"; }
+      # This scratch disk is blank on every VM start
+      { type = "file"; device = "scratch.img"; size = "1G"; preserve = false; }
     ];
 
     # Machine configuration

@@ -65,18 +65,22 @@ module TestRunner
       tsl = TestRunner::TestScriptList.new(system: opts['system'], test_config_path:, repo_root:)
       test_script = tsl.by_path(args[0])
 
-      ev = TestRunner::TestEvaluator.new(
-        test_script.test,
-        [test_script],
-        system: opts['system'],
-        test_config_path:,
-        repo_root:,
-        state_dir: File.join(state_dir, "os-test-#{test_script.test.name}"),
-        sock_dir: File.join(state_dir, 'socks'),
-        default_timeout: opts['timeout'],
-        destructive: false
-      )
-      ev.interactive
+      directory = TestState.directory(state_dir, test_script.test)
+      TestState.with_lock(directory) do
+        ev = TestRunner::TestEvaluator.new(
+          test_script.test,
+          [test_script],
+          system: opts['system'],
+          test_config_path:,
+          repo_root:,
+          state_dir: directory,
+          sock_dir: File.join(state_dir, 'socks'),
+          default_timeout: opts['timeout'],
+          destructive: false,
+          recreate_disks: opts['fresh']
+        )
+        ev.interactive
+      end
     end
 
     protected

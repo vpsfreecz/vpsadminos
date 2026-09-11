@@ -7,5 +7,8 @@ RSpec.describe TestRunner::Cli::App do
     app = described_class.get
 
     expect(app.commands.keys.map(&:to_s)).to include('ls', 'test', 'debug')
+    %w[test debug].each do |name|
+      expect(app.commands[name.to_sym].switches[:f].aliases.map(&:to_s)).to include('fresh')
+    end
   end
 end

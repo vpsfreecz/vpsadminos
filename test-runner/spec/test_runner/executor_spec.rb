@@ -33,6 +33,36 @@ RSpec.describe TestRunner::Executor do
     )
   end
 
+  it 'refuses occupied state before touching logs or disks' do
+    test = build_test
+    executor = build_executor([test.test_scripts['default']])
+    dir = executor.send(:test_state_dir, test)
+    TestRunner::TestState.with_lock(dir) do
+      marker = File.join(dir, 'test-result.txt')
+      File.write(marker, 'retained result')
+      expect do
+        executor.send(:run_test, test, [test.test_scripts['default']], prefix: '[1/1]')
+      end.to raise_error(RuntimeError, /already in use/)
+      expect(File.read(marker)).to eq('retained result')
+      expect(File.exist?(File.join(dir, 'test-runner.log'))).to be(false)
+    end
+  end
+
+  it 'joins the other workers before propagating a worker failure' do
+    executor = build_executor([])
+    completed = false
+    failing = Thread.new do
+      Thread.current.report_on_exception = false
+      raise 'busy test state'
+    end
+    other = Thread.new { completed = true }
+    executor.instance_variable_set(:@workers, [failing, other])
+
+    expect { executor.send(:wait_for_workers) }.to raise_error(RuntimeError, 'busy test state')
+    expect(completed).to be(true)
+    expect(other).not_to be_alive
+  end
+
   def run_test_with_output(executor, test, scripts, lines:, exitstatus: 0, writer_close_delay: 0, attempt: 0)
     dir = executor.send(:test_state_dir, test)
     FileUtils.mkdir_p(dir)

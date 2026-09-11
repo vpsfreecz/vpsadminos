@@ -116,7 +116,9 @@ selected tests and reporting results.
       CPUs to keep reserved from detected or configured capacity.
 
     `-f`, `--fresh`
-      Recreate disk files for virtual machines if they already exist.
+      Reset all managed disk files before each test attempt, regardless of
+      their preservation settings. VM restarts within the attempt follow each
+      disk's `preserve` setting.
 
     `--system` *system*
       Nix system to evaluate tests for. Defaults to `x86_64-linux`.
@@ -139,8 +141,10 @@ selected tests and reporting results.
       already running finish normally so their logs and results are retained.
       Disabled by default.
 
-    `--destructive`
-      Determines whether machine disk files are kept
+    `--destructive`, `--no-destructive`
+      Delete managed disks on exit, including after a test failure. Enabled by
+      default. Use `--no-destructive` to retain disks for another run or debug.
+      This cleanup applies regardless of each disk's `preserve` setting.
 
     `--state-dir` *dir*
       Set custom path to directory where generated configs, logs, and test
@@ -180,13 +184,33 @@ Shell quoting is required for expressions containing `&&`, `||` or parentheses.
 `debug` *test*
   Run test interactively. The test script is not run, instead Ruby REPL is opened.
   The REPL can be used to issue commands as from the test script. The test is
-  run in a non-destructive mode, i.e. machine disks remain intact between test
-  runs.
+  run in a non-destructive mode: managed disks are kept on exit. Test and debug
+  use the same state for the same test path and `--state-dir`, so debug can
+  inspect disks retained by `test --no-destructive`. A concurrent command using
+  that state is refused.
+
+    `-f`, `--fresh`
+      Reset all managed disks before opening the REPL. Subsequent VM starts
+      follow each disk's `preserve` setting.
 
     `--state-dir` *dir*
       Set custom path to directory where generated configs, logs, and test
       state are stored.
       Defaults to `$TMPDIR` or `/tmp`.
+
+## DISKS
+
+Managed file-backed disks, including NixOS roots, default to `preserve = true`:
+they are created when missing and reused on VM startup. `preserve = false`
+recreates an individual disk on every start, including in debug mode. `--fresh`
+resets all managed disks once before execution; `--destructive` controls their
+deletion afterward. Neither action modifies external files (`create = false`)
+or block devices.
+
+vpsAdminOS squashfs boots retain attached disks but recreate their temporary
+root filesystem. Installed systems booted from disks retain those disks.
+Retained NixOS roots need the selected system closure before direct boot; after
+changing configuration, use `--fresh` or update the running VM before restart.
 
 ## BUGS
 Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.

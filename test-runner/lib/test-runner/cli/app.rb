@@ -94,7 +94,7 @@ module TestRunner::Cli
         c.desc 'Show verbose diagnostic progress messages'
         c.switch %w[v verbose], default_value: false
 
-        c.desc 'Recreate disk files'
+        c.desc 'Reset managed disks before each test attempt'
         c.switch %w[f fresh], default_value: false
 
         c.desc 'Nix system to evaluate tests for'
@@ -109,7 +109,7 @@ module TestRunner::Cli
         c.desc 'Stop scheduling tests after the first unexpected result'
         c.switch 'stop-on-failure', default_value: false
 
-        c.desc 'Determines where machine disk files are kept'
+        c.desc 'Delete managed disks on exit; --no-destructive keeps them'
         c.switch 'destructive', default_value: true
 
         c.desc 'Directory where test logs and state are stored'
@@ -121,6 +121,9 @@ module TestRunner::Cli
       desc 'Debug test'
       arg_name '<test>'
       command 'debug' do |c|
+        c.desc 'Reset managed disks before opening the interactive shell'
+        c.switch %w[f fresh], default_value: false
+
         c.desc 'Directory where test logs and state are stored'
         c.flag 'state-dir'
 
