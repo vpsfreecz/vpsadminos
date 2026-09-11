@@ -52,7 +52,7 @@ RSpec.describe OsVm::MachineConfig do
   it 'requires diskImage for direct nixos machines' do
     expect do
       build_machine_config({ 'diskImage' => nil }, spin: 'nixos')
-    end.to raise_error(ArgumentError, /missing 'diskImage'/)
+    end.to raise_error(ArgumentError, /missing 'rootDisk' or 'diskImage'/)
   end
 
   it 'validates disk types' do
@@ -61,6 +61,34 @@ RSpec.describe OsVm::MachineConfig do
         'disks' => [{ 'device' => 'disk.img', 'type' => 'weird', 'size' => '1G' }]
       )
     end.to raise_error(ArgumentError, /unsupported disk type/)
+  end
+
+  it 'uses one descriptor type for root and additional disks' do
+    cfg = build_machine_config({
+      'diskImage' => nil,
+      'rootDisk' => { 'device' => '{machine}-root.img', 'type' => 'file', 'image' => '/root.img' },
+      'disks' => [{ 'device' => 'data.img', 'type' => 'file', 'size' => '1G' }]
+    }, spin: 'nixos')
+
+    expect(cfg.all_disks).to eq([cfg.root_disk, *cfg.disks])
+    expect(cfg.all_disks).to all(be_a(OsVm::MachineConfig::Disk))
+    expect(cfg.all_disks.map(&:preserve)).to eq([true, true])
+  end
+
+  it 'rejects ambiguous root definitions' do
+    expect do
+      build_machine_config({ 'rootDisk' => {} }, spin: 'nixos')
+    end.to raise_error(ArgumentError, /cannot be used together/)
+  end
+
+  it 'rejects invalid preservation and recreation of external disks' do
+    [{ 'preserve' => 'false' }, { 'preserve' => nil },
+     { 'preserve' => false, 'create' => false },
+     { 'preserve' => false, 'type' => 'blockdev' }].each do |options|
+      expect do
+        OsVm::MachineConfig::Disk.new({ 'device' => 'data.img', 'type' => 'file', 'size' => '1G' }.merge(options))
+      end.to raise_error(ArgumentError)
+    end
   end
 
   it 'loads and validates boot ISO paths' do

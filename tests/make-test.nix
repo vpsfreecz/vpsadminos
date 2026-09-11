@@ -275,7 +275,14 @@ let
       memory = machine.memory or nixos.config.virtualisation.memorySize;
       cpus = cpus;
       cpu = cpuCfg;
-      diskImage = diskImagePath;
+      rootDisk = {
+        device = "{machine}-root.img";
+        type = "file";
+        create = true;
+        preserve = true;
+        image = diskImagePath;
+      }
+      // (machine.rootDisk or { });
       disks = machine.disks or [ ];
       testShells = machineTestShells machine;
       shells = machineShellNames machine;

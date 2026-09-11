@@ -44,6 +44,25 @@ let
             for file-backed devices.
           '';
         };
+
+        preserve = mkOption {
+          type = types.bool;
+          default = true;
+          description = ''
+            Reuse an existing disk on VM startup. Set to false to recreate a
+            managed file-backed disk on every start. Explicit disk destruction
+            still removes managed disks regardless of this option.
+          '';
+        };
+
+        image = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            Source image to copy when creating a managed file-backed disk.
+            Without an image, create a blank disk using size.
+          '';
+        };
       };
     };
 
@@ -346,6 +365,11 @@ in
 
   config = mkMerge [
     (mkIf cfg.enable {
+      assertions = map (disk: {
+        assertion = disk.preserve || (disk.type == "file" && disk.create);
+        message = "boot.qemu.disks: only managed file disks can set preserve=false";
+      }) cfg.disks;
+
       boot.qemu.stateDir = mkDefault "~/.osvm-qemu/${config.networking.hostName}";
 
       boot.kernelParams = [ "console=ttyS0" ];
@@ -371,13 +395,30 @@ in
         in
         pkgs.writeScript "vpsadminos-qemu-runner.sh" ''
           #!${pkgs.stdenv.shell}
+          set -e
           mkdir -p "${cfg.stateDir}"
 
           ${concatStringsSep "\n" (
             map (disk: ''
-              devicePath="${disk.device}"
+              devicePath=${escapeShellArg disk.device}
               [[ "$devicePath" == /* ]] || devicePath="${cfg.stateDir}/$devicePath"
-              [ ! -f "$devicePath" ] && truncate -s${toString disk.size} "$devicePath"
+              if [ ! -e "$devicePath" ] || ${if disk.preserve then "false" else "true"}; then
+                imageTmp="$(mktemp "$(dirname "$devicePath")/osvm-disk-XXXXXXXX.img")"
+                trap 'rm -f -- "$imageTmp"' EXIT
+                ${
+                  if disk.image == null then
+                    ''
+                      truncate -s ${escapeShellArg disk.size} -- "$imageTmp"
+                    ''
+                  else
+                    ''
+                      cp -- ${escapeShellArg (toString disk.image)} "$imageTmp"
+                    ''
+                }
+                chmod 0644 "$imageTmp"
+                mv -f -- "$imageTmp" "$devicePath"
+                trap - EXIT
+              fi
             '') (filter (disk: disk.type == "file" && disk.create) cfg.disks)
           )}
 

@@ -33,6 +33,13 @@ module OsVm
       # @return [Boolean]
       attr_reader :create
 
+      # Reuse an existing disk on machine startup.
+      # @return [Boolean]
+      attr_reader :preserve
+
+      # @return [String, nil] source image for a managed file-backed disk
+      attr_reader :image
+
       def initialize(cfg)
         @device = cfg.fetch('device')
         @type = cfg.fetch('type')
@@ -41,8 +48,28 @@ module OsVm
           raise ArgumentError, "unsupported disk type #{@type.inspect}"
         end
 
-        @size = cfg.fetch('size')
+        @size = cfg.fetch('size', '')
         @create = cfg.fetch('create', true)
+        @preserve = cfg.fetch('preserve', true)
+        @image = cfg['image']
+
+        unless [true, false].include?(@preserve)
+          raise ArgumentError, 'disk preserve must be a boolean'
+        end
+
+        unless @image.nil? || (@image.is_a?(String) && !@image.empty?)
+          raise ArgumentError, 'disk image must be a non-empty string'
+        end
+
+        raise ArgumentError, 'only managed file disks can set preserve=false' if !managed? && !preserve
+
+        return unless managed? && image.nil? && (!size.is_a?(String) || size.empty?)
+
+        raise ArgumentError, 'managed disk requires a size or source image'
+      end
+
+      def managed?
+        type == 'file' && create
       end
     end
 
@@ -251,6 +278,12 @@ module OsVm
     # @return [Array<Disk>]
     attr_reader :disks
 
+    # Disks in attachment order, including a root disk when present.
+    # @return [Array<Disk>]
+    def all_disks
+      disks
+    end
+
     # @return [Integer] system memory in MiB
     attr_reader :memory
 
@@ -348,17 +381,33 @@ module OsVm
   end
 
   class NixosMachineConfig < MachineConfig
-    # @return [String] path to disk image containing the root filesystem
-    attr_reader :disk_image
+    # @return [Disk, nil]
+    attr_reader :root_disk
+
+    def disk_image
+      root_disk&.image
+    end
+
+    def all_disks
+      [root_disk, *disks].compact
+    end
 
     # @param cfg [Hash]
     def initialize(cfg)
-      @disk_image = cfg['diskImage']
+      if cfg['rootDisk'] && cfg['diskImage']
+        raise ArgumentError, 'rootDisk and diskImage cannot be used together'
+      end
+
+      root_cfg = cfg['rootDisk']
+      if cfg['diskImage']
+        root_cfg = { 'device' => '{machine}-root.img', 'type' => 'file', 'image' => cfg['diskImage'] }
+      end
+      @root_disk = Disk.new(root_cfg) if root_cfg
       super
 
       return unless boot_mode == 'direct'
 
-      raise ArgumentError, "missing 'diskImage' for direct boot machine" if @disk_image.nil?
+      raise ArgumentError, "missing 'rootDisk' or 'diskImage' for direct boot machine" if root_disk.nil?
     end
   end
 end

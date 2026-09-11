@@ -123,6 +123,7 @@ let
         "docker/fedora"
         "docker/ubuntu"
         "driver/named-shells"
+        "driver/disk-preservation"
         "driver/nixos"
         "driver/parallel-test-scripts"
         "driver/rspec"

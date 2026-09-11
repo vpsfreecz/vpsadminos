@@ -33,7 +33,7 @@ let
             inherit system testFramework;
           };
     in
-    test.config.machines.${machineName}.diskImage;
+    test.config.machines.${machineName}.rootDisk.image;
 
   baseImage = makeImage {
     testName = "disk-image-reuse";

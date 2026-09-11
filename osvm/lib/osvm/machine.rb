@@ -1,5 +1,6 @@
 require 'digest'
 require 'fileutils'
+require 'tempfile'
 
 module OsVm
   class Machine
@@ -227,8 +228,8 @@ module OsVm
     #
     # @return [Machine]
     def destroy_disks
-      config.disks.each do |disk|
-        next if disk.type != 'file' || !disk.create
+      config.all_disks.each do |disk|
+        next unless disk.managed?
 
         FileUtils.rm_f(disk_path(disk.device))
       end
@@ -797,10 +798,23 @@ module OsVm
     end
 
     def prepare_disks
-      config.disks.each do |disk|
-        next if disk.type != 'file' || !disk.create || File.exist?(disk_path(disk.device))
+      config.all_disks.each do |disk|
+        next unless disk.managed?
 
-        `truncate -s#{disk.size} #{disk_path(disk.device)}`
+        path = disk_path(disk.device)
+        next if disk.preserve && File.exist?(path)
+
+        # An interrupted preparation must not replace a usable disk or leave
+        # a partial image that a later start would reuse.
+        Tempfile.create(['osvm-disk-', '.img'], File.dirname(path)) do |image|
+          if disk.image
+            FileUtils.cp(disk.image, image.path)
+          else
+            system('truncate', '-s', disk.size, '--', image.path, exception: true)
+          end
+          File.chmod(0o644, image.path)
+          File.rename(image.path, path)
+        end
       end
     end
 

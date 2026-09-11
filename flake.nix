@@ -762,6 +762,10 @@
           };
         in
         {
+          qemu-disk-lifecycle = import ./tests/qemu-disk-lifecycle-check.nix {
+            pkgs = import nixpkgs { inherit system; };
+            makeSystem = args: vpsadminosSystem (args // { inherit system; });
+          };
           nixos-disk-image-reuse = import ./tests/nixos-disk-image-reuse-check.nix {
             inherit nixpkgs system testFramework;
           };

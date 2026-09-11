@@ -307,3 +307,21 @@ end
   `lib.testFramework.mkTests` and `lib.testFramework.mkTestsMeta` if you want
   the runner to re-evaluate your suite with `--test-config`. Repositories that
   do not use `--test-config` only need `tests` and `testsMeta`.
+
+## Persistent machines in custom runners
+
+OSVM reuses managed disks on startup by default, including NixOS root disks.
+Custom runners retain disks by stopping and cleaning up machines without
+calling `destroy` or `destroy_disks`. Set `preserve = false` on an individual
+disk to recreate it at each start. Explicit destruction still removes all
+managed disks. See [Testing](testing.md) for test/debug
+modes, `--fresh`, and disk configuration examples.
+
+New disk contents are prepared in a temporary file and renamed only after
+preparation succeeds. A failed or interrupted copy cannot become a retained
+root image.
+
+A retained NixOS root must contain the system closure selected for direct boot.
+Copy and activate configuration changes in the running VM before stopping it
+and starting it with the new configuration. Disk preservation does not copy
+new closures into an existing root or migrate its data.
