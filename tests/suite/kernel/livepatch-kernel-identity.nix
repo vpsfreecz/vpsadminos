@@ -10,6 +10,7 @@ import ../../make-test.nix (
       config =
         { lib, ... }:
         {
+          boot.kernelVersion = "6.12.95";
           services.live-patches.enable = true;
           runit.services.live-patches.run = lib.mkForce "sleep inf";
         };

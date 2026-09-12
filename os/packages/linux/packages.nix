@@ -18,11 +18,15 @@ let
 
   linuxGhUrl = gh: commit: repoGhUrl gh "linux" commit;
 
+  # The archive endpoint can rate-limit builders before redirecting here.
+  linuxMirrorUrl = commit: "https://codeload.github.com/vpsfreecz/linux/tar.gz/${commit}";
+
   genKernelPackage =
     kernelVersion:
     pkgs.callPackage ../../packages/linux {
       inherit kernelVersion;
       url = linuxGhUrl vpsfGh kernels.${kernelVersion}.rev;
+      mirrorUrl = linuxMirrorUrl kernels.${kernelVersion}.rev;
       sha256 = kernels.${kernelVersion}.sha256;
       structuredExtraConfig =
         if builtins.hasAttr "structuredExtraConfig" kernels.${kernelVersion} then
@@ -41,6 +45,7 @@ let
     (pkgs.callPackage ../../packages/linux {
       inherit kernelVersion;
       url = linuxGhUrl vpsfGh kernels.${kernelVersion}.rev;
+      mirrorUrl = linuxMirrorUrl kernels.${kernelVersion}.rev;
       sha256 = kernels.${kernelVersion}.sha256;
       zfsBuiltinPkg = zfsBuiltinPkg;
       structuredExtraConfig =

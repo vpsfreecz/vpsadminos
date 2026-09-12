@@ -1,22 +1,28 @@
 { lib }:
 with lib.kernel;
-{
+rec {
   stableKernelVersion = "6.12.109";
   unstableKernelVersion = "6.12.109";
 
+  nfsCancellationKernelVersions = lib.attrNames (
+    lib.filterAttrs (_: kernel: kernel.nfsCancellation or false) kernels
+  );
+
   kernels = {
     "6.12.109" = {
-      rev = "9ccd5d6597a6ddbe5b44fb885ddf96e4dbc332dd";
-      sha256 = "sha256-pkqWjsBfn3twbVFXP2Uk8FWvj8BJk9kTNCtSlyHZrCo=";
+      nfsCancellation = true;
+      rev = "c099b00eafe7ced993eb6a7166876bb12bef8c72";
+      sha256 = "sha256-SYqViJCugtDarN9JFdLBj4K2fMqbx+JykdLlGK0biZ8=";
       zfs = {
         rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
         sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";
       };
     };
     "6.12.95" = {
-      rev = "563bbb35e8753e1bb34dad19ebeec8962ee3c1cd";
-      sha256 = "sha256-7eve2Ljhkk+fozlWkN7k5SA0gtxDo3mbvQ0hIR3OVHs=";
+      rev = "e232e2bdcc9a552b60b49ab8994bd49b115e1e58";
+      sha256 = "sha256-4HdPnxHLB5UlhkeFz6upt++NPOf5zXQu0xHEPQZpGv0=";
       features.livepatchVariant = "nfs-cancel";
+      nfsCancellation = true;
       zfs = {
         rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
         sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";

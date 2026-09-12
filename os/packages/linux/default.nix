@@ -9,6 +9,7 @@
   elfutils,
   kernelVersion,
   url,
+  mirrorUrl ? null,
   sha256,
   features,
   structuredExtraConfig ? { },
@@ -30,7 +31,7 @@ callPackage ./generic.nix (rec {
   extraMeta.branch = concatStrings (intersperse "." (take 2 (splitString "." version)));
 
   src = fetchurl {
-    inherit url;
+    urls = [ url ] ++ lib.optional (mirrorUrl != null) mirrorUrl;
     inherit sha256;
   };
 
