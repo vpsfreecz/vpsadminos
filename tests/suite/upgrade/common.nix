@@ -254,6 +254,43 @@ import (previous.outPath + "/tests/make-test.nix")
           output = read_parameter.call(parameter)
           key ? Integer(output.lines.find { |line| line.split.first == key }.split.last) : Integer(output)
         end
+        probe_sequence = 0
+        run_resource_probe = lambda do |mode|
+          probe_sequence += 1
+          prefix = "/run/upgrade-probe-#{probe_sequence}-#{mode}"
+          # Keep the original 40s command budget. Observe the helper before it
+          # disappears so Ruby startup is not confused with C payload runtime.
+          machine.succeeds("(set +e; timeout 40 osctl ct exec limited /bin/upgrade-resource-probe #{mode} > #{prefix}.log 2>&1; echo $? > #{prefix}.status) < /dev/null > #{prefix}.launcher 2>&1 &")
+          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 70
+          loop do
+            status, = machine.execute("test -f #{prefix}.status", timeout: 10)
+            break if status == 0
+            fail "resource probe status missing: #{prefix}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+            machine.execute(<<~SH, timeout: 15)
+              date -Ins
+              cat /proc/uptime /proc/loadavg
+              cat #{prefix}.log
+              for pid in $(pgrep -f 'osctld-ct-runner$|^osctld: tank:limited runner:|^/bin/upgrade-resource-probe'); do
+                echo "=== probe process $pid ==="
+                ps -p "$pid" -o pid,ppid,etimes,time,stat,wchan:24,args
+                cat /proc/$pid/stat /proc/$pid/schedstat /proc/$pid/cgroup
+                grep -E '^(State|VmRSS|Sig|Cpus_allowed_list)' /proc/$pid/status
+                cat /proc/$pid/syscall /proc/$pid/stack
+              done
+              for root in /run/osctl/cgroup /sys/fs/cgroup; do
+                find "$root" -path '*user.limited/ct.limited/cpu.stat' -o -path '*user.limited/ct.limited/memory.events' -o -path '*user.limited/ct.limited/memory.oom_control' | while read file; do
+                  echo "=== $file ==="
+                  cat "$file"
+                done
+              done
+              true
+            SH
+            sleep(5)
+          end
+          machine.succeeds("cat #{prefix}.log")
+          expect(machine.succeeds("cat #{prefix}.status")[1].strip).to eq('0')
+        end
         assert_limits = lambda do |cpu, pids, memory = 134217728, cpuset = '0'|
           expect(read_parameter.call(cgroup_version == 2 ? 'cpu.max' : 'cpu.cfs_quota_us')).to eq(
             cgroup_version == 2 ? "#{cpu * 1000} 100000" : (cpu * 1000).to_s,
@@ -265,17 +302,17 @@ import (previous.outPath + "/tests/make-test.nix")
           expect(read_parameter.call('pids.max')).to eq(pids.to_s)
           expect(machine.succeeds("awk '/^Cpus_allowed_list:/ {print $2}' /proc/#{limited_init}/status")[1].strip).to eq(cpuset)
           throttled = counter.call('cpu.stat', 'nr_throttled')
-          machine.succeeds('timeout 40 osctl ct exec limited /bin/upgrade-resource-probe cpu', timeout: 60)
+          run_resource_probe.call('cpu')
           expect(counter.call('cpu.stat', 'nr_throttled')).to be > throttled
           # v1 counts failed forks at their leaf, whereas v2 propagates max
           # events to the limiting parent. Read the kernel's actual semantics.
           pids_events = cgroup_version == 2 ? 'pids.events' : 'user-owned/lxc.payload.limited/pids.events'
           pids_denied = counter.call(pids_events, 'max')
-          machine.succeeds('timeout 40 osctl ct exec limited /bin/upgrade-resource-probe pids', timeout: 60)
+          run_resource_probe.call('pids')
           expect(counter.call(pids_events, 'max')).to be > pids_denied
           memory_file, memory_key = cgroup_version == 2 ? ['memory.events', 'oom_kill'] : ['user-owned/lxc.payload.limited/memory.oom_control', 'oom_kill']
           memory_denied = counter.call(memory_file, memory_key)
-          machine.succeeds('timeout 40 osctl ct exec limited /bin/upgrade-resource-probe memory', timeout: 60)
+          run_resource_probe.call('memory')
           expect(counter.call(memory_file, memory_key)).to be > memory_denied
           machine.succeeds('osctl ct exec limited dd if=/dev/zero of=/dev/null bs=1 count=1')
           denied = machine.fails('osctl ct exec limited dd if=/dev/null of=/dev/zero bs=1 count=0')[1]

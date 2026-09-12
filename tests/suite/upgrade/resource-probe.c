@@ -10,6 +10,19 @@
 #include <time.h>
 #include <unistd.h>
 
+static void phase(const char *name, size_t progress)
+{
+  struct timespec wall, cpu;
+
+  if (clock_gettime(CLOCK_MONOTONIC, &wall) < 0 ||
+      clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &cpu) < 0)
+    exit(1);
+  fprintf(stderr, "probe_phase=%s pid=%ld progress=%zu monotonic=%ld.%09ld cpu=%ld.%09ld\n",
+          name, (long)getpid(), progress, (long)wall.tv_sec, wall.tv_nsec,
+          (long)cpu.tv_sec, cpu.tv_nsec);
+  fflush(stderr);
+}
+
 /* Bounded workloads, not measurements of VM scheduling performance. */
 static int cpu_probe(void)
 {
@@ -88,8 +101,12 @@ static int memory_probe(void)
                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (memory == MAP_FAILED)
       _exit(1);
-    for (size_t i = 0; i < size; i += 4096)
+    phase("memory-mapped", 0);
+    for (size_t i = 0; i < size; i += 4096) {
       memory[i] = 1;
+      if (i % (32UL * 1024 * 1024) == 0)
+        phase("memory-touch", i);
+    }
     _exit(2); /* Reaching 256 MiB violates the test's 128 MiB limit. */
   }
 
@@ -103,14 +120,20 @@ static int memory_probe(void)
 
 int main(int argc, char **argv)
 {
-  alarm(30);
+  int ret;
+
   if (argc != 2)
     return 2;
+  phase(argv[1], 0);
+  alarm(30);
   if (strcmp(argv[1], "cpu") == 0)
-    return cpu_probe();
-  if (strcmp(argv[1], "pids") == 0)
-    return pids_probe();
-  if (strcmp(argv[1], "memory") == 0)
-    return memory_probe();
-  return 2;
+    ret = cpu_probe();
+  else if (strcmp(argv[1], "pids") == 0)
+    ret = pids_probe();
+  else if (strcmp(argv[1], "memory") == 0)
+    ret = memory_probe();
+  else
+    return 2;
+  phase("complete", 0);
+  return ret;
 }
