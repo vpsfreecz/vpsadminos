@@ -1,5 +1,6 @@
 require 'highline'
 require 'io/console'
+require 'io/wait'
 require 'ipaddress'
 require 'libosctl'
 require 'tempfile'
@@ -1898,43 +1899,58 @@ module OsCtl::Cli
       w_out.close
       w_err.close
 
+      outputs = { r_out => $stdout, r_err => $stderr }
       watch_ios = [$stdin, r_out, r_err, c.socket]
 
       loop do
-        rs, ws, = IO.select(watch_ios)
+        rs, = IO.select(watch_ios)
 
         rs.each do |r|
           case r
-          when r_out
-            data = r.read_nonblock(4096)
-            $stdout.write(data)
-            $stdout.flush
-
-          when r_err
-            data = r.read_nonblock(4096)
-            $stderr.write(data)
-            $stderr.flush
+          when r_out, r_err
+            watch_ios.delete(r) unless read_exec_output(r, outputs.fetch(r))
 
           when $stdin
             begin
               data = r.read_nonblock(4096)
               w_in.write(data)
-            rescue EOFError
+            rescue EOFError, Errno::EPIPE
               w_in.close
               watch_ios.delete($stdin)
+            rescue IO::WaitReadable
+              next
             end
 
           when c.socket
-            r_out.close
-            r_err.close
+            # The command has completed, but either output pipe can still
+            # contain data. Drain both before handling its response. Do not
+            # wait for EOF or follow new writes from background descendants.
+            outputs.each { |io, output| read_exec_output(io, output, limit: io.nread) }
 
             handle_exec_response(c)
             return # rubocop:disable Lint/NonLocalExitFromIterator
           end
         end
       end
-    rescue IOError
-      handle_exec_response(c)
+    ensure
+      [r_in, w_in, r_out, w_out, r_err, w_err].compact.each do |io|
+        io.close unless io.closed?
+      end
+    end
+
+    def read_exec_output(io, output, limit: 4096)
+      while limit > 0
+        data = io.read_nonblock([limit, 4096].min)
+        output.write(data)
+        output.flush
+        limit -= data.bytesize
+      end
+
+      true
+    rescue IO::WaitReadable
+      true
+    rescue EOFError
+      false
     end
 
     def handle_exec_response(c)
