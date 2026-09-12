@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <errno.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +10,65 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+
+/* Read the probe's own v1 leaf while it still exists. Newer helpers use a
+ * short-lived osctl.attach child; its local events do not reach the init leaf. */
+static FILE *open_local_event(const char *controller, const char *parameter)
+{
+  FILE *groups = fopen("/proc/self/cgroup", "r");
+  char *line = NULL;
+  size_t capacity = 0;
+  FILE *event = NULL;
+
+  if (!groups)
+    exit(1);
+  while (getline(&line, &capacity, groups) >= 0) {
+    char *first = strchr(line, ':');
+    char *second = first ? strchr(first + 1, ':') : NULL;
+    char path[PATH_MAX];
+
+    if (!second)
+      exit(1);
+    *second = '\0';
+    if (strcmp(first + 1, controller) != 0)
+      continue;
+    second++;
+    second[strcspn(second, "\n")] = '\0';
+    if (snprintf(path, sizeof(path), "/sys/fs/cgroup/%s%s/%s",
+                 controller, second, parameter) >= (int)sizeof(path))
+      exit(1);
+    event = fopen(path, "r");
+    if (!event) {
+      perror(path);
+      exit(1);
+    }
+    fprintf(stderr, "probe_event_path=%s\n", path);
+    break;
+  }
+  free(line);
+  fclose(groups);
+  return event; /* No separate controller means the host uses cgroup v2. */
+}
+
+static unsigned long long event_value(FILE *event, const char *key)
+{
+  char *line = NULL;
+  size_t capacity = 0;
+  unsigned long long value;
+  char name[128];
+
+  rewind(event);
+  while (getline(&line, &capacity, event) >= 0) {
+    if (sscanf(line, "%127s %llu", name, &value) == 2 &&
+        strcmp(name, key) == 0) {
+      free(line);
+      return value;
+    }
+  }
+  free(line);
+  fprintf(stderr, "event counter missing: %s\n", key);
+  exit(1);
+}
 
 static void phase(const char *name, size_t progress)
 {
@@ -121,11 +181,23 @@ static int memory_probe(void)
 int main(int argc, char **argv)
 {
   int ret;
+  FILE *event = NULL;
+  const char *key = NULL;
+  unsigned long long before = 0;
 
   if (argc != 2)
     return 2;
   phase(argv[1], 0);
   alarm(30);
+  if (strcmp(argv[1], "pids") == 0) {
+    event = open_local_event("pids", "pids.events");
+    key = "max";
+  } else if (strcmp(argv[1], "memory") == 0) {
+    event = open_local_event("memory", "memory.oom_control");
+    key = "oom_kill";
+  }
+  if (event)
+    before = event_value(event, key);
   if (strcmp(argv[1], "cpu") == 0)
     ret = cpu_probe();
   else if (strcmp(argv[1], "pids") == 0)
@@ -134,6 +206,14 @@ int main(int argc, char **argv)
     ret = memory_probe();
   else
     return 2;
+  if (event) {
+    unsigned long long after = event_value(event, key);
+
+    fprintf(stderr, "probe_event=%s before=%llu after=%llu\n", key, before, after);
+    fclose(event);
+    if (after <= before)
+      ret = 1;
+  }
   phase("complete", 0);
   return ret;
 }

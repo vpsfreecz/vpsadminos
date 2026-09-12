@@ -269,6 +269,7 @@ import (previous.outPath + "/tests/make-test.nix")
             fail "resource probe status missing: #{prefix}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
 
             machine.execute(<<~SH, timeout: 15)
+              set +e
               date -Ins
               cat /proc/uptime /proc/loadavg
               cat #{prefix}.log
@@ -280,6 +281,7 @@ import (previous.outPath + "/tests/make-test.nix")
                 cat /proc/$pid/syscall /proc/$pid/stack
               done
               for root in /run/osctl/cgroup /sys/fs/cgroup; do
+                test -d "$root" || continue
                 find "$root" -path '*user.limited/ct.limited/cpu.stat' -o -path '*user.limited/ct.limited/memory.events' -o -path '*user.limited/ct.limited/memory.oom_control' | while read file; do
                   echo "=== $file ==="
                   cat "$file"
@@ -292,6 +294,12 @@ import (previous.outPath + "/tests/make-test.nix")
           output = machine.succeeds("cat #{prefix}.log")[1]
           expect(machine.succeeds("cat #{prefix}.status")[1].strip).to eq('0')
           expect(output).to include("probe_phase=#{mode} ", 'probe_phase=complete ')
+          if cgroup_version == 1 && %w[pids memory].include?(mode)
+            key = mode == 'pids' ? 'max' : 'oom_kill'
+            event = output.match(/probe_event=#{key} before=(\d+) after=(\d+)/)
+            expect(event).not_to be_nil
+            expect(Integer(event[2])).to be > Integer(event[1])
+          end
         end
         assert_limits = lambda do |cpu, pids, memory = 134217728, cpuset = '0'|
           expect(read_parameter.call(cgroup_version == 2 ? 'cpu.max' : 'cpu.cfs_quota_us')).to eq(
@@ -306,16 +314,14 @@ import (previous.outPath + "/tests/make-test.nix")
           throttled = counter.call('cpu.stat', 'nr_throttled')
           run_resource_probe.call('cpu')
           expect(counter.call('cpu.stat', 'nr_throttled')).to be > throttled
-          # v1 counts failed forks at their leaf, whereas v2 propagates max
-          # events to the limiting parent. Read the kernel's actual semantics.
-          pids_events = cgroup_version == 2 ? 'pids.events' : 'user-owned/lxc.payload.limited/pids.events'
-          pids_denied = counter.call(pids_events, 'max')
+          # v1 local counters are measured inside the actual probe leaf before
+          # helper teardown removes it. v2 events propagate to the parent.
+          pids_denied = counter.call('pids.events', 'max') if cgroup_version == 2
           run_resource_probe.call('pids')
-          expect(counter.call(pids_events, 'max')).to be > pids_denied
-          memory_file, memory_key = cgroup_version == 2 ? ['memory.events', 'oom_kill'] : ['user-owned/lxc.payload.limited/memory.oom_control', 'oom_kill']
-          memory_denied = counter.call(memory_file, memory_key)
+          expect(counter.call('pids.events', 'max')).to be > pids_denied if cgroup_version == 2
+          memory_denied = counter.call('memory.events', 'oom_kill') if cgroup_version == 2
           run_resource_probe.call('memory')
-          expect(counter.call(memory_file, memory_key)).to be > memory_denied
+          expect(counter.call('memory.events', 'oom_kill')).to be > memory_denied if cgroup_version == 2
           machine.succeeds('osctl ct exec limited dd if=/dev/zero of=/dev/null bs=1 count=1')
           denied = machine.fails('osctl ct exec limited dd if=/dev/null of=/dev/zero bs=1 count=0')[1]
           expect(denied).to include('Operation not permitted')
