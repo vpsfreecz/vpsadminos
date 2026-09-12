@@ -51,6 +51,7 @@ let
         gemDir = ".";
         extraConfig = attrs: {
           buildInputs = (attrs.buildInputs or [ ]) ++ [ super.lxc ];
+          patches = (attrs.patches or [ ]) ++ [ ../packages/ruby-lxc/initial-cwd-owned-storage.patch ];
         };
       };
     });
