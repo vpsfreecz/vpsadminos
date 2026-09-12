@@ -231,17 +231,6 @@ import ../../make-test.nix (
               ' $out/share/zfs/runfiles/linux.run > $out/share/zfs/runfiles/linux.run.new
               mv $out/share/zfs/runfiles/linux.run.new $out/share/zfs/runfiles/linux.run
 
-              # This cache-sampling assertion is a long-standing intermittent
-              # failure on the release baseline. Use ZTS's ordinary maybe list
-              # so every other failure remains unexpected and release-fatal.
-              awk '
-                { print }
-                /^maybe = \{$/ { print "    \047arc/dbufstats_001_pos.ksh\047: [\047FAIL\047, \047vpsAdminOS baseline-known cache sampling race\047]," }
-                /^maybe = \{$/ { print "    \047arc/dbufstats_001_pos\047: [\047FAIL\047, \047vpsAdminOS baseline-known cache sampling race\047]," }
-              ' $out/share/zfs/test-runner/bin/zts-report.py > $out/share/zfs/test-runner/bin/zts-report.py.new
-              mv $out/share/zfs/test-runner/bin/zts-report.py.new $out/share/zfs/test-runner/bin/zts-report.py
-              chmod +x $out/share/zfs/test-runner/bin/zts-report.py
-
               # Some test helper binaries are optional in our build, don't report
               # them as missing when they are not installed.
               if [ ! -x "$out/share/zfs/zfs-tests/bin/devname2devid" ]; then
@@ -846,9 +835,16 @@ import ../../make-test.nix (
         else
           zts_output = File.binread(host_live_log)
           result_lines = zts_output.lines.grep(/^\[[^\]]+\] Test(?: \([^)]+\))?: .* \[[A-Z]+\]$/)
+          failed_results = result_lines.reject do |line|
+            line.rstrip.end_with?('[PASS]', '[SKIP]')
+          end
 
           if result_lines.empty?
             result_error = RuntimeError.new("ZFS test-suite run executed zero tests; captured log: #{captured_live_log}")
+          elsif failed_results.any?
+            # Upstream expected failures still require a causal disposition;
+            # neither a full run nor a selected tag may silently accept them.
+            result_error = RuntimeError.new("ZFS test-suite raw failures: #{failed_results.join.strip}; captured log: #{captured_live_log}")
           elsif single_test
             selected_name = File.basename(single_test).delete_suffix('.ksh')
             selected_results = result_lines.select do |line|
