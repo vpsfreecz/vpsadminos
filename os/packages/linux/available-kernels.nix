@@ -6,8 +6,9 @@ with lib.kernel;
 
   kernels = {
     "6.12.109" = {
-      rev = "9ccd5d6597a6ddbe5b44fb885ddf96e4dbc332dd";
-      sha256 = "sha256-pkqWjsBfn3twbVFXP2Uk8FWvj8BJk9kTNCtSlyHZrCo=";
+      rev = "7c66ab3c284a5fb5b615f874a99cb16501d6de23";
+      sha256 = "sha256-/PiHSS9A1oYWg95k1e1yzjKgbClehMtUSh1LyvsDsTA=";
+      features.livepatchVariant = "nfs-cancel";
       zfs = {
         rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
         sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";
