@@ -169,6 +169,20 @@ import ../../make-test.nix (
               # Run these bodies under the existing native runner deadlines,
               # preserving their assertions and reporting any real failure.
               functional=$out/share/zfs/zfs-tests/tests/functional
+              # Linux libshare owns zfs.exports, not exportfs-managed legacy
+              # shares. An already-off property must leave those exports
+              # alone. Reset them explicitly before the next share scenario.
+              substituteInPlace "$functional/cli_root/zfs_unshare/zfs_unshare_002_pos.ksh" \
+                --replace-fail ${lib.escapeShellArg ''log_unsupported "zfs set sharenfs=off won't unshare if already off"''} \
+                  'log_note "Checking Linux exportfs-owned legacy shares"' \
+                --replace-fail ${lib.escapeShellArg "not_shared \${mntp_fs[i]} ||"} \
+                  ${lib.escapeShellArg "is_shared \${mntp_fs[i]} ||"} \
+                --replace-fail ${lib.escapeShellArg ''log_fail "'zfs set sharenfs=off' unshares file system failed."''} \
+                  ${lib.escapeShellArg ''
+                    log_fail "sharenfs=off removed a legacy export"
+                    log_must unshare_nfs ''${mntp_fs[i]}
+                    not_shared ''${mntp_fs[i]} || log_fail "exportfs failed to remove legacy export"
+                  ''}
               substituteInPlace "$functional/cli_root/zpool_import/zpool_import_missing_003_pos.ksh" \
                 --replace-fail 'log_unsupported "Test case may be slow"' \
                   'log_note "Exercising historical slow import case (issue 6839)"' \
