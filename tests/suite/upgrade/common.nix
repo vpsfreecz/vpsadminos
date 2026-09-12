@@ -672,13 +672,22 @@ import (previous.outPath + "/tests/make-test.nix")
         # shell for this CT. Do not count one path as proof of the others.
         machine.succeeds('echo host-shell > /run/upgrade-host-only; chmod 444 /run/upgrade-host-only')
         snapshots.each_key do |ctid|
+          verify_helper_mounts = lambda do |operation|
+            before = snapshots.fetch(ctid).fetch(:mounts)
+            after = machine.succeeds("cat /proc/#{snapshots.fetch(ctid).fetch(:init)}/mountinfo")[1]
+            expect(after).to eq(before), "#{operation} changed inherited #{ctid} mounts:\n#{after}"
+          end
           attach = 'set -e; test "$(id -u)" = 0; test ! -e /run/upgrade-host-only; grep -Fx retained-data /upgrade/data; exit 0'
           machine.succeeds("printf '%s\\n' #{Shellwords.escape(attach)} | timeout 30 osctl ct attach #{ctid}", timeout: 60)
+          verify_helper_mounts.call('ct attach')
           su = 'set -e; test "$(id -u)" != 0; grep -Fx host-shell /run/upgrade-host-only; test -z "$OSCTL_RUN_ID"; exit 0'
           machine.succeeds("printf '%s\\n' #{Shellwords.escape(su)} | timeout 30 osctl ct su #{ctid}", timeout: 60)
+          verify_helper_mounts.call('ct su')
           script = "#!/bin/sh\nset -eu\ntest \"$(id -u)\" = 0\ngrep -Fx retained-data /upgrade/data\necho helper-data > /upgrade/helper-data\n"
           machine.succeeds("printf %s #{Shellwords.escape(script)} | timeout 30 osctl ct runscript #{ctid} -", timeout: 60)
+          verify_helper_mounts.call('ct runscript')
           expect(machine.succeeds("osctl ct cat #{ctid} /upgrade/helper-data")[1].strip).to eq('helper-data')
+          verify_helper_mounts.call('ct cat')
         end
         assert_retained.call
 
