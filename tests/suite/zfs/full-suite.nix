@@ -172,6 +172,10 @@ import ../../make-test.nix (
               # Linux libshare owns zfs.exports, not exportfs-managed legacy
               # shares. An already-off property must leave those exports
               # alone. Reset them explicitly before the next share scenario.
+              # Bulk unshare calls exportfs -ra, which synchronizes etab with
+              # exports files. Prove that transient exports are removed by
+              # that command alone, then use a separate legacy exports file
+              # for the original bulk-unshare preservation assertion.
               substituteInPlace "$functional/cli_root/zfs_unshare/zfs_unshare_002_pos.ksh" \
                 --replace-fail ${lib.escapeShellArg ''log_unsupported "zfs set sharenfs=off won't unshare if already off"''} \
                   'log_note "Checking Linux exportfs-owned legacy shares"' \
@@ -182,6 +186,41 @@ import ../../make-test.nix (
                     log_fail "sharenfs=off removed a legacy export"
                     log_must unshare_nfs ''${mntp_fs[i]}
                     not_shared ''${mntp_fs[i]} || log_fail "exportfs failed to remove legacy export"
+                  ''} \
+                --replace-fail $'function cleanup\n{' \
+                  ${lib.escapeShellArg ''
+                    legacy_exports=
+                    function cleanup
+                    {
+                        if [[ -n $legacy_exports ]]; then
+                            log_must rm -f "$legacy_exports"
+                        fi
+                  ''} \
+                --replace-fail 'log_must zfs unshare -a' \
+                  ${lib.escapeShellArg ''
+                    log_note "exportfs -ra drops transient exports absent from exports files"
+                    log_must exportfs -ra
+                    i=0
+                    while (( i < ''${#mntp_fs[*]} )); do
+                        not_shared ''${mntp_fs[i]} || log_fail "transient export survived resync"
+                        ((i = i + 2))
+                    done
+
+                    log_must mkdir -p /etc/exports.d
+                    log_must test ! -e /etc/exports.d/zts-legacy.exports
+                    legacy_exports=/etc/exports.d/zts-legacy.exports
+                    i=0
+                    while (( i < ''${#mntp_fs[*]} )); do
+                        log_must eval "printf '%s *(rw,sync,no_subtree_check)\n' ''${mntp_fs[i]} >> $legacy_exports"
+                        ((i = i + 2))
+                    done
+                    log_must exportfs -ra
+                    i=0
+                    while (( i < ''${#mntp_fs[*]} )); do
+                        is_shared ''${mntp_fs[i]} || log_fail "configured legacy export missing"
+                        ((i = i + 2))
+                    done
+                    log_must zfs unshare -a
                   ''}
               substituteInPlace "$functional/cli_root/zpool_import/zpool_import_missing_003_pos.ksh" \
                 --replace-fail 'log_unsupported "Test case may be slow"' \
