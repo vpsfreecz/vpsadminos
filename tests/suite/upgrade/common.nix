@@ -258,10 +258,11 @@ import (previous.outPath + "/tests/make-test.nix")
         run_resource_probe = lambda do |mode|
           probe_sequence += 1
           prefix = "/run/upgrade-probe-#{probe_sequence}-#{mode}"
-          # Keep the original 40s command budget. Observe the helper before it
-          # disappears so Ruby startup is not confused with C payload runtime.
-          machine.succeeds("(set +e; timeout 40 osctl ct exec limited /bin/upgrade-resource-probe #{mode} > #{prefix}.log 2>&1; echo $? > #{prefix}.status) < /dev/null > #{prefix}.launcher 2>&1 &")
-          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 70
+          # Ruby loads inside the limited CT cgroup before the C probe starts.
+          # The observed predecessor bootstrap can exceed 40s at 25% CPU. Keep
+          # the C workload's own 30s alarm and budget bootstrap/exit separately.
+          machine.succeeds("(set +e; timeout 120 osctl ct exec limited /bin/upgrade-resource-probe #{mode} > #{prefix}.log 2>&1; echo $? > #{prefix}.status) < /dev/null > #{prefix}.launcher 2>&1 &")
+          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 150
           loop do
             status, = machine.execute("test -f #{prefix}.status", timeout: 10)
             break if status == 0
@@ -288,8 +289,9 @@ import (previous.outPath + "/tests/make-test.nix")
             SH
             sleep(5)
           end
-          machine.succeeds("cat #{prefix}.log")
+          output = machine.succeeds("cat #{prefix}.log")[1]
           expect(machine.succeeds("cat #{prefix}.status")[1].strip).to eq('0')
+          expect(output).to include("probe_phase=#{mode} ", 'probe_phase=complete ')
         end
         assert_limits = lambda do |cpu, pids, memory = 134217728, cpuset = '0'|
           expect(read_parameter.call(cgroup_version == 2 ? 'cpu.max' : 'cpu.cfs_quota_us')).to eq(
