@@ -152,6 +152,8 @@ import ../../make-template.nix (
             raise
           end
 
+          ${builtins.readFile ./nfs-cancellation/migration.rb}
+
           ${pkgs.lib.optionalString diagnostic ''
             describe 'sysfs lifetime under fault injection', order: :defined do
               %w[3 4.2].each do |version|

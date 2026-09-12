@@ -11,16 +11,16 @@ rec {
   kernels = {
     "6.12.109" = {
       nfsCancellation = true;
-      rev = "c099b00eafe7ced993eb6a7166876bb12bef8c72";
-      sha256 = "sha256-SYqViJCugtDarN9JFdLBj4K2fMqbx+JykdLlGK0biZ8=";
+      rev = "cb16974b66f518b920226285b50f0b1f4416852e";
+      sha256 = "sha256-30tXA0sDKbJfIbAdYIi8iE10uU51XfcgpxHQ4o2hgag=";
       zfs = {
         rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
         sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";
       };
     };
     "6.12.95" = {
-      rev = "e232e2bdcc9a552b60b49ab8994bd49b115e1e58";
-      sha256 = "sha256-4HdPnxHLB5UlhkeFz6upt++NPOf5zXQu0xHEPQZpGv0=";
+      rev = "6090ca00cbec50ca2a4ad785de361eaeaf1db529";
+      sha256 = "sha256-rvLGBGPa0GyDOpN5jnQ4Rle/CujZNxZrg09fub+bot8=";
       features.livepatchVariant = "nfs-cancel";
       nfsCancellation = true;
       zfs = {
