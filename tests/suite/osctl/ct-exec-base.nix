@@ -46,7 +46,47 @@ import ../../make-test.nix (
         'runscript' => "printf '#!/bin/sh\\nexit 0\\n' | osctl ct runscript startedct -",
         'cat' => 'osctl ct cat startedct /root/helper-data',
       }.each do |operation, command|
-        machine.succeeds(command)
+        if operation == 'cat'
+          machine.succeeds(<<~SH)
+            set -eu
+            t=/sys/kernel/tracing
+            mountpoint -q "$t" || mount -t tracefs tracefs "$t"
+            echo 0 > "$t/tracing_on"
+            echo nop > "$t/current_tracer"
+            echo 2048 > "$t/buffer_size_kb"
+            printf 'd_invalidate\ndetach_mounts\n' > "$t/set_ftrace_filter"
+            echo function > "$t/current_tracer"
+            echo 1 > "$t/options/func_stack_trace"
+            echo 'r:helper_visibility_stale vpsa_kernfs_filter_dentry_visibility_stale stale=$retval:u8' >> "$t/kprobe_events"
+            echo 'stale == 1' > "$t/events/kprobes/helper_visibility_stale/filter"
+            echo 1 > "$t/events/kprobes/helper_visibility_stale/enable"
+            echo 'r:helper_proc_revalidate proc_misc_d_revalidate result=$retval:s32' >> "$t/kprobe_events"
+            echo 'result == 0' > "$t/events/kprobes/helper_proc_revalidate/filter"
+            echo 1 > "$t/events/kprobes/helper_proc_revalidate/enable"
+            echo > "$t/trace"
+            echo 1 > "$t/tracing_on"
+          SH
+        end
+
+        begin
+          machine.succeeds(command)
+        ensure
+          if operation == 'cat'
+            machine.succeeds(<<~SH)
+              set -eu
+              t=/sys/kernel/tracing
+              echo 0 > "$t/tracing_on"
+              cat "$t/trace"
+              echo 0 > "$t/events/kprobes/helper_visibility_stale/enable"
+              echo 0 > "$t/events/kprobes/helper_proc_revalidate/enable"
+              echo '-:helper_visibility_stale' >> "$t/kprobe_events"
+              echo '-:helper_proc_revalidate' >> "$t/kprobe_events"
+              echo 0 > "$t/options/func_stack_trace"
+              echo nop > "$t/current_tracer"
+              echo > "$t/set_ftrace_filter"
+            SH
+          end
+        end
         expect(protected_mounts.call).to eq(initial_mounts), "ct #{operation} changed protected mounts"
       end
 
