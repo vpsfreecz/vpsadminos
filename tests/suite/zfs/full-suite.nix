@@ -33,6 +33,7 @@ import ../../make-test.nix (
             zfsVmCpusEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_VM_CPUS";
             zfsUseBuiltinEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_USE_BUILTIN";
             localZfsStageEnv = builtins.getEnv "VPSADMINOS_LOCAL_ZFS_STAGE";
+            localZfsUserSourceEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_USER_SOURCE";
             localZfsStage = if localZfsStageEnv == "" then null else /. + localZfsStageEnv;
             localZfsUserOut = if localZfsStage == null then null else localZfsStage + "/user/out";
             zfsVmMemory = if zfsVmMemoryEnv != "" then lib.toInt zfsVmMemoryEnv else 12288;
@@ -300,6 +301,9 @@ import ../../make-test.nix (
                 ''
               else
                 (kernelPackages.genZfsUserPackage config.boot.kernelVersion).overrideAttrs (old: {
+                  # A source-only userspace repair can be exercised against
+                  # the pinned module without changing production pins.
+                  src = if localZfsUserSourceEnv == "" then old.src else lib.cleanSource (/. + localZfsUserSourceEnv);
                   # Exercise optional upstream test bodies in this test-only
                   # package, without adding PAM to the production ZFS build.
                   buildInputs = (old.buildInputs or [ ]) ++ [
