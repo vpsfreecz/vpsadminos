@@ -1017,6 +1017,11 @@ The following shortcuts are supported:
   Attach container *ctid* and execute command *cmd* within a shell.
   stdin/stdout/stderr of *cmd* is piped to your current shell.
 
+  stdout and stderr are forwarded independently. When the command finishes,
+  buffered output from both streams is forwarded before its exit status is
+  reported. Closing stdin or one output stream does not discard the other
+  stream. Background descendants retaining the pipes do not delay completion.
+
     `-r`, `--run-container`
       If the container isn't already running, start it, but run *cmd* instead
       of the container's init system. `lxc-init` is run as PID 1 to reap child
@@ -1035,6 +1040,7 @@ The following shortcuts are supported:
 
 `ct runscript` [*options*] *ctid* *script*|`-` [*arguments...*]
   Execute *script* within the context of container *ctid*.
+  Output forwarding and completion follow the same rules as `ct exec`.
 
   If *script* is `-`, the script to execute is read from the standard input.
   In this case, the script cannot read from the standard input itself.
