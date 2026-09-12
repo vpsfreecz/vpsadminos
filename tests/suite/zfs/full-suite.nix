@@ -185,7 +185,38 @@ import ../../make-test.nix (
                   $'log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT\nlog_must test "$(get_tunable SPA_DISCARD_MEMORY_LIMIT)" = "$original_discard_limit"\n\nnested_wait_discard_finish'
               substituteInPlace "$functional/rsend/rsend_008_pos.ksh" \
                 --replace-fail 'log_unsupported "Occasionally hangs"' \
-                  'log_note "Exercising historical promoted-send case (issue 6066)"'
+                  'log_note "Exercising historical promoted-send case (issue 6066)"' \
+                --replace-fail 'log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"' \
+                  ${lib.escapeShellArg ''
+                    log_note "Starting recursive send after promotion"
+                    zfs send -R $POOL@final > $BACKDIR/pool-final-R &
+                    send_pid=$!
+                    (
+                      sleep 30
+                      if kill -0 "$send_pid" 2>/dev/null; then
+                        {
+                          date -Is
+                          ps -p "$send_pid" -o pid,ppid,stat,etime,time,wchan,args
+                          cat /proc/$send_pid/stat /proc/$send_pid/stack
+                          zfs list -r -t all -o name,origin,createtxg $POOL
+                          ${pkgs.gdb}/bin/gdb -q -nx -batch \
+                            -ex 'set pagination off' -ex 'thread apply all bt' \
+                            -ex 'info sharedlibrary' -ex 'x/16i $pc' \
+                            -ex detach -p "$send_pid"
+                        } 2>&1 | tee /run/osvm/shared-dir/zfs-full-suite/promoted-send-diagnostics.log
+                      fi
+                    ) &
+                    diagnostic_pid=$!
+                    wait "$send_pid"
+                    send_status=$?
+                    wait "$diagnostic_pid"
+                    log_must test "$send_status" -eq 0
+                  ''}
+              # Bound this already reproduced stall while collecting its
+              # first semantic checkpoint, rather than repeating a silent hour.
+              substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
+                --replace-fail 'timeout = 3600' \
+                  'timeout = $(case "$SINGLETEST" in */rsend_008_pos.ksh) echo 300 ;; *) echo 3600 ;; esac)'
 
               # OpenZFS 2.3.8 predates upstream 6f17052743, which makes the
               # L2ARC wrap test's intended write volume deterministic.
