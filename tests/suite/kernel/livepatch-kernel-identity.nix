@@ -10,6 +10,9 @@ import ../../make-test.nix (
       config =
         { lib, ... }:
         {
+          # This fixture needs the cancellation kernel's matching livepatch,
+          # not whichever kernel is selected as the distribution default.
+          boot.kernelVersion = lib.mkForce "6.12.95";
           services.live-patches.enable = true;
           runit.services.live-patches.run = lib.mkForce "sleep inf";
         };
