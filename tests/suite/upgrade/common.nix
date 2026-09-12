@@ -12,6 +12,7 @@ let
   current = builtins.getFlake (toString ../../..);
   system = args.system or builtins.currentSystem;
   cgroupVersion = args.cgroupVersion or 2;
+  guestPolicies = args.guestPolicies or false;
   cgroupConfig.boot.enableUnifiedCgroupHierarchy = cgroupVersion == 2;
   activatedSource =
     if activated == null then
@@ -153,7 +154,10 @@ import (previous.outPath + "/tests/make-test.nix")
       '';
     in
     {
-      name = "upgrade-${name}" + (if cgroupVersion == 1 then "-v1" else "");
+      name =
+        "upgrade-${name}"
+        + (if guestPolicies then "-guests" else "")
+        + (if cgroupVersion == 1 then "-v1" else "");
       description = "Switch from ${revision} to the current checkout on ${kernelPrefix}";
       tags = [
         "upgrade"
@@ -328,6 +332,54 @@ import (previous.outPath + "/tests/make-test.nix")
           'osctl ct stop previouslyrun',
         )
 
+        guest_snapshots = {}
+        ${
+          if !guestPolicies then
+            ""
+          else
+            ''
+              # Real guest services, not replacement init or host-applied guest
+              # networking. Pin the older NixOS images used by resolver tests.
+              [
+                ['nmguest', 'fedora', 'latest', 'minimal', '192.0.2.30'],
+                ['nixold', 'nixos', '22.11', 'minimal', '192.0.2.31'],
+                ['niximpermanent', 'nixos', '24.05', 'impermanence', '192.0.2.32'],
+              ].each do |ctid, distribution, version, variant, address|
+                machine.all_succeed(
+                  "osctl ct new --distribution #{distribution} --version #{version} --variant #{variant} #{ctid}",
+                  "osctl ct unset start-menu #{ctid}",
+                  "osctl ct netif new routed #{ctid} eth0",
+                  "osctl ct netif ip add #{ctid} eth0 #{address}/32",
+                  "osctl ct set dns-resolver #{ctid} 192.0.2.53",
+                  "osctl ct start #{ctid}",
+                )
+                machine.wait_until_succeeds("ping -c 1 #{address}")
+                machine.succeeds("osctl ct exec #{ctid} systemctl is-system-running --wait")
+                if distribution == 'fedora'
+                  machine.all_succeed(
+                    "osctl ct exec #{ctid} systemctl is-active NetworkManager.service",
+                    "osctl ct exec #{ctid} sed -i '/^dns=none$/d' /etc/NetworkManager/conf.d/vpsadminos.conf",
+                    "osctl ct exec #{ctid} nmcli general reload conf,dns-rc",
+                    "osctl ct exec #{ctid} nmcli connection modify eth0 ipv4.dns 10.0.2.3 ipv4.ignore-auto-dns yes",
+                    "osctl ct exec #{ctid} nmcli device reapply eth0",
+                    "osctl ct set dns-resolver #{ctid} 192.0.2.53",
+                  )
+                else
+                  expect(machine.succeeds("osctl ct exec #{ctid} nixos-version")[1].strip).to start_with(version)
+                  machine.succeeds("osctl ct exec #{ctid} systemctl is-active networking-setup.service")
+                end
+                machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 192.0.2.53' /etc/resolv.conf")
+                init = machine.osctl_json("ct show #{ctid}").fetch('init_pid')
+                guest_snapshots[ctid] = {
+                  distribution:, address:, init:,
+                  init_start: machine.succeeds("awk '{print $22}' /proc/#{init}/stat")[1],
+                  generation: distribution == 'nixos' ? machine.succeeds("osctl ct exec #{ctid} readlink /run/current-system")[1] : nil,
+                  nm_pid: distribution == 'fedora' ? machine.succeeds("osctl ct exec #{ctid} systemctl show -p MainPID --value NetworkManager.service")[1] : nil,
+                }
+              end
+            ''
+        }
+
         snapshots = {}
         create_workload = lambda do |ctid, address, create: true, start: true|
           if create
@@ -388,6 +440,21 @@ import (previous.outPath + "/tests/make-test.nix")
         end
 
         assert_retained = lambda do
+          guest_snapshots.each do |ctid, saved|
+            info = machine.osctl_json("ct show #{ctid}")
+            expect(info.fetch('init_pid')).to eq(saved.fetch(:init))
+            expect(info.fetch('dns_resolvers')).to eq(['192.0.2.53'])
+            expect(machine.succeeds("awk '{print $22}' /proc/#{saved.fetch(:init)}/stat")[1]).to eq(saved.fetch(:init_start))
+            machine.succeeds("osctl ct exec #{ctid} systemctl is-system-running --wait")
+            machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 192.0.2.53' /etc/resolv.conf")
+            machine.succeeds("ping -c 1 #{saved.fetch(:address)}")
+            if saved.fetch(:distribution) == 'nixos'
+              expect(machine.succeeds("osctl ct exec #{ctid} readlink /run/current-system")[1]).to eq(saved.fetch(:generation))
+              machine.succeeds("osctl ct exec #{ctid} systemctl is-active networking-setup.service")
+            else
+              expect(machine.succeeds("osctl ct exec #{ctid} systemctl show -p MainPID --value NetworkManager.service")[1]).to eq(saved.fetch(:nm_pid))
+            end
+          end
           expect(machine.osctl_json('ct show limited').fetch('init_pid')).to eq(limited_init)
           machine.succeeds('osctl ct exec limited grep -Fx inherited-bind /mnt/inherited/marker')
           expect(bpf_identity.call).to eq(inherited_bpf)
@@ -513,6 +580,27 @@ import (previous.outPath + "/tests/make-test.nix")
           expect(private_mounts.call).to eq(adopted_mounts)
           assert_retained.call
         end
+
+        guest_snapshots.each do |ctid, saved|
+          if saved.fetch(:distribution) == 'fedora'
+            # Configured resolver intent must survive an actual guest refresh,
+            # not just an unchanged file immediately after host activation.
+            machine.succeeds("osctl ct exec #{ctid} nmcli general reload dns-rc")
+            machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 192.0.2.53' /etc/resolv.conf")
+          end
+          machine.succeeds("osctl ct set dns-resolver #{ctid} 192.0.2.54")
+          machine.succeeds("osctl ct exec #{ctid} nmcli general reload dns-rc") if saved.fetch(:distribution) == 'fedora'
+          machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 192.0.2.54' /etc/resolv.conf")
+          machine.succeeds("osctl ct unset dns-resolver #{ctid}")
+          expect(machine.osctl_json("ct show #{ctid}").fetch('dns_resolvers')).to be_nil
+          if saved.fetch(:distribution) == 'fedora'
+            machine.succeeds("osctl ct exec #{ctid} nmcli general reload dns-rc")
+            machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 10.0.2.3' /etc/resolv.conf")
+            machine.fails("osctl ct exec #{ctid} test -e /etc/NetworkManager/conf.d/10-osctl-dns.conf")
+          end
+          machine.succeeds("osctl ct set dns-resolver #{ctid} 192.0.2.53")
+        end
+        assert_retained.call
 
         # Running helpers on inherited CTs have different contracts: attach
         # and runscript enter the guest, while ct su is an unprivileged host
@@ -656,6 +744,17 @@ import (previous.outPath + "/tests/make-test.nix")
           expect(machine.succeeds('cat /proc/sys/kernel/random/boot_id')[1].strip).to eq(before_boot)
         end
 
+        guest_snapshots.each do |ctid, saved|
+          machine.succeeds("osctl ct restart #{ctid}")
+          machine.wait_until_succeeds("ping -c 1 #{saved.fetch(:address)}")
+          machine.succeeds("osctl ct exec #{ctid} systemctl is-system-running --wait")
+          machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 192.0.2.53' /etc/resolv.conf")
+          if saved.fetch(:generation)
+            expect(machine.succeeds("osctl ct exec #{ctid} readlink /run/current-system")[1]).to eq(saved.fetch(:generation))
+          end
+          machine.all_succeed("osctl ct stop #{ctid}", "osctl ct del --prune #{ctid}")
+        end
+
         # Containers created by the predecessor must still stop and delete cleanly.
         snapshots.each do |ctid, saved|
           machine.all_succeed(
@@ -671,7 +770,10 @@ import (previous.outPath + "/tests/make-test.nix")
     }
   )
   (
-    (builtins.removeAttrs args [ "cgroupVersion" ])
+    (builtins.removeAttrs args [
+      "cgroupVersion"
+      "guestPolicies"
+    ])
     // {
       inherit system;
       pkgs = previous.inputs.nixpkgs.outPath;
