@@ -29,6 +29,19 @@ import ../../make-test.nix (
       )
 
       machine.wait_until_succeeds('osctl ct exec startedct rc-service networking status')
+      2.times do |generation|
+        if generation > 0
+          machine.succeeds('osctl ct restart startedct')
+          machine.wait_until_succeeds('osctl ct exec startedct rc-service networking status')
+        end
+        current_init = machine.osctl_json('ct show startedct').fetch('init_pid')
+        machine.succeeds("cat /proc/#{current_init}/cgroup; grep ' - cgroup' /proc/#{current_init}/mountinfo")
+        _, helper_cgroups = machine.succeeds('osctl ct exec startedct cat /proc/self/cgroup')
+        helper_cgroups.lines.each do |line|
+          path = line.strip.split(':', 3).fetch(2)
+          expect(path.split('/')).not_to include('..'), "helper escaped its cgroup namespace after restart=#{generation}: #{line}"
+        end
+      end
       init = machine.osctl_json('ct show startedct').fetch('init_pid')
       protected_paths = %w[/ /proc /proc/sys /proc/sys/net /proc/sys/kernel/random/boot_id /run]
       protected_mounts = lambda do
