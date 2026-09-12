@@ -169,6 +169,20 @@ import ../../make-test.nix (
               # Run these bodies under the existing native runner deadlines,
               # preserving their assertions and reporting any real failure.
               functional=$out/share/zfs/zfs-tests/tests/functional
+              # Keep the original online-removal callback and mandatory
+              # final zdb checks. A historical online-zdb failure is evidence
+              # to diagnose, not an accepted platform exclusion.
+              substituteInPlace "$functional/removal/removal_with_zdb.ksh" \
+                --replace-fail 'log_unsupported "ZDB fails during concurrent pool activity."' \
+                  'log_note "Exercising zdb with active device removal"'
+
+              # Ordinary case-sensitive lookups are exposed by Linux VFS.
+              # Keep the two per-lookup CI guards: test -f is not zlook -il.
+              for test in sensitive_formd_lookup sensitive_formd_delete mixed_formd_lookup mixed_formd_delete; do
+                substituteInPlace "$functional/casenorm/$test.ksh" \
+                  --replace-fail 'is_linux && log_unsupported' 'is_linux && log_note'
+              done
+
               # Linux libshare owns zfs.exports, not exportfs-managed legacy
               # shares. An already-off property must leave those exports
               # alone. Reset them explicitly before the next share scenario.
