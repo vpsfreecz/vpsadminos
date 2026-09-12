@@ -380,7 +380,7 @@ import (previous.outPath + "/tests/make-test.nix")
               # Real guest services, not replacement init or host-applied guest
               # networking. Pin the older NixOS images used by resolver tests.
               [
-                ['nmguest', 'fedora', 'latest', 'minimal', '192.0.2.30'],
+                ['nmguest', 'fedora', '44', 'minimal', '192.0.2.30'],
                 ['nixold', 'nixos', '22.11', 'minimal', '192.0.2.31'],
                 ['niximpermanent', 'nixos', '24.05', 'impermanence', '192.0.2.32'],
               ].each do |ctid, distribution, version, variant, address|
@@ -408,9 +408,23 @@ import (previous.outPath + "/tests/make-test.nix")
                   machine.succeeds("osctl ct exec #{ctid} systemctl is-active networking-setup.service")
                 end
                 machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 192.0.2.53' /etc/resolv.conf")
-                init = machine.osctl_json("ct show #{ctid}").fetch('init_pid')
+                info = machine.osctl_json("ct show #{ctid}")
+                expect(info.fetch('version')).to eq(version)
+                if variant == 'impermanence'
+                  expect(info.fetch('impermanence')).to be(true)
+                  expect(info.fetch('boot_dataset')).not_to eq(info.fetch('dataset'))
+                  machine.all_succeed(
+                    "osctl ct exec #{ctid} mountpoint -q /persistent",
+                    "osctl ct exec #{ctid} sh -c 'echo inherited-persistent > /persistent/upgrade-retained; echo inherited-ephemeral > /upgrade-ephemeral'",
+                  )
+                else
+                  machine.succeeds("osctl ct exec #{ctid} sh -c 'echo inherited-persistent > /root/upgrade-retained'")
+                end
+                init = info.fetch('init_pid')
                 guest_snapshots[ctid] = {
                   distribution:, address:, init:,
+                  impermanent: variant == 'impermanence',
+                  boot_dataset: info.fetch('boot_dataset'),
                   init_start: machine.succeeds("awk '{print $22}' /proc/#{init}/stat")[1],
                   generation: distribution == 'nixos' ? machine.succeeds("osctl ct exec #{ctid} readlink /run/current-system")[1] : nil,
                   nm_pid: distribution == 'fedora' ? machine.succeeds("osctl ct exec #{ctid} systemctl show -p MainPID --value NetworkManager.service")[1] : nil,
@@ -484,6 +498,12 @@ import (previous.outPath + "/tests/make-test.nix")
             expect(info.fetch('init_pid')).to eq(saved.fetch(:init))
             expect(info.fetch('dns_resolvers')).to eq(['192.0.2.53'])
             expect(machine.succeeds("awk '{print $22}' /proc/#{saved.fetch(:init)}/stat")[1]).to eq(saved.fetch(:init_start))
+            expect(info.fetch('boot_dataset')).to eq(saved.fetch(:boot_dataset))
+            marker = saved.fetch(:impermanent) ? '/persistent/upgrade-retained' : '/root/upgrade-retained'
+            machine.succeeds("osctl ct exec #{ctid} grep -Fx inherited-persistent #{marker}")
+            if saved.fetch(:impermanent)
+              machine.succeeds("osctl ct exec #{ctid} grep -Fx inherited-ephemeral /upgrade-ephemeral")
+            end
             machine.succeeds("osctl ct exec #{ctid} systemctl is-system-running --wait")
             machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 192.0.2.53' /etc/resolv.conf")
             machine.succeeds("ping -c 1 #{saved.fetch(:address)}")
@@ -788,6 +808,13 @@ import (previous.outPath + "/tests/make-test.nix")
           machine.wait_until_succeeds("ping -c 1 #{saved.fetch(:address)}")
           machine.succeeds("osctl ct exec #{ctid} systemctl is-system-running --wait")
           machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 192.0.2.53' /etc/resolv.conf")
+          marker = saved.fetch(:impermanent) ? '/persistent/upgrade-retained' : '/root/upgrade-retained'
+          machine.succeeds("osctl ct exec #{ctid} grep -Fx inherited-persistent #{marker}")
+          if saved.fetch(:impermanent)
+            machine.succeeds("osctl ct exec #{ctid} test ! -e /upgrade-ephemeral")
+            expect(machine.osctl_json("ct show #{ctid}").fetch('boot_dataset')).not_to eq(saved.fetch(:boot_dataset))
+            machine.wait_until_succeeds("! zfs list -H #{Shellwords.escape(saved.fetch(:boot_dataset))}", timeout: 120)
+          end
           if saved.fetch(:generation)
             expect(machine.succeeds("osctl ct exec #{ctid} readlink /run/current-system")[1]).to eq(saved.fetch(:generation))
           end
