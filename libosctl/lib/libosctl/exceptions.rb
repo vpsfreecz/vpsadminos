@@ -1,5 +1,11 @@
 module OsCtl::Lib
   module Exceptions
+    class SystemCommandTimeout < StandardError
+      def initialize(cmd)
+        super("command '#{cmd}' exceeded its deadline")
+      end
+    end
+
     class SystemCommandFailed < StandardError
       attr_reader :cmd, :rc, :output
 

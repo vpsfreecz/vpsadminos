@@ -371,7 +371,7 @@ RSpec.describe 'container lifecycle commands' do
         def get_exit_promise
           promise
         end
-      end.new(promise ? 4321 : nil, promise, double('nfs_cancellation', capture: nil, abort: 1))
+      end.new(nil, promise, double('nfs_cancellation', capture: nil, abort: 1))
       cgparams = Struct.new do
         attr_reader :expanded
 
@@ -396,6 +396,10 @@ RSpec.describe 'container lifecycle commands' do
 
         def get_run_conf
           run_conf
+        end
+
+        def get_exit_promise
+          run_conf.get_exit_promise
         end
 
         def log(level, message)
@@ -444,6 +448,7 @@ RSpec.describe 'container lifecycle commands' do
         ct.get_run_conf,
         :stop,
         mode: :kill,
+        forced_stop: instance_of(OsCtld::Container::ForcedStop),
         message: nil,
         timeout: 10
       )
@@ -460,6 +465,7 @@ RSpec.describe 'container lifecycle commands' do
         ct.get_run_conf,
         :stop,
         mode: :kill,
+        forced_stop: instance_of(OsCtld::Container::ForcedStop),
         message: nil,
         timeout: 10
       )
@@ -497,11 +503,11 @@ RSpec.describe 'container lifecycle commands' do
       command = described_class.new({ timeout: 10 }, {})
       allow(OsCtld::DistConfig).to receive(:run)
         .and_raise(OsCtld::ContainerControl::UserRunnerError, 'runner failed')
-      allow(command).to receive(:force_kill).with(ct).and_return(true)
+      allow(command).to receive(:force_kill).with(ct, forced_stop: instance_of(OsCtld::Container::ForcedStop)).and_return(true)
       allow(command).to receive(:remove_accounting_cgroups)
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
-      expect(command).to have_received(:force_kill).with(ct)
+      expect(command).to have_received(:force_kill).with(ct, forced_stop: instance_of(OsCtld::Container::ForcedStop))
     end
 
     it 'maps container-control errors to command failures' do
@@ -561,85 +567,68 @@ RSpec.describe 'container lifecycle commands' do
       )
     end
 
-    it 'captures, freezes, cancels, kills, thaws, and cleans up in order during force_kill' do
-      recovery = Class.new do
-        attr_reader :events
-
-        def initialize(_ct)
-          @events = []
-        end
-
-        def kill_all
-          events << :kill_all
-        end
-
-        def recover_state
-          events << :recover_state
-        end
-
-        def cleanup_or_taint
-          events << :cleanup_or_taint
-          true
-        end
-      end.new(nil)
-      recovery_class = stub_const('OsCtld::Container::Recovery', Class.new do
-        def self.new(_ct); end
-      end)
-      cgroup = stub_const('OsCtld::CGroup', Class.new do
-        def self.freeze_tree(_path); end
-
-        def self.wait_frozen(_path); end
-
-        def self.thaw_tree(_path); end
-      end)
-      allow(recovery_class).to receive(:new).and_return(recovery)
-      allow(cgroup).to receive(:freeze_tree) { recovery.events << :freeze_tree }
-      allow(cgroup).to receive(:thaw_tree) { recovery.events << :thaw_tree }
-      allow(cgroup).to receive(:wait_frozen) { recovery.events << :wait_frozen }
-      ct = build_stop_container(promise: double('exit_promise'))
-      allow(ct.run_conf.nfs_cancellation).to receive(:capture).with(4321) { recovery.events << :capture }
-      allow(ct.run_conf.nfs_cancellation).to receive(:abort) { recovery.events << :abort }
+    it 'routes direct recovery through the same forced-stop implementation' do
+      ct = build_stop_container
+      budget = OsCtld::Container::ForcedStop.new(ct)
       command = described_class.new({}, {})
-      allow(command).to receive(:sleep) { |seconds| recovery.events << [:sleep, seconds] }
+      allow(OsCtld::ContainerControl::Commands::Stop).to receive(:run!).and_return(true)
 
-      expect(command.send(:force_kill, ct)).to be(true)
-      expect(recovery.events).to eq(
-        [
-          :capture,
-          :freeze_tree,
-          :abort,
-          :wait_frozen,
-          :abort,
-          :kill_all,
-          :thaw_tree,
-          [:sleep, 10],
-          :recover_state,
-          :cleanup_or_taint
-        ]
-      )
+      expect(command.send(:force_kill, ct, forced_stop: budget)).to be(true)
+      expect(OsCtld::ContainerControl::Commands::Stop).to have_received(:run!)
+        .with(ct, :kill, forced_stop: budget)
     end
 
-    it 'thaws without killing when NFS cancellation fails during force_kill' do
+    it 'returns failure when forced recovery cannot stop the container' do
       ct = build_stop_container
-      recovery = double('recovery', kill_all: nil)
-      recovery_class = stub_const('OsCtld::Container::Recovery', Class.new do
-        def self.new(_ct); end
-      end)
-      cgroup = stub_const('OsCtld::CGroup', Class.new do
-        def self.freeze_tree(_path); end
-
-        def self.thaw_tree(_path); end
-      end)
-      allow(recovery_class).to receive(:new).with(ct).and_return(recovery)
-      allow(cgroup).to receive(:freeze_tree).with(ct.cgroup_path)
-      allow(cgroup).to receive(:thaw_tree).with(ct.cgroup_path)
-      allow(ct.run_conf.nfs_cancellation).to receive(:abort).and_raise('cancellation failed')
       command = described_class.new({}, {})
+      allow(OsCtld::ContainerControl::Commands::Stop).to receive(:run!)
+        .and_raise(OsCtld::ContainerControl::Error, 'still running')
+      expect(command.send(:force_kill, ct)).to be(false)
+    end
 
-      expect { command.send(:force_kill, ct) }.to raise_error(RuntimeError, 'cancellation failed')
-      expect(cgroup).to have_received(:freeze_tree).with(ct.cgroup_path)
-      expect(cgroup).to have_received(:thaw_tree).with(ct.cgroup_path)
-      expect(recovery).not_to have_received(:kill_all)
+    it 'does not escalate a shutdown-only runner failure to kill' do
+      ct = build_stop_container
+      command = described_class.new({ method: 'shutdown_or_fail', timeout: 10 }, {})
+      allow(OsCtld::DistConfig).to receive(:run)
+        .and_raise(OsCtld::ContainerControl::UserRunnerError, 'runner failed')
+      allow(command).to receive(:force_kill)
+      expect { command.execute(ct) }.to raise_error(OsCtld::CommandFailed, 'runner failed')
+      expect(command).not_to have_received(:force_kill)
+    end
+
+    it 'does not delete an ephemeral container after an unconfirmed graceful exit' do
+      ct = build_stop_container(ephemeral: true, promise: double('exit_promise', wait: nil))
+      command = described_class.new({ timeout: 10 }, {})
+      allow(command).to receive(:call_cmd!)
+      expect { command.execute(ct) }.to raise_error(OsCtld::CommandFailed, /waiting for container exit/)
+      expect(command).not_to have_received(:call_cmd!)
+    end
+
+    [true, nil].each do |completed|
+      it "waits for restored-run console cleanup before its init PID is refreshed (completed: #{!completed.nil?})" do
+        promise = double('exit_promise', wait: completed)
+        ct = build_stop_container(ephemeral: true, promise:)
+        command = described_class.new({ timeout: 10 }, {})
+        allow(command).to receive(:remove_accounting_cgroups)
+        allow(command).to receive(:call_cmd!)
+        allow(OsCtld::DistConfig).to receive(:run) do |_run_conf, _mode, **opts|
+          budget = opts.fetch(:forced_stop)
+          allow(budget).to receive_messages(started?: true, time_left: 4.5)
+          allow(budget).to receive(:taint) { ct.state = :error }
+        end
+
+        if completed
+          expect(command.execute(ct)).to eq(status: true, output: nil)
+          expect(command).to have_received(:remove_accounting_cgroups)
+          expect(command).to have_received(:call_cmd!)
+        else
+          expect { command.execute(ct) }.to raise_error(OsCtld::CommandFailed, /waiting for container exit/)
+          expect(ct.state).to eq(:error)
+          expect(command).not_to have_received(:remove_accounting_cgroups)
+          expect(command).not_to have_received(:call_cmd!)
+        end
+        expect(promise).to have_received(:wait).with(timeout: 4.5)
+      end
     end
   end
 

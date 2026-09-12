@@ -81,4 +81,20 @@ RSpec.describe OsCtld::DistConfig do
     expect(ctrc).to have_received(:mount).once
     expect(ctrc).to have_received(:log).with(:warn, 'DistConfig.start failed: boom')
   end
+
+  it 'propagates stop failures so the caller cannot report a successful stop' do
+    ctrc = instance_double(run_config_class, distribution: 'alpine', mount: nil, log: nil)
+    dist_class = Class.new do
+      def initialize(_ctrc); end
+
+      def stop(_opts)
+        raise 'stop failed'
+      end
+    end
+    described_class.register(:alpine, dist_class)
+
+    expect { described_class.run(ctrc, :stop) }.to raise_error(RuntimeError, 'stop failed')
+    expect(ctrc).not_to have_received(:mount)
+    expect(ctrc).to have_received(:log).with(:warn, 'DistConfig.stop failed: stop failed')
+  end
 end

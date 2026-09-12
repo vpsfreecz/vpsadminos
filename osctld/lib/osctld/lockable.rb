@@ -25,6 +25,20 @@ module OsCtld
   #     attr_exclusive_writer :attr1, :attr2, ...
   #     attr_synchronized_accessor :attr1, :attr2, ...
   module Lockable
+    # Bound nested acquisitions without changing synchronized attribute readers.
+    # The scope affects this thread only; releasing an owned lock is unconditional.
+    def self.with_deadline(deadline)
+      previous = Thread.current[:osctld_lock_deadline]
+      Thread.current[:osctld_lock_deadline] = [previous, deadline].compact.min
+      yield
+    ensure
+      Thread.current[:osctld_lock_deadline] = previous
+    end
+
+    def self.deadline
+      Thread.current[:osctld_lock_deadline]
+    end
+
     class Lock
       TIMEOUT = 90
 
@@ -42,6 +56,8 @@ module OsCtld
       end
 
       def acquire_inclusive
+        return acquire_before_deadline(:inclusive) if Lockable.deadline
+
         t = Time.now
         is_timeout = false
 
@@ -99,7 +115,7 @@ module OsCtld
         return yield if @mutex.owned? && @ex == Thread.current
 
         held = false
-        sync { held = @in_held.include?(Thread.current) }
+        sync(acquiring: true) { held = @in_held.include?(Thread.current) }
 
         if held
           yield
@@ -117,6 +133,7 @@ module OsCtld
 
       def acquire_exclusive
         return if @mutex.owned? && @ex == Thread.current
+        return acquire_before_deadline(:exclusive) if Lockable.deadline
 
         t = Time.now
         is_timeout = false
@@ -211,9 +228,65 @@ module OsCtld
 
       private
 
-      def sync
+      # Bounded callers do not join the ordinary wait queues: a timed-out
+      # waiter must not need the contended mutex again to remove its queue entry.
+      def acquire_before_deadline(type)
+        limit = Lockable.deadline
+        LockRegistry.register(@object, type, :waiting)
+        loop do
+          acquired = false
+          begin
+            @mutex.lock(0)
+            acquired = true
+          rescue OsCtl::Lib::Mutex::Timeout
+            # The exclusive owner still holds the mutex.
+          end
+
+          if acquired
+            keep_mutex = false
+            begin
+              if type == :exclusive
+                if @in_held.include?(Thread.current)
+                  raise 'attempted to acquire exclusive lock while holding inclusive lock'
+                end
+
+                ready = @in_held.empty? && @ex.nil? && @ex_queued.empty?
+                if ready
+                  @allow_inclusive_after_exclusive = false
+                  @ex = Thread.current
+                  keep_mutex = true
+                end
+              else
+                ready = @ex.nil? && (@allow_inclusive_after_exclusive || @ex_queued.empty?)
+                @in_held << Thread.current if ready
+              end
+              if ready
+                LockRegistry.register(@object, type, :locked)
+                return
+              end
+            ensure
+              @mutex.unlock unless keep_mutex
+            end
+          end
+
+          remaining = limit - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          unless remaining > 0
+            LockRegistry.register(@object, type, :timeout)
+            raise OsCtld::DeadlockDetected.new(@object, type)
+          end
+          sleep([remaining, 0.01].min)
+        end
+      end
+
+      def sync(acquiring: false)
+        timeout =
+          if acquiring && Lockable.deadline
+            [Lockable.deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC), 0].max
+          else
+            TIMEOUT
+          end
         begin
-          @mutex.lock(TIMEOUT)
+          @mutex.lock(timeout)
         rescue OsCtl::Lib::Mutex::Timeout
           raise OsCtld::DeadlockDetected.new(@object, :any)
         end

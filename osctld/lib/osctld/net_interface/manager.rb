@@ -61,10 +61,10 @@ module OsCtld
       )
     end
 
-    def take_down
+    def take_down(**command_opts)
       inclusively do
         netifs.each do |n|
-          n.down if n.is_created?
+          n.down(**command_opts) if n.is_created?
         end
       end
     end

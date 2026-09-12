@@ -3,6 +3,7 @@ require 'osctld/container_control/frontend'
 require 'osctld/container_control/runner'
 require 'osctld/container_control/utils/wall'
 require 'libosctl'
+require 'osctld/container/forced_stop'
 
 module OsCtld
   # Stop/shutdown/kill container
@@ -21,10 +22,12 @@ module OsCtld
       # @option opts [Integer] :timeout how log to wait for clean shutdown
       # @option opts [String, nil] :message
       # @return [true]
-      def execute(mode, **opts)
+      def execute(mode, forced_stop: nil, **opts)
         unless %i[stop shutdown kill].include?(mode)
           raise ArgumentError, "invalid stop mode '#{mode}'"
         end
+
+        @forced_stop = forced_stop || Container::ForcedStop.new(ct)
 
         if opts[:message] && ct.running?
           opts = opts.merge(message: make_message(opts[:message]))
@@ -34,7 +37,7 @@ module OsCtld
 
         ret =
           if mode == :kill
-            with_forced_teardown { fork_runner(args: [mode, opts]) }
+            return force_stop(opts)
           elsif ct.running?
             exec_runner(args: [mode, opts.merge(halt_from_inside: true)])
           else
@@ -45,8 +48,7 @@ module OsCtld
           true
 
         elsif mode == :stop
-          ret = with_forced_teardown { fork_runner(args: [:kill, opts]) }
-          ret.ok? || ret
+          force_stop(opts)
 
         else
           ret
@@ -55,23 +57,10 @@ module OsCtld
 
       protected
 
-      def with_forced_teardown
-        run_conf = ct.get_run_conf
-        # Leave the LXC monitor runnable to receive the stop command.
-        payload = File.join(ct.cgroup_path, "lxc.payload.#{ct.id}")
-        run_conf.nfs_cancellation.capture(run_conf.init_pid)
-        # A previously frozen parent also freezes the LXC monitor. Replace
-        # that freeze with a payload-only one before establishing the barrier.
-        CGroup.thaw_tree(ct.cgroup_path)
-        CGroup.freeze_tree(payload)
-        # Cancel first: a task blocked on NFS might not freeze until woken.
-        run_conf.nfs_cancellation.abort
-        CGroup.wait_frozen(payload)
-        # Capture work admitted while the initial freeze was in progress.
-        run_conf.nfs_cancellation.abort
-        yield
-      ensure
-        CGroup.thaw_tree(payload) if payload
+      def force_stop(opts)
+        @forced_stop.run(
+          stop: ->(deadline) { fork_runner(args: [:kill, opts], deadline:) }
+        )
       end
     end
 

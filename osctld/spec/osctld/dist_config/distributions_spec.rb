@@ -12,6 +12,8 @@ require 'osctld/dist_config/distributions/ubuntu'
 require 'osctld/dist_config/distributions/redhat'
 require 'osctld/dist_config/distributions/nixos'
 require 'osctld/dist_config/distributions/void'
+require 'osctld/container_control/commands/stop'
+require 'osctld/container_control/commands/stop_runit'
 
 RSpec.describe 'DistConfig distributions' do
   let(:hostname_class) { Struct.new(:local, :fqdn, keyword_init: true) }
@@ -81,6 +83,19 @@ RSpec.describe 'DistConfig distributions' do
         File.join(rootfs, 'etc/runit/core-services/10-vpsadminos-hostname.sh')
       )
     end
+  end
+
+  it 'skips the runit attach operation when a kill was requested' do
+    ct = double
+    dist = OsCtld::DistConfig::Distributions::Void.new(double(ct:, distribution: 'void', version: '1'))
+    allow(OsCtld::ContainerControl::Commands::StopRunit).to receive(:run!)
+    allow(OsCtld::ContainerControl::Commands::Stop).to receive(:run!).and_return(true)
+
+    dist.stop(mode: :kill)
+
+    expect(OsCtld::ContainerControl::Commands::StopRunit).not_to have_received(:run!)
+    expect(OsCtld::ContainerControl::Commands::Stop).to have_received(:run!)
+      .with(ct, :kill, forced_stop: nil, message: nil, timeout: nil)
   end
 end
 # rubocop:enable RSpec/DescribeClass, RSpec/VerifiedDoubles

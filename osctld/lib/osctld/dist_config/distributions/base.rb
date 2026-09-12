@@ -130,6 +130,7 @@ module OsCtld
       ContainerControl::Commands::Stop.run!(
         ct,
         opts[:mode],
+        forced_stop: opts[:forced_stop],
         message: opts[:message],
         timeout: opts[:timeout]
       )

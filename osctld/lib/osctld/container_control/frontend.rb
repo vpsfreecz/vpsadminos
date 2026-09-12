@@ -1,3 +1,5 @@
+require 'io/wait'
+
 module OsCtld
   # Frontend is run from osctld in daemon mode, when it is running as root
   class ContainerControl::Frontend
@@ -209,18 +211,67 @@ module OsCtld
 
       w.close
 
-      begin
-        ret = JSON.parse(r.readline, symbolize_names: true)
+      read_fork_result(r, pid, opts[:deadline])
+    end
+
+    # A deadline is optional and currently used only by forced stopping and its
+    # state/recovery operations. Do not turn timeout cleanup into a blocking reap.
+    def read_fork_result(reader, pid, deadline)
+      output = deadline ? read_until_deadline(reader, deadline) : reader.readline
+      ret = JSON.parse(output, symbolize_names: true)
+      if deadline
+        until Process.waitpid(pid, Process::WNOHANG)
+          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          raise ContainerControl::UserRunnerError, 'container control timed out' if remaining <= 0
+
+          sleep([remaining, 0.05].min)
+        end
+      else
         Process.wait(pid)
-        ContainerControl::Result.from_runner(ret)
-      rescue EOFError
-        Process.wait(pid)
-        ContainerControl::Result.new(
-          false,
-          message: 'user runner failed',
-          user_runner: true
-        )
       end
+      pid = nil
+      ContainerControl::Result.from_runner(ret)
+    rescue EOFError
+      ContainerControl::Result.new(false, message: 'user runner failed', user_runner: true)
+    ensure
+      reader.close
+      if pid
+        if deadline
+          terminate_runner(pid)
+        else
+          Process.wait(pid)
+        end
+      end
+    end
+
+    def read_until_deadline(reader, deadline)
+      output = +''
+      loop do
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        raise ContainerControl::UserRunnerError, 'container control timed out' if remaining <= 0
+
+        chunk = reader.read_nonblock(4096, exception: false)
+        case chunk
+        when nil
+          raise EOFError
+        when :wait_readable
+          reader.wait_readable(remaining)
+        else
+          output << chunk
+          raise ContainerControl::UserRunnerError, 'container control response too large' if output.bytesize > 65_536
+
+          return output if output.end_with?("\n")
+        end
+      end
+    end
+
+    def terminate_runner(pid)
+      return if Process.waitpid(pid, Process::WNOHANG)
+
+      Process.kill('KILL', pid)
+      Process.detach(pid)
+    rescue Errno::ECHILD
+      nil
     end
   end
 end

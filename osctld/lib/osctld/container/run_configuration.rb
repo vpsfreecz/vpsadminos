@@ -36,7 +36,6 @@ module OsCtld
       @ct = ct
       @cpu_package = nil
       @init_pid = nil
-      @nfs_cancellation = Container::NfsCancellation.new(ct)
       @aborted = false
       @do_reboot = false
       @exit_promise = Promise.new
@@ -202,6 +201,7 @@ module OsCtld
         else
           Container::RunId.new(pool_name: pool.name, container_id: id)
         end
+      @nfs_cancellation = Container::NfsCancellation.new(ct, run_id: @run_id)
       @dataset =
         if cfg['dataset']
           OsCtl::Lib::Zfs::Dataset.new(cfg['dataset'], base: cfg['dataset'])
@@ -236,11 +236,10 @@ module OsCtld
     end
 
     def destroy
+      nfs_cancellation.close(deadline: Lockable.deadline)
       File.unlink(file_path)
     rescue Errno::ENOENT
       # ignore
-    ensure
-      nfs_cancellation.close
     end
 
     protected

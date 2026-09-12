@@ -1,13 +1,12 @@
 # frozen_string_literal: true
 
-require 'osctld/container/nfs_cancellation'
 require 'osctld/container_control/commands/stop'
 require 'osctld/container_control/result'
 
 RSpec.describe OsCtld::ContainerControl::Commands::Stop do
   subject(:frontend) do
     Class.new(described_class::Frontend) do
-      attr_accessor :exec_result, :fork_result, :exec_calls, :fork_calls, :call_trace
+      attr_accessor :exec_result, :fork_result, :exec_calls, :fork_calls
 
       def exec_runner(**opts)
         self.exec_calls ||= []
@@ -16,7 +15,6 @@ RSpec.describe OsCtld::ContainerControl::Commands::Stop do
       end
 
       def fork_runner(**opts)
-        call_trace&.push([:runner, opts])
         self.fork_calls ||= []
         fork_calls << opts
         fork_result
@@ -24,101 +22,65 @@ RSpec.describe OsCtld::ContainerControl::Commands::Stop do
     end.new(described_class, ct)
   end
 
-  let(:running) { true }
-  let(:cancellation) { instance_double(OsCtld::Container::NfsCancellation, capture: nil, abort: 0) }
-  let(:run_conf) { Struct.new(:init_pid, :nfs_cancellation).new(123, cancellation) }
-  let(:ct) do
-    Struct.new(:running, :id, :cgroup_path, :get_run_conf, keyword_init: true) do
-      def running?
-        running
-      end
-    end.new(running:, id: 'ct1', cgroup_path: '/osctl/pool.tank/ct.ct1', get_run_conf: run_conf)
-  end
-
-  let(:payload) { '/osctl/pool.tank/ct.ct1/lxc.payload.ct1' }
+  let(:ct) { Struct.new(:running?, :id).new(true, 'ct1') }
+  let(:forced_stop) { instance_double(OsCtld::Container::ForcedStop) }
+  let(:success) { OsCtld::ContainerControl::Result.new(true) }
+  let(:failure) { OsCtld::ContainerControl::Result.new(false, message: 'kill required') }
 
   before do
-    cgroup = stub_const('OsCtld::CGroup', Module.new)
-    cgroup.define_singleton_method(:thaw_tree) { |_path| nil }
-    cgroup.define_singleton_method(:freeze_tree) { |_path| nil }
-    cgroup.define_singleton_method(:wait_frozen) { |_path| nil }
-    allow(OsCtld::CGroup).to receive(:thaw_tree)
-    allow(OsCtld::CGroup).to receive(:freeze_tree)
-    allow(OsCtld::CGroup).to receive(:wait_frozen)
+    allow(OsCtld::Container::ForcedStop).to receive(:new).with(ct).and_return(forced_stop)
+    allow(forced_stop).to receive(:run) do |stop:, **|
+      stop.call(50).ok?
+    end
+    frontend.fork_result = success
   end
 
-  it 'rejects invalid stop modes' do
+  it 'rejects invalid modes without beginning forced stopping' do
     expect { frontend.execute(:reboot) }.to raise_error(ArgumentError, /invalid stop mode/)
-    expect(cancellation).not_to have_received(:abort)
+    expect(forced_stop).not_to have_received(:run)
   end
 
   it 'preserves NFS retries during a successful graceful shutdown' do
-    frontend.exec_result = OsCtld::ContainerControl::Result.new(true)
-
+    frontend.exec_result = success
     expect(frontend.execute(:shutdown, timeout: 30)).to be(true)
-    expect(cancellation).not_to have_received(:abort)
-    expect(OsCtld::CGroup).not_to have_received(:freeze_tree)
+    expect(forced_stop).not_to have_received(:run)
   end
 
-  it 'does not abort NFS when shutdown-only mode times out' do
-    frontend.exec_result = OsCtld::ContainerControl::Result.new(false, message: 'timeout')
-
-    expect(frontend.execute(:shutdown, timeout: 30)).to equal(frontend.exec_result)
-    expect(cancellation).not_to have_received(:abort)
+  it 'does not force a shutdown-only timeout' do
+    frontend.exec_result = failure
+    expect(frontend.execute(:shutdown, timeout: 30)).to equal(failure)
+    expect(forced_stop).not_to have_received(:run)
   end
 
-  it 'captures identity then cancels before invoking the forced-stop runner' do
-    frontend.fork_result = OsCtld::ContainerControl::Result.new(true)
-    calls = []
-    allow(cancellation).to receive(:capture) { |pid| calls << [:capture, pid] }
-    allow(OsCtld::CGroup).to receive(:thaw_tree) { |path| calls << [:thaw, path] }
-    allow(OsCtld::CGroup).to receive(:freeze_tree) { |path| calls << [:freeze, path] }
-    allow(cancellation).to receive(:abort) { calls << [:abort] }
-    allow(OsCtld::CGroup).to receive(:wait_frozen) { |path| calls << [:wait, path] }
-    frontend.call_trace = calls
-
+  it 'passes the shared deadline to the LXC kill runner' do
     expect(frontend.execute(:kill)).to be(true)
-    expect(calls).to eq([
-                          [:capture, 123], [:thaw, ct.cgroup_path], [:freeze, payload],
-                          [:abort], [:wait, payload], [:abort],
-                          [:runner, { args: [:kill, {}] }], [:thaw, payload]
-                        ])
+    expect(frontend.fork_calls).to eq([{ args: [:kill, {}], deadline: 50 }])
   end
 
-  it 'thaws the container and surfaces a failed cancellation' do
-    allow(cancellation).to receive(:abort).and_raise('cancellation failed')
-
-    expect { frontend.execute(:kill) }.to raise_error('cancellation failed')
-    expect(OsCtld::CGroup).to have_received(:thaw_tree).with(payload)
-    expect(frontend.fork_calls).to be_nil
-  end
-
-  it 'keeps only the payload frozen until the forced-stop runner returns' do
-    frontend.fork_result = OsCtld::ContainerControl::Result.new(true)
-
-    expect(frontend.execute(:kill)).to be(true)
-    expect(OsCtld::CGroup).to have_received(:thaw_tree).with(payload)
-    expect(frontend.fork_calls).to eq([{ args: [:kill, {}] }])
-  end
-
-  it 'falls back to kill when stop mode cannot shut the container down cleanly' do
-    frontend.exec_result = OsCtld::ContainerControl::Result.new(false, message: 'kill required')
-    frontend.fork_result = OsCtld::ContainerControl::Result.new(true)
-
+  it 'uses the same forced-stop path after graceful shutdown fails' do
+    frontend.exec_result = failure
     expect(frontend.execute(:stop)).to be(true)
-    expect(cancellation).to have_received(:abort).twice
-    expect(OsCtld::CGroup).to have_received(:thaw_tree).with(payload)
-    expect(frontend.fork_calls).to eq([{ args: [:kill, {}] }])
+    expect(frontend.fork_calls).to eq([{ args: [:kill, {}], deadline: 50 }])
+    expect(forced_stop).to have_received(:run).once
+  end
+
+  it 'uses the caller-provided budget for escalation and recovery' do
+    budget = instance_double(OsCtld::Container::ForcedStop, run: true)
+    expect(frontend.execute(:kill, forced_stop: budget)).to be(true)
+    expect(budget).to have_received(:run).once
+    expect(OsCtld::Container::ForcedStop).not_to have_received(:new)
+  end
+
+  it 'surfaces an exhausted forced-stop budget' do
+    allow(forced_stop).to receive(:run).and_raise(OsCtld::ContainerControl::Error, 'still running')
+    expect { frontend.execute(:kill) }.to raise_error(OsCtld::ContainerControl::Error, 'still running')
   end
 
   it 'wraps wall messages before invoking shutdown paths' do
     allow(Socket).to receive(:gethostname).and_return('test-host')
-    frontend.exec_result = OsCtld::ContainerControl::Result.new(true)
-
+    frontend.exec_result = success
     frontend.execute(:shutdown, message: 'maintenance', timeout: 60)
-
     call = frontend.exec_calls.first
-
     expect(call[:args].first).to eq(:shutdown)
     expect(call[:args].last[:halt_from_inside]).to be(true)
     expect(call[:args].last[:timeout]).to eq(60)

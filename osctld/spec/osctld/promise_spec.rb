@@ -20,4 +20,9 @@ RSpec.describe OsCtld::Promise do
     expect(token_a.wait(timeout: 0)).to be(true)
     expect(token_b.wait(timeout: 0)).to be(true)
   end
+
+  it 'immediately completes tokens added after run cleanup finished' do
+    promise.fulfil
+    expect(promise.add.wait(timeout: 0)).to be(true)
+  end
 end

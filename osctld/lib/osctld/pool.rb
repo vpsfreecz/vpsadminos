@@ -696,7 +696,7 @@ module OsCtld
 
         ct.reconfigure
 
-        running = ct.fresh_state == :running
+        running = %i[running freezing frozen].include?(ct.fresh_state)
 
         ct.ensure_run_conf if running
         Monitor::Master.monitor(ct)

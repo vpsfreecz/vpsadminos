@@ -117,6 +117,7 @@ module OsCtld
     def setup
       # Setup /run/osctl
       RunState.create
+      Container::NfsCancellationState.prune_retired
 
       # Open start config
       start_cfg = RunState.open_start_config

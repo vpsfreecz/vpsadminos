@@ -228,6 +228,12 @@ module OsCtld
       inclusively { @past_run_conf }
     end
 
+    # Completion belongs to the run, including after init has exited or the
+    # daemon has restarted before refreshing its PID.
+    def get_exit_promise
+      inclusively { (@run_conf || @past_run_conf)&.get_exit_promise }
+    end
+
     def forget_past_run_conf
       exclusively { @past_run_conf = nil }
     end

@@ -14,7 +14,7 @@ module OsCtl::Lib
     # @param timeout [Integer, nil] timeout in seconds
     # @raise [Timeout] when timeout has passed while waiting for the lock
     def lock(timeout = nil)
-      t = Time.now
+      t = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       is_timeout = false
 
       sync do
@@ -22,7 +22,7 @@ module OsCtl::Lib
           @queue += 1
 
           loop do
-            now = Time.now
+            now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
             if @thread.nil?
               break

@@ -187,7 +187,7 @@ module OsCtld
       )
     end
 
-    def down(host_veth = nil)
+    def down(host_veth = nil, **command_opts)
       veth_name = host_veth || veth
       ifb_name = ifb_veth
 
@@ -197,14 +197,14 @@ module OsCtld
       log(:info, ct, "Removing host veth #{veth_name}")
 
       begin
-        ip(:all, %W[link del #{veth_name}])
+        ip(:all, %W[link del #{veth_name}], **command_opts)
       rescue SystemCommandFailed => e
         log(:warn, ct, "Unable to delete host veth #{veth_name}: #{e.message}")
       end
 
       if max_tx > 0
         begin
-          ip(:all, %W[link del #{ifb_name}])
+          ip(:all, %W[link del #{ifb_name}], **command_opts)
         rescue SystemCommandFailed => e
           log(:warn, ct, "Unable to delete ifb host veth #{ifb_name}: #{e.message}")
         end

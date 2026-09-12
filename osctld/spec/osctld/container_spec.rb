@@ -283,6 +283,25 @@ RSpec.describe OsCtld::Container do
       end
     end
 
+    %w[@run_conf @past_run_conf].each do |variable|
+      it "keeps the completion barrier for #{variable} even with no init PID" do
+        with_tmpdir do |dir|
+          ct = build_container(root: dir)
+          promise = Object.new
+          run = Struct.new(:init_pid, :get_exit_promise).new(nil, promise)
+          ct.instance_variable_set(variable, run)
+          expect(ct.get_exit_promise).to eq(promise)
+        end
+      end
+    end
+
+    it 'does not create a completion barrier for a container with no run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        expect(ct.get_exit_promise).to be_nil
+      end
+    end
+
     it 'uses next_run_conf during init_run_conf, saves it, and reconfigures' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)

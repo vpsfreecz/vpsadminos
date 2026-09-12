@@ -1,6 +1,7 @@
 require 'open3'
 require 'shellwords'
 require 'timeout'
+require 'libosctl/system_command'
 
 module OsCtl::Lib
   module Utils::System
@@ -11,11 +12,14 @@ module OsCtl::Lib
     # @option opts [Array<Integer>, :all] :valid_rcs valid exit codes
     # @option opts [Boolean] :stderr include stderr in output?
     # @option opts [Integer] :timeout in seconds
+    # @option opts [Float] :deadline absolute CLOCK_MONOTONIC time
     # @option opts [Proc] :on_timeout
     # @option opts [String] :input data written to the process's stdin
     # @option opts [Hash] :env environment variables
     # @return [SystemCommandResult]
     def syscmd(cmd, opts = {})
+      return command_with_deadline(['/bin/sh', '-c', "exec #{cmd}"], opts) if opts[:deadline]
+
       valid_rcs = opts[:valid_rcs] || []
       stderr = opts[:stderr].nil? ? true : opts[:stderr]
 
@@ -66,11 +70,14 @@ module OsCtl::Lib
     # @option opts [Array<Integer>, :all] :valid_rcs valid exit codes
     # @option opts [Boolean] :stderr include stderr in output?
     # @option opts [Integer] :timeout in seconds
+    # @option opts [Float] :deadline absolute CLOCK_MONOTONIC time
     # @option opts [Proc] :on_timeout
     # @option opts [String] :input data written to the process's stdin
     # @option opts [Hash] :env environment variables
     # @return [SystemCommandResult]
     def syscmd_argv(argv, opts = {})
+      return command_with_deadline(argv, opts) if opts[:deadline]
+
       valid_rcs = opts[:valid_rcs] || []
       stderr = opts[:stderr].nil? ? true : opts[:stderr]
       cmd = argv.shelljoin
@@ -157,6 +164,20 @@ module OsCtl::Lib
     end
 
     protected
+
+    def command_with_deadline(argv, opts)
+      raise ArgumentError, 'deadline cannot be combined with timeout or on_timeout' if opts[:timeout] || opts[:on_timeout]
+
+      log(:work, argv.shelljoin)
+      SystemCommand.new(
+        argv,
+        deadline: opts.fetch(:deadline),
+        env: opts[:env] || ENV,
+        input: opts[:input],
+        stderr: opts[:stderr].nil? ? true : opts[:stderr],
+        valid_rcs: opts[:valid_rcs] || []
+      ).run
+    end
 
     def write_stdin(io, input)
       io.write(input) if input

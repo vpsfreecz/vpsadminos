@@ -125,10 +125,17 @@ Applications should synchronize their data and unmount NFS as part of an orderly
 shutdown.
 
 For `osctl ct stop --kill`, or after the normal stop timeout expires, *osctld*
-quiesces the container payload and requests terminal cancellation before asking
-LXC to finish teardown. It also requests cancellation when container init is
-exiting, including when init is blocked closing its own NFS file descriptors.
-This lets teardown proceed without waiting for the NFS server to return.
+gives cancellation up to five seconds before asking LXC to kill the container.
+The cancellation worker can continue alongside killing for up to 30 seconds.
+The forced phase has a 60-second budget, including direct process killing,
+verification and console/writeback cleanup. Cancellation or freezer errors do
+not prevent the requested kill. If termination or cleanup cannot be confirmed,
+the command fails and leaves the container in an error state for recovery.
+
+*osctld* also requests cancellation when container init is exiting, including
+when init is blocked closing its own NFS file descriptors. This lets teardown
+proceed without waiting for the NFS server to return. The configured timeout
+for graceful shutdown remains separate from the forced phase.
 
 **Cancellation is not a successful flush.** Pending writes can fail or be lost,
 and a backup interrupted by forced teardown must be checked or retried. Prefer
@@ -145,9 +152,16 @@ their lifecycle on the host.
 
 The operation cannot be undone in the cancelled namespaces. Restart the
 container through *osctl* to obtain fresh namespaces; do not try to revive old
-namespace handles. On older kernels, *osctld* uses the available per-namespace or
-per-filesystem control, while the older kernel's forced-soft policy remains in
-effect. This mechanism does not implement cancellation of CIFS/SMB requests.
+namespace handles. *osctld* retains the original namespaces and cancellation
+intent across daemon restarts, even if init has exited or changed namespaces.
+Runs started before this state was retained can still be killed, but cannot
+use cancellation until their next start.
+
+On kernels without the `shutdown_tree` control, *osctld* skips cancellation and
+its head start and proceeds with killing. It does not write older per-namespace
+or per-filesystem controls. The kernel's existing NFS retry policy still applies;
+upgrading *osctld* does not require a kernel update or reboot. Cancellation does
+not cover CIFS/SMB requests.
 
 ## Attaching containers
 Administrators can use `osctl ct attach` to enter containers and get root shell,

@@ -100,6 +100,74 @@ RSpec.describe OsCtl::Lib::Utils::System do
     end
   end
 
+  describe 'absolute command deadlines' do
+    def command_deadline(seconds = 2)
+      Process.clock_gettime(Process::CLOCK_MONOTONIC) + seconds
+    end
+
+    it 'preserves command arguments, environment, input and valid exit codes' do
+      result = helper.syscmd_argv(
+        [RbConfig.ruby, '-e', 'print [ENV.fetch("VALUE"), ARGV.first, STDIN.read].join(":"); exit 3', 'literal *'],
+        deadline: command_deadline,
+        env: { 'VALUE' => 'env' }, input: 'data', valid_rcs: [3]
+      )
+      expect(result.output).to eq('env:literal *:data')
+      expect(result.exitstatus).to eq(3)
+      expect(helper.syscmd('echo shell', deadline: command_deadline).output).to eq("shell\n")
+    end
+
+    it 'moves input and output concurrently without blocking on full pipes' do
+      payload = 'x' * 262_144
+      result = helper.syscmd_argv(
+        [RbConfig.ruby, '-e', 'STDOUT.write("y" * 262144); print STDIN.read.length'],
+        deadline: command_deadline, input: payload
+      )
+      expect(result.output).to eq(('y' * 262_144) + payload.length.to_s)
+    end
+
+    it 'suppresses stderr and reports command failure' do
+      result = helper.syscmd_argv(
+        [RbConfig.ruby, '-e', 'STDOUT.write("out"); STDERR.write("err")'],
+        deadline: command_deadline, stderr: false
+      )
+      expect(result.output).to eq('out')
+      expect { helper.syscmd('exit 3', deadline: command_deadline) }
+        .to raise_error(OsCtl::Lib::Exceptions::SystemCommandFailed)
+    end
+
+    ['sleep 60', 'STDOUT.close; sleep 60'].each do |script|
+      it "bounds command output and exit waiting for #{script}" do
+        reapers = []
+        allow(Process).to receive(:detach).and_wrap_original do |original, pid|
+          original.call(pid).tap { |reaper| reapers << reaper }
+        end
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        expect do
+          helper.syscmd_argv([RbConfig.ruby, '-e', script], deadline: command_deadline(0.1))
+        end.to raise_error(OsCtl::Lib::Exceptions::SystemCommandTimeout)
+        expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 1
+        expect(reapers.length).to eq(1)
+        expect(reapers.first.join(2)).not_to be_nil
+        expect(reapers.first.value.termsig).to eq(Signal.list.fetch('KILL'))
+      end
+    end
+
+    it 'bounds a command that never reads its input' do
+      expect do
+        helper.syscmd_argv(
+          [RbConfig.ruby, '-e', 'sleep 60'], deadline: command_deadline(0.1), input: 'x' * 262_144
+        )
+      end.to raise_error(OsCtl::Lib::Exceptions::SystemCommandTimeout)
+    end
+
+    it 'does not start a command after the deadline' do
+      allow(Process).to receive(:spawn)
+      expect { helper.syscmd('true', deadline: command_deadline(-1)) }
+        .to raise_error(OsCtl::Lib::Exceptions::SystemCommandTimeout)
+      expect(Process).not_to have_received(:spawn)
+    end
+  end
+
   describe '#find_executable!' do
     it 'resolves executables to real paths' do
       with_tmpdir do |tmpdir|

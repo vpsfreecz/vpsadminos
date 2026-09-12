@@ -930,6 +930,15 @@ The following shortcuts are supported:
   data flush. Normal running containers retain their configured NFS retry
   policy. Restart through `ct start` to obtain fresh namespaces.
 
+  Cancellation gets up to five seconds before killing starts; its worker has
+  a 30-second limit. The forced phase, including recovery, verification
+  and console/writeback cleanup, has a 60-second budget separate from the
+  graceful timeout. Cancellation errors do not prevent killing. If termination
+  or cleanup cannot be confirmed, the command fails and leaves the container
+  in an error state for recovery. On kernels without
+  `shutdown_tree`, killing proceeds without cancellation or its head start.
+  Retained namespace state survives an `osctld` restart.
+
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
 

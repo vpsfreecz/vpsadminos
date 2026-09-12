@@ -154,4 +154,51 @@ RSpec.describe OsCtld::Lockable do
     expect { fixture.exclusively { fixture.value = 10 } }.not_to raise_error
     expect(fixture.value).to eq(10)
   end
+
+  %i[inclusive exclusive].each do |held|
+    %i[inclusive exclusive].each do |requested|
+      next if held == :inclusive && requested == :inclusive
+
+      it "bounds #{requested} acquisition behind a live #{held} owner and leaves locks usable" do
+        ready = Queue.new
+        release = Queue.new
+        owner = Thread.new do
+          fixture.lock(held)
+          ready << true
+          release.pop
+          fixture.unlock(held)
+        end
+        pop_with_timeout(ready)
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        expect do
+          described_class.with_deadline(started + 0.05) { fixture.lock(requested) }
+        end.to raise_error(OsCtld::DeadlockDetected)
+        expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 0.3
+        expect(described_class.deadline).to be_nil
+        release << true
+        owner.join
+        expect { fixture.exclusively { fixture.value = 21 } }.not_to raise_error
+        expect(fixture.value).to eq(21)
+      ensure
+        release << true
+        owner&.join
+      end
+    end
+  end
+
+  it 'keeps the earliest nested deadline and restores the outer scope after failure' do
+    outer = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1
+    described_class.with_deadline(outer) do
+      expect do
+        described_class.with_deadline(outer + 10) do
+          expect(described_class.deadline).to eq(outer)
+          raise 'operation failed'
+        end
+      end.to raise_error('operation failed')
+      expect(described_class.deadline).to eq(outer)
+      fixture.exclusively { fixture.value = 11 }
+    end
+    expect(described_class.deadline).to be_nil
+    expect(fixture.value).to eq(11)
+  end
 end

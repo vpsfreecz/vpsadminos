@@ -29,6 +29,7 @@ RSpec.describe OsCtld::UserControl::Commands::CtPreMount do
     allow(OsCtld::Hook).to receive(:run) { |*args, **kwargs| calls << [:hook, args, kwargs] }
 
     command.execute
+    expect(cancellation).to have_received(:capture).with(123, trusted: true)
     expect(calls).to eq([
                           [:capture, 123],
                           [:hook, [ct, :pre_mount], { rootfs_mount: nil, ns_pid: 123 }]

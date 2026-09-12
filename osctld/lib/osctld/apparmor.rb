@@ -136,8 +136,8 @@ module OsCtld
     end
 
     # Remove the container's profile from the kernel
-    def unload_profile
-      apparmor_parser('R', valid_rcs: [254])
+    def unload_profile(**command_opts)
+      apparmor_parser('R', command_opts.merge(valid_rcs: [254]))
     end
 
     # Remove the container's profile from the kernel and remove it from cache

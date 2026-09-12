@@ -15,7 +15,7 @@ module OsCtld
 
       # Capture before tenant init can mount NFS or become stuck during exit.
       # The supervisor supplies the authenticated socket peer PID.
-      ct.get_run_conf.nfs_cancellation.capture(opts[:client_pid])
+      ct.get_run_conf.nfs_cancellation.capture(opts[:client_pid], trusted: true)
 
       Hook.run(
         ct,

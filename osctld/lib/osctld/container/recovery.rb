@@ -7,29 +7,31 @@ module OsCtld
     include OsCtl::Lib::Utils::System
 
     # @param ct [Container]
-    def initialize(ct)
+    def initialize(ct, deadline: nil)
       @ct = ct
+      @deadline = deadline
     end
 
     # Rediscover container state
     #
     # If the container is found dead, appropriate actions and hooks
     # for container stop are run.
-    def recover_state
+    def recover_state(state: nil)
+      check_deadline!
       orig_state = ct.state
-      current_state = ct.current_state
+      current_state = state || ct.current_state
+      ct.state = current_state if state
 
-      if orig_state == current_state
+      if orig_state == current_state && !(current_state == :stopped && ct.run_conf)
         # do nothing
 
       elsif current_state == :stopped
-        # Put all network interfaces down
-        ct.netifs.take_down
+        # Runtime netif state and events must change in the daemon.
+        ct.netifs.take_down(**deadline_opts)
 
-        # Unload AppArmor profile and destroy namespace
         if AppArmor.enabled?
           ct.apparmor.destroy_namespace
-          ct.apparmor.unload_profile
+          ct.apparmor.unload_profile(**deadline_opts)
         end
 
         ct.stopped
@@ -63,6 +65,7 @@ module OsCtld
 
       log(:info, "#{pl.length} processes to kill")
       pl.each do |p|
+        check_deadline!
         # Double check
         ctid = p.ct_id
         next if ctid.nil?
@@ -104,6 +107,7 @@ module OsCtld
 
     # Remove left-over cgroups in container path
     def cleanup_cgroups
+      check_deadline!
       CGroup.rmpath_all(File.join(ct.cgroup_path, "lxc.payload.#{ct.id}"))
       CGroup.rmpath_all(File.join(ct.cgroup_path, "lxc.monitor.#{ct.id}"))
       CGroup.rmpath_all(File.join(ct.cgroup_path, "lxc.pivot.#{ct.id}"))
@@ -117,7 +121,8 @@ module OsCtld
       veths = {}
 
       [4, 6].each do |ip_v|
-        routes = RouteList.new(ip_v)
+        check_deadline!
+        routes = RouteList.new(ip_v, **deadline_opts)
 
         ct.netifs.each do |netif|
           next if netif.type != :routed
@@ -135,6 +140,7 @@ module OsCtld
       end
 
       veths.each do |veth, routes|
+        check_deadline!
         found = DB::Containers.get.detect do |other_ct|
           next(false) if other_ct == ct
 
@@ -166,10 +172,10 @@ module OsCtld
       include OsCtl::Lib::Utils::System
 
       # @param ip_v [Integer]
-      def initialize(ip_v)
+      def initialize(ip_v, **command_opts)
         @index = {}
 
-        JSON.parse(syscmd("ip -#{ip_v} -json route list").output).each do |route|
+        JSON.parse(syscmd("ip -#{ip_v} -json route list", command_opts).output).each do |route|
           next unless route['dev'].start_with?('veth')
 
           index[route['dst']] = route['dev']
@@ -198,5 +204,19 @@ module OsCtld
     protected
 
     attr_reader :ct
+
+    def deadline_opts
+      @deadline ? { deadline: @deadline } : {}
+    end
+
+    def check_deadline!
+      return unless @deadline && Process.clock_gettime(Process::CLOCK_MONOTONIC) >= @deadline
+
+      raise ContainerControl::Error, 'forced-stop timeout expired'
+    end
+
+    def syscmd(cmd, opts = {})
+      super(cmd, opts.merge(deadline_opts))
+    end
   end
 end

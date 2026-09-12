@@ -59,6 +59,8 @@ module OsCtld
 
     # See man runit-init
     def stop(opts)
+      return super if opts[:mode] == :kill
+
       # Configure runit for halt
       begin
         ContainerControl::Commands::StopRunit.run!(ct, message: opts[:message])
