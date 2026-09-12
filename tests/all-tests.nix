@@ -235,6 +235,7 @@ let
           "system/boot/runit"
           "system/boot/stage-2"
           "system/install"
+          "system/install-zfs"
           "system/switch-to-configuration"
           "systemd/credentials"
           "systemd/ebpf"
