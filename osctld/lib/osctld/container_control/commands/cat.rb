@@ -21,6 +21,8 @@ module OsCtld
 
     class Runner < ContainerControl::Runner
       def execute(files)
+        lxc_ct.set_config_item('lxc.log.file', log_file)
+        lxc_ct.set_config_item('lxc.log.level', 'TRACE')
         result_r, result_w = IO.pipe
         # Use LXC's authenticated namespace transition, including userns. A
         # mount-only host-userns reader can invalidate shared proc dentries

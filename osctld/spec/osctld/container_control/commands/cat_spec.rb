@@ -58,6 +58,7 @@ RSpec.describe OsCtld::ContainerControl::Commands::Cat do
 
     before do
       runner.attached_ct = lxc_ct
+      allow(lxc_ct).to receive(:set_config_item)
       allow(lxc_ct).to receive(:attach) do |_opts, &block|
         Process.fork do
           block.call
