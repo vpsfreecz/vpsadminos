@@ -39,5 +39,4 @@ callPackage ./generic.nix (rec {
   inherit structuredExtraConfig;
 
   inherit features;
-  enableBuildId = (features.livepatchVariant or null) != null;
 })

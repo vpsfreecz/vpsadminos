@@ -71,7 +71,6 @@ in
   # ignored
   features ? null,
   zfsBuiltinPkg ? null,
-  enableBuildId ? false,
 }:
 
 let
@@ -195,12 +194,7 @@ let
           # This way kernels can be bit-by-bit reproducible depending on settings
           # (e.g. MODULE_SIG and SECURITY_LOCKDOWN_LSM need to be disabled).
           # See also https://kernelnewbies.org/BuildId
-          ${
-            if enableBuildId then
-              "# Retain upstream --build-id=sha1 for exact boot identity."
-            else
-              "sed -i Makefile -e 's|--build-id|--build-id=none|'"
-          }
+          sed -i Makefile -e 's|--build-id|--build-id=none|'
 
           patchShebangs scripts/ld-version.sh
 
