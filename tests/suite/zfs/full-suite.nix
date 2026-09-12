@@ -203,7 +203,7 @@ import ../../make-test.nix (
                             -ex 'set pagination off' -ex 'thread apply all bt' \
                             -ex 'info sharedlibrary' -ex 'x/16i $pc' \
                             -ex detach -p "$send_pid"
-                        } 2>&1 | tee /run/osvm/shared-dir/zfs-full-suite/promoted-send-diagnostics.log
+                        } 2>&1 | ${pkgs.coreutils}/bin/tee /run/osvm/shared-dir/zfs-full-suite/promoted-send-diagnostics.log
                       fi
                     ) &
                     diagnostic_pid=$!
