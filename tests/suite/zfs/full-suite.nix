@@ -175,7 +175,14 @@ import ../../make-test.nix (
                   'read -r checksum1 _ < <(cksum $MYTESTFILE)'
               substituteInPlace "$functional/pool_checkpoint/checkpoint_discard_busy.ksh" \
                 --replace-fail 'log_unsupported "Skipping, issue https://github.com/openzfs/zfs/issues/12053"' \
-                  'log_note "Exercising historical busy-discard case (issue 12053)"'
+                  'log_note "Exercising historical busy-discard case (issue 12053)"' \
+                --replace-fail \
+                  $'function test_cleanup\n{\n\t# reset to original value\n\tlog_must restore_tunable SPA_DISCARD_MEMORY_LIMIT' \
+                  $'function test_cleanup\n{\n\t# The successful body already consumes the saved tunable file.\n\tif [[ -e $TEST_BASE_DIR/tunable-SPA_DISCARD_MEMORY_LIMIT ]]; then\n\t\tlog_must restore_tunable SPA_DISCARD_MEMORY_LIMIT\n\tfi' \
+                --replace-fail 'log_must save_tunable SPA_DISCARD_MEMORY_LIMIT' \
+                  $'original_discard_limit=$(get_tunable SPA_DISCARD_MEMORY_LIMIT)\nlog_must save_tunable SPA_DISCARD_MEMORY_LIMIT' \
+                --replace-fail $'log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT\n\nnested_wait_discard_finish' \
+                  $'log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT\nlog_must test "$(get_tunable SPA_DISCARD_MEMORY_LIMIT)" = "$original_discard_limit"\n\nnested_wait_discard_finish'
               substituteInPlace "$functional/rsend/rsend_008_pos.ksh" \
                 --replace-fail 'log_unsupported "Occasionally hangs"' \
                   'log_note "Exercising historical promoted-send case (issue 6066)"'
@@ -838,12 +845,23 @@ import ../../make-test.nix (
           result_error = RuntimeError.new("ZFS test-suite run produced no live result log: #{host_live_log}")
         else
           zts_output = File.binread(host_live_log)
-          result_lines = zts_output.lines.grep(/^\[[^]]+\] Test(?: \([^)]+\))?: .* \[[A-Z]+\]$/)
+          result_lines = zts_output.lines.grep(/^\[[^\]]+\] Test(?: \([^)]+\))?: .* \[[A-Z]+\]$/)
 
           if result_lines.empty?
             result_error = RuntimeError.new("ZFS test-suite run executed zero tests; captured log: #{captured_live_log}")
-          elsif single_test && !result_lines.any? { |line| line.include?("/#{File.basename(single_test)} ") }
-            result_error = RuntimeError.new("Focused ZFS test #{single_test.inspect} produced no result; captured log: #{captured_live_log}")
+          elsif single_test
+            selected_name = File.basename(single_test).delete_suffix('.ksh')
+            selected_results = result_lines.select do |line|
+              path = line.match(/Test(?: \([^)]+\))?: (\S+)/)[1]
+              File.basename(path).delete_suffix('.ksh') == selected_name
+            end
+            if selected_results.empty?
+              result_error = RuntimeError.new("Focused ZFS test #{single_test.inspect} produced no result; captured log: #{captured_live_log}")
+            elsif selected_results.any? { |line| !line.rstrip.end_with?('[PASS]') }
+              # Upstream expected-FAIL/SKIP classifications are not acceptance
+              # when explicitly validating one formerly skipped body.
+              result_error = RuntimeError.new("Focused ZFS test did not PASS: #{selected_results.join.strip}; captured log: #{captured_live_log}")
+            end
           end
         end
       end
