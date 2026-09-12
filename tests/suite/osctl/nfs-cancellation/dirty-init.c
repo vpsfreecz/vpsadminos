@@ -1,6 +1,9 @@
+#define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <sched.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -37,7 +40,7 @@ int main(int argc, char **argv)
 	const char data[] = "buffered data owned by PID1\n";
 	int control, file;
 
-	if (argc != 2 || getpid() != 1) {
+	if (argc != 3 || getpid() != 1) {
 		fprintf(stderr, "dirty-init must be PID1 with an NFS file argument\n");
 		return 1;
 	}
@@ -50,6 +53,9 @@ int main(int argc, char **argv)
 	file = open(argv[1], O_CREAT | O_WRONLY | O_TRUNC, 0600);
 	if (file < 0)
 		fail("open NFS file");
+	/* Keep an NFS file from the original namespace while init moves away. */
+	if (!strcmp(argv[2], "detach") && unshare(CLONE_NEWUSER | CLONE_NEWNET))
+		fail("unshare init namespaces");
 	marker("/root/nfs-init-ready");
 
 	command(control, 'd');

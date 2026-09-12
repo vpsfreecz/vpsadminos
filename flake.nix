@@ -25,6 +25,7 @@
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       availableKernels = import ./os/packages/linux/available-kernels.nix { lib = nixpkgs.lib; };
       kernelVersions = builtins.attrNames availableKernels.kernels;
+      inherit (availableKernels) nfsCancellationKernelVersions;
       ciKernelOutputName =
         kernelVersion:
         "ci-toplevel-kernel-" + nixpkgs.lib.replaceStrings [ "." "-" ] [ "_" "_" ] kernelVersion;
@@ -214,7 +215,17 @@
         inherit
           availableKernels
           kernelVersions
+          nfsCancellationKernelVersions
           ;
+        kernelBuildMatrix.include =
+          (map (kernel: {
+            inherit kernel;
+            diagnostic = false;
+          }) kernelVersions)
+          ++ (map (kernel: {
+            inherit kernel;
+            diagnostic = true;
+          }) nfsCancellationKernelVersions);
         vpsadminosSystem = vpsadminosSystem;
         inherit testFramework;
       };
@@ -338,6 +349,18 @@
             _: kernelSystem: kernelSystem.config.system.build.toplevel
           ) kernelCiQemuSystems;
 
+          nfsDebugPackages = builtins.listToAttrs (
+            map (kernelVersion: {
+              name = "ci-nfs-debug-kernel-" + nixpkgs.lib.replaceStrings [ "." ] [ "_" ] kernelVersion;
+              value =
+                (mkQemuSystem [
+                  kernelCacheToplevelModule
+                  ./os/configs/nfs-cancellation-debug.nix
+                  { boot.kernelVersion = kernelVersion; }
+                ]).config.system.build.toplevel;
+            }) nfsCancellationKernelVersions
+          );
+
           isoSystem = vpsadminosSystem {
             inherit system;
             modules = [
@@ -429,6 +452,7 @@
             };
           }
           // ciKernelToplevelPackages
+          // nfsDebugPackages
         )
       );
 

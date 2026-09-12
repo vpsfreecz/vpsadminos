@@ -27,6 +27,7 @@ let
       testFramework.makeTestLib testLibArgs;
 
   distributions = import ./distributions.nix { inherit lib; };
+  availableKernels = import ../os/packages/linux/available-kernels.nix { inherit lib; };
 
   # Keep this list limited to kernels still running in the fleet. Repository
   # retention alone does not mean that a kernel needs current lifecycle CI.
@@ -160,7 +161,23 @@ let
         "osctl/ct-runscript-v2"
         "osctl/ct-send-recv"
         "osctl/ct-uid-gid"
-        "osctl/nfs-cancellation"
+        {
+          template = "osctl/nfs-cancellation";
+          instances = lib.concatMap (kernelVersion: [
+            { inherit kernelVersion; }
+            {
+              inherit kernelVersion;
+              diagnostic = true;
+            }
+          ]) availableKernels.nfsCancellationKernelVersions;
+        }
+        {
+          template = "osctl/forced-stop-legacy";
+          instances = [
+            { cgroupVersion = 1; }
+            { cgroupVersion = 2; }
+          ];
+        }
         "osctl/pool/export-cleanup"
         "osctl-exportfs/mount"
         "osctld/resilience"

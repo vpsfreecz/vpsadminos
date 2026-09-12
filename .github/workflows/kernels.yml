@@ -9,12 +9,14 @@ on:
     paths:
       - .github/workflows/kernels.yml
       - os/packages/linux/**
+      - os/configs/nfs-cancellation-debug.nix
   pull_request:
     branches:
      - staging
     paths:
       - .github/workflows/kernels.yml
       - os/packages/linux/**
+      - os/configs/nfs-cancellation-debug.nix
 
 jobs:
   detect:
@@ -22,32 +24,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      kernelVersions: ${{ steps.set.outputs.kernelVersions }}
+      matrix: ${{ steps.set.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@v31.11.1
 
       - id: set
         shell: bash
         run: |
-          kernelVersions=$(nix eval --json .#lib.kernelVersions)
-          echo "Detected available kernels: $kernelVersions"
-          echo "kernelVersions=$kernelVersions" >> "$GITHUB_OUTPUT"
+          matrix=$(nix eval --json .#lib.kernelBuildMatrix)
+          echo "Detected kernel builds: $matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Kernel ${{ matrix.kernel }}
+    name: Kernel ${{ matrix.kernel }} (diagnostic=${{ matrix.diagnostic }})
     needs: detect
     runs-on: self-hosted
     strategy:
-      matrix:
-        kernel: ${{ fromJson(needs.detect.outputs.kernelVersions) }}
+      matrix: ${{ fromJson(needs.detect.outputs.matrix) }}
     timeout-minutes: 480
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
 
       - name: Determine branch name
         id: vars
@@ -58,7 +59,12 @@ jobs:
         run: |
           KERNEL_OUTPUT_VERSION="${{ matrix.kernel }}"
           KERNEL_OUTPUT_VERSION="${KERNEL_OUTPUT_VERSION//[.-]/_}"
-          make OUTPUT="ci-toplevel-kernel-$KERNEL_OUTPUT_VERSION" toplevel
+          if [[ '${{ matrix.diagnostic }}' == true ]]; then
+            KERNEL_OUTPUT="ci-nfs-debug-kernel-$KERNEL_OUTPUT_VERSION"
+          else
+            KERNEL_OUTPUT="ci-toplevel-kernel-$KERNEL_OUTPUT_VERSION"
+          fi
+          make OUTPUT="$KERNEL_OUTPUT" toplevel
           echo "BUILD_OUT=$(readlink -f os/result/toplevel)" >> $GITHUB_ENV
 
       - name: Copy toplevel closure with kernel ${{ matrix.kernel }} to binary cache
@@ -70,7 +76,7 @@ jobs:
 
       - name: Add new profile generation for kernel ${{ matrix.kernel }}
         env:
-          BRANCH: ${{ steps.vars.outputs.branch }}-kernel-${{ matrix.kernel }}
+          BRANCH: ${{ steps.vars.outputs.branch }}-kernel-${{ matrix.kernel }}${{ matrix.diagnostic && '-debug' || '' }}
         run: |
           ssh -i .ssh/cache_id \
               -o StrictHostKeyChecking=no \
