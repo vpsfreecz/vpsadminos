@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# rubocop:disable RSpec/DescribeClass, RSpec/ExpectInHook, RSpec/InstanceVariable, RSpec/VerifiedDoubles
+# rubocop:disable RSpec/DescribeClass, RSpec/VerifiedDoubles
 
 require 'stringio'
 require 'osctld/exceptions'
@@ -10,6 +10,7 @@ require 'osctld/utils/switch_user'
 require 'osctld/commands/container/console'
 require 'osctld/commands/container/exec'
 require 'osctld/commands/container/cat'
+require 'osctld/container_control/commands/cat'
 require 'osctld/commands/container/attach'
 require 'osctld/commands/container/su'
 require 'osctld/commands/container/passwd'
@@ -176,34 +177,34 @@ RSpec.describe 'container io commands' do
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
       end)
-      with_mountns = stub_const('OsCtld::ContainerControl::Commands::WithMountns', Class.new do
-        def self.run!(*, **); end
-      end)
       allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
-      allow(::IO).to receive(:copy_stream) do |src, dst|
-        dst.write(src.read)
-      end
-      allow(with_mountns).to receive(:run!) do |_ct, ns_pid:, stdout:, block:|
-        expect(ns_pid).to eq(4321)
-        expect(stdout).to equal(out_io)
-        block.call
-      end
+      allow(OsCtld::ContainerControl::Commands::Cat).to receive(:run!).and_return(
+        '/missing' => 'No such file or directory'
+      )
     end
 
-    it 'streams requested files, closes the write end, and returns per-file errors' do
-      with_tmpdir do |tmpdir|
-        @file1 = File.join(tmpdir, 'hosts')
-        @missing = File.join(tmpdir, 'missing')
-        File.write(@file1, '127.0.0.1 localhost')
+    it 'uses the attached file reader and closes the write end' do
+      @file1 = '/etc/hosts'
+      @missing = '/missing'
 
-        ret = command.execute
+      ret = command.execute
 
-        expect(ret[:status]).to be(true)
-        expect(ret[:output][:errors].keys).to eq([@missing])
-        expect(ret[:output][:errors][@missing]).to match(/No such file or directory/)
-        expect(out_io.string).to eq('127.0.0.1 localhost')
-        expect(out_io.closed?).to be(true)
-      end
+      expect(ret[:status]).to be(true)
+      expect(ret[:output][:errors]).to eq('/missing' => 'No such file or directory')
+      expect(OsCtld::ContainerControl::Commands::Cat).to have_received(:run!).with(
+        ct, files: ['/etc/hosts', '/missing'], stdout: out_io
+      )
+      expect(out_io.closed?).to be(true)
+    end
+
+    it 'closes the output when attachment fails' do
+      @file1 = '/etc/hosts'
+      @missing = '/missing'
+      allow(OsCtld::ContainerControl::Commands::Cat).to receive(:run!)
+        .and_raise(OsCtld::ContainerControl::Error, 'attach failed')
+
+      expect(command.execute).to eq(status: false, message: 'attach failed')
+      expect(out_io.closed?).to be(true)
     end
 
     attr_reader :file1
@@ -425,4 +426,4 @@ RSpec.describe 'container io commands' do
   end
 end
 
-# rubocop:enable RSpec/DescribeClass, RSpec/ExpectInHook, RSpec/InstanceVariable, RSpec/VerifiedDoubles
+# rubocop:enable RSpec/DescribeClass, RSpec/VerifiedDoubles

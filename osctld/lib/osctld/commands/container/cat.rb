@@ -16,34 +16,15 @@ module OsCtld
 
       out_w = client.recv_io
 
-      errors =
-        ContainerControl::Commands::WithMountns.run!(
-          ct,
-          ns_pid: ct.init_pid,
-          # Passing out_w as stdout will keep the file descriptor open
-          # on fork. It will however not be set as $stdout as WithMountns
-          # does not handle it, the write therefore still goes to out_w.
-          stdout: out_w,
-          block: proc do
-            ret = {}
-
-            opts[:files].each do |file|
-              File.open(file) do |io|
-                ::IO.copy_stream(io, out_w)
-              end
-            rescue SystemCallError => e
-              ret[file] = e.message
-            end
-
-            ret
-          end
-        )
+      errors = ContainerControl::Commands::Cat.run!(ct, files: opts[:files], stdout: out_w)
 
       out_w.close
 
       ok(errors:)
     rescue ContainerControl::Error => e
       error(e.message)
+    ensure
+      out_w&.close unless out_w&.closed?
     end
   end
 end

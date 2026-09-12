@@ -28,6 +28,16 @@ import ../../make-test.nix (
       # Start the container
       machine.succeeds("osctl ct start testct")
 
+      init_pid = machine.osctl_json('ct show testct').fetch('init_pid')
+      protected_paths = %w[/ /proc /proc/sys /proc/sys/net /proc/sys/kernel/random/boot_id /run]
+      protected_mounts = lambda do
+        _, text = machine.succeeds("cat /proc/#{init_pid}/mountinfo")
+        text.lines.select { |line| protected_paths.include?(line.split[4]) }.sort
+      end
+      original_mounts = protected_mounts.call
+      expect(original_mounts.map { |line| line.split[4] }).to include('/proc/sys')
+      _, boot_id = machine.succeeds('osctl ct exec testct cat /proc/sys/kernel/random/boot_id')
+
       # Wrong arguments
       machine.all_fail(
         "osctl ct cat",
@@ -61,6 +71,18 @@ import ../../make-test.nix (
         fail "expected two ID=alpine lines, found #{multi_ids.size} in #{multi_output.inspect}"
       end
 
+      # The reader must use the container's proc/user namespace view, without
+      # invalidating shared dentries or removing protected bind mounts.
+      _, cat_boot_id = machine.succeeds('osctl ct cat testct /proc/sys/kernel/random/boot_id')
+      expect(cat_boot_id).to eq(boot_id)
+      expect(protected_mounts.call).to eq(original_mounts)
+
+      # Binary transfer must not depend on text encoding or a guest cat binary.
+      machine.succeeds('osctl ct exec testct dd if=/dev/urandom of=/root/cat-binary bs=65536 count=2')
+      _, binary_hash = machine.succeeds('osctl ct exec testct sha256sum /root/cat-binary')
+      _, cat_hash = machine.succeeds('osctl ct cat testct /root/cat-binary | sha256sum')
+      expect(cat_hash.split.first).to eq(binary_hash.split.first)
+
       # Non-existent files
       machine.fails("osctl ct cat testct /no/file")
 
@@ -71,6 +93,7 @@ import ../../make-test.nix (
       if error_ids.size != 2
         fail "expected two ID=alpine lines, found #{error_ids.size} in #{error_output.inspect}"
       end
+      expect(protected_mounts.call).to eq(original_mounts)
     '';
   }
 )
