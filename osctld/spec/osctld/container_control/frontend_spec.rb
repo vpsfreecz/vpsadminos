@@ -87,16 +87,44 @@ RSpec.describe OsCtld::ContainerControl::Frontend do
     pipes = [IO.pipe, IO.pipe]
     allow(IO).to receive(:pipe).and_return(*pipes)
 
-    allow(Process).to receive(:wait).with(234) do
+    allow(frontend).to receive(:reap_failed_runner).with(234) do
       expect(pipes.flatten).to all(be_closed)
     end
     expect do
       frontend.run_exec_runner(switch_extra_namespaces: false, transient_network: true)
     end.to raise_error(Errno::ESRCH)
-    expect(Process).to have_received(:wait).with(234)
+    expect(frontend).to have_received(:reap_failed_runner).with(234)
     expect(OsCtld::CGroup).to have_received(:rmpath_all).with('/unused/attach')
   ensure
     pipes&.flatten&.each { |io| io.close unless io.closed? }
+  end
+
+  it 'reaps a real failed helper that holds its pipes and ignores TERM' do
+    stub_const("#{described_class}::FAILED_RUNNER_GRACE", 0.05)
+    reader, writer = IO.pipe
+    child = fork do
+      reader.close
+      Signal.trap('TERM', 'IGNORE')
+      writer.write('ready')
+      sleep
+    end
+    writer.close
+    expect(reader.read(5)).to eq('ready')
+    frontend = frontend_class.new(Class.new, nil)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    frontend.send(:reap_failed_runner, child)
+
+    expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 2
+    expect { Process.waitpid(child, Process::WNOHANG) }.to raise_error(Errno::ECHILD)
+    child = nil
+  ensure
+    reader&.close
+    writer&.close unless writer&.closed?
+    if child
+      Process.kill('KILL', child)
+      Process.wait(child)
+    end
   end
 
   it 'does not redelegate populated ancestors when preparing an attach runner cgroup' do
