@@ -95,7 +95,21 @@ let
       lib.unique (
         [
           "upgrade/from-6.12"
+          "upgrade/from-6.12-guests"
+          "upgrade/from-6.12-guests-v1"
+          "upgrade/from-6.12-inherited-guests"
+          "upgrade/from-6.12-management-ops"
+          "upgrade/from-6.12-v1"
+          "upgrade/from-6.12-via-6.18"
+          "upgrade/from-6.12-via-6.18-v1"
           "upgrade/from-6.18"
+          "upgrade/from-6.18-frozen"
+          "upgrade/from-6.18-guests"
+          "upgrade/from-6.18-guests-v1"
+          "upgrade/from-6.18-nested-docker"
+          "upgrade/from-6.18-nested-incus"
+          "upgrade/from-6.18-nested-podman"
+          "upgrade/from-6.18-v1"
           "cgroups/devices-v1"
           "cgroups/devices-v2"
           {
