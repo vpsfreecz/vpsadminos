@@ -8,5 +8,6 @@ module LXC
     def attach(*); end
     def init_pid; end
     def running?; end
+    def stop; end
   end
 end
