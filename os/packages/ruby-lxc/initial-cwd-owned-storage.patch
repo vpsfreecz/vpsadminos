@@ -1,0 +1,23 @@
+Subject: [PATCH] attach: own the initial_cwd string freed by option cleanup
+
+StringValuePtr returns Ruby-owned storage, not a malloc allocation. Copy
+initial_cwd before passing it to liblxc and the unconditional option cleanup.
+Otherwise a successful or failed attach with this option calls free() on a
+Ruby string and can abort the process. Preserve the existing cleanup path
+when allocation fails.
+
+--- a/ext/lxc/lxc.c
++++ b/ext/lxc/lxc.c
+@@ -591,7 +591,11 @@ lxc_attach_parse_options(VALUE rb_opts)
+     rb_initial_cwd = rb_hash_aref(rb_opts, SYMBOL("initial_cwd"));
+     if (!NIL_P(rb_initial_cwd)) {
+         if (is_string(rb_initial_cwd)) {
+-            opts->initial_cwd = StringValuePtr(rb_initial_cwd);
++            opts->initial_cwd = strdup(StringValueCStr(rb_initial_cwd));
++            if (!opts->initial_cwd) {
++                error = "unable to allocate initial_cwd";
++                goto err;
++            }
+         } else {
+             error = "initial_cwd must be a string";
+             goto err;
