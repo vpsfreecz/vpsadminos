@@ -14,8 +14,8 @@ with lib.kernel;
       };
     };
     "6.12.95" = {
-      rev = "563bbb35e8753e1bb34dad19ebeec8962ee3c1cd";
-      sha256 = "sha256-7eve2Ljhkk+fozlWkN7k5SA0gtxDo3mbvQ0hIR3OVHs=";
+      rev = "a2bdcc5b5067dcb7b8f36ef955cd6ee29c9c215a";
+      sha256 = "sha256-5dwg4DO/8PurDQ2DIDUCvNuMKrrOH2XCI6MvhOV97bI=";
       features.livepatchVariant = "nfs-cancel";
       zfs = {
         rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
