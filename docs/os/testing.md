@@ -197,12 +197,13 @@ For the 6.18 integration series, run:
 ```sh
 export VPSADMINOS_CONFIG="$PWD/os/configs/unstable.nix"
 ./test-runner.sh ls 'upgrade/*'
-./test-runner.sh test --fresh --jobs 1 'upgrade/from-6.12'
-./test-runner.sh test --fresh --jobs 1 'upgrade/from-6.18'
+./test-runner.sh test --fresh --jobs 1 -t upgrade 'upgrade/*'
 ```
 
-The cases have the `upgrade` tag, not `ci`: they build two system generations
-and can be selected explicitly or with `-t upgrade`. No predecessor worktree,
+The four cases have both `upgrade` and `ci` tags, so ordinary CI includes
+live activation. The unsuffixed cases use cgroup v2; `-v1` cases boot and
+activate cgroup v1. Each builds two generations and can also be selected
+explicitly or with `-t upgrade`. No predecessor worktree,
 production access, deployment credentials or `VPSADMINOS_UPGRADE_FROM` is
 needed. The ordinary runner fetches the pinned source. `VPSADMINOS_CONFIG`
 selects the target configuration; each case selects its predecessor
@@ -213,7 +214,12 @@ the target with `switch-to-configuration test`. The host kernel and boot ID
 must stay unchanged while the daemon changes. The test preserves container
 init/worker/HTTP identities, cgroups, veths, consoles, data and connectivity,
 then starts and restarts a new networked container and verifies its data.
-Predecessor-created containers must still stop and delete cleanly. This tests
+It also repeats activation and gracefully/abruptly restarts the daemon while
+checking workload and private mount identities. Predecessor-created never-started,
+mounted-stopped and previously-run containers must start successfully, and
+stopped exec/runscript networking must work before startup. Inherited running
+containers must stop/start, restart with normal guest init, and retain their data.
+All containers must stop and delete cleanly. This tests
 **userspace switching**, not live kernel replacement or a host reboot upgrade.
 
 Only the predecessor's **test-shell module** is replaced with the current
