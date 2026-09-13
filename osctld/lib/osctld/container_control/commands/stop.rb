@@ -45,10 +45,16 @@ module OsCtld
           end
 
         if ret.ok?
+          # LXC cannot remove a payload still containing the shutdown runner.
+          # exec_runner has now reaped it and removed its osctl.attach leaf.
+          # Remove the empty payload before the next start chooses a suffixed
+          # cgroup and leaves helpers in the old, unsuffixed sibling.
+          CGroup.rmpath_all(ct.payload_cgroup_path)
           true
 
         elsif mode == :stop
           ret = with_forced_teardown { fork_runner(args: [:kill, opts]) }
+          CGroup.rmpath_all(ct.payload_cgroup_path) if ret.ok?
           ret.ok? || ret
 
         else

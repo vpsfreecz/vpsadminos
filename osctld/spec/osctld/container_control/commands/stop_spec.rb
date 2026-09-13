@@ -28,11 +28,17 @@ RSpec.describe OsCtld::ContainerControl::Commands::Stop do
   let(:cancellation) { instance_double(OsCtld::Container::NfsCancellation, capture: nil, abort: 0) }
   let(:run_conf) { Struct.new(:init_pid, :nfs_cancellation).new(123, cancellation) }
   let(:ct) do
-    Struct.new(:running, :id, :cgroup_path, :get_run_conf, keyword_init: true) do
+    Struct.new(:running, :id, :cgroup_path, :payload_cgroup_path, :get_run_conf, keyword_init: true) do
       def running?
         running
       end
-    end.new(running:, id: 'ct1', cgroup_path: '/osctl/pool.tank/ct.ct1', get_run_conf: run_conf)
+    end.new(
+      running:,
+      id: 'ct1',
+      cgroup_path: '/osctl/pool.tank/ct.ct1',
+      payload_cgroup_path: '/osctl/pool.tank/ct.ct1/lxc.payload.ct1',
+      get_run_conf: run_conf
+    )
   end
 
   let(:payload) { '/osctl/pool.tank/ct.ct1/lxc.payload.ct1' }
@@ -42,9 +48,11 @@ RSpec.describe OsCtld::ContainerControl::Commands::Stop do
     cgroup.define_singleton_method(:thaw_tree) { |_path| nil }
     cgroup.define_singleton_method(:freeze_tree) { |_path| nil }
     cgroup.define_singleton_method(:wait_frozen) { |_path| nil }
+    cgroup.define_singleton_method(:rmpath_all) { |_path| nil }
     allow(OsCtld::CGroup).to receive(:thaw_tree)
     allow(OsCtld::CGroup).to receive(:freeze_tree)
     allow(OsCtld::CGroup).to receive(:wait_frozen)
+    allow(OsCtld::CGroup).to receive(:rmpath_all)
   end
 
   it 'rejects invalid stop modes' do
@@ -98,6 +106,8 @@ RSpec.describe OsCtld::ContainerControl::Commands::Stop do
 
     expect(frontend.execute(:kill)).to be(true)
     expect(OsCtld::CGroup).to have_received(:thaw_tree).with(payload)
+    expect(OsCtld::CGroup).to have_received(:rmpath_all).with(ct.payload_cgroup_path)
+    expect(OsCtld::CGroup).to have_received(:thaw_tree).with('/osctl/pool.tank/ct.ct1')
     expect(frontend.fork_calls).to eq([{ args: [:kill, {}] }])
   end
 
@@ -108,6 +118,8 @@ RSpec.describe OsCtld::ContainerControl::Commands::Stop do
     expect(frontend.execute(:stop)).to be(true)
     expect(cancellation).to have_received(:abort).twice
     expect(OsCtld::CGroup).to have_received(:thaw_tree).with(payload)
+    expect(OsCtld::CGroup).to have_received(:rmpath_all).with(ct.payload_cgroup_path)
+    expect(OsCtld::CGroup).to have_received(:thaw_tree).with('/osctl/pool.tank/ct.ct1')
     expect(frontend.fork_calls).to eq([{ args: [:kill, {}] }])
   end
 
@@ -123,5 +135,20 @@ RSpec.describe OsCtld::ContainerControl::Commands::Stop do
     expect(call[:args].last[:halt_from_inside]).to be(true)
     expect(call[:args].last[:timeout]).to eq(60)
     expect(call[:args].last[:message]).to include('Message from host machine test-host')
+    expect(OsCtld::CGroup).to have_received(:rmpath_all).with(ct.payload_cgroup_path)
+  end
+
+  it 'does not prune the payload on a failed shutdown' do
+    frontend.exec_result = OsCtld::ContainerControl::Result.new(false, message: 'still running')
+
+    expect(frontend.execute(:shutdown, timeout: 60)).to eq(frontend.exec_result)
+    expect(OsCtld::CGroup).not_to have_received(:rmpath_all)
+  end
+
+  it 'does not accept a shutdown leaving a populated payload' do
+    frontend.exec_result = OsCtld::ContainerControl::Result.new(true)
+    allow(OsCtld::CGroup).to receive(:rmpath_all).and_raise(Errno::EBUSY)
+
+    expect { frontend.execute(:shutdown, timeout: 60) }.to raise_error(Errno::EBUSY)
   end
 end
