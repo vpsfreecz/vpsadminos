@@ -203,6 +203,25 @@ module OsCtld
       identity&.close
     end
 
+    # A transient LXC run can stop without retiring its runtime configuration.
+    # Discard only a proven-dead pinned identity; a stopped monitor alone is
+    # insufficient proof, since an orphaned init may still be alive. Existing
+    # leases own duplicate descriptors and remain valid until their release.
+    def clear_dead_init_identity
+      identity = nil
+      @init_lease_mutex.synchronize do
+        exclusively do
+          return false if @init_identity.nil? || @init_identity.alive?
+
+          identity = @init_identity
+          @init_identity = nil
+          @init_pid = nil
+        end
+      end
+      identity.close
+      true
+    end
+
     # Acquire a descriptor-authenticated identity lease. Ordinary run locks are
     # held only while the descriptors are duplicated. Retirement and identity
     # replacement then coordinate through the lease condition instead of
