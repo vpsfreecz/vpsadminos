@@ -2,6 +2,7 @@
 
 require 'osctld/exceptions'
 require 'osctld/promise'
+require 'osctld/process_identity'
 require 'osctld/container/run_id'
 require 'osctld/container/run_configuration'
 
@@ -235,6 +236,33 @@ RSpec.describe OsCtld::Container::RunConfiguration do
     ensure
       lease&.close
       destroy_thread&.join(1)
+    end
+  end
+
+  [true, false].each do |alive|
+    it "clears stopped-run identity only when pinned init is dead (alive=#{alive})" do
+      with_tmpdir do |dir|
+        _ct, rc = build_run_configuration(root: dir)
+        identity = instance_double(OsCtld::ProcessIdentity, pid: 4321, alive?: alive, close: nil)
+        copy = instance_double(OsCtld::ProcessIdentity, close: nil)
+        allow(identity).to receive(:duplicate).and_return(copy)
+        allow(OsCtld::ProcessIdentity).to receive(:new).and_return(identity)
+        rc.init_pid = 4321
+        lease = rc.acquire_init_lease
+
+        expect(rc.clear_dead_init_identity).to be(!alive)
+        expect(rc.init_pid).to eq(alive ? 4321 : nil)
+        if alive
+          expect(identity).not_to have_received(:close)
+        else
+          expect(identity).to have_received(:close)
+        end
+        expect(copy).not_to have_received(:close)
+        lease.close
+        expect(copy).to have_received(:close)
+      ensure
+        lease&.close
+      end
     end
   end
 

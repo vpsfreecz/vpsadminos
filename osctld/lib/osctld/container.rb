@@ -356,7 +356,11 @@ module OsCtld
     def current_state
       st = ContainerControl::Commands::State.run!(self)
       self.state = st.state
-      set_init_pid(st.init_pid) if st.init_pid
+      if st.state == :stopped
+        run_conf&.clear_dead_init_identity
+      elsif st.init_pid
+        set_init_pid(st.init_pid)
+      end
       st.state
     rescue ContainerControl::Error
       self.state = :error
