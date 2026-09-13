@@ -6,8 +6,9 @@ with lib.kernel;
 
   kernels = {
     "6.18.49" = {
-      rev = "fbda79346b89b2d2486edd22e4bbbca0154d96b7";
-      sha256 = "sha256-IJjSeziEAH8QSWTjBNN8FnqBA81UTJ5nvZQsg+zOGiQ=";
+      rev = "37bf4b6e9347d916997b9e76f5204cd06c2da8d0";
+      sha256 = "sha256-1IdwQ1AM1YZDP5MlehrELJ8/LZlSS0eTnDQKHchOyhs=";
+      features.livepatchVariant = "nfs-cancel";
       structuredExtraConfig = {
         DAMON = yes;
         DAMON_VADDR = yes;
