@@ -90,7 +90,8 @@ let
     chmod -R u+w $out/vpsadminos
     echo -n ${config.system.vpsadminos.release} > $out/vpsadminos/.version
     echo -n ${config.system.vpsadminos.versionSuffix} > $out/vpsadminos/.version-suffix
-    echo -n ${config.system.vpsadminos.revision} > $out/vpsadminos/.git-revision
+    ${optionalString (config.system.vpsadminos.revision != null)
+      "echo -n ${config.system.vpsadminos.revision} > $out/vpsadminos/.git-revision"}
     echo ${config.system.vpsadminos.versionSuffix} | sed -e s/pre// > $out/vpsadminos/svn-revision
   '';
 
