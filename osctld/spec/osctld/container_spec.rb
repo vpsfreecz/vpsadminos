@@ -1060,6 +1060,22 @@ RSpec.describe OsCtld::Container do
       end
     end
 
+    it 'checks retained init liveness when runtime state becomes stopped' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        run_conf = ct.ensure_run_conf
+        run_conf.init_pid = 4321
+        allow(run_conf).to receive(:clear_dead_init_identity).and_call_original
+        allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
+          Struct.new(:state, :init_pid).new(:stopped, nil)
+        )
+
+        expect(ct.current_state).to eq(:stopped)
+        expect(run_conf).to have_received(:clear_dead_init_identity)
+        expect(ct.init_pid).to be_nil
+      end
+    end
+
     it 'ignores an init pid which exits before its identity can be pinned' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
