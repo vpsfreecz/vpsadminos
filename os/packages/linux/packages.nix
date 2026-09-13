@@ -52,7 +52,7 @@ let
         let
           baseFeatures = kernels.${kernelVersion}.features or { };
         in
-        if (baseFeatures.livepatchVariant or null) != null then
+        if (baseFeatures.livepatch or null) != null then
           # callPackage expects an attribute set, not a module merge marker.
           baseFeatures // { zfsBuiltin = true; }
         else

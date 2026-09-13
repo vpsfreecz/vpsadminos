@@ -10,12 +10,10 @@ with lib;
 let
   cfg = config.services.live-patches;
   zfsBuiltinPkg = if config.boot.zfsBuiltin then config.boot.zfsBuiltinPkg else null;
-  patchVariant = config.boot.kernelPackage.features.livepatchVariant or null;
   patchesDir = ../../../livepatches;
   availablePatches = import (patchesDir + /available-patches.nix) {
     inherit lib;
     version = config.boot.kernelVersion;
-    variant = patchVariant;
   };
   availablePatchesList = availablePatches.patchList;
   availablePatchTargets = availablePatches.patchTargets;
@@ -27,9 +25,7 @@ let
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) { };
 
   patchName = "${toString patchVersion}";
-  patchModuleName =
-    "livepatch_${toString patchVersion}"
-    + optionalString (patchVariant != null) "_${replaceStrings [ "-" ] [ "_" ] patchVariant}";
+  patchModuleName = "livepatch_${toString patchVersion}";
   installModDir = "lib/modules/${kernel.modDirVersion}/extra";
   installModPath = "${installModDir}/${patchModuleName}.ko";
 
@@ -41,10 +37,6 @@ let
         nativeBuildInputs = [ pkgs.buildPackages.binutils ];
       }
       ''
-        ${optionalString (patchVariant != null) ''
-          # A nonempty notes section without NT_GNU_BUILD_ID is not an identity.
-          readelf -n ${kernel.dev}/vmlinux | grep -Eq 'Build ID: [[:xdigit:]]{40}'
-        ''}
         objcopy -O binary --only-section=.notes ${kernel.dev}/vmlinux "$out"
         test -s "$out"
       '';

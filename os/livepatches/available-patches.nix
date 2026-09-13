@@ -1,29 +1,19 @@
 {
   lib,
   version ? null,
-  variant ? null,
   ...
 }:
 with lib;
-
-assert variant == null || variant == "nfs-cancel";
 
 let
 
   availablePatches = [
     {
-      name = "bp-6.12.95-cumulative";
-      buildPatches =
-        if variant == "nfs-cancel" then
-          [
-            "bp-6.12.95-nfs-cancel-cumulative"
-            "bp-6.12.95-nfs-cancel-uname"
-          ]
-        else
-          [
-            "bp-6.12.95-cumulative"
-            "bp-6.12.95-uname"
-          ];
+      name = "bp-6.12.95-production";
+      buildPatches = [
+        "bp-6.12.95-production"
+        "bp-6.12.95-uname"
+      ];
       filterFn = availableFor "6.12.95";
       version = 6;
       # kpatch-build groups these .ko targets into one modpost pass. Include
