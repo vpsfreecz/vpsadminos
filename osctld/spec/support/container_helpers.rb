@@ -211,6 +211,10 @@ module ContainerHelpers
         @load_conf = load_conf
       end
 
+      def clear_dead_init_identity
+        @init_pid = nil
+      end
+
       def save
         @save_calls += 1
       end
