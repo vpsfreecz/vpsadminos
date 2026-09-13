@@ -24,6 +24,8 @@ let
       stageDevInputPath =
         if builtins.isPath stage then stage + "/dev-input" else /. + (stageString + "/dev-input");
       meta = import (stageDevInputPath + "/meta.nix");
+      preparedSource =
+        if meta ? preparedSource then /. + meta.preparedSource else stageDevInputPath + "/source";
       kernelVersion = if version == null then meta.version else version;
       kernelModDirVersion = if modDirVersion == null then meta.modDirVersion else modDirVersion;
       configText = builtins.readFile (stageDevInputPath + "/config");
@@ -92,7 +94,7 @@ let
             build="$out/lib/modules/$moddir/build"
 
             mkdir -p "$src" "$build"
-            cp -a --no-preserve=ownership ${stageDevInputPath}/source/. "$src"/
+            cp -a --no-preserve=ownership ${preparedSource}/. "$src"/
             cp ${stageDevInputPath}/config "$build/.config"
             cp ${stageDevInputPath}/Module.symvers "$build/Module.symvers"
             cp ${stageDevInputPath}/vmlinux "$out/vmlinux"
@@ -139,7 +141,7 @@ let
         passthru = {
           version = kernelVersion;
           modDirVersion = kernelModDirVersion;
-          src = stageDevInputPath + "/source";
+          src = preparedSource;
           config = kernelConfig;
           configfile = stageDevInputPath + "/config";
           inherit kernelPatches features randstructSeed;
