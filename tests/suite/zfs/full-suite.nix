@@ -33,6 +33,7 @@ import ../../make-test.nix (
             zfsVmCpusEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_VM_CPUS";
             zfsUseBuiltinEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_USE_BUILTIN";
             localZfsStageEnv = builtins.getEnv "VPSADMINOS_LOCAL_ZFS_STAGE";
+            localZfsUserSourceEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_USER_SOURCE";
             localZfsStage = if localZfsStageEnv == "" then null else /. + localZfsStageEnv;
             localZfsUserOut = if localZfsStage == null then null else localZfsStage + "/user/out";
             zfsVmMemory = if zfsVmMemoryEnv != "" then lib.toInt zfsVmMemoryEnv else 12288;
@@ -141,6 +142,155 @@ import ../../make-test.nix (
                   --replace-fail '/usr/bin/sleep' '${pkgs.coreutils}/bin/sleep'
               done
 
+              # This VM already runs the real NFS server. Supply the missing
+              # Linux fixtures for the unprivileged share/unshare bodies; keep
+              # the attempted ZFS operations unprivileged and observe exports
+              # with sudo, rather than mistaking unreadable etab for no share.
+              misc_tests=$out/share/zfs/zfs-tests/tests/functional/cli_user/misc
+              substituteInPlace "$misc_tests/setup.ksh" \
+                --replace-fail 'if is_global_zone && ! is_linux' 'if is_global_zone'
+              for test in zfs_share_001_neg zfs_unshare_001_neg; do
+                substituteInPlace "$misc_tests/$test.ksh" \
+                  --replace-fail 'if is_linux || is_freebsd; then' 'if is_freebsd; then' \
+                  --replace-fail 'verify_runnable "global"' \
+                  $'verify_runnable "global"\nlog_mustnot test "$(id -u)" -eq 0\nfunction is_shared_linux {\n  typeset exports\n  exports=$(sudo -n exportfs -s) || log_fail "cannot read exports"\n  printf "%s\\n" "$exports" | awk -v fs="$1" \'$1 == fs { found=1 } END { exit !found }\'\n}'
+              done
+              # Both error messages were unconditional, so the skipped body
+              # could never reach its permission check even with valid setup.
+              substituteInPlace "$misc_tests/zfs_unshare_001_neg.ksh" \
+                --replace-fail \
+                  $'log_mustnot not_shared $TESTDIR/shared\nlog_fail "$TESTPOOL/$TESTFS/shared was not shared initially at all!"' \
+                  'log_must is_shared $TESTDIR/shared' \
+                --replace-fail \
+                  $'log_mustnot not_shared $TESTDIR/shared\nlog_fail "$TESTPOOL/$TESTFS/shared was actually unshared!"' \
+                  'log_must is_shared $TESTDIR/shared'
+
+              # Historical slowness/hang reports are not platform exclusions.
+              # Run these bodies under the existing native runner deadlines,
+              # preserving their assertions and reporting any real failure.
+              functional=$out/share/zfs/zfs-tests/tests/functional
+              # Keep the original online-removal callback and mandatory
+              # final zdb checks. A historical online-zdb failure is evidence
+              # to diagnose, not an accepted platform exclusion.
+              substituteInPlace "$functional/removal/removal_with_zdb.ksh" \
+                --replace-fail 'log_unsupported "ZDB fails during concurrent pool activity."' \
+                  'log_note "Exercising zdb with active device removal"'
+
+              # The four form-D casenorm bodies keep their upstream Linux
+              # guard.  Their failures reproduce identically on the untouched
+              # pinned OpenZFS baseline, upstream itself declines to run them
+              # on Linux (openzfs#7633), and the illumos per-lookup primitive
+              # they assert on (zlook -l / zlook -il) degrades to test -f
+              # here; two implemented module repairs were disproved in
+              # v618mergecase3 and v618mergecase4.  They are reported as SKIP
+              # with upstream's reason instead of being forced into a raw
+              # failure, and the disposition stays recorded in the canonical
+              # trackers.  The *_ci variants are left guarded for the same
+              # reason.
+
+              # Linux libshare owns zfs.exports, not exportfs-managed legacy
+              # shares. An already-off property must leave those exports
+              # alone. Reset them explicitly before the next share scenario.
+              # Bulk unshare calls exportfs -ra, which synchronizes etab with
+              # exports files. Prove that transient exports are removed by
+              # that command alone, then use a separate legacy exports file
+              # for the original bulk-unshare preservation assertion.
+              substituteInPlace "$functional/cli_root/zfs_unshare/zfs_unshare_002_pos.ksh" \
+                --replace-fail ${lib.escapeShellArg ''log_unsupported "zfs set sharenfs=off won't unshare if already off"''} \
+                  'log_note "Checking Linux exportfs-owned legacy shares"' \
+                --replace-fail ${lib.escapeShellArg "not_shared \${mntp_fs[i]} ||"} \
+                  ${lib.escapeShellArg "is_shared \${mntp_fs[i]} ||"} \
+                --replace-fail ${lib.escapeShellArg ''log_fail "'zfs set sharenfs=off' unshares file system failed."''} \
+                  ${lib.escapeShellArg ''
+                    log_fail "sharenfs=off removed a legacy export"
+                    log_must unshare_nfs ''${mntp_fs[i]}
+                    not_shared ''${mntp_fs[i]} || log_fail "exportfs failed to remove legacy export"
+                  ''} \
+                --replace-fail $'function cleanup\n{' \
+                  ${lib.escapeShellArg ''
+                    legacy_exports=
+                    function cleanup
+                    {
+                        if [[ -n $legacy_exports ]]; then
+                            log_must rm -f "$legacy_exports"
+                        fi
+                  ''} \
+                --replace-fail 'log_must zfs unshare -a' \
+                  ${lib.escapeShellArg ''
+                    log_note "exportfs -ra drops transient exports absent from exports files"
+                    log_must exportfs -ra
+                    i=0
+                    while (( i < ''${#mntp_fs[*]} )); do
+                        not_shared ''${mntp_fs[i]} || log_fail "transient export survived resync"
+                        ((i = i + 2))
+                    done
+
+                    log_must mkdir -p /etc/exports.d
+                    log_must test ! -e /etc/exports.d/zts-legacy.exports
+                    legacy_exports=/etc/exports.d/zts-legacy.exports
+                    i=0
+                    while (( i < ''${#mntp_fs[*]} )); do
+                        log_must eval "printf '%s *(rw,sync,no_subtree_check)\n' ''${mntp_fs[i]} >> $legacy_exports"
+                        ((i = i + 2))
+                    done
+                    log_must exportfs -ra
+                    i=0
+                    while (( i < ''${#mntp_fs[*]} )); do
+                        is_shared ''${mntp_fs[i]} || log_fail "configured legacy export missing"
+                        ((i = i + 2))
+                    done
+                    log_must zfs unshare -a
+                  ''}
+              substituteInPlace "$functional/cli_root/zpool_import/zpool_import_missing_003_pos.ksh" \
+                --replace-fail 'log_unsupported "Test case may be slow"' \
+                  'log_note "Exercising historical slow import case (issue 6839)"' \
+                --replace-fail 'read -r checksum1 < <(cksum $MYTESTFILE)' \
+                  'read -r checksum1 _ < <(cksum $MYTESTFILE)'
+              substituteInPlace "$functional/pool_checkpoint/checkpoint_discard_busy.ksh" \
+                --replace-fail 'log_unsupported "Skipping, issue https://github.com/openzfs/zfs/issues/12053"' \
+                  'log_note "Exercising historical busy-discard case (issue 12053)"' \
+                --replace-fail \
+                  $'function test_cleanup\n{\n\t# reset to original value\n\tlog_must restore_tunable SPA_DISCARD_MEMORY_LIMIT' \
+                  $'function test_cleanup\n{\n\t# The successful body already consumes the saved tunable file.\n\tif [[ -e $TEST_BASE_DIR/tunable-SPA_DISCARD_MEMORY_LIMIT ]]; then\n\t\tlog_must restore_tunable SPA_DISCARD_MEMORY_LIMIT\n\tfi' \
+                --replace-fail 'log_must save_tunable SPA_DISCARD_MEMORY_LIMIT' \
+                  $'original_discard_limit=$(get_tunable SPA_DISCARD_MEMORY_LIMIT)\nlog_must save_tunable SPA_DISCARD_MEMORY_LIMIT' \
+                --replace-fail $'log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT\n\nnested_wait_discard_finish' \
+                  $'log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT\nlog_must test "$(get_tunable SPA_DISCARD_MEMORY_LIMIT)" = "$original_discard_limit"\n\nnested_wait_discard_finish'
+              substituteInPlace "$functional/rsend/rsend_008_pos.ksh" \
+                --replace-fail 'log_unsupported "Occasionally hangs"' \
+                  'log_note "Exercising historical promoted-send case (issue 6066)"' \
+                --replace-fail 'log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"' \
+                  ${lib.escapeShellArg ''
+                    log_note "Starting recursive send after promotion"
+                    zfs send -R $POOL@final > $BACKDIR/pool-final-R &
+                    send_pid=$!
+                    (
+                      sleep 30
+                      if kill -0 "$send_pid" 2>/dev/null; then
+                        {
+                          date -Is
+                          ps -p "$send_pid" -o pid,ppid,stat,etime,time,wchan,args
+                          cat /proc/$send_pid/stat /proc/$send_pid/stack
+                          zfs list -r -t all -o name,origin,createtxg $POOL
+                          ${pkgs.gdb}/bin/gdb -q -nx -batch \
+                            -ex 'set pagination off' -ex 'thread apply all bt' \
+                            -ex 'info sharedlibrary' -ex 'x/16i $pc' \
+                            -ex detach -p "$send_pid"
+                        } 2>&1 | ${pkgs.coreutils}/bin/tee /run/osvm/shared-dir/zfs-full-suite/promoted-send-diagnostics.log
+                      fi
+                    ) &
+                    diagnostic_pid=$!
+                    wait "$send_pid"
+                    send_status=$?
+                    wait "$diagnostic_pid"
+                    log_must test "$send_status" -eq 0
+                  ''}
+              # Bound this already reproduced stall while collecting its
+              # first semantic checkpoint, rather than repeating a silent hour.
+              substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
+                --replace-fail 'timeout = 3600' \
+                  'timeout = $(case "$SINGLETEST" in */rsend_008_pos.ksh) echo 300 ;; *) echo 3600 ;; esac)'
+
               # OpenZFS 2.3.8 predates upstream 6f17052743, which makes the
               # L2ARC wrap test's intended write volume deterministic.
               substituteInPlace $out/share/zfs/zfs-tests/tests/functional/cache/cache_012_pos.ksh \
@@ -185,17 +335,6 @@ import ../../make-test.nix (
               ' $out/share/zfs/runfiles/linux.run > $out/share/zfs/runfiles/linux.run.new
               mv $out/share/zfs/runfiles/linux.run.new $out/share/zfs/runfiles/linux.run
 
-              # This cache-sampling assertion is a long-standing intermittent
-              # failure on the release baseline. Use ZTS's ordinary maybe list
-              # so every other failure remains unexpected and release-fatal.
-              awk '
-                { print }
-                /^maybe = \{$/ { print "    \047arc/dbufstats_001_pos.ksh\047: [\047FAIL\047, \047vpsAdminOS baseline-known cache sampling race\047]," }
-                /^maybe = \{$/ { print "    \047arc/dbufstats_001_pos\047: [\047FAIL\047, \047vpsAdminOS baseline-known cache sampling race\047]," }
-              ' $out/share/zfs/test-runner/bin/zts-report.py > $out/share/zfs/test-runner/bin/zts-report.py.new
-              mv $out/share/zfs/test-runner/bin/zts-report.py.new $out/share/zfs/test-runner/bin/zts-report.py
-              chmod +x $out/share/zfs/test-runner/bin/zts-report.py
-
               # Some test helper binaries are optional in our build, don't report
               # them as missing when they are not installed.
               if [ ! -x "$out/share/zfs/zfs-tests/bin/devname2devid" ]; then
@@ -234,11 +373,21 @@ import ../../make-test.nix (
                 ''
               else
                 (kernelPackages.genZfsUserPackage config.boot.kernelVersion).overrideAttrs (old: {
+                  # A source-only userspace repair can be exercised against
+                  # the pinned module without changing production pins.
+                  src = if localZfsUserSourceEnv == "" then old.src else lib.cleanSource (/. + localZfsUserSourceEnv);
+                  # Exercise optional upstream test bodies in this test-only
+                  # package, without adding PAM to the production ZFS build.
+                  buildInputs = (old.buildInputs or [ ]) ++ [
+                    pkgs.libaio
+                    pkgs.pam
+                  ];
                   configureFlags =
                     lib.filter (flag: !(lib.hasPrefix "--with-python=" flag)) (old.configureFlags or [ ])
                     ++ [
                       "--with-python=${zfsTestPython}/bin/python3"
                       "--enable-pyzfs"
+                      "--enable-pam"
                     ];
                   postInstall =
                     (lib.replaceStrings
@@ -246,7 +395,11 @@ import ../../make-test.nix (
                       [ "echo 'keeping zfs-tests for zfs-full-suite'" ]
                       (old.postInstall or "")
                     )
-                    + zfsTestPostInstall;
+                    + zfsTestPostInstall
+                    + ''
+                      test -x "$out/share/zfs/zfs-tests/bin/mmap_libaio"
+                      test -f "$out/lib/security/pam_zfs_key.so"
+                    '';
                 });
           in
           {
@@ -279,6 +432,32 @@ import ../../make-test.nix (
             # compares their complete pre/post-upgrade file checksums.
             services.zfs.vdevlog.enable = lib.mkForce false;
             services.nfs.server.enable = true;
+            # ZFS's protocol-specific unshare body requires real Samba
+            # usershares as well as NFS. Bind this test-only server to loopback.
+            environment.etc."samba/smb.conf".text = ''
+              [global]
+              interfaces = lo
+              bind interfaces only = yes
+              smb ports = 445
+              security = user
+              map to guest = Bad User
+              usershare path = /var/lib/samba/usershares
+              usershare max shares = 100
+              usershare owner only = no
+              usershare allow guests = yes
+              load printers = no
+              disable spoolss = yes
+            '';
+            runit.services.zfs-test-smb = {
+              run = ''
+                mkdir -p /var/lib/samba/usershares /var/lib/samba/private \
+                  /var/cache/samba /var/lock/samba /var/run/samba /var/log/samba
+                chmod 0700 /var/lib/samba/private
+                chmod 1770 /var/lib/samba/usershares
+                exec ${pkgs.samba}/bin/smbd --foreground --no-process-group \
+                  --debug-stdout --configfile=/etc/samba/smb.conf
+              '';
+            };
             boot.qemu = {
               memory = lib.mkForce zfsVmMemory;
               cpus = lib.mkForce zfsVmCpus;
@@ -288,6 +467,11 @@ import ../../make-test.nix (
                 sockets = lib.mkForce 1;
               };
             };
+
+            # Upstream io_uring probes /boot/config-$(uname -r). Expose the
+            # actual kernel build configuration instead of skipping a feature
+            # which is enabled, or fabricating a CONFIG_IO_URING=y marker.
+            environment.etc."zfs-test/kernel-config".source = config.boot.kernelPackage.configfile;
 
             # zfs-tests.sh requires ksh and passwordless sudo for the run user.
             environment.systemPackages = [
@@ -357,6 +541,8 @@ import ../../make-test.nix (
       # service finish before starting the independent pool deadline.
       machine.wait_for_service('kernel-modules')
       machine.wait_for_service('nfsd')
+      machine.wait_for_service('zfs-test-smb')
+      machine.wait_until_succeeds("ss -H -lnt sport = :445 | grep -q '127.0.0.1:445'")
       # Under heavy parallel test load, osctld/pool activation can exceed the
       # default timeout and cause false-negative bootstrap failures.
       machine.wait_for_osctl_pool('tank', timeout: 20 * 60)
@@ -408,6 +594,11 @@ import ../../make-test.nix (
         "command -v mkfs.xfs",
         "command -v parted",
         "command -v net",
+        "testparm -s /etc/samba/smb.conf",
+        "mkdir -p /usr/bin",
+        # libshare's Linux SMB backend uses the FHS path, not PATH lookup.
+        "ln -sf $(command -v net) /usr/bin/net",
+        "net usershare list",
         "command -v strings",
         "command -v getent",
         "ln -sf $(command -v bash) /bin/bash",
@@ -422,6 +613,8 @@ import ../../make-test.nix (
         "test -x /bin/mount",
         "test -x /bin/umount",
         "su - zfstest -c 'sudo -n id -un | grep -x root'",
+        "mkdir -p /boot",
+        "ln -s /etc/zfs-test/kernel-config /boot/config-$(uname -r)",
         "mkdir -p /var/tmp",
         "chmod 1777 /var/tmp",
         "mkdir -p /var/tmp/test_results",
@@ -748,12 +941,30 @@ import ../../make-test.nix (
           result_error = RuntimeError.new("ZFS test-suite run produced no live result log: #{host_live_log}")
         else
           zts_output = File.binread(host_live_log)
-          result_lines = zts_output.lines.grep(/^\[[^]]+\] Test(?: \([^)]+\))?: .* \[[A-Z]+\]$/)
+          result_lines = zts_output.lines.grep(/^\[[^\]]+\] Test(?: \([^)]+\))?: .* \[[A-Z]+\]$/)
+          failed_results = result_lines.reject do |line|
+            line.rstrip.end_with?('[PASS]', '[SKIP]')
+          end
 
           if result_lines.empty?
             result_error = RuntimeError.new("ZFS test-suite run executed zero tests; captured log: #{captured_live_log}")
-          elsif single_test && !result_lines.any? { |line| line.include?("/#{File.basename(single_test)} ") }
-            result_error = RuntimeError.new("Focused ZFS test #{single_test.inspect} produced no result; captured log: #{captured_live_log}")
+          elsif failed_results.any?
+            # Upstream expected failures still require a causal disposition;
+            # neither a full run nor a selected tag may silently accept them.
+            result_error = RuntimeError.new("ZFS test-suite raw failures: #{failed_results.join.strip}; captured log: #{captured_live_log}")
+          elsif single_test
+            selected_name = File.basename(single_test).delete_suffix('.ksh')
+            selected_results = result_lines.select do |line|
+              path = line.match(/Test(?: \([^)]+\))?: (\S+)/)[1]
+              File.basename(path).delete_suffix('.ksh') == selected_name
+            end
+            if selected_results.empty?
+              result_error = RuntimeError.new("Focused ZFS test #{single_test.inspect} produced no result; captured log: #{captured_live_log}")
+            elsif selected_results.any? { |line| !line.rstrip.end_with?('[PASS]') }
+              # Upstream expected-FAIL/SKIP classifications are not acceptance
+              # when explicitly validating one formerly skipped body.
+              result_error = RuntimeError.new("Focused ZFS test did not PASS: #{selected_results.join.strip}; captured log: #{captured_live_log}")
+            end
           end
         end
       end
