@@ -1,3 +1,63 @@
+diff --git a/Documentation/ABI/testing/sysfs-fs-nfs-cancellation b/Documentation/ABI/testing/sysfs-fs-nfs-cancellation
+new file mode 100644
+index 0000000000000..a1c90b911a8e5
+--- /dev/null
++++ b/Documentation/ABI/testing/sysfs-fs-nfs-cancellation
+@@ -0,0 +1,54 @@
++What:		/sys/fs/nfs/net/nfs_client/shutdown
++Date:		September 2026
++Contact:	vpsAdminOS developers <jakub.skokan@vpsfree.cz>
++Description:
++		Host-controlled, terminal cancellation of NFS client activity in
++		the network namespace selected by the sysfs mount. Mode is 0600.
++		Reading returns 0 before cancellation and 1 after cancellation.
++		Writing the integer 1 marks NFS clients and volumes shut down,
++		wakes initialization/recovery waiters and cancels client SUNRPC
++		tasks with EIO. Subsequent client RPC admission is terminally
++		cancelled, including clients created by a concurrent mount.
++
++		Writes require CAP_SYS_ADMIN in the initial user namespace.
++		Network namespaces owned by the initial user namespace are
++		rejected with EPERM, including non-initial network namespaces.
++		Values other than 1 are rejected with EINVAL. Repeated writes
++		of 1 are permitted. There is no operation to undo cancellation.
++
++		This is a teardown operation, not a retry policy or a substitute
++		for sync/unmount. It can discard pending writes and does not
++		wait for all tasks, mounts or namespace references to drain.
++		It cancels all client SUNRPC activity in the namespace, not
++		only RPC belonging to one NFS mount (for example, NLM and
++		rpcbind client calls are also affected). NFS server activity is
++		not itself shut down. Other network namespaces are not selected.
++		Create fresh namespaces before restarting the workload.
++
++What:		/sys/fs/nfs/net/nfs_client/shutdown_tree
++Date:		September 2026
++Contact:	vpsAdminOS developers <jakub.skokan@vpsfree.cz>
++Description:
++		Host-controlled, terminal cancellation of client SUNRPC and NFS
++		for the user namespace owning the network namespace selected by
++		the sysfs mount, and all descendants of that user namespace.
++		The permissions, accepted write value, error handling, data-loss
++		warning and non-waiting semantics are as for shutdown above.
++
++		Writing 1 installs a permanent user-namespace admission barrier
++		before cancelling existing clients and marking NFS volumes shut
++		down. The scope includes every network namespace owned by that
++		user namespace or a descendant, even if no process occupies it
++		or its creation is still in progress. Future network namespaces
++		and future descendant user namespaces inherit the barrier.
++		Sibling or ancestor user namespaces are not selected.
++
++		Reading returns 1 when the owner or any ancestor carries this
++		barrier, otherwise 0. Cancelling only one network namespace via
++		shutdown does not set the tree barrier. There is no reset: a
++		restarted workload needs a fresh user namespace outside the
++		cancelled subtree, as well as fresh network namespaces.
++
++		The caller must authenticate namespace ownership and select
++		the intended teardown root. Two workloads sharing the same
++		owner user namespace cannot be isolated by this operation.
 diff --git a/Documentation/netlink/specs/handshake.yaml b/Documentation/netlink/specs/handshake.yaml
 index 090fc11da4604..4edaf9c714398 100644
 --- a/Documentation/netlink/specs/handshake.yaml
@@ -2437,6 +2497,102 @@ index 8d15089adbfe6..6c808e52e67d6 100644
  	/* parent_could_setfcap: true if the creator if this ns had CAP_SETFCAP
  	 * in its effective capability set at the child ns creation time. */
  	bool			parent_could_setfcap;
+diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
+new file mode 100644
+index 0000000000000..e91b4fd770297
+--- /dev/null
++++ b/include/linux/vpsadminos-livepatch.h
+@@ -0,0 +1,90 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
++#define _LINUX_VPSADMINOS_LIVEPATCH_H
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_XFRM)
++int vpsadminos_xfrm_livepatch_pre_patch(void);
++void vpsadminos_xfrm_livepatch_post_patch(void);
++void vpsadminos_xfrm_livepatch_pre_unpatch(void);
++#else
++static inline int vpsadminos_xfrm_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_xfrm_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_xfrm_livepatch_pre_unpatch(void)
++{
++}
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_NETFILTER)
++void vpsadminos_nfqueue_livepatch_post_patch(void);
++void vpsadminos_nfqueue_livepatch_post_unpatch(void);
++#else
++static inline void vpsadminos_nfqueue_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_nfqueue_livepatch_post_unpatch(void)
++{
++}
++#endif
++
++#ifdef CONFIG_LIVEPATCH
++void vpsadminos_pipapo_livepatch_cleanup(void);
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_X86_64)
++struct rhashtable_iter;
++
++int vpsadminos_livepatch_text_poke_cmpxchg64(void *addr, u64 old, u64 new);
++int vpsadminos_rhashtable_walk_start_check(struct rhashtable_iter *iter);
++int vpsadminos_rhashtable_livepatch_pre_patch(void);
++void vpsadminos_rhashtable_livepatch_post_patch(void);
++void vpsadminos_rhashtable_livepatch_post_unpatch(void);
++#else
++static inline int vpsadminos_rhashtable_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_rhashtable_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_rhashtable_livepatch_post_unpatch(void)
++{
++}
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_X86) && \
++	defined(CONFIG_MITIGATION_SRSO)
++void error_entry(void);
++void paranoid_entry(void);
++void vpsadminos_saferet_paranoid_srso(void);
++void vpsadminos_saferet_paranoid_alias(void);
++void vpsadminos_saferet_error_srso(void);
++void vpsadminos_saferet_error_alias(void);
++int vpsadminos_saferet_livepatch_pre_patch(void);
++void vpsadminos_saferet_livepatch_post_patch(void);
++void vpsadminos_saferet_livepatch_post_unpatch(void);
++#else
++static inline int vpsadminos_saferet_livepatch_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_saferet_livepatch_post_patch(void)
++{
++}
++
++static inline void vpsadminos_saferet_livepatch_post_unpatch(void)
++{
++}
++#endif
++
++#endif
 diff --git a/include/net/addrconf.h b/include/net/addrconf.h
 index 363dd63babe72..135a927407e52 100644
 --- a/include/net/addrconf.h
@@ -3020,6 +3176,227 @@ index cf03d4bdfc663..0eedad5e9dcc4 100644
  
  livepatch-objs := core.o patch.o shadow.o state.o transition.o
 +livepatch-$(CONFIG_X86_64) += vpsadminos_rhashtable.o
+diff --git a/kernel/livepatch/vpsadminos_rhashtable.c b/kernel/livepatch/vpsadminos_rhashtable.c
+new file mode 100644
+index 0000000000000..18c3041b860c2
+--- /dev/null
++++ b/kernel/livepatch/vpsadminos_rhashtable.c
+@@ -0,0 +1,215 @@
++// SPDX-License-Identifier: GPL-2.0-only
++#include <linux/kernel.h>
++#include <linux/livepatch.h>
++#include <linux/memory.h>
++#include <linux/rcupdate.h>
++#include <linux/rhashtable.h>
++#include <linux/string.h>
++#include <linux/vpsadminos-livepatch.h>
++
++#include <asm/text-patching.h>
++
++#define VPSADMINOS_RHASHTABLE_STATE_ID		0x8173f7e2ce67e6caUL
++#define VPSADMINOS_RHASHTABLE_STATE_VERSION	1
++
++union vpsadminos_rhashtable_block {
++	u64 word;
++	u8 text[sizeof(u64)];
++};
++
++static const union vpsadminos_rhashtable_block
++vpsadminos_rhashtable_boot_entry = {
++	.text = { 0x55, 0x48, 0x89, 0xe5, 0x41, 0x56, 0x41, 0x55 },
++};
++
++struct vpsadminos_rhashtable_transition {
++	u64 original;
++	u64 patched;
++};
++
++static struct klp_state vpsadminos_rhashtable_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_RHASHTABLE_STATE_ID,
++	.version = VPSADMINOS_RHASHTABLE_STATE_VERSION,
++};
++
++static struct vpsadminos_rhashtable_transition
++vpsadminos_rhashtable_transition;
++static struct vpsadminos_rhashtable_transition
++*vpsadminos_rhashtable_predecessor;
++static u64 vpsadminos_rhashtable_previous;
++static bool vpsadminos_rhashtable_text_patched;
++
++noinline int
++vpsadminos_rhashtable_walk_start_check(struct rhashtable_iter *iter)
++	__acquires(RCU)
++{
++	struct rhashtable *ht = iter->ht;
++	bool rhlist = ht->rhlist;
++
++	rcu_read_lock();
++
++	spin_lock(&ht->lock);
++	if (iter->walker.tbl)
++		list_del(&iter->walker.list);
++	spin_unlock(&ht->lock);
++
++	if (iter->end_of_table)
++		return 0;
++	if (!iter->walker.tbl) {
++		iter->walker.tbl = rht_dereference_rcu(ht->tbl, ht);
++		iter->slot = 0;
++		iter->skip = 0;
++		iter->p = NULL;
++		return -EAGAIN;
++	}
++
++	if (iter->p && !rhlist) {
++		struct rhash_head *p;
++		int skip = 0;
++
++		rht_for_each_rcu(p, iter->walker.tbl, iter->slot) {
++			skip++;
++			if (p == iter->p) {
++				iter->skip = skip;
++				goto found;
++			}
++		}
++		iter->p = NULL;
++	} else if (iter->p && rhlist) {
++		struct rhash_head *p;
++		struct rhlist_head *list;
++		int skip = 0;
++
++		rht_for_each_rcu(p, iter->walker.tbl, iter->slot) {
++			for (list = container_of(p, struct rhlist_head, rhead);
++			     list;
++			     list = rcu_dereference(list->next)) {
++				skip++;
++				if (list == iter->list) {
++					iter->p = p;
++					iter->skip = skip;
++					goto found;
++				}
++			}
++		}
++		iter->p = NULL;
++	}
++found:
++	return 0;
++}
++
++static int vpsadminos_rhashtable_make_jump(u8 *text, void *target)
++{
++	void *site = rhashtable_walk_start_check;
++	union text_poke_insn insn;
++	s64 displacement = (s64)(unsigned long)target -
++			   ((s64)(unsigned long)site + JMP32_INSN_SIZE);
++
++	if (displacement != (s64)(s32)displacement)
++		return -ERANGE;
++
++	__text_gen_insn(&insn, JMP32_INSN_OPCODE, site, target,
++			JMP32_INSN_SIZE);
++	memcpy(text, insn.text, JMP32_INSN_SIZE);
++	return 0;
++}
++
++int vpsadminos_rhashtable_livepatch_pre_patch(void)
++{
++	struct vpsadminos_rhashtable_transition *prev_transition = NULL;
++	struct klp_state *prev_state;
++	union vpsadminos_rhashtable_block expected;
++	union vpsadminos_rhashtable_block patched;
++	void *site = rhashtable_walk_start_check;
++	void *target = vpsadminos_rhashtable_walk_start_check;
++	int ret;
++
++	if (vpsadminos_rhashtable_text_patched)
++		return -EBUSY;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_RHASHTABLE_STATE_ID);
++	if (prev_state) {
++		if (prev_state->version != VPSADMINOS_RHASHTABLE_STATE_VERSION) {
++			pr_err("livepatch rhashtable predecessor state version %u is incompatible\n",
++			       prev_state->version);
++			return -EINVAL;
++		}
++		prev_transition = READ_ONCE(prev_state->data);
++	}
++
++	if (prev_transition) {
++		expected.word = READ_ONCE(prev_transition->patched);
++		vpsadminos_rhashtable_transition.original =
++			READ_ONCE(prev_transition->original);
++	} else {
++		expected = vpsadminos_rhashtable_boot_entry;
++		vpsadminos_rhashtable_transition.original = expected.word;
++	}
++
++	memset(patched.text, 0x90, sizeof(patched.text));
++	ret = vpsadminos_rhashtable_make_jump(patched.text, target);
++	if (ret)
++		return ret;
++
++	vpsadminos_rhashtable_previous = expected.word;
++	vpsadminos_rhashtable_transition.patched = patched.word;
++	vpsadminos_rhashtable_predecessor = prev_transition;
++
++	ret = vpsadminos_livepatch_text_poke_cmpxchg64(site, expected.word, patched.word);
++	if (ret) {
++		pr_err("livepatch rhashtable entry text does not match 6.12.95\n");
++		return ret;
++	}
++	vpsadminos_rhashtable_text_patched = true;
++
++	return 0;
++}
++
++void vpsadminos_rhashtable_livepatch_post_patch(void)
++{
++	struct klp_state *prev_state;
++
++	if (!vpsadminos_rhashtable_text_patched)
++		return;
++
++	WRITE_ONCE(vpsadminos_rhashtable_state.data,
++		   &vpsadminos_rhashtable_transition);
++	/* No new entry can reach predecessor text after the installed jump. */
++	synchronize_rcu_tasks();
++	prev_state = klp_get_prev_state(VPSADMINOS_RHASHTABLE_STATE_ID);
++	if (prev_state &&
++	    READ_ONCE(prev_state->data) == vpsadminos_rhashtable_predecessor)
++		WRITE_ONCE(prev_state->data, NULL);
++}
++
++void vpsadminos_rhashtable_livepatch_post_unpatch(void)
++{
++	u64 patched;
++	u64 restore;
++	bool committed;
++	void *site = rhashtable_walk_start_check;
++	int ret;
++
++	committed = READ_ONCE(vpsadminos_rhashtable_state.data) ==
++		    &vpsadminos_rhashtable_transition;
++	if (!vpsadminos_rhashtable_text_patched)
++		return;
++
++	if (committed)
++		restore = vpsadminos_rhashtable_transition.original;
++	else
++		restore = vpsadminos_rhashtable_previous;
++
++	patched = vpsadminos_rhashtable_transition.patched;
++	ret = vpsadminos_livepatch_text_poke_cmpxchg64(site, patched, restore);
++	if (ret)
++		panic("livepatch rhashtable cannot safely restore entry text");
++
++	/* Drain callers redirected before the restoration completed. */
++	synchronize_rcu_tasks();
++	vpsadminos_rhashtable_text_patched = false;
++	vpsadminos_rhashtable_predecessor = NULL;
++	WRITE_ONCE(vpsadminos_rhashtable_state.data, NULL);
++}
 diff --git a/kernel/signal.c b/kernel/signal.c
 index b832158a9c460..e6e812f8b80ff 100644
 --- a/kernel/signal.c
