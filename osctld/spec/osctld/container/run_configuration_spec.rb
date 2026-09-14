@@ -358,4 +358,97 @@ RSpec.describe OsCtld::Container::RunConfiguration do
       expect { rc.destroy }.not_to raise_error
     end
   end
+
+  describe '#adopt_live_root' do
+    def stub_mountinfo(*lines)
+      stub = allow(File).to receive(:foreach).with('/proc/self/mountinfo')
+      lines.each { |line| stub.and_yield("#{line}\n") }
+    end
+
+    before do
+      stub_const('OsCtl::Lib::Zfs::Dataset', Class.new do
+        attr_reader :name, :base
+
+        def initialize(name, base: nil)
+          @name = name
+          @base = base
+        end
+      end)
+
+      stub_const('OsCtld::GarbageCollector', Class.new do
+        class << self
+          attr_accessor :adopted
+
+          def add_container_run_dataset(run_conf, dataset)
+            @adopted = [run_conf, dataset]
+          end
+        end
+      end)
+    end
+
+    it 'adopts the mounted impermanence dataset of the container' do
+      with_tmpdir do |dir|
+        ct, rc = build_run_configuration(root: dir)
+        name = "#{ct.dataset}.impermanence-ab12cd"
+        stub_mountinfo(
+          '36 25 0:38 / /proc rw,relatime - proc proc rw',
+          "37 25 0:39 /private #{name} rw,relatime,idmapped - zfs #{name} rw,xattr,noacl,casesensitive"
+        )
+
+        expect(rc.adopt_live_root).to be(true)
+        expect(rc.dataset.name).to eq(name)
+        expect(rc.destroy_dataset_on_stop?).to be(true)
+        expect(OsCtld::GarbageCollector.adopted).to eq([rc, rc.dataset])
+      end
+    end
+
+    it 'refuses a mounted dataset that is not this container impermanence dataset' do
+      with_tmpdir do |dir|
+        ct, rc = build_run_configuration(root: dir)
+        stub_mountinfo("#{ct.dataset} #{ct.dataset} rw,relatime - zfs #{ct.dataset} rw")
+
+        expect(rc.adopt_live_root).to be(false)
+        expect(rc.dataset).to eq(ct.dataset)
+      end
+    end
+
+    it 'refuses a mount table without an impermanence ZFS mount' do
+      with_tmpdir do |dir|
+        ct, rc = build_run_configuration(root: dir)
+        stub_mountinfo('/ / rw,relatime - tmpfs tmpfs rw')
+
+        expect(rc.adopt_live_root).to be(false)
+        expect(rc.dataset).to eq(ct.dataset)
+      end
+    end
+
+    it 'stays put when the mount table cannot be read' do
+      with_tmpdir do |dir|
+        _ct, rc = build_run_configuration(root: dir)
+        allow(File).to receive(:foreach).with('/proc/self/mountinfo').and_raise(Errno::ENOENT)
+
+        expect(rc.adopt_live_root).to be(false)
+      end
+    end
+
+    it 'does nothing when the live dataset already is the boot dataset' do
+      with_tmpdir do |dir|
+        ct, rc = build_run_configuration(root: dir)
+        name = "#{ct.dataset}.impermanence-ab12cd"
+        rc.boot_from(
+          dataset: FakeObjects::FakeDataset.new(name: name, mountpoint: File.join(dir, 'live')),
+          distribution: 'nixos',
+          version: '24.05',
+          arch: 'x86_64',
+          vendor: 'vpsadminos',
+          variant: 'impermanence'
+        )
+        stub_mountinfo("37 25 0:39 /private #{name} rw,relatime,idmapped - zfs #{name} rw")
+
+        expect(rc.adopt_live_root).to be(false)
+        expect(rc.dataset.name).to eq(name)
+        expect(OsCtld::GarbageCollector.adopted).to be_nil
+      end
+    end
+  end
 end
