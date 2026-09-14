@@ -112,6 +112,58 @@ module OsCtld
       end
     end
 
+    # Adopt the live run state of a container that is already running while its
+    # run configuration is missing, e.g. because the daemon was replaced
+    # together with the system generation and the pool runtime directory did
+    # not survive that switch.
+    #
+    # An impermanence container runs from an ephemeral dataset that is named
+    # when the container starts, so without the run configuration that dataset
+    # is recorded nowhere else. It stays mounted for as long as the container
+    # runs, so it is identified by name from the mount table here; the
+    # container's own root is not usable for this, because LXC pivots into it
+    # (see lxc_setup_rootfs_switch_root()) and the host only sees it as "/".
+    #
+    # Adopt it, keep it destroyed on stop and register it for cleanup: live
+    # operations then target the container's real root and the ephemeral
+    # dataset cannot leak.
+    #
+    # @return [Boolean] whether the live root was adopted
+    def adopt_live_root
+      prefix = "#{ct.dataset}.impermanence-"
+      name = nil
+
+      File.foreach('/proc/self/mountinfo') do |line|
+        fields = line.split
+        sep = fields.index('-')
+        next unless sep && fields[sep + 1] == 'zfs'
+
+        source = fields[sep + 2]
+        next unless source.start_with?(prefix)
+
+        name = source
+        break
+      end
+
+      return false if name.nil? || name == dataset.name
+
+      ds = OsCtl::Lib::Zfs::Dataset.new(name, base: name)
+
+      boot_from(
+        dataset: ds,
+        distribution: distribution,
+        version: version,
+        arch: arch,
+        vendor: vendor,
+        variant: variant,
+        destroy_dataset_on_stop: true
+      )
+      GarbageCollector.add_container_run_dataset(self, ds)
+      true
+    rescue StandardError
+      false
+    end
+
     # Update distribution info
     def set_distribution(distribution:, version:, arch:, vendor:, variant:)
       exclusively do
