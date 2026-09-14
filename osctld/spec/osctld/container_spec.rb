@@ -787,6 +787,68 @@ RSpec.describe OsCtld::Container do
       end
     end
 
+    it 'adopts the live run state of an impermanence container without an init pid' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.instance_variable_set('@impermanence', OsCtld::Container::Impermanence.new({}))
+        allow(ct).to receive(:reconfigure)
+        adopted = run_conf_class.new(ct, load_conf: false)
+        adopted.adopt_live_root_return = true
+        allow(run_conf_class).to receive(:new).and_return(adopted)
+
+        expect(ct.adopt_run_conf).to eq(adopted)
+        expect(adopted.adopt_live_root_calls).to eq([true])
+        expect(adopted.init_pid).to be_nil
+        expect(adopted.save_calls).to eq(2)
+        expect(ct).to have_received(:reconfigure).twice
+      end
+    end
+
+    it 'keeps the container dataset for a container that is not impermanent' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        allow(ct).to receive(:reconfigure)
+        run_conf = run_conf_class.new(ct, load_conf: false)
+        allow(run_conf_class).to receive(:new).and_return(run_conf)
+
+        expect(ct.adopt_run_conf).to eq(run_conf)
+        expect(run_conf.adopt_live_root_calls).to be_empty
+        expect(run_conf.save_calls).to eq(1)
+        expect(ct).to have_received(:reconfigure).once
+      end
+    end
+
+    it 'adopts the live root when the state probe already reconstructed the run configuration' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.instance_variable_set('@impermanence', OsCtld::Container::Impermanence.new({}))
+        allow(ct).to receive(:reconfigure)
+        probed = run_conf_class.new(ct, load_conf: false)
+        probed.adopt_live_root_return = true
+        ct.instance_variable_set('@run_conf', probed)
+
+        expect(ct.adopt_run_conf).to eq(probed)
+        expect(probed.adopt_live_root_calls).to eq([true])
+        expect(probed.save_calls).to eq(1)
+        expect(ct).to have_received(:reconfigure).once
+      end
+    end
+
+    it 'keeps the container dataset when the live root cannot be adopted' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.instance_variable_set('@impermanence', OsCtld::Container::Impermanence.new({}))
+        allow(ct).to receive(:reconfigure)
+        run_conf = run_conf_class.new(ct, load_conf: false)
+        allow(run_conf_class).to receive(:new).and_return(run_conf)
+
+        expect(ct.adopt_run_conf).to eq(run_conf)
+        expect(run_conf.adopt_live_root_calls).to eq([true])
+        expect(run_conf.save_calls).to eq(1)
+        expect(ct).to have_received(:reconfigure).once
+      end
+    end
+
     it 'moves the active run configuration to past_run_conf when stopped' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
