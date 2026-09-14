@@ -190,9 +190,9 @@ module ContainerHelpers
       end
 
       attr_reader :ct, :rootfs, :destroy_calls, :retirement_calls, :save_calls,
-                  :distribution_updates
+                  :distribution_updates, :adopt_live_root_calls
       attr_accessor :dataset, :distribution, :version, :arch, :vendor, :variant,
-                    :cpu_package, :init_pid
+                    :cpu_package, :init_pid, :adopt_live_root_return
 
       def initialize(ct, load_conf: true)
         @ct = ct
@@ -208,11 +208,17 @@ module ContainerHelpers
         @destroy_calls = 0
         @retirement_calls = 0
         @distribution_updates = []
+        @adopt_live_root_calls = []
         @load_conf = load_conf
       end
 
       def clear_dead_init_identity
         @init_pid = nil
+      end
+
+      def adopt_live_root
+        @adopt_live_root_calls << true
+        adopt_live_root_return
       end
 
       def save
