@@ -698,7 +698,7 @@ module OsCtld
 
         running = ct.fresh_state == :running
 
-        ct.ensure_run_conf if running
+        ct.adopt_run_conf if running
         Monitor::Master.monitor(ct)
         Console.reconnect_tty0(ct) if running
 
