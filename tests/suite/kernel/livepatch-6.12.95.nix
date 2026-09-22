@@ -2161,6 +2161,31 @@ import ../../make-test.nix (
           remove_module(machine, CORRECTED_NAME)
         end
 
+        it "transitions the exact v6 anchor directly to v7 and retains it on a failed activation" do
+          remove_module(machine, CORRECTED_NAME)
+          wait_for_patch(machine, CORRECTED_NAME, 0)
+          remove_module(machine, PREDECESSOR_NAME)
+          machine.succeeds("insmod #{PREDECESSOR_MODULE}")
+          wait_for_patch(machine, PREDECESSOR_NAME, 1)
+
+          hold = "/sys/module/livepatch_test_pernet_hold/parameters/hold"
+          held = "/sys/module/livepatch_test_pernet_hold/parameters/held"
+          machine.succeeds("sh -c 'echo 1 > #{hold}'")
+          machine.wait_until_succeeds("test \"$(cat #{held})\" = Y")
+          status, output = machine.execute("insmod #{CORRECTED_MODULE}")
+          expect(status).not_to eq(0), output
+          machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
+          wait_for_patch(machine, PREDECESSOR_NAME, 1)
+
+          machine.succeeds("sh -c 'echo 0 > #{hold}'")
+          machine.wait_until_succeeds("test \"$(cat #{held})\" = N")
+          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          wait_for_patch(machine, CORRECTED_NAME, 1)
+          wait_for_patch(machine, PREDECESSOR_NAME, 0)
+          machine.succeeds("rmmod #{PREDECESSOR_NAME}")
+          machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
+        end
+
         it "repairs legacy and future nested-SVM x2APIC bitmaps" do
           machine.succeeds("modprobe -r kvm_amd >/dev/null 2>&1 || true")
           machine.succeeds("modprobe kvm_amd")
