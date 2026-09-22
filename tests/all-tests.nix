@@ -167,6 +167,7 @@ let
         "osctl/ct-send-recv"
         "osctl/ct-uid-gid"
         "osctl/nfs-cancellation"
+        "osctl/nfs-cancellation-native110"
         "osctl/pool/export-cleanup"
         "osctl-exportfs/mount"
         "osctld/resilience"
