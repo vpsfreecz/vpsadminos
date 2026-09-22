@@ -54,20 +54,16 @@ module OsCtld
       File.join(ct.group.full_cgroup_path(ct.user), 'monitor')
     end
 
-    def initialize(pool, user, group, stdout, containers:)
+    def initialize(pool, user, group, stdout)
       @pool = pool
       @user = user
       @group = group
       @stdout = stdout
-      @containers = containers
       @last_line = nil
     end
 
     def monitor
-      exit_checks = Queue.new
-      exit_thread = Thread.new do
-        check_exiting_runs until exit_checks.pop(timeout: 1)
-      end
+      # First, get container's current state
 
       until @stdout.eof?
         line = @stdout.readline
@@ -85,26 +81,9 @@ module OsCtld
     rescue IOError
       log(:info, :monitor, "Monitoring of #{@pool.name}:#{@user.name}:#{@group.name} failed")
       false
-    ensure
-      exit_checks << true if exit_checks
-      exit_thread&.join
     end
 
     protected
-
-    def check_exiting_runs
-      @containers.call.each do |ct|
-        next unless ct.pool == @pool && ct.user == @user && ct.group == @group
-
-        run_conf = ct.run_conf
-        next unless run_conf
-
-        run_conf.nfs_cancellation.capture(run_conf.init_pid)
-        run_conf.nfs_cancellation.abort_if_exiting
-      rescue StandardError => e
-        log(:warn, :monitor, "Unable to check exiting container #{ct.ident}: #{e.message}")
-      end
-    end
 
     def parse(line)
       if /'([^']+)' changed state to \[([^\]]+)\]/ =~ line
@@ -131,13 +110,6 @@ module OsCtld
 
       return if ct.state == :error
 
-      # PID1 has exited by STOPPING, but the LXC monitor can still block while
-      # releasing NFS mounts. Cancel the retained run before publishing a
-      # terminal state that lets a new start discard its namespace handles.
-      if %i[stopping stopped aborted].include?(change[:state])
-        cancel_exited_run(ct)
-      end
-
       # When transitioning to `running`, send the event only after init_pid was set
       # below, so that when {Commands::Container::Start} finishes waiting and returns,
       # the init_pid is not nil.
@@ -153,7 +125,6 @@ module OsCtld
         begin
           init_pid = ContainerControl::Commands::State.run!(ct).init_pid
           ct.ensure_run_conf.init_pid = init_pid
-          ct.ensure_run_conf.nfs_cancellation.capture(init_pid)
         rescue ContainerControl::Error => e
           log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
         end
@@ -176,14 +147,6 @@ module OsCtld
       when :stopped, :aborted
         ct.mounts.prune
       end
-    end
-
-    def cancel_exited_run(ct)
-      ct.run_conf&.nfs_cancellation&.abort
-    rescue StandardError => e
-      # A failed cancellation must be visible without killing the shared
-      # pool/user/group monitor and losing future state changes.
-      log(:warn, :monitor, "Unable to cancel NFS for exited container #{ct.ident}: #{e.message}")
     end
   end
 end

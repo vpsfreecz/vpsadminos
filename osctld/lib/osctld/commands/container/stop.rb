@@ -107,23 +107,16 @@ module OsCtld
     # @return [Boolean]
     def force_kill(ct)
       recovery = Container::Recovery.new(ct)
-      run_conf = ct.get_run_conf
-      run_conf.nfs_cancellation.capture(run_conf.init_pid)
 
       # Freeze all processes before the kill
       CGroup.freeze_tree(ct.cgroup_path)
 
-      begin
-        run_conf.nfs_cancellation.abort
-        CGroup.wait_frozen(ct.cgroup_path)
-        run_conf.nfs_cancellation.abort
+      # Send SIGKILL to all processes
+      progress('Killing container processes')
+      recovery.kill_all
 
-        # Send SIGKILL to all processes
-        progress('Killing container processes')
-        recovery.kill_all
-      ensure
-        CGroup.thaw_tree(ct.cgroup_path)
-      end
+      # Thaw all processes
+      CGroup.thaw_tree(ct.cgroup_path)
 
       # Give the system some time to kill the processes
       sleep(10)

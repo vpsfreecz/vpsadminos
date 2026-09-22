@@ -143,7 +143,6 @@ let
           instances = livepatchLifecycleInstances;
         }
         "kernel/vpsadminos"
-        "kernel/livepatch-kernel-identity"
         "kernel/module-autoload"
         "osctl/ct-cat"
         "osctl/ct-chown-filecaps"
@@ -160,7 +159,6 @@ let
         "osctl/ct-runscript-v2"
         "osctl/ct-send-recv"
         "osctl/ct-uid-gid"
-        "osctl/nfs-cancellation"
         "osctl/pool/export-cleanup"
         "osctl-exportfs/mount"
         "osctld/resilience"
