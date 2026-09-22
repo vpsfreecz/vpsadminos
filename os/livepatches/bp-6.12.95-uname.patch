@@ -1,14 +1,20 @@
 diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
-index 4ef21237c69a90d73d476fa749baff4a6874dfac..995168be4b01979208d0668939a204a11e6bbc6d 100644
+index ae3f75f61238e..e43810c388ccd 100644
 --- a/kernel/bpf/core.c
 +++ b/kernel/bpf/core.c
-@@ -41 +41,3 @@
--#include <linux/vpsadminos-livepatch.h>
-+#include <linux/vpsadminos-livepatch.h>
+@@ -39,6 +39,8 @@
+ #include <linux/memcontrol.h>
+ #include <linux/execmem.h>
+ #include <linux/vpsadminos-livepatch.h>
 +#include <linux/utsname.h>
 +#include <linux/vpsadminos-livepatch-build.h>
-@@ -922 +924,49 @@
--static void vpsadminos_pipapo_livepatch_post_patch(void)
+ #ifdef CONFIG_LIVEPATCH
+ #include <linux/livepatch.h>
+ #endif
+@@ -920,6 +922,54 @@ __aligned(__alignof__(struct klp_state)) = {
+ 	.version = 2,
+ };
+ 
 +#define VPSADMINOS_UTS_RELEASE_STATE_ID	0x008aa4605ec26339UL
 +#define VPSADMINOS_UTS_RELEASE_STATE_ACTIVE	((void *)1UL)
 +
@@ -57,12 +63,22 @@ index 4ef21237c69a90d73d476fa749baff4a6874dfac..995168be4b01979208d0668939a204a1
 +	WRITE_ONCE(vpsadminos_uts_release_state.data, NULL);
 +}
 +
-+static void vpsadminos_pipapo_livepatch_post_patch(void)
-@@ -1004 +1054,2 @@
--	vpsadminos_livepatch_flush_tlb_all();
-+	vpsadminos_livepatch_flush_tlb_all();
+ static void vpsadminos_pipapo_livepatch_post_patch(void)
+ {
+ 	struct klp_state *prev_state;
+@@ -1053,6 +1103,7 @@ static void vpsadminos_livepatch_post_patch(struct klp_object *obj)
+ 	vpsadminos_xfrm_livepatch_post_patch();
+ 	vpsadminos_bpf_jit_ibpb();
+ 	vpsadminos_livepatch_flush_tlb_all();
 +	vpsadminos_livepatch_set_uname();
-@@ -1020 +1071,2 @@
--	vpsadminos_saferet_livepatch_post_unpatch();
-+	vpsadminos_saferet_livepatch_post_unpatch();
+ }
+ 
+ static void vpsadminos_livepatch_pre_unpatch(struct klp_object *obj)
+@@ -1071,6 +1122,7 @@ static void vpsadminos_livepatch_post_unpatch(struct klp_object *obj)
+ 	vpsadminos_pipapo_livepatch_post_unpatch();
+ 	vpsadminos_rhashtable_livepatch_post_unpatch();
+ 	vpsadminos_saferet_livepatch_post_unpatch();
 +	vpsadminos_livepatch_restore_uname();
+ }
+ 
+ static struct vpsadminos_pre_patch_callback vpsadminos_pre_patch_data
