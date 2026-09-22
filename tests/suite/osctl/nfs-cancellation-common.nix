@@ -553,10 +553,12 @@
                   "echo 1 > /sys/fs/nfs/net/nfs_client/shutdown_tree'",
               )
               machine.wait_until_succeeds(
-                "test -z \"$(osctl ct exec nfs1 pidof mount.nfs)\"",
+                "osctl ct exec nfs1 true && test -z \"$(osctl ct exec nfs1 pidof mount.nfs || true)\"",
                 timeout: 60,
               )
-              # The racily blocked mount resolved; admission stays closed.
+              # Prove admission is closed independent of the test's own outage:
+              # reachable network + fast refusal.
+              rules.each { |rule| machine.succeeds("iptables -D #{rule} || true") }
               machine.fails(
                 "osctl ct exec nfs1 mount -t nfs " \
                   "-o vers=#{version},proto=tcp,timeo=10,retrans=2,nolock " \
@@ -567,7 +569,7 @@
               expect(machine.succeeds("osctl ct show -H -o state nfs1")[1].strip).to eq('stopped')
               machine.succeeds("osctl ct exec nfs2 sh -c 'echo race-survived > /mnt/nfs/other-client'")
             ensure
-              rules.each { |rule| machine.succeeds("iptables -D #{rule}") }
+              rules.each { |rule| machine.succeeds("iptables -D #{rule} || true") }
             end
             machine.succeeds("osctl ct start nfs1", timeout: 60)
             mount_nfs('nfs1', version)
