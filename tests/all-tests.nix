@@ -78,7 +78,7 @@ let
       [ ];
   livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" ] else [ ];
   nfsTransitionTests =
-    if nfsTransitionTestEnabled then [ "kernel/livepatch-nfs-transition-agent3" ] else [ ];
+    if nfsTransitionTestEnabled then [ "kernel/livepatch-nfs-transition" ] else [ ];
   sctpHostileTests = if sctpHostileTestEnabled then [ "kernel/livepatch-sctp-hostile" ] else [ ];
   localOnlyTests = lib.unique (
     proactiveSwapTests ++ schedProxyExecTests ++ schedProxyExecLockBadneighborTests

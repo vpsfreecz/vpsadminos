@@ -1,4 +1,4 @@
-# DRAFT (agent3, 2026-09-14) — acceptance case for the NFS cancellation livepatch
+# Acceptance case for the NFS cancellation livepatch
 #
 # Question this test answers: does the cancellation module's transition complete
 # and reverse when an *idle* NFSv4 client's state manager is already parked in
@@ -12,7 +12,7 @@
 # Run (test-runner, from the OS tree):
 #   VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE=<store>/lib/modules/6.12.95/extra/livepatch_7.ko \
 #     ./test-runner.sh test -f --stop-on-failure -j 1 -t ci \
-#     --state-dir <state>/run kernel/livepatch-nfs-transition-agent3
+#     --state-dir <state>/run kernel/livepatch-nfs-transition
 #
 # The test is registered only when VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE is
 # set, so ordinary test discovery and CI do not require a task-local module.
@@ -21,7 +21,7 @@ import ../../make-test.nix (
   let
     moduleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE";
     # The livepatch name is parameterised so a module with a different name
-    # (for example the cancellation variant livepatch_7_nfs_cancel) can run
+    # (for example a differently named single-series build) can run
     # through the same case; the default is the single-series name.
     moduleNameEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_MODULE_NAME";
     moduleName = if moduleNameEnv == "" then "livepatch_7" else moduleNameEnv;
