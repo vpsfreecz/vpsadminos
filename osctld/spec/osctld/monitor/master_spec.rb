@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'osctld/container/nfs_cancellation'
 # rubocop:disable RSpec/SubjectStub
 
 require 'osctld/container_control/command'
@@ -17,7 +18,8 @@ RSpec.describe OsCtld::Monitor::Master do
     pool = Struct.new(:name).new(pool_name)
     user = Struct.new(:name).new(user_name)
     group = Struct.new(:name).new(group_name)
-    run_conf = Struct.new(:init_pid).new(nil)
+    cancellation = instance_double(OsCtld::Container::NfsCancellation, capture: nil)
+    run_conf = Struct.new(:init_pid, :nfs_cancellation).new(nil, cancellation)
 
     Struct.new(:id, :pool, :user, :group, :state, :run_conf, keyword_init: true) do
       def ident
@@ -49,7 +51,7 @@ RSpec.describe OsCtld::Monitor::Master do
   it 'stops monitoring only after the last container leaves a shared entry' do
     ct1 = build_ct(id: 'ct1')
     ct2 = build_ct(id: 'ct2')
-    entry = described_class::Entry.new(instance_double(Thread), 123, %w[ct1 ct2])
+    entry = described_class::Entry.new(instance_double(Thread), 123, { 'ct1' => ct1, 'ct2' => ct2 })
 
     master.instance_variable_get(:@monitors)[master.send(:key, ct1)] = entry
     allow(master).to receive(:graceful_stop)
@@ -76,6 +78,38 @@ RSpec.describe OsCtld::Monitor::Master do
     expect(thread1).to have_received(:join)
     expect(thread2).to have_received(:join)
     expect(master.instance_variable_get(:@monitors)).to be_empty
+  end
+
+  it 'snapshots only the original monitor roster without exposing its mutable hash' do
+    ct1 = build_ct(id: 'ct1')
+    ct2 = build_ct(id: 'ct2')
+    allow(Thread).to receive(:new).and_return(instance_double(Thread))
+    allow(master).to receive(:update_state)
+    master.monitor(ct1)
+    entry = master.instance_variable_get(:@monitors).fetch(master.send(:key, ct1))
+    monitor_key = master.send(:key, ct1)
+
+    expect(master.send(:monitored_containers, monitor_key, entry)).to eq([ct1])
+    master.monitor(ct2)
+    snapshot = master.send(:monitored_containers, monitor_key, entry)
+    expect(snapshot).to eq([ct1, ct2])
+    snapshot.clear
+    expect(entry.cts.values).to eq([ct1, ct2])
+
+    master.demonitor(ct1)
+    # Roster snapshots under the master mutex must never acquire ct locks.
+    allow(ct1).to receive(:pool).and_raise('container accessed under master mutex')
+    expect(master.send(:monitored_containers, monitor_key, entry)).to eq([ct2])
+  end
+
+  it 'does not give an old checker the replacement monitor roster' do
+    ct = build_ct(id: 'ct1')
+    entry = described_class::Entry.new(nil, nil, { ct.id => ct })
+    replacement = described_class::Entry.new(nil, nil, { ct.id => ct })
+    master.instance_variable_get(:@monitors)[master.send(:key, ct)] = replacement
+
+    expect(master.send(:monitored_containers, master.send(:key, ct), entry)).to be_empty
+    expect(master.send(:monitored_containers, master.send(:key, ct), replacement)).to eq([ct])
   end
 
   it 'updates container state and init pid from container-control state' do

@@ -6,6 +6,9 @@ module OsCtl::Exporter
   class Collectors::KernelProtection < Collectors::Base
     EBPF_CONFIG_PATH = '/etc/vpsadminos/ebpf-livepatch-monitor.json'.freeze
     LIVEPATCH_CONFIG_PATH = '/etc/vpsadminos/livepatch-monitor.json'.freeze
+    BOOTED_LIVEPATCH_CONFIG_PATH = '/run/booted-system/etc/vpsadminos/livepatch-monitor.json'.freeze
+    KERNEL_NOTES_PATH = '/sys/kernel/notes'.freeze
+    BOOTED_KERNEL_IMAGE_PATH = '/run/booted-system/kernel'.freeze
     LIVEPATCH_SYSFS = '/sys/kernel/livepatch'.freeze
 
     class ProbeError < StandardError; end
@@ -93,6 +96,13 @@ module OsCtl::Exporter
       cfg = read_json_config(LIVEPATCH_CONFIG_PATH, 'livepatch')
       return if cfg.nil?
 
+      unless livepatch_kernel_matches?(cfg)
+        # An OS switch does not replace the running kernel. The booted
+        # generation retains its matching livepatch requirements and module.
+        cfg = read_json_config(BOOTED_LIVEPATCH_CONFIG_PATH, 'livepatch')
+        raise ProbeError, 'Missing matching booted livepatch configuration' unless cfg && livepatch_kernel_matches?(cfg)
+      end
+
       labels = {
         module: cfg.fetch('module'),
         patch_version: cfg.fetch('patchVersion').to_s
@@ -112,6 +122,19 @@ module OsCtl::Exporter
     rescue JSON::ParserError, SystemCallError
       @monitoring_success.set(0, labels: { component: })
       nil
+    end
+
+    def livepatch_kernel_matches?(cfg)
+      if cfg.has_key?('kernelImage') && File.realpath(BOOTED_KERNEL_IMAGE_PATH) != cfg.fetch('kernelImage')
+        return false
+      end
+
+      # Older generations did not record the build notes. Preserve their
+      # schema, including when reached through the host-owned booted symlink.
+      return true unless cfg.has_key?('kernelNotes')
+
+      expected = File.binread(cfg.fetch('kernelNotes'))
+      !expected.empty? && expected == File.binread(KERNEL_NOTES_PATH)
     end
 
     def bpf_program_labels(program)

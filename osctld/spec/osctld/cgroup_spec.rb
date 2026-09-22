@@ -17,6 +17,54 @@ RSpec.describe OsCtld::CGroup do
     described_class.instance_variable_set(:@subsystems, subsystems)
   end
 
+  describe '.wait_frozen' do
+    before do
+      allow(described_class).to receive(:abs_cgroup_path).with('freezer', 'payload').and_return('/cgroup/payload')
+    end
+
+    it 'waits for the v1 freezer state, not merely a request' do
+      allow(described_class).to receive(:v1?).and_return(true)
+      allow(File).to receive(:read).with('/cgroup/payload/freezer.state').and_return("FREEZING\n", "FROZEN\n")
+      allow(described_class).to receive(:sleep)
+
+      described_class.wait_frozen('payload')
+      expect(described_class).to have_received(:sleep).with(0.05).once
+    end
+
+    it 'waits for the v2 frozen event' do
+      allow(described_class).to receive(:v1?).and_return(false)
+      allow(File).to receive(:read).with('/cgroup/payload/cgroup.events')
+                                   .and_return("populated 1\nfrozen 0\n", "populated 1\nfrozen 1\n")
+      allow(described_class).to receive(:sleep)
+
+      described_class.wait_frozen('payload')
+      expect(described_class).to have_received(:sleep).with(0.05).once
+    end
+
+    it 'surfaces a freeze timeout' do
+      allow(described_class).to receive(:v1?).and_return(true)
+      allow(File).to receive(:read).with('/cgroup/payload/freezer.state').and_return('FREEZING')
+
+      expect { described_class.wait_frozen('payload', timeout: 0) }.to raise_error(/Timed out/)
+    end
+
+    it 'tolerates a subtree removed during teardown' do
+      allow(described_class).to receive(:v1?).and_return(true)
+      allow(File).to receive(:read).with('/cgroup/payload/freezer.state').and_raise(Errno::ENOENT)
+      allow(Dir).to receive(:exist?).with('/cgroup/payload').and_return(false)
+
+      expect { described_class.wait_frozen('payload') }.not_to raise_error
+    end
+
+    it 'does not silently accept a missing freezer on an existing subtree' do
+      allow(described_class).to receive(:v1?).and_return(true)
+      allow(File).to receive(:read).with('/cgroup/payload/freezer.state').and_raise(Errno::ENOENT)
+      allow(Dir).to receive(:exist?).with('/cgroup/payload').and_return(true)
+
+      expect { described_class.wait_frozen('payload') }.to raise_error(Errno::ENOENT)
+    end
+  end
+
   def set_cgroup_version(version)
     allow(File).to receive(:read).and_call_original
     allow(File).to receive(:read).with(OsCtld::RunState::CGROUP_VERSION).and_return("#{version}\n")

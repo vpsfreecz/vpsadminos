@@ -367,11 +367,11 @@ RSpec.describe 'container lifecycle commands' do
     let(:pool) { Struct.new(:name, :autostart_plan).new('tank', autostart_plan) }
 
     def build_stop_container(state: :running, running: true, ephemeral: false, promise: nil)
-      run_conf = Struct.new(:init_pid, :promise) do
+      run_conf = Struct.new(:init_pid, :promise, :nfs_cancellation) do
         def get_exit_promise
           promise
         end
-      end.new(promise ? 4321 : nil, promise)
+      end.new(promise ? 4321 : nil, promise, double('nfs_cancellation', capture: nil, abort: 1))
       cgparams = Struct.new do
         attr_reader :expanded
 
@@ -561,7 +561,7 @@ RSpec.describe 'container lifecycle commands' do
       )
     end
 
-    it 'freezes, kills, thaws, and cleans up in order during force_kill' do
+    it 'captures, freezes, cancels, kills, thaws, and cleans up in order during force_kill' do
       recovery = Class.new do
         attr_reader :events
 
@@ -588,19 +588,28 @@ RSpec.describe 'container lifecycle commands' do
       cgroup = stub_const('OsCtld::CGroup', Class.new do
         def self.freeze_tree(_path); end
 
+        def self.wait_frozen(_path); end
+
         def self.thaw_tree(_path); end
       end)
       allow(recovery_class).to receive(:new).and_return(recovery)
       allow(cgroup).to receive(:freeze_tree) { recovery.events << :freeze_tree }
       allow(cgroup).to receive(:thaw_tree) { recovery.events << :thaw_tree }
-      ct = build_stop_container
+      allow(cgroup).to receive(:wait_frozen) { recovery.events << :wait_frozen }
+      ct = build_stop_container(promise: double('exit_promise'))
+      allow(ct.run_conf.nfs_cancellation).to receive(:capture).with(4321) { recovery.events << :capture }
+      allow(ct.run_conf.nfs_cancellation).to receive(:abort) { recovery.events << :abort }
       command = described_class.new({}, {})
       allow(command).to receive(:sleep) { |seconds| recovery.events << [:sleep, seconds] }
 
       expect(command.send(:force_kill, ct)).to be(true)
       expect(recovery.events).to eq(
         [
+          :capture,
           :freeze_tree,
+          :abort,
+          :wait_frozen,
+          :abort,
           :kill_all,
           :thaw_tree,
           [:sleep, 10],
@@ -608,6 +617,29 @@ RSpec.describe 'container lifecycle commands' do
           :cleanup_or_taint
         ]
       )
+    end
+
+    it 'thaws without killing when NFS cancellation fails during force_kill' do
+      ct = build_stop_container
+      recovery = double('recovery', kill_all: nil)
+      recovery_class = stub_const('OsCtld::Container::Recovery', Class.new do
+        def self.new(_ct); end
+      end)
+      cgroup = stub_const('OsCtld::CGroup', Class.new do
+        def self.freeze_tree(_path); end
+
+        def self.thaw_tree(_path); end
+      end)
+      allow(recovery_class).to receive(:new).with(ct).and_return(recovery)
+      allow(cgroup).to receive(:freeze_tree).with(ct.cgroup_path)
+      allow(cgroup).to receive(:thaw_tree).with(ct.cgroup_path)
+      allow(ct.run_conf.nfs_cancellation).to receive(:abort).and_raise('cancellation failed')
+      command = described_class.new({}, {})
+
+      expect { command.send(:force_kill, ct) }.to raise_error(RuntimeError, 'cancellation failed')
+      expect(cgroup).to have_received(:freeze_tree).with(ct.cgroup_path)
+      expect(cgroup).to have_received(:thaw_tree).with(ct.cgroup_path)
+      expect(recovery).not_to have_received(:kill_all)
     end
   end
 

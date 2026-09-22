@@ -456,6 +456,34 @@ module OsCtld
       end
     end
 
+    # Wait for an earlier freeze request to stop all tasks in the subtree.
+    # A request alone is asynchronous and is not an admission barrier.
+    def self.wait_frozen(path, timeout: 30)
+      abs_path = abs_cgroup_path('freezer', path)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+
+      loop do
+        frozen =
+          if v1?
+            File.read(File.join(abs_path, 'freezer.state')).strip == 'FROZEN'
+          else
+            File.read(File.join(abs_path, 'cgroup.events')).lines.any? { |v| v.split == %w[frozen 1] }
+          end
+        return if frozen
+
+        if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+          raise "Timed out waiting for cgroup #{path} to freeze"
+        end
+
+        sleep(0.05)
+      end
+    rescue Errno::ENOENT
+      # A removed subtree cannot admit new work.
+      raise if Dir.exist?(abs_path)
+
+      nil
+    end
+
     # Thaw all frozen cgroups under path
     # @param path [String]
     def self.thaw_tree(path)

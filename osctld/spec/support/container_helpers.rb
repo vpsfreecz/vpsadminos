@@ -31,6 +31,10 @@ module ContainerHelpers
     attr_reader :pool, :id, :dataset, :user, :group, :uid_map, :gid_map, :map_mode,
                 :lxc_dir, :log_path, :config_path, :log_type, :ident, :mount_calls
 
+    def cgroup_path
+      File.join(group.full_cgroup_path(user), "ct.#{id}", 'user-owned')
+    end
+
     def initialize(pool:, id:, dataset:, user:, group:, distribution:, version:, arch:,
                    vendor: 'default', variant: 'default', map_mode: 'zfs',
                    can_dist_configure_network: true)
