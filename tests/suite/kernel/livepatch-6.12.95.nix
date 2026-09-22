@@ -1,29 +1,24 @@
 let
   correctedModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_MODULE";
-  releasedV1ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V1_MODULE";
   releasedV5ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE";
   predecessorModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE";
   exampleFilter = builtins.getEnv "VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER";
 in
 assert correctedModuleEnv != "";
-assert releasedV1ModuleEnv != "";
 assert releasedV5ModuleEnv != "";
 assert predecessorModuleEnv != "";
 import ../../make-test.nix (
   { pkgs }:
   let
     correctedModule = builtins.storePath correctedModuleEnv;
-    releasedV1Module = builtins.storePath releasedV1ModuleEnv;
     releasedV5Module = builtins.storePath releasedV5ModuleEnv;
     predecessorModule = builtins.storePath predecessorModuleEnv;
     correctedSha256 = builtins.hashFile "sha256" correctedModule;
-    releasedV1Sha256 = builtins.hashFile "sha256" releasedV1Module;
     releasedV5Sha256 = builtins.hashFile "sha256" releasedV5Module;
     predecessorSha256 = builtins.hashFile "sha256" predecessorModule;
     expectedCorrectedSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_SHA256";
-    expectedReleasedV1Sha256 = "fb5f177e47ed067e41094bd38fec888538423e267f40e01c3d3c4d1a2abc0bfb";
-    expectedReleasedV5Sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
-    expectedPredecessorSha256 = "d51084446b74cbec7069fcc0d0f140b63af60f038b7482eabe5decf3b0149000";
+    expectedReleasedV5Sha256 = "b31f64403d9d55f62e3d59e4bbefcbddcbda4fa66a2dc0689f9bb7cd7e927984";
+    expectedPredecessorSha256 = "960b13f1b461b95e29cccff58ddf0d3f3badf151046eb46eba36a9c8c7e5efe3";
 
     perfTransition = pkgs.stdenv.mkDerivation {
       pname = "livepatch-test-perf-transition";
@@ -424,7 +419,6 @@ import ../../make-test.nix (
 
         environment.etc = {
           "livepatch-test/corrected.ko".source = correctedModule;
-          "livepatch-test/released-v1.ko".source = releasedV1Module;
           "livepatch-test/released-v5.ko".source = releasedV5Module;
           "livepatch-test/predecessor.ko".source = predecessorModule;
           "livepatch-test/perf-transition".source = "${perfTransition}/bin/perf_transition";
@@ -447,7 +441,6 @@ import ../../make-test.nix (
       };
   in
   assert correctedSha256 == expectedCorrectedSha256;
-  assert releasedV1Sha256 == expectedReleasedV1Sha256;
   assert releasedV5Sha256 == expectedReleasedV5Sha256;
   assert predecessorSha256 == expectedPredecessorSha256;
   {
@@ -480,7 +473,6 @@ import ../../make-test.nix (
       end
 
       CORRECTED_MODULE = "/etc/livepatch-test/corrected.ko"
-      RELEASED_V1_MODULE = "/etc/livepatch-test/released-v1.ko"
       RELEASED_V5_MODULE = "/etc/livepatch-test/released-v5.ko"
       PREDECESSOR_MODULE = "/etc/livepatch-test/predecessor.ko"
       PERF_TRANSITION = "/etc/livepatch-test/perf-transition"
@@ -499,11 +491,9 @@ import ../../make-test.nix (
       PROBE_MODULE = "/etc/livepatch-test/probe.ko"
       PROBE_PARAMETERS = "/sys/module/livepatch_test_probe/parameters"
       CORRECTED_NAME = "livepatch_7"
-      RELEASED_V1_NAME = "livepatch_1"
       RELEASED_V5_NAME = "livepatch_5"
-      PREDECESSOR_NAME = "livepatch_predecessor_1"
+      PREDECESSOR_NAME = "livepatch_6"
       CORRECTED_SHA256 = ${builtins.toJSON expectedCorrectedSha256}
-      RELEASED_V1_SHA256 = ${builtins.toJSON expectedReleasedV1Sha256}
       RELEASED_V5_SHA256 = ${builtins.toJSON expectedReleasedV5Sha256}
       PREDECESSOR_SHA256 = ${builtins.toJSON expectedPredecessorSha256}
       # Exact GCC 15.2 disassembly places the fuse_copy_finish() call in the
@@ -1097,7 +1087,7 @@ import ../../make-test.nix (
         )
 
         machine.execute(
-          "for name in #{CORRECTED_NAME} #{RELEASED_V1_NAME} " \
+          "for name in #{CORRECTED_NAME} " \
           "#{RELEASED_V5_NAME} #{PREDECESSOR_NAME}; do " \
           "dir=/sys/kernel/livepatch/$name; " \
           "if test -e \"$dir/enabled\"; then " \
@@ -2020,7 +2010,6 @@ import ../../make-test.nix (
             "test \"$(sha256sum #{CORRECTED_MODULE} | cut -d' ' -f1)\" = #{CORRECTED_SHA256}"
           )
           machine.succeeds(
-            "test \"$(sha256sum #{RELEASED_V1_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V1_SHA256}"
           )
           machine.succeeds(
             "test \"$(sha256sum #{RELEASED_V5_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V5_SHA256}"
@@ -2041,7 +2030,6 @@ import ../../make-test.nix (
             "/lib/modules/6.12.95.7",
           )
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
-          machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
 
@@ -2097,10 +2085,10 @@ import ../../make-test.nix (
           end
         end
 
-        it "retains released v5 after failure, replaces it with v6, and exercises KVM" do
+        it "retains the exact v5 anchor after a failed activation, replaces it with v7, and exercises KVM" do
           # The .6 release asserts were dropped for the no-uname-era payload (no
           # module-driven .6 exists); the fixture-scoped .5 witnesses stay (the
-          # released v5 carries the uname patch). The sysfs enabled/transition waits
+          # exact v5 anchor carries the uname patch). The sysfs enabled/transition waits
           # carry the replace + downgrade-rejection coverage.
           machine.succeeds("test \"$(uname -r)\" = 6.12.95")
           machine.succeeds("modprobe -r kvm_amd")
@@ -2682,10 +2670,8 @@ import ../../make-test.nix (
 
         it "keeps unpatched credential lifetimes healthy through fork and RCU callbacks" do
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
-          machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
           machine.fails("test -d #{patch_dir(CORRECTED_NAME)}")
-          machine.fails("test -d #{patch_dir(RELEASED_V1_NAME)}")
           machine.fails("test -d #{patch_dir(PREDECESSOR_NAME)}")
 
           _, before_fork = machine.succeeds(
@@ -2704,7 +2690,6 @@ import ../../make-test.nix (
           )
           expect(after_rcu).not_to match(KERNEL_FAULT_PATTERN)
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
-          machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
         end
 
@@ -4193,84 +4178,6 @@ import ../../make-test.nix (
           machine.succeeds("ipset list -n")
         end
 
-        it "atomically replaces released v1 with v2 and rejects an incompatible downgrade" do
-          machine.succeeds("insmod #{RELEASED_V1_MODULE}")
-          wait_for_patch(machine, RELEASED_V1_NAME, 1)
-          start_stress(machine)
-          released_v1_before = stress_counts(machine)
-          wait_for_stress_advance(machine, released_v1_before)
-          stop_stress(machine)
-
-          replacement_state = start_fuse_helper(
-            machine,
-            "replacement",
-            "writeback",
-            "reply"
-          )
-          machine.wait_until_succeeds(
-            "test -e #{replacement_state}/ready",
-            timeout: 30
-          )
-          set_offset_probe(
-            machine,
-            "fuse_copy_page",
-            RELEASED_V1_NAME,
-            FUSE_REF_PAGE_FINISH_CALL_OFFSET
-          )
-          machine.succeeds(
-            "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_hold'; " \
-            "touch #{replacement_state}/start"
-          )
-          machine.wait_until_succeeds(
-            "test \"$(cat #{PROBE_PARAMETERS}/probe_held)\" = Y && " \
-            "test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" = 1",
-            timeout: 30
-          )
-
-          machine.succeeds("insmod #{CORRECTED_MODULE}")
-          machine.wait_until_succeeds(
-            "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled)\" = 1 && " \
-            "test \"$(cat #{patch_dir(CORRECTED_NAME)}/transition)\" = 1",
-            timeout: 30
-          )
-          machine.succeeds(
-            "sh -c 'echo 0 > #{PROBE_PARAMETERS}/probe_hold'"
-          )
-          machine.wait_until_succeeds(
-            "test \"$(cat #{PROBE_PARAMETERS}/probe_held)\" = N && " \
-            "test -e #{replacement_state}/completed",
-            timeout: 30
-          )
-          clear_probe(machine)
-          wait_for_patch(machine, CORRECTED_NAME, 1)
-          wait_for_patch(machine, RELEASED_V1_NAME, 0)
-          start_stress(machine)
-          corrected_before = stress_counts(machine)
-          wait_for_stress_advance(machine, corrected_before)
-
-          machine.succeeds("rmmod #{RELEASED_V1_NAME}")
-          machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
-          downgrade_log_start =
-            machine.succeeds("dmesg | wc -l")[1].to_i + 1
-          status, output = machine.execute(
-            "insmod #{PREDECESSOR_MODULE}"
-          )
-          expect(status).not_to eq(0), output
-          machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
-          wait_for_patch(machine, CORRECTED_NAME, 1)
-          wait_for_patch(machine, PREDECESSOR_NAME, 0)
-          machine.succeeds(
-            "dmesg | tail -n +#{downgrade_log_start} | grep -F " \
-            "'Livepatch patch (#{PREDECESSOR_NAME}) is not compatible with the already installed livepatches.'"
-          )
-
-          stop_stress(machine)
-          disable_patch(machine, CORRECTED_NAME)
-          remove_module(machine, CORRECTED_NAME)
-          remove_module(machine, RELEASED_V1_NAME)
-          remove_module(machine, PREDECESSOR_NAME)
-          cleanup_fuse_workloads(machine)
-        end
 
         # A legacy FREE_STATEID has no safe pointer from which to release its
         # producer-held nfs_client reference. Exercise all target-module
