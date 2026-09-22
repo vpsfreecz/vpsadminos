@@ -4480,46 +4480,50 @@ index 363dd63babe72..135a927407e52 100644
  static inline bool ip6_ignore_linkdown(const struct net_device *dev)
  {
 diff --git a/include/net/inet_connection_sock.h b/include/net/inet_connection_sock.h
-index bcc138ff087bd..fe4f8261c4436 100644
+index bcc138ff087bd..7a4c8a95b6a84 100644
 --- a/include/net/inet_connection_sock.h
 +++ b/include/net/inet_connection_sock.h
-@@ -42,7 +42,9 @@ struct inet_connection_sock_af_ops {
+@@ -42,7 +42,13 @@ struct inet_connection_sock_af_ops {
  				      struct request_sock *req,
  				      struct dst_entry *dst,
  				      struct request_sock *req_unhash,
--				      bool *own_req);
++#ifndef __GENKSYMS__
 +				      bool *own_req,
 +				      void (*opt_child_init)(struct sock *newsk,
 +							     const struct sock *sk));
++#else
+ 				      bool *own_req);
++#endif
  	u16	    net_header_len;
  	u16	    sockaddr_len;
  	int	    (*setsockopt)(struct sock *sk, int level, int optname,
 diff --git a/include/net/inet_frag.h b/include/net/inet_frag.h
-index fcabb34fff35d..0e31539f6da7d 100644
+index fcabb34fff35d..6e130abd55b1f 100644
 --- a/include/net/inet_frag.h
 +++ b/include/net/inet_frag.h
-@@ -7,6 +7,9 @@
+@@ -7,6 +7,11 @@
  #include <linux/in6.h>
  #include <linux/rbtree_types.h>
  #include <linux/refcount.h>
++#ifndef __GENKSYMS__
 +#include <linux/rhashtable.h>
 +#include <linux/timer.h>
 +#include <linux/rcupdate.h>
++#endif
  #include <net/dropreason-core.h>
  
  /* Per netns frag queues directory */
-@@ -133,12 +136,38 @@ struct inet_frag_queue *inet_frag_find(struct fqdir *fqdir, void *key);
+@@ -133,11 +138,45 @@ struct inet_frag_queue *inet_frag_find(struct fqdir *fqdir, void *key);
  void inet_frag_queue_flush(struct inet_frag_queue *q,
  			   enum skb_drop_reason reason);
  
--static inline void inet_frag_put(struct inet_frag_queue *q)
++#ifndef __GENKSYMS__
 +static inline void inet_frag_putn(struct inet_frag_queue *q, int refs)
- {
--	if (refcount_dec_and_test(&q->refcnt))
++{
 +	if (refs && refcount_sub_and_test(refs, &q->refcnt))
- 		inet_frag_destroy(q);
- }
- 
++		inet_frag_destroy(q);
++}
++
 +static inline void inet_frag_kill_refs(struct inet_frag_queue *q, int *refs)
 +{
 +	if (del_timer(&q->timer))
@@ -4545,39 +4549,56 @@ index fcabb34fff35d..0e31539f6da7d 100644
 +		rcu_read_unlock();
 +	}
 +}
-+
++#else
+ static inline void inet_frag_put(struct inet_frag_queue *q)
+ {
+ 	if (refcount_dec_and_test(&q->refcnt))
+ 		inet_frag_destroy(q);
+ }
++#endif
+ 
  /* Memory Tracking Functions. */
  
- static inline long frag_mem_limit(const struct fqdir *fqdir)
 diff --git a/include/net/ip_tunnels.h b/include/net/ip_tunnels.h
-index 583fd1afd2387..fcebdf507d126 100644
+index 583fd1afd2387..841bc245e1c13 100644
 --- a/include/net/ip_tunnels.h
 +++ b/include/net/ip_tunnels.h
-@@ -615,8 +615,7 @@ struct metadata_dst *iptunnel_metadata_reply(struct metadata_dst *md,
+@@ -615,9 +615,27 @@ struct metadata_dst *iptunnel_metadata_reply(struct metadata_dst *md,
  int skb_tunnel_check_pmtu(struct sk_buff *skb, struct dst_entry *encap_dst,
  			  int headroom, bool reply);
  
--static inline void ip_tunnel_adj_headroom(struct net_device *dev,
--					  unsigned int headroom)
++#ifndef __GENKSYMS__
 +static inline unsigned int ip_tunnel_limit_headroom(unsigned int headroom)
- {
- 	/* we must cap headroom to some upperlimit, else pskb_expand_head
- 	 * will overflow header offsets in skb_headers_offset_update().
-@@ -626,6 +625,14 @@ static inline void ip_tunnel_adj_headroom(struct net_device *dev,
- 	if (headroom > max_allowed)
- 		headroom = max_allowed;
- 
++{
++	/* we must cap headroom to some upperlimit, else pskb_expand_head
++	 * will overflow header offsets in skb_headers_offset_update().
++	 */
++	const unsigned int max_allowed = 512;
++
++	if (headroom > max_allowed)
++		headroom = max_allowed;
++
 +	return headroom;
 +}
 +
-+static inline void ip_tunnel_adj_headroom(struct net_device *dev,
-+					  unsigned int headroom)
-+{
++#endif
+ static inline void ip_tunnel_adj_headroom(struct net_device *dev,
+ 					  unsigned int headroom)
+ {
++#ifndef __GENKSYMS__
 +	headroom = ip_tunnel_limit_headroom(headroom);
-+
++#else
+ 	/* we must cap headroom to some upperlimit, else pskb_expand_head
+ 	 * will overflow header offsets in skb_headers_offset_update().
+ 	 */
+@@ -625,6 +643,7 @@ static inline void ip_tunnel_adj_headroom(struct net_device *dev,
+ 
+ 	if (headroom > max_allowed)
+ 		headroom = max_allowed;
++#endif
+ 
  	if (headroom > READ_ONCE(dev->needed_headroom))
  		WRITE_ONCE(dev->needed_headroom, headroom);
- }
 diff --git a/include/net/ip_vs.h b/include/net/ip_vs.h
 index d70268cf1af82..80110ec025002 100644
 --- a/include/net/ip_vs.h
@@ -4679,32 +4700,40 @@ index d70268cf1af82..80110ec025002 100644
  static inline void ip_vs_notrack(struct sk_buff *skb)
  {
 diff --git a/include/net/ipv6_frag.h b/include/net/ipv6_frag.h
-index df61b98b52153..d14f90213a1cd 100644
+index df61b98b52153..d1a5f3bf1fa15 100644
 --- a/include/net/ipv6_frag.h
 +++ b/include/net/ipv6_frag.h
-@@ -66,6 +66,7 @@ ip6frag_expire_frag_queue(struct net *net, struct frag_queue *fq)
+@@ -66,6 +66,9 @@ ip6frag_expire_frag_queue(struct net *net, struct frag_queue *fq)
  {
  	struct net_device *dev = NULL;
  	struct sk_buff *head;
++#ifndef __GENKSYMS__
 +	int refs = 1;
++#endif
  
  	rcu_read_lock();
  	spin_lock(&fq->q.lock);
-@@ -74,7 +75,7 @@ ip6frag_expire_frag_queue(struct net *net, struct frag_queue *fq)
+@@ -74,7 +77,11 @@ ip6frag_expire_frag_queue(struct net *net, struct frag_queue *fq)
  		goto out;
  
  	fq->q.flags |= INET_FRAG_DROP;
--	inet_frag_kill(&fq->q);
++#ifndef __GENKSYMS__
 +	inet_frag_kill_refs(&fq->q, &refs);
++#else
+ 	inet_frag_kill(&fq->q);
++#endif
  
  	/* Paired with the WRITE_ONCE() in fqdir_pre_exit(). */
  	if (READ_ONCE(fq->q.fqdir->dead)) {
-@@ -112,7 +113,7 @@ ip6frag_expire_frag_queue(struct net *net, struct frag_queue *fq)
+@@ -112,7 +119,11 @@ ip6frag_expire_frag_queue(struct net *net, struct frag_queue *fq)
  	spin_unlock(&fq->q.lock);
  out_rcu_unlock:
  	rcu_read_unlock();
--	inet_frag_put(&fq->q);
++#ifndef __GENKSYMS__
 +	inet_frag_putn(&fq->q, refs);
++#else
+ 	inet_frag_put(&fq->q);
++#endif
  }
  
  /* Check if the upper layer header is truncated in the first fragment. */
@@ -4796,17 +4825,20 @@ index dcd288fa1bb6f..83fdb3b1afa7f 100644
  	__u32 strreset_outseq; /* Update after receiving response */
  	__u32 strreset_inseq; /* Update after receiving request */
 diff --git a/include/net/tcp.h b/include/net/tcp.h
-index 5d39b0e8dd909..fdd7854ab8ce7 100644
+index 5d39b0e8dd909..5a2963ea8b18f 100644
 --- a/include/net/tcp.h
 +++ b/include/net/tcp.h
-@@ -464,7 +464,9 @@ struct sock *tcp_v4_syn_recv_sock(const struct sock *sk, struct sk_buff *skb,
+@@ -464,7 +464,13 @@ struct sock *tcp_v4_syn_recv_sock(const struct sock *sk, struct sk_buff *skb,
  				  struct request_sock *req,
  				  struct dst_entry *dst,
  				  struct request_sock *req_unhash,
--				  bool *own_req);
++#ifndef __GENKSYMS__
 +				  bool *own_req,
 +				  void (*opt_child_init)(struct sock *newsk,
 +							 const struct sock *sk));
++#else
+ 				  bool *own_req);
++#endif
  int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb);
  int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len);
  int tcp_connect(struct sock *sk);
@@ -6857,17 +6889,20 @@ index fede3aa3ddbc1..fa2a37c1488a0 100644
  		bool skip_unref = shinfo->flags & SKBFL_MANAGED_FRAG_REFS;
  
 diff --git a/net/dccp/dccp.h b/net/dccp/dccp.h
-index 1f748ed1279d3..e4e055493203a 100644
+index 1f748ed1279d3..937292b52d0d2 100644
 --- a/net/dccp/dccp.h
 +++ b/net/dccp/dccp.h
-@@ -267,7 +267,9 @@ struct sock *dccp_v4_request_recv_sock(const struct sock *sk, struct sk_buff *sk
+@@ -267,7 +267,13 @@ struct sock *dccp_v4_request_recv_sock(const struct sock *sk, struct sk_buff *sk
  				       struct request_sock *req,
  				       struct dst_entry *dst,
  				       struct request_sock *req_unhash,
--				       bool *own_req);
++#ifndef __GENKSYMS__
 +				       bool *own_req,
 +				       void (*opt_child_init)(struct sock *newsk,
 +							      const struct sock *sk));
++#else
+ 				       bool *own_req);
++#endif
  struct sock *dccp_check_req(struct sock *sk, struct sk_buff *skb,
  			    struct request_sock *req);
  
