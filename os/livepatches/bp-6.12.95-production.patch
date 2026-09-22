@@ -5979,7 +5979,7 @@ index d44641108ba81..0c65b15813437 100644
  
  /**
 diff --git a/kernel/trace/ring_buffer.c b/kernel/trace/ring_buffer.c
-index 4deeb613c556a..215a7a8161020 100644
+index 4deeb613c556a..141b8e304e661 100644
 --- a/kernel/trace/ring_buffer.c
 +++ b/kernel/trace/ring_buffer.c
 @@ -391,6 +391,17 @@ static __always_inline unsigned int rb_page_commit(struct buffer_page *bpage)
@@ -6197,7 +6197,7 @@ index 4deeb613c556a..215a7a8161020 100644
  struct ring_buffer_iter *
  ring_buffer_read_start(struct trace_buffer *buffer, int cpu, gfp_t flags)
  {
-+	struct ring_buffer_iter *iter __free(kfree) = kzalloc_obj(*iter, flags);
++	struct ring_buffer_iter *iter __free(kfree) = kzalloc(sizeof(*iter), flags);
  	struct ring_buffer_per_cpu *cpu_buffer;
 -	struct ring_buffer_iter *iter;
  
@@ -13518,7 +13518,7 @@ index 95170c7be7586..c3547d783db23 100644
  	if (rest_len != pkt_len)
  		ret = pkt_len - rest_len;
 diff --git a/net/xfrm/xfrm_nat_keepalive.c b/net/xfrm/xfrm_nat_keepalive.c
-index 8a0379c8c41c8..46993b325bc33 100644
+index 8a0379c8c41c8..5a1bc8148cbe4 100644
 --- a/net/xfrm/xfrm_nat_keepalive.c
 +++ b/net/xfrm/xfrm_nat_keepalive.c
 @@ -51,8 +51,10 @@ static int nat_keepalive_send_ipv4(struct sk_buff *skb,
@@ -13594,7 +13594,7 @@ index 8a0379c8c41c8..46993b325bc33 100644
 +	if (!READ_ONCE(x->nat_keepalive_interval))
 +		return 0;
 +
-+	state = kmalloc_obj(*state, GFP_ATOMIC);
++	state = kmalloc(sizeof(*state), GFP_ATOMIC);
 +	if (!state)
 +		return -ENOMEM;
 +
