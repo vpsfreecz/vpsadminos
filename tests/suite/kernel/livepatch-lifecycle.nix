@@ -16,7 +16,15 @@ import ../../make-template.nix (
         };
         candidateVersion = patches.patchVersion;
         candidateName = "livepatch_${toString candidateVersion}";
-        predecessors = line.predecessors or { };
+        predecessorVariantEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_VARIANT";
+        predecessorVariant = if predecessorVariantEnv == "" then "v5" else predecessorVariantEnv;
+        predecessors =
+          if predecessorVariant == "v5" then
+            line.predecessors or { }
+          else if predecessorVariant == "v6" then
+            line.predecessorsV6 or { }
+          else
+            throw "VPSADMINOS_LIVEPATCH_PREDECESSOR_VARIANT must be v5 or v6 (got ${predecessorVariantEnv})";
 
         kvmSmoke = pkgs.stdenv.mkDerivation {
           pname = "livepatch-lifecycle-kvm-smoke";
@@ -82,6 +90,7 @@ import ../../make-template.nix (
             KVM_MODULE = ${builtins.toJSON kvmModule}
             KVM_SMOKE = "/etc/livepatch-lifecycle/kvm-smoke"
             REQUIRED_FLAGS = ${builtins.toJSON requiredFlags}
+            PREDECESSOR_VARIANT = ${builtins.toJSON predecessorVariant}
             PREDECESSOR_VERSION = ${builtins.toJSON (if predecessor == null then null else predecessor.version)}
             PREDECESSOR_NAME = ${builtins.toJSON (if predecessor == null then null else predecessor.moduleName)}
             PREDECESSOR_SHA256 = ${builtins.toJSON (if predecessor == null then null else predecessor.sha256)}
