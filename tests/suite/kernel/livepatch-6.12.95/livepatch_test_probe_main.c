@@ -7,13 +7,16 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/mutex.h>
+#include <linux/netdevice.h>
 #include <linux/rhashtable.h>
+#include <linux/rtnetlink.h>
 #include <linux/sched.h>
 #include <linux/skbuff.h>
 #include <linux/smp.h>
 #include <linux/wait.h>
 
 #include <net/sctp/structs.h>
+#include <net/net_namespace.h>
 #include <net/sock.h>
 #include <net/vxlan.h>
 
@@ -72,6 +75,39 @@ static unsigned int rhashtable_restart_passes;
 
 unsigned long livepatch_test_probe_marker;
 unsigned long livepatch_test_probe_resume;
+
+static int livepatch_test_set_rx_headroom(const char *value,
+					  const struct kernel_param *param)
+{
+	struct net_device *dev;
+	char name[IFNAMSIZ];
+	int headroom;
+	int ret = 0;
+
+	(void)param;
+	if (sscanf(value, "%15s %d", name, &headroom) != 2 || headroom < 0)
+		return -EINVAL;
+
+	rtnl_lock();
+	dev = dev_get_by_name(&init_net, name);
+	if (!dev) {
+		ret = -ENODEV;
+	} else if (!dev->netdev_ops ||
+		   !dev->netdev_ops->ndo_set_rx_headroom) {
+		ret = -EOPNOTSUPP;
+	} else {
+		dev->netdev_ops->ndo_set_rx_headroom(dev, headroom);
+	}
+	if (dev)
+		dev_put(dev);
+	rtnl_unlock();
+
+	return ret;
+}
+
+static const struct kernel_param_ops set_rx_headroom_ops = {
+	.set = livepatch_test_set_rx_headroom,
+};
 
 static noinline notrace void *livepatch_test_return_null(void)
 {
@@ -1044,6 +1080,80 @@ static const struct kernel_param_ops sctp_mismatch_injections_ops = {
 	.get = livepatch_test_get_sctp_mismatch_injections,
 };
 
+/*
+ * Arm the retransmission-path scan cycle that the 6.12.95 SCTP corrective
+ * makes terminate: mark every transport of the test association
+ * SCTP_UNCONFIRMED and move retran_path to the tail transport, so the next
+ * sctp_assoc_rm_peer() of that transport runs sctp_assoc_update_retran_path()
+ * over an all-unconfirmed list.  The defective body never reaches a
+ * termination check there; the corrected body breaks when the scan returns
+ * to retran_path.
+ */
+static int
+livepatch_test_set_sctp_arm_unconfirmed(const char *value,
+					const struct kernel_param *param)
+{
+	struct sctp_association *asoc;
+	struct sctp_transport *transport;
+	struct sctp_transport *tail = NULL;
+	unsigned int count = 0;
+	bool arm;
+	int ret;
+
+	(void)param;
+	ret = kstrtobool(value, &arm);
+	if (ret || !arm)
+		return ret;
+
+	asoc = (struct sctp_association *)READ_ONCE(sctp_asoc_address);
+	if (!asoc || !asoc->base.sk)
+		return -ENODEV;
+
+	lock_sock(asoc->base.sk);
+	list_for_each_entry(transport, &asoc->peer.transport_addr_list,
+			    transports) {
+		WRITE_ONCE(transport->state, SCTP_UNCONFIRMED);
+		tail = transport;
+		count++;
+	}
+	if (tail)
+		WRITE_ONCE(asoc->peer.retran_path, tail);
+	release_sock(asoc->base.sk);
+
+	return count ? 0 : -ENOENT;
+}
+
+static int
+livepatch_test_get_sctp_unconfirmed_count(char *buffer,
+					  const struct kernel_param *param)
+{
+	struct sctp_association *asoc;
+	struct sctp_transport *transport;
+	unsigned int count = 0;
+
+	(void)param;
+	asoc = (struct sctp_association *)READ_ONCE(sctp_asoc_address);
+	if (!asoc)
+		return sysfs_emit(buffer, "none\n");
+
+	lock_sock(asoc->base.sk);
+	list_for_each_entry(transport, &asoc->peer.transport_addr_list,
+			    transports)
+		if (READ_ONCE(transport->state) == SCTP_UNCONFIRMED)
+			count++;
+	release_sock(asoc->base.sk);
+
+	return sysfs_emit(buffer, "%u\n", count);
+}
+
+static const struct kernel_param_ops sctp_arm_unconfirmed_ops = {
+	.set = livepatch_test_set_sctp_arm_unconfirmed,
+};
+
+static const struct kernel_param_ops sctp_unconfirmed_count_ops = {
+	.get = livepatch_test_get_sctp_unconfirmed_count,
+};
+
 static int
 livepatch_test_set_rhashtable_restart(const char *value,
 				      const struct kernel_param *param)
@@ -1239,6 +1349,14 @@ module_param_cb(sctp_mismatch_injections,
 MODULE_PARM_DESC(sctp_mismatch_injections,
 		 "Real SCTP transmitted chunks given a mismatched transport pointer");
 
+module_param_cb(sctp_arm_unconfirmed, &sctp_arm_unconfirmed_ops, NULL, 0200);
+MODULE_PARM_DESC(sctp_arm_unconfirmed,
+		 "Mark every test transport unconfirmed and arm the retran scan at the tail");
+
+module_param_cb(sctp_unconfirmed_count, &sctp_unconfirmed_count_ops, NULL, 0400);
+MODULE_PARM_DESC(sctp_unconfirmed_count,
+		 "Test-association transports currently marked SCTP_UNCONFIRMED");
+
 module_param_cb(rhashtable_restart, &rhashtable_restart_ops, NULL, 0200);
 MODULE_PARM_DESC(rhashtable_restart,
 		 "Exercise the stale-pointer table-restart branch once");
@@ -1247,6 +1365,10 @@ module_param_cb(rhashtable_restart_passes,
 		&rhashtable_restart_passes_ops, NULL, 0400);
 MODULE_PARM_DESC(rhashtable_restart_passes,
 		 "Successful stale-pointer table-restart checks");
+
+module_param_cb(set_rx_headroom, &set_rx_headroom_ops, NULL, 0200);
+MODULE_PARM_DESC(set_rx_headroom,
+		 "Invoke a named test device's receive-headroom callback under RTNL");
 
 static int __init livepatch_test_probe_init(void)
 {
