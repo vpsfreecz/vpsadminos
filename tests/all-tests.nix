@@ -76,7 +76,7 @@ let
       [ "kernel/sched-proxy-exec-lock-badneighbor" ]
     else
       [ ];
-  livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" ] else [ ];
+  livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" "kernel/livepatch-perf-v7" ] else [ ];
   nfsTransitionTests =
     if nfsTransitionTestEnabled then [ "kernel/livepatch-nfs-transition" ] else [ ];
   sctpHostileTests = if sctpHostileTestEnabled then [ "kernel/livepatch-sctp-hostile" ] else [ ];
