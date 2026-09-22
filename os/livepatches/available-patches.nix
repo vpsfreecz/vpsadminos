@@ -69,6 +69,36 @@ let
         "arch/x86/kvm/kvm-amd.ko"
         "net/vmw_vsock/vsock.ko"
         "net/vmw_vsock/vmw_vsock_virtio_transport_common.ko"
+        # Extended for the v7 payload (agent0, 2026-09-22): every module below
+        # carries changed objects from the a2384967..fbd32d7e payload and is
+        # =m in the boot config np082gl8; the v5/v6-era 52-entry list did not
+        # include them (kpatch-build's explicit -t list replaces the default
+        # "vmlinux modules" set, so omissions would silently drop changes).
+        "fs/nfsd/nfsd.ko"
+        "drivers/net/tun.ko"
+        "drivers/net/slip/slip.ko"
+        "fs/xfs/xfs.ko"
+        "fs/ext4/ext4.ko"
+        "fs/ocfs2/ocfs2.ko"
+        "net/dccp/dccp.ko"
+        "net/smc/smc.ko"
+        "net/openvswitch/openvswitch.ko"
+        "drivers/nvme/target/nvmet.ko"
+        "drivers/nvme/target/nvmet-fc.ko"
+        "drivers/nvme/target/nvmet-tcp.ko"
+        "drivers/hid/hid-ft260.ko"
+        "drivers/hid/hid-uclogic.ko"
+        "drivers/hid/usbhid/usbhid.ko"
+        "drivers/i3c/i3c.ko"
+        "drivers/mfd/sm501.ko"
+        "drivers/char/ipmi/ipmb_dev_int.ko"
+        "net/ieee802154/6lowpan/ieee802154_6lowpan.ko"
+        "net/6lowpan/6lowpan.ko"
+        "net/ipv4/ip_tunnel.ko"
+        "net/ipv6/sit.ko"
+        "net/ipv6/ip6_gre.ko"
+        "net/sunrpc/auth_gss/auth_rpcgss.ko"
+        "net/sunrpc/auth_gss/rpcsec_gss_krb5.ko"
       ];
     }
     {
