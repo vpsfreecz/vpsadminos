@@ -197,6 +197,7 @@ let
             instances = livepatchLifecycleInstances;
           }
           "kernel/vpsadminos"
+          "kernel/livepatch-kernel-identity"
           "kernel/module-autoload"
           "kernel/cpu-view/cgroups-v1"
           "kernel/cpu-view/cgroups-v2"
@@ -231,6 +232,7 @@ let
           "osctl/ct-transient-failures-v2"
           "osctl/ct-send-recv"
           "osctl/ct-uid-gid"
+          "osctl/nfs-cancellation"
           "osctl/pool/export-cleanup"
           "osctl-exportfs/mount"
           "osctld/direct-start"
