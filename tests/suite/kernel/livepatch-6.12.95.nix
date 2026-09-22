@@ -2090,6 +2090,11 @@ import ../../make-test.nix (
           # module-driven .6 exists); the fixture-scoped .5 witnesses stay (the
           # exact v5 anchor carries the uname patch). The sysfs enabled/transition waits
           # carry the replace + downgrade-rejection coverage.
+          # (A9-G5) The retired module-driven .6/base asserts are not restored;
+          # the fixture-scoped .5 witness and the sysfs enabled/transition waits
+          # carry the release/replace coverage.
+          # (A7-T2) The exact v5 direct path must never load the v6 predecessor.
+          machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
           machine.succeeds("test \"$(uname -r)\" = 6.12.95")
           machine.succeeds("modprobe -r kvm_amd")
           machine.all_succeed(
@@ -2121,6 +2126,7 @@ import ../../make-test.nix (
           machine.succeeds("insmod #{CORRECTED_MODULE}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
           wait_for_patch(machine, RELEASED_V5_NAME, 0)
+          machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
           machine.succeeds("rmmod #{RELEASED_V5_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
 
@@ -2184,6 +2190,16 @@ import ../../make-test.nix (
           wait_for_patch(machine, PREDECESSOR_NAME, 0)
           machine.succeeds("rmmod #{PREDECESSOR_NAME}")
           machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
+
+          # (A7-K6) Duplicate load and a stale-generation module must fail closed
+          # without disturbing the active v7 patch.
+          status, output = machine.execute("insmod #{CORRECTED_MODULE}")
+          expect(status).not_to eq(0), output
+          wait_for_patch(machine, CORRECTED_NAME, 1)
+          status, output = machine.execute("insmod #{PREDECESSOR_MODULE}")
+          expect(status).not_to eq(0), output
+          machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
+          wait_for_patch(machine, CORRECTED_NAME, 1)
         end
 
         it "repairs legacy and future nested-SVM x2APIC bitmaps" do
