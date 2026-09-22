@@ -5,16 +5,19 @@ Subject: [PATCH] kpatch-build: skip objects that cannot be reconciled on 6.12.95
 Two objects in the 6.12.95 vpsadminos build cannot be processed by
 create-diff-object:
 
-  - kernel/trace/ring_buffer.o: its functions are compiled without
-    patchable function entries, so the 26 changed functions cannot be
-    patched at all;
-  - drivers/net/ethernet/chelsio/cxgb4/t4_hw.o: the diff contains only
-    unreconcilable static-local/jump-table noise (a faithful two-sided
-    rebuild shows identical code, data, relocations and symbols; only
-    debug line data differs).
+  - kernel/trace/ring_buffer.o: the changed functions of the accepted
+    ring-buffer row (6d666f0b8b36, recreated as bc8f306b) have no
+    patchable function entries in the boot vmlinux - their prologues are
+    plain "push %rbp; mov %rsp,%rbp" where a patchable function starts
+    with "call __fentry__" (contrast the carried
+    __x64_sys_perf_event_open).  The row is carried boot-only with the
+    native 6.12.110 ancestry, not by the online 6.12.95 payload.
+  - drivers/net/ethernet/chelsio/cxgb4/t4_hw.o: a faithful two-sided
+    rebuild shows identical code, rodata, relocation and symbol tables;
+    only debug line-number data differs.  Zero changed functions.
 
-Both objects contribute no patchable content, so skip them the same way
-usr/initramfs_data.o is skipped.  No livepatch coverage is lost.
+Both objects contribute no patchable content to this module; skip them
+the same way usr/initramfs_data.o is skipped.
 
 Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
 ---
@@ -28,8 +31,8 @@ Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
  
  	[[ "$i" = usr/initramfs_data.o ]] && continue
 +	# Objects that create-diff-object cannot reconcile on the 6.12.95
-+	# base and that contribute no patchable functions; see the
-+	# vpsadminos livepatch notes for the analysis.
++	# base and that contribute no patchable functions to this module;
++	# ring_buffer.o's row is carried boot-only, t4_hw.o is debug-only.
 +	[[ "$i" = kernel/trace/ring_buffer.o ]] && continue
 +	[[ "$i" = drivers/net/ethernet/chelsio/cxgb4/t4_hw.o ]] && continue
  
