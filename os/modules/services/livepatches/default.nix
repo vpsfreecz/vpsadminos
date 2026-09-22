@@ -34,9 +34,9 @@ let
   # stay as evaluated by the frozen base.
   # -------------------------------------------------------------------------
   kernel = config.boot.kernelPackage // {
-    dev = "/nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev";
+    dev = builtins.storePath "/nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev";
     configfile = {
-      outPath = "/nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95";
+      outPath = builtins.storePath "/nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95";
     };
   };
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) { };
