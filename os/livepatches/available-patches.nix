@@ -12,6 +12,7 @@ let
       name = "bp-6.12.95-production";
       buildPatches = [
         "bp-6.12.95-production"
+        "bp-6.12.95-uname"
       ];
       filterFn = availableFor "6.12.95";
       version = 7;
