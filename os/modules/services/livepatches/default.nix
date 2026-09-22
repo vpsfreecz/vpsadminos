@@ -94,10 +94,12 @@ let
         # set to 3 if you want to see compile process
         export DEBUG=0
 
-        # Boot-line toolchain lock (agent0 :324/:328): kpatch-build resolves gcc/ld/
-        # readelf/objcopy via PATH; put the boot-line gcc-wrapper-15.2.0 first so the
-        # compiler check and the whole kernel build match the boot kernel's toolchain.
-        export PATH=${bootToolchain}/bin:$PATH
+        # Boot-line toolchain lock (agent0 :324/:328/:340): kpatch-build resolves
+        # gcc/ld/readelf/objcopy via PATH, so the kpatch-build invocation below is run
+        # with the boot-line gcc-wrapper-15.2.0 prefixed to PATH. The override is scoped
+        # to that command only: a buildPhase-wide PATH/CC override broke the ZFS builtin
+        # prep's kernel test compile (build #4), while this scope keeps the compiler
+        # check and the kernel compile kpatch-build drives on the boot-line toolchain.
 
         # prepare kpatch-build and its environment
         export CCACHE_UMASK=007
@@ -178,7 +180,7 @@ let
         ; # we dont get a newline between this and the next line; wtf
                 # actual command
                 #export ARCH_KCFLAGS="-gz=none"
-                if ! $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
+                if ! PATH="${bootToolchain}/bin:$PATH" $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
       + concatMapStrings (target: "-t ${escapeShellArg target} ") availablePatchTargets
       + concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList
       + ''
