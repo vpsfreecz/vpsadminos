@@ -180,6 +180,15 @@ let
       installPhase = ''
         mkdir -p $out/${installModDir};
         cp ${patchModuleName}.ko $out/${installModPath} || (ls -lah && exit 1)
+
+        # The Nix sandbox is removed after a successful build; retain the
+        # decisive kpatch object-level evidence in the output.
+        mkdir -p $out/livepatch-evidence/diff-objects
+        cp $CACHEDIR/build.log $out/livepatch-evidence/build.log 2>/dev/null || echo 'build.log not found' > $out/livepatch-evidence/build.log
+        ( cd $CACHEDIR && find . -maxdepth 4 -print | sort ) > $out/livepatch-evidence/cachedir-tree.txt 2>&1 || true
+        ( cd $TEMPDIR && find . -maxdepth 4 -print | sort ) > $out/livepatch-evidence/tempdir-tree.txt 2>&1 || true
+        ( cd $TEMPDIR && find . -maxdepth 6 \( -name '*.log' -o -name '*.txt' -o -name 'diff-object*' \) -print | sort | head -400 ) > $out/livepatch-evidence/diff-object-files.txt 2>&1 || true
+        ( cd $TEMPDIR && find . -maxdepth 6 \( -name '*.log' -o -name '*.txt' -o -name 'diff-object*' \) -print | sort | head -200 | while read -r f; do cp --parents "$f" $out/livepatch-evidence/diff-objects/ 2>/dev/null; done ) || true
       '';
     };
 
