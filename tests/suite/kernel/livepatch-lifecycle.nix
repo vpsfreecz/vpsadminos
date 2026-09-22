@@ -14,12 +14,15 @@ import ../../make-template.nix (
           inherit lib;
           version = kernelVersion;
         };
-        candidateVersion = patches.patchVersion;
+        native = line.native or false;
+        candidateVersion = if native then 0 else patches.patchVersion;
         candidateName = "livepatch_${toString candidateVersion}";
         predecessorVariantEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_VARIANT";
         predecessorVariant = if predecessorVariantEnv == "" then "v5" else predecessorVariantEnv;
         predecessors =
-          if predecessorVariant == "v5" then
+          if native then
+            { }
+          else if predecessorVariant == "v5" then
             line.predecessors or { }
           else if predecessorVariant == "v6" then
             line.predecessorsV6 or { }
@@ -243,8 +246,54 @@ import ../../make-template.nix (
               assert_kernel_healthy(machine, dmesg_start)
             end
           '';
+        mkNativeScript =
+          vendor:
+          let
+            expectedVendor = if vendor == "amd" then "AuthenticAMD" else "GenuineIntel";
+            kvmModule = if vendor == "amd" then "kvm_amd" else "kvm_intel";
+            requiredFlags = if vendor == "amd" then [ "svm" ] else [ "vmx" ];
+          in
+          ''
+            BOOT_VERSION = ${builtins.toJSON kernelVersion}
+            EXPECTED_VENDOR = ${builtins.toJSON expectedVendor}
+            KVM_MODULE = ${builtins.toJSON kvmModule}
+            KVM_SMOKE = "/etc/livepatch-lifecycle/kvm-smoke"
+            REQUIRED_FLAGS = ${builtins.toJSON requiredFlags}
+            KERNEL_FAULT_PATTERN =
+              /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol/
+
+            machine.start
+            machine.wait_until_online
+            dmesg_start = machine.succeeds("dmesg | wc -l")[1].to_i + 1
+            machine.succeeds("test \"$(uname -r)\" = #{BOOT_VERSION}")
+            machine.succeeds(
+              "grep -Eq '^vendor_id[[:space:]]*: #{EXPECTED_VENDOR}$' /proc/cpuinfo"
+            )
+            REQUIRED_FLAGS.each do |flag|
+              machine.succeeds("grep -m1 '^flags' /proc/cpuinfo | grep -qw #{flag}")
+            end
+
+            # Native continuity (A11 case 13/F): no livepatch is present or loadable.
+            machine.succeeds("test -z \"$(ls -A /sys/kernel/livepatch 2>/dev/null)\"")
+            machine.fails("test -d /sys/module/livepatch_6")
+            machine.fails("test -d /sys/module/livepatch_7")
+
+            # The terminal NFS cancellation ABI is native in .110; the full NFS
+            # sysfs/behavioral rows run with the NFS harness at Step 17/22.
+            machine.succeeds(
+              "grep -qE ' (vps_cancel_clnt_is_shutdown|vps_cancel_task_store)$' /proc/kallsyms"
+            )
+
+            # KVM smoke on the native kernel.
+            machine.succeeds("modprobe #{KVM_MODULE}", timeout: 60)
+            machine.wait_until_succeeds("test -c /dev/kvm", timeout: 30)
+            machine.succeeds(KVM_SMOKE, timeout: 60)
+
+            output = machine.succeeds("dmesg | tail -n +#{dmesg_start}")[1]
+            raise "kernel fault during native .110 continuity:\n#{output}" if output.match?(KERNEL_FAULT_PATTERN)
+          '';
       in
-      assert candidateVersion > 0;
+      assert native || candidateVersion > 0;
       {
         name = "kernel-livepatch-lifecycle-${kernelVersion}";
 
@@ -267,7 +316,7 @@ import ../../make-template.nix (
               "livepatch-amd"
             ];
             labels.cpuVendor = "amd";
-            script = mkScript "amd";
+            script = if native then mkNativeScript "amd" else mkScript "amd";
           };
 
           intel = {
@@ -277,7 +326,7 @@ import ../../make-template.nix (
               "livepatch-intel"
             ];
             labels.cpuVendor = "intel";
-            script = mkScript "intel";
+            script = if native then mkNativeScript "intel" else mkScript "intel";
           };
         };
       };

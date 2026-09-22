@@ -32,6 +32,7 @@ let
   # retention alone does not mean that a kernel needs current lifecycle CI.
   livepatchLifecycleInstances = [
     { kernelVersion = "6.12.95"; }
+    { kernelVersion = "6.12.110"; }
   ];
 
   imageScripts =
