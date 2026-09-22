@@ -21,6 +21,14 @@ let
 
   buildEnable = (patchVersion > 0) && cfg.enable;
 
+  # Boot-line toolchain lock (build #3 gcc-check failure; agent0 :324/:328): kpatch-build
+  # resolves gcc/ld/readelf/objcopy via PATH (CROSS_COMPILE-prefixed plain names) and its
+  # version check compiles a test object with that gcc, comparing `.comment` with the
+  # kernel's recorded "gcc (GCC) 15.2.0, GNU ld (GNU Binutils) 2.46" (boot dev). The boot
+  # line's gcc-wrapper-15.2.0 (builtins.storePath, A8b-style) is therefore placed first on
+  # PATH in the buildPhase instead of skipping the check.
+  bootToolchain = builtins.storePath "/nix/store/hbsz2ngi9ixbhd9na1xagh2yc8qnmj7y-gcc-wrapper-15.2.0";
+
   # -------------------------------------------------------------------------
   # Boot ABI lock (plan §5.3 / Step 09; §21 decision, 2026-09-22):
   # The livepatch build must target the exact boot kernel ABI, not the kernel
@@ -85,6 +93,11 @@ let
       buildPhase = ''
         # set to 3 if you want to see compile process
         export DEBUG=0
+
+        # Boot-line toolchain lock (agent0 :324/:328): kpatch-build resolves gcc/ld/
+        # readelf/objcopy via PATH; put the boot-line gcc-wrapper-15.2.0 first so the
+        # compiler check and the whole kernel build match the boot kernel's toolchain.
+        export PATH=${bootToolchain}/bin:$PATH
 
         # prepare kpatch-build and its environment
         export CCACHE_UMASK=007
