@@ -607,7 +607,7 @@ import ../../make-test.nix (
       # nat_keepalive_send is static and folds into its emitted callers
       # (nat_keepalive_work / _single); not a symbol in this build (control-indirect).
       # NB: comments are not allowed inside a %w[] literal (they become word tokens).
-      V2_REPLACEMENT_FUNCTIONS = %w[
+      REPLACEMENT_FUNCTIONS = %w[
         release_task
         posix_cpu_timer_del
         posix_cpu_timer_rearm
@@ -4118,11 +4118,11 @@ import ../../make-test.nix (
           remove_module(machine, CORRECTED_NAME)
         end
 
-        it "contains and exercises the v2 replacement functions" do
+        it "contains and exercises the replacement functions" do
           machine.succeeds("insmod #{CORRECTED_MODULE}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
 
-          V2_REPLACEMENT_FUNCTIONS.each do |function|
+          REPLACEMENT_FUNCTIONS.each do |function|
             symbol_address(machine, function, CORRECTED_NAME)
           end
 
