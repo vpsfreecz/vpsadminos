@@ -1,50 +1,30 @@
 let
-  mkPredecessor =
-    {
-      osRevision,
-      version,
-      sha256,
-    }:
-    let
-      previousOs = builtins.getFlake "github:vpsfreecz/vpsadminos/${osRevision}";
-      evaluated = previousOs.lib.vpsadminosSystem {
-        system = "x86_64-linux";
-        modules = [
-          {
-            boot.kernelVersion = "6.12.95";
-            services.live-patches.enable = true;
-          }
-        ];
-      };
-      package = evaluated.config.system.build.livePatches;
-      moduleName = "livepatch_${toString version}";
-    in
-    {
-      inherit
-        moduleName
-        osRevision
-        sha256
-        version
-        ;
-      module = "${package}/lib/modules/6.12.95/extra/${moduleName}.ko";
-    };
+  v5AnchorEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE";
+in
+assert v5AnchorEnv != "";
+let
+  # The exact production v5 anchor is supplied as a store path (the same
+  # input the payload suite binds) and pinned by sha256: the production
+  # bytes are not reproducible by evaluating an OS revision, so the
+  # predecessor is the exact module file rather than a rebuilt one.
+  v5Anchor = builtins.storePath v5AnchorEnv;
 in
 {
-  # The candidate comes from the current tree and its locked kernel/toolchain
-  # inputs, so its raw module checksum legitimately changes with dependency
-  # updates. Historical predecessors are evaluated from immutable revisions
-  # and remain checksummed to ensure that the intended shipped bytes are used.
+  bootModule = ../../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
+
   predecessors = {
-    amd = mkPredecessor {
-      osRevision = "1895bbcdd21d0c71e6e7ee442739c4b5190ce5e7";
+    amd = {
+      moduleName = "livepatch_5";
       version = 5;
-      sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
+      sha256 = "b31f64403d9d55f62e3d59e4bbefcbddcbda4fa66a2dc0689f9bb7cd7e927984";
+      module = v5Anchor;
     };
 
-    intel = mkPredecessor {
-      osRevision = "1895bbcdd21d0c71e6e7ee442739c4b5190ce5e7";
+    intel = {
+      moduleName = "livepatch_5";
       version = 5;
-      sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
+      sha256 = "b31f64403d9d55f62e3d59e4bbefcbddcbda4fa66a2dc0689f9bb7cd7e927984";
+      module = v5Anchor;
     };
   };
 }
