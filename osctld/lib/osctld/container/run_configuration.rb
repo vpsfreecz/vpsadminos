@@ -1,5 +1,6 @@
 require 'libosctl'
 require 'osctld/lockable'
+require 'osctld/container/nfs_cancellation'
 
 module OsCtld
   class Container::RunConfiguration
@@ -56,6 +57,8 @@ module OsCtld
     # @return [Container]
     attr_reader :ct
 
+    attr_reader :nfs_cancellation
+
     attr_inclusive_reader :dataset, :distribution, :version, :arch, :vendor, :variant
     attr_synchronized_accessor :cpu_package, :dist_network_configured
     attr_inclusive_reader :init_pid
@@ -66,6 +69,7 @@ module OsCtld
       @ct = ct
       @cpu_package = nil
       @init_pid = nil
+      @nfs_cancellation = Container::NfsCancellation.new(ct)
       @init_identity = nil
       @init_lease_mutex = Mutex.new
       @init_lease_cond = ConditionVariable.new
@@ -426,7 +430,11 @@ module OsCtld
     rescue Errno::ENOENT
       # ignore
     ensure
-      close_init_identity
+      begin
+        nfs_cancellation.close
+      ensure
+        close_init_identity
+      end
     end
 
     protected

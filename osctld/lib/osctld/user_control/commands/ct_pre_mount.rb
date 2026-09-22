@@ -13,6 +13,10 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
+      # Capture before tenant init can mount NFS or become stuck during exit.
+      # The supervisor supplies the authenticated socket peer PID.
+      ct.get_run_conf.nfs_cancellation.capture(opts[:client_pid])
+
       Hook.run(
         ct,
         :pre_mount,

@@ -116,6 +116,39 @@ file        /tank/conf/ct/myct01.yml                                            
 file        /tank/log/ct/myct01.log                                                  valid     LXC log file
 ```
 
+## NFS during container shutdown
+
+With a kernel that provides host-controlled NFS cancellation, NFS mounts made
+inside containers retain their normal retry policy: the default is a hard mount.
+An unreachable or slow server does not by itself cause *osctld* to cancel I/O.
+Applications should synchronize their data and unmount NFS as part of an orderly
+shutdown.
+
+For `osctl ct stop --kill`, or after the normal stop timeout expires, *osctld*
+quiesces the container payload and requests terminal cancellation before asking
+LXC to finish teardown. It also requests cancellation when container init is
+exiting, including when init is blocked closing its own NFS file descriptors.
+This lets teardown proceed without waiting for the NFS server to return.
+
+**Cancellation is not a successful flush.** Pending writes can fail or be lost,
+and a backup interrupted by forced teardown must be checked or retried. Prefer
+a clean application shutdown when the server is available. The cancellation
+mechanism does not provide an NFS server durability guarantee.
+
+Cancellation is scoped to the container run's authenticated user namespace and
+the network namespaces owned by it or its descendants. This includes namespaces
+kept alive by mounts even when no process occupies them. It affects all NFS
+mounts and client SUNRPC activity in that scope, including NLM lock requests.
+Namespaces owned by the host or another container are not selected. Host-created
+NFS mounts passed into a container are outside this ownership guarantee; manage
+their lifecycle on the host.
+
+The operation cannot be undone in the cancelled namespaces. Restart the
+container through *osctl* to obtain fresh namespaces; do not try to revive old
+namespace handles. On older kernels, *osctld* uses the available per-namespace or
+per-filesystem control, while the older kernel's forced-soft policy remains in
+effect. This mechanism does not implement cancellation of CIFS/SMB requests.
+
 ## Attaching containers
 Administrators can use `osctl ct attach` to enter containers and get root shell,
 without the need of knowing password for SSH or `osctl ct console`. *osctl*

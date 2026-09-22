@@ -923,6 +923,13 @@ The following shortcuts are supported:
   seconds passes. If it time outs, the container is killed. This behaviour can
   be changed with options `--timeout`, `--kill` and `--dont-kill`.
 
+  On kernels with host-controlled NFS cancellation, forced teardown cancels
+  NFS client requests in the container run's owned namespaces. Cancellation is
+  also requested once container init is exiting. It is terminal for those
+  namespaces and can fail or discard pending writes; it is not a successful
+  data flush. Normal running containers retain their configured NFS retry
+  policy. Restart through `ct start` to obtain fresh namespaces.
+
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
 
