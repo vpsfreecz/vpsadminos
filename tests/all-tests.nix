@@ -56,7 +56,7 @@ let
   sctpHostileTestEnabled = builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE" != "";
 
   proactiveSwapTests = if proactiveSwapEnabled then [ "kernel/proactive-swap" ] else [ ];
-  livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" ] else [ ];
+  livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" "kernel/livepatch-perf-v7" ] else [ ];
   nfsTransitionTests =
     if nfsTransitionTestEnabled then [ "kernel/livepatch-nfs-transition" ] else [ ];
   sctpHostileTests = if sctpHostileTestEnabled then [ "kernel/livepatch-sctp-hostile" ] else [ ];
