@@ -37,24 +37,14 @@ let
 in
 {
   boot.kernelVersion = lib.mkForce "6.12.95";
-  # The live-patches loader compares the module's configured kernel notes
-  # (from the locked boot dev c7ckwabn…) against the running /sys/kernel/notes
-  # and refuses on mismatch. A local rebuild of the .95 kernel carries
-  # features = { zfsBuiltin } only, so enableBuildId is false and its .notes
-  # cannot equal the boot kernel's. Boot the exact boot kernel objects instead
-  # by wrapping the plain package with the boot out/dev/config paths (A8(b)
-  # shape); modDirVersion and the remaining attributes stay from the evaluated
-  # package.
-  boot.kernelPackage = lib.mkForce (
-    plainKernel
-    // {
-      outPath = builtins.storePath "/nix/store/f3rgj3iq8z1kvkc0g64d4mgyrjhi0q6w-linux-6.12.95";
-      dev = builtins.storePath "/nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev";
-      configfile = {
-        outPath = builtins.storePath "/nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95";
-      };
-    }
-  );
+  # A8(b) note + §265: the loader's guard requires
+  # readlink -f /run/booted-system/kernel == ${kernel}/bzImage, and the
+  # previous plainKernel // { outPath = …; } wrap cannot satisfy it — the
+  # override changes only the textual outPath while the booted system links
+  # to the plainKernel derivation itself. The OS-default kernel in this tree
+  # IS the locked boot kernel (the livepatch module already builds against
+  # its dev c7ckwabn…), so let the default apply: both guard conditions hold
+  # and system.build.livePatches stays w5a5rfxh…/08edc44f….
   # A25c/A25d: no zfsBuiltin/zfsBuiltinPkg and no kernelForBuiltinsConfig
   # override here — the OS defaults must apply so that
   # system.build.livePatches re-evaluates to the verified
