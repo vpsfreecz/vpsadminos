@@ -26,6 +26,24 @@ let
           ];
     };
   plainKernel = mkKernel null;
+  # §265: the locked boot kernel objects as a REAL derivation whose output is
+  # the pinned files (hardlink farm) — a textual outPath patch cannot propagate
+  # into the system closure (slave4 b407: coercion uses the derivation output).
+  pinnedBoot = pkgs.runCommand "linux-6.12.95-boot-pinned" { } ''
+    mkdir -p $out
+    cp -al ${builtins.storePath "/nix/store/f3rgj3iq8z1kvkc0g64d4mgyrjhi0q6w-linux-6.12.95"}/. $out/
+  '';
+  pinnedKernel = plainKernel // {
+    outPath = pinnedBoot.outPath;
+    dev = builtins.storePath "/nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev";
+    configfile = {
+      outPath = builtins.storePath "/nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95";
+    };
+    modules = pinnedBoot;
+    # nixos kernel.nix calls kernel.override to inject randstructSeed; for the
+    # pinned build the seed is already baked, so keep this kernel unchanged.
+    override = _args: pinnedKernel;
+  };
   zfsBuiltin =
     (pkgs.callPackage ../../../os/packages/zfs {
       configFile = "builtin";
@@ -37,14 +55,9 @@ let
 in
 {
   boot.kernelVersion = lib.mkForce "6.12.95";
-  # A8(b) note + §265: the loader's guard requires
-  # readlink -f /run/booted-system/kernel == ${kernel}/bzImage, and the
-  # previous plainKernel // { outPath = …; } wrap cannot satisfy it — the
-  # override changes only the textual outPath while the booted system links
-  # to the plainKernel derivation itself. The OS-default kernel in this tree
-  # IS the locked boot kernel (the livepatch module already builds against
-  # its dev c7ckwabn…), so let the default apply: both guard conditions hold
-  # and system.build.livePatches stays w5a5rfxh…/08edc44f….
+  # A8(b) + §265 variant A: pin the singular boot.kernelPackage; the OS set
+  # (config/kernel.nix:36-37, origKernel = boot.kernelPackage) derives from it.
+  boot.kernelPackage = lib.mkForce pinnedKernel;
   # A25c/A25d: no zfsBuiltin/zfsBuiltinPkg and no kernelForBuiltinsConfig
   # override here — the OS defaults must apply so that
   # system.build.livePatches re-evaluates to the verified
