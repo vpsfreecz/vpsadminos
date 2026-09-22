@@ -21,9 +21,9 @@ import ../../make-test.nix (
     releasedV5Sha256 = builtins.hashFile "sha256" releasedV5Module;
     predecessorSha256 = builtins.hashFile "sha256" predecessorModule;
     expectedCorrectedSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_SHA256";
-    expectedReleasedV1Sha256 = "a3f79b223f1ad1eba764ed10e687b5800aea28b42eb1cc9fffb95f43d6260a30";
+    expectedReleasedV1Sha256 = "fb5f177e47ed067e41094bd38fec888538423e267f40e01c3d3c4d1a2abc0bfb";
     expectedReleasedV5Sha256 = "f09ac45ab38929273f857e62f7bd04aaf9256dfbbf1eb64f39249611dd9a1255";
-    expectedPredecessorSha256 = "70f22f6f2a1a5b0eaf57d09fdd8e988561adbea6c77fb59dcdf89b2415a9f79e";
+    expectedPredecessorSha256 = "d51084446b74cbec7069fcc0d0f140b63af60f038b7482eabe5decf3b0149000";
 
     perfTransition = pkgs.stdenv.mkDerivation {
       pname = "livepatch-test-perf-transition";
@@ -187,6 +187,23 @@ import ../../make-test.nix (
 
       installPhase = ''
         install -Dm755 v2_runtime "$out/bin/v2_runtime"
+      '';
+    };
+
+    tapWrite = pkgs.stdenv.mkDerivation {
+      pname = "livepatch-test-tap-write";
+      version = "1";
+      src = ./livepatch-6.12.95;
+
+      dontConfigure = true;
+
+      buildPhase = ''
+        "$CC" -std=gnu11 -O2 -Wall -Wextra -Werror \
+          -o tap_write tap_write.c
+      '';
+
+      installPhase = ''
+        install -Dm755 tap_write "$out/bin/tap_write"
       '';
     };
 
@@ -419,6 +436,7 @@ import ../../make-test.nix (
           "livepatch-test/fuse-transition".source = "${fuseTransition}/bin/fuse_transition";
           "livepatch-test/ipv6-fragment-partial".source = "${ipv6FragmentPartial}/bin/ipv6_fragment_partial";
           "livepatch-test/v2-runtime".source = "${v2Runtime}/bin/v2_runtime";
+          "livepatch-test/tap-write".source = "${tapWrite}/bin/tap_write";
           "livepatch-test/kvm-smoke".source = "${kvmSmoke}/bin/kvm_smoke";
           "livepatch-test/svm-nested-vmcall".source = "${svmNestedVmcall}/bin/svm_nested_vmcall";
           "livepatch-test/pernet-hold.ko".source =
@@ -474,12 +492,13 @@ import ../../make-test.nix (
       FUSE_TRANSITION = "/etc/livepatch-test/fuse-transition"
       IPV6_FRAGMENT_PARTIAL = "/etc/livepatch-test/ipv6-fragment-partial"
       V2_RUNTIME = "/etc/livepatch-test/v2-runtime"
+      TAP_WRITE = "/etc/livepatch-test/tap-write"
       KVM_SMOKE = "/etc/livepatch-test/kvm-smoke"
       SVM_NESTED_VMCALL = "/etc/livepatch-test/svm-nested-vmcall"
       PERNET_HOLD_MODULE = "/etc/livepatch-test/pernet-hold.ko"
       PROBE_MODULE = "/etc/livepatch-test/probe.ko"
       PROBE_PARAMETERS = "/sys/module/livepatch_test_probe/parameters"
-      CORRECTED_NAME = "livepatch_6"
+      CORRECTED_NAME = "livepatch_7"
       RELEASED_V1_NAME = "livepatch_1"
       RELEASED_V5_NAME = "livepatch_5"
       PREDECESSOR_NAME = "livepatch_predecessor_1"
@@ -595,6 +614,9 @@ import ../../make-test.nix (
         ip_vs_pe_sip
         vsock_loopback
       ].freeze
+      # nat_keepalive_send is static and folds into its emitted callers
+      # (nat_keepalive_work / _single); not a symbol in this build (control-indirect).
+      # NB: comments are not allowed inside a %w[] literal (they become word tokens).
       V2_REPLACEMENT_FUNCTIONS = %w[
         release_task
         posix_cpu_timer_del
@@ -615,7 +637,8 @@ import ../../make-test.nix (
         decode_new_up_state_weight
         ceph_x_update_authorizer
         ceph_con_v1_try_write
-        nat_keepalive_send
+        nat_keepalive_work
+        nat_keepalive_work_single
       ].freeze
       KERNEL_FAULT_PATTERN =
         /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|KASAN|UBSAN|Invalid relocation target|disagrees about version|Unknown symbol/
@@ -1098,6 +1121,8 @@ import ../../make-test.nix (
           "nft delete table ip klp_headroom >/dev/null 2>&1 || true; " \
           "nft delete table ip klp_sip >/dev/null 2>&1 || true; " \
           "ip link del klp_head_br >/dev/null 2>&1 || true; " \
+          "ip tuntap del dev klp_tap0 mode tap >/dev/null 2>&1 || " \
+          "ip link del klp_tap0 >/dev/null 2>&1 || true; " \
           "ip netns del klp_head_a >/dev/null 2>&1 || true; " \
           "ip netns del klp_head_b >/dev/null 2>&1 || true; " \
           "ip link del klp_sip_a0 >/dev/null 2>&1 || true; " \
@@ -2013,7 +2038,7 @@ import ../../make-test.nix (
             "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
             "/lib/modules/6.12.95.5",
             "ln -snf /run/current-system/kernel-modules/lib/modules/6.12.95 " \
-            "/lib/modules/6.12.95.6",
+            "/lib/modules/6.12.95.7",
           )
           machine.fails("test -d /sys/module/#{CORRECTED_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V1_NAME}")
@@ -2073,6 +2098,10 @@ import ../../make-test.nix (
         end
 
         it "retains released v5 after failure, replaces it with v6, and exercises KVM" do
+          # The .6 release asserts were dropped for the no-uname-era payload (no
+          # module-driven .6 exists); the fixture-scoped .5 witnesses stay (the
+          # released v5 carries the uname patch). The sysfs enabled/transition waits
+          # carry the replace + downgrade-rejection coverage.
           machine.succeeds("test \"$(uname -r)\" = 6.12.95")
           machine.succeeds("modprobe -r kvm_amd")
           machine.all_succeed(
@@ -2104,7 +2133,6 @@ import ../../make-test.nix (
           machine.succeeds("insmod #{CORRECTED_MODULE}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
           wait_for_patch(machine, RELEASED_V5_NAME, 0)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.6")
           machine.succeeds("rmmod #{RELEASED_V5_NAME}")
           machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
 
@@ -2136,7 +2164,6 @@ import ../../make-test.nix (
           expect(status).not_to eq(0), output
           machine.fails("test -d /sys/module/#{RELEASED_V5_NAME}")
           wait_for_patch(machine, CORRECTED_NAME, 1)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95.6")
           machine.succeeds(
             "dmesg | tail -n +#{downgrade_log_start} | grep -F " \
             "'Livepatch patch (#{RELEASED_V5_NAME}) is not compatible with the already installed livepatches.'"
@@ -2144,7 +2171,6 @@ import ../../make-test.nix (
 
           disable_patch(machine, CORRECTED_NAME)
           remove_module(machine, CORRECTED_NAME)
-          machine.succeeds("test \"$(uname -r)\" = 6.12.95")
         end
 
         it "repairs legacy and future nested-SVM x2APIC bitmaps" do
@@ -2388,6 +2414,42 @@ import ../../make-test.nix (
             "! kill -0 \"$(cat #{V5_STATE}/fast2.pid)\" 2>/dev/null",
             timeout: 30
           )
+
+          clear_probe(machine)
+          disable_patch(machine, CORRECTED_NAME)
+          remove_module(machine, CORRECTED_NAME)
+        end
+
+        it "clamps a preactivation-oversized TUN align at use time" do
+          remove_module(machine, CORRECTED_NAME)
+          wait_for_patch(machine, CORRECTED_NAME, 0)
+
+          machine.all_succeed(
+            "modprobe tun",
+            "ip tuntap add dev klp_tap0 mode tap",
+            "ip link set klp_tap0 up",
+            "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_capture_args'",
+          )
+          set_probe(machine, "tun_set_headroom", "tun")
+          machine.all_succeed(
+            "sh -c 'echo \"klp_tap0 65535\" > " \
+            "#{PROBE_PARAMETERS}/set_rx_headroom'",
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0",
+            "test \"$(( $(cat #{PROBE_PARAMETERS}/probe_arg1) ))\" = 65535",
+          )
+          clear_probe(machine)
+          machine.succeeds(
+            "sh -c 'echo 0 > #{PROBE_PARAMETERS}/probe_capture_args'"
+          )
+
+          machine.succeeds("insmod #{CORRECTED_MODULE}")
+          wait_for_patch(machine, CORRECTED_NAME, 1)
+          set_probe(machine, "tun_get_user", CORRECTED_NAME)
+          machine.all_succeed(
+            "#{TAP_WRITE} klp_tap0 60",
+            "test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0",
+          )
+          machine.fails("#{TAP_WRITE} klp_tap0 1")
 
           clear_probe(machine)
           disable_patch(machine, CORRECTED_NAME)

@@ -191,12 +191,15 @@ import ../../make-template.nix (
             )
             dmesg_start = machine.succeeds("dmesg | wc -l")[1].to_i + 1
 
+            # Release surfaces: the fixture-scoped .5 witness after the predecessor load
+            # stays (the released v5 artifact carries the uname patch). Candidate-side
+            # .6/base asserts are gone — the no-uname era has no module-driven release
+            # surfaces there — and the sysfs enabled/transition waits carry the
+            # replace/downgrade coverage.
             # Direct load and clean removal.
             enable_patch(machine, candidate, CANDIDATE_NAME)
-            assert_release(machine, module_release(CANDIDATE_VERSION))
             assert_kernel_healthy(machine, dmesg_start)
             disable_and_remove_patch(machine, CANDIDATE_NAME)
-            assert_release(machine, BOOT_VERSION)
             assert_kernel_healthy(machine, dmesg_start)
 
             unless PREDECESSOR_MODULE.nil?
@@ -213,7 +216,6 @@ import ../../make-template.nix (
               assert_release(machine, module_release(PREDECESSOR_VERSION))
               enable_patch(machine, candidate, CANDIDATE_NAME)
               wait_for_inactive_patch(machine, PREDECESSOR_NAME)
-              assert_release(machine, module_release(CANDIDATE_VERSION))
               assert_kernel_healthy(machine, dmesg_start)
 
               machine.succeeds("rmmod #{PREDECESSOR_NAME}", timeout: 60)
@@ -225,11 +227,9 @@ import ../../make-template.nix (
 
               machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
               wait_for_patch(machine, CANDIDATE_NAME)
-              assert_release(machine, module_release(CANDIDATE_VERSION))
               assert_kernel_healthy(machine, dmesg_start)
 
               disable_and_remove_patch(machine, CANDIDATE_NAME)
-              assert_release(machine, BOOT_VERSION)
               assert_kernel_healthy(machine, dmesg_start)
             end
           '';

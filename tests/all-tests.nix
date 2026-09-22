@@ -52,9 +52,14 @@ let
   proactiveSwapOnly = builtins.getEnv "VPSADMINOS_ONLY_PROACTIVE_SWAP_TEST" == "1";
   livepatchTestEnabled = builtins.getEnv "VPSADMINOS_ENABLE_LIVEPATCH_TEST" == "1";
   livepatchOnly = builtins.getEnv "VPSADMINOS_ONLY_LIVEPATCH_TEST" == "1";
+  nfsTransitionTestEnabled = builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE" != "";
+  sctpHostileTestEnabled = builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE" != "";
 
   proactiveSwapTests = if proactiveSwapEnabled then [ "kernel/proactive-swap" ] else [ ];
   livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" ] else [ ];
+  nfsTransitionTests =
+    if nfsTransitionTestEnabled then [ "kernel/livepatch-nfs-transition-agent3" ] else [ ];
+  sctpHostileTests = if sctpHostileTestEnabled then [ "kernel/livepatch-sctp-hostile" ] else [ ];
 
   selectedTests =
     if livepatchOnly then
@@ -192,6 +197,8 @@ let
         "zfs/ugidmap"
       ]
       ++ proactiveSwapTests
-      ++ livepatchTests;
+      ++ livepatchTests
+      ++ nfsTransitionTests
+      ++ sctpHostileTests;
 in
 testLib.makeTests selectedTests
