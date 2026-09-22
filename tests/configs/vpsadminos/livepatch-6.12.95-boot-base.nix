@@ -55,18 +55,10 @@ in
       };
     }
   );
-  # A25c: no zfsBuiltin/zfsBuiltinPkg override here — the OS default must apply
-  # so that system.build.livePatches re-evaluates to the verified
-  # 76qfpsyj…-livepatch_7-6.12.95.drv. kernelForBuiltinsConfig stays consistent
-  # with the pinned boot kernel.
-  boot.kernelForBuiltinsConfig = lib.mkForce (
-    plainKernel
-    // {
-      outPath = builtins.storePath "/nix/store/f3rgj3iq8z1kvkc0g64d4mgyrjhi0q6w-linux-6.12.95";
-      dev = builtins.storePath "/nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev";
-      configfile = {
-        outPath = builtins.storePath "/nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95";
-      };
-    }
-  );
+  # A25c/A25d: no zfsBuiltin/zfsBuiltinPkg and no kernelForBuiltinsConfig
+  # override here — the OS defaults must apply so that
+  # system.build.livePatches re-evaluates to the verified
+  # 76qfpsyj…-livepatch_7-6.12.95.drv (the fixture's zfs-builtin inputDrv must
+  # stay 249agjkf…, built against the OS-default kernel). The machine itself
+  # still boots the pinned boot kernelPackage above.
 }
