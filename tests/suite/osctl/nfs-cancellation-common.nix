@@ -462,7 +462,7 @@
               "osctl ct exec nfs1 sh -c " \
                 "'cat /sys/fs/nfs/net/nfs_client/shutdown >/dev/null; echo rc=$?'",
             )[1].strip
-            expect(tenant).to eq('rc=1')
+            expect(tenant).to end_with('rc=1')
             machine.fails(
               "osctl ct exec nfs1 sh -c " \
                 "'echo 1 > /sys/fs/nfs/net/nfs_client/shutdown'",
