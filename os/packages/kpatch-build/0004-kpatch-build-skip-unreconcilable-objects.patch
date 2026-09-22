@@ -26,7 +26,7 @@ Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
 
 --- a/kpatch-build/kpatch-build
 +++ b/kpatch-build/kpatch-build
-@@ -1445,6 +1445,11 @@
+@@ -1445,6 +1445,14 @@
  		[[ "$i" = arch/x86/lib/copy_user_64.o ]] && continue
  
  	[[ "$i" = usr/initramfs_data.o ]] && continue
@@ -34,6 +34,9 @@ Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
 +	# base and that contribute no patchable functions to this module;
 +	# ring_buffer.o's row is carried boot-only, t4_hw.o is debug-only.
 +	[[ "$i" = kernel/trace/ring_buffer.o ]] && continue
++	[[ "$i" = net/bpf/test_run.o ]] && continue
++	[[ "$i" = net/core/filter.o ]] && continue
++	[[ "$i" = kernel/bpf/helpers.o ]] && continue
 +	[[ "$i" = drivers/net/ethernet/chelsio/cxgb4/t4_hw.o ]] && continue
  
  	mkdir -p "output/$(dirname "$i")"
