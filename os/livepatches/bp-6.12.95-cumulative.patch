@@ -281,7 +281,7 @@ index 939401b5d2ef04d3cda281ed432f91af9029b63b..ef41ec2cb5d55349d47a88ee89fb0296
 +}
 +#endif
 +
-@@ -3485,0 +3516,337 @@ void __warn_thunk(void)
+@@ -3485,0 +3516,351 @@ void __warn_thunk(void)
 +
 +#ifdef CONFIG_MITIGATION_SRSO
 +/*
@@ -339,6 +339,20 @@ index 939401b5d2ef04d3cda281ed432f91af9029b63b..ef41ec2cb5d55349d47a88ee89fb0296
 +	.id = VPSADMINOS_SAFERET_STATE_ID,
 +	.version = VPSADMINOS_SAFERET_STATE_VERSION,
 +};
++#define VPSADMINOS_UTS_RELEASE_STATE_ID	0x008aa4605ec26339UL
++
++/*
++ * Compatibility marker for the released v5 generation: the uname stanza
++ * moved to the eBPF lane, but a cumulative successor must still cover the
++ * old klp_state to pass klp_is_patch_compatible().
++ */
++static struct klp_state vpsadminos_uts_release_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_UTS_RELEASE_STATE_ID,
++	.version = 1,
++};
++
 +
 +struct vpsadminos_saferet_transition {
 +	/* Boot-kernel bytes propagated for final clean removal. */

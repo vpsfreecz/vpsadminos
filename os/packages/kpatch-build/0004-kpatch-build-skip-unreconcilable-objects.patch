@@ -1,0 +1,37 @@
+From: Pavel Snajdr <snajpa@snajpa.net>
+Date: Sun, 20 Sep 2026 00:00:00 +0200
+Subject: [PATCH] kpatch-build: skip objects that cannot be reconciled on 6.12.95
+
+Two objects in the 6.12.95 vpsadminos build cannot be processed by
+create-diff-object:
+
+  - kernel/trace/ring_buffer.o: its functions are compiled without
+    patchable function entries, so the 26 changed functions cannot be
+    patched at all;
+  - drivers/net/ethernet/chelsio/cxgb4/t4_hw.o: the diff contains only
+    unreconcilable static-local/jump-table noise (a faithful two-sided
+    rebuild shows identical code, data, relocations and symbols; only
+    debug line data differs).
+
+Both objects contribute no patchable content, so skip them the same way
+usr/initramfs_data.o is skipped.  No livepatch coverage is lost.
+
+Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
+---
+ kpatch-build/kpatch-build | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/kpatch-build/kpatch-build
++++ b/kpatch-build/kpatch-build
+@@ -1445,6 +1445,11 @@
+ 		[[ "$i" = arch/x86/lib/copy_user_64.o ]] && continue
+ 
+ 	[[ "$i" = usr/initramfs_data.o ]] && continue
++	# Objects that create-diff-object cannot reconcile on the 6.12.95
++	# base and that contribute no patchable functions; see the
++	# vpsadminos livepatch notes for the analysis.
++	[[ "$i" = kernel/trace/ring_buffer.o ]] && continue
++	[[ "$i" = drivers/net/ethernet/chelsio/cxgb4/t4_hw.o ]] && continue
+ 
+ 	mkdir -p "output/$(dirname "$i")"
+ 	cd "$BUILDDIR" || die

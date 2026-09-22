@@ -35,6 +35,10 @@
   # NixOS to implement kernel-specific behaviour.
   features ? { },
 
+  # Preserve legacy boot artifacts unless exact-build livepatch identity is
+  # requested. GNU SHA1 build IDs are content-derived, not random UUIDs.
+  enableBuildId ? false,
+
   # Custom seed used for CONFIG_GCC_PLUGIN_RANDSTRUCT if enabled. This is
   # automatically extended with extra per-version and per-config values.
   randstructSeed ? "",
@@ -225,6 +229,7 @@ let
       extraMeta
       configfile
       zfsBuiltinPkg
+      enableBuildId
       ;
 
     config = {
