@@ -21,7 +21,24 @@ let
 
   buildEnable = (patchVersion > 0) && cfg.enable;
 
-  kernel = config.boot.kernelPackage;
+  # -------------------------------------------------------------------------
+  # Boot ABI lock (plan §5.3 / Step 09; §21 decision, 2026-09-22):
+  # The livepatch build must target the exact boot kernel ABI, not the kernel
+  # build the frozen base evaluates with its newer toolchain.
+  #   boot kernel drv : /nix/store/rwffs5wf4jvigna0ykv85v93q1zkn8s5-linux-6.12.95.drv
+  #   boot dev output : /nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev
+  #                     (vmlinux build ID 7801779436291880089e3407e50e5813f80d76f1)
+  #   boot config     : /nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95
+  #                     (sha256 c10922b492fdf39ed3027b9c8f7ce2846a5d3799d57d417a161595fa81a64969)
+  # src (a2384967 archive), modDirVersion, bzImage out path and nativeBuildInputs
+  # stay as evaluated by the frozen base.
+  # -------------------------------------------------------------------------
+  kernel = config.boot.kernelPackage // {
+    dev = "/nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev";
+    configfile = {
+      outPath = "/nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95";
+    };
+  };
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) { };
 
   patchName = "${toString patchVersion}";
