@@ -113,6 +113,7 @@ import ../../make-test.nix (
         @truncated_ct = "truncatedct"
         @garbage_ct = "garbagect"
         @recovered_ct = "recoveredct"
+        @rich_ct = "richct"
 
         machine.wait_for_osctl_pool("tank")
         machine.wait_until_online
@@ -120,6 +121,34 @@ import ../../make-test.nix (
         machine.all_succeed(
           "osctl ct new --distribution alpine #{@preload_ct}",
           "osctl ct unset start-menu #{@preload_ct}"
+        )
+
+        # Rich payload for the repository import pipeline (row 31): contents,
+        # numeric ownership, mode bits including setuid/sticky, symlink,
+        # hardlink, FIFO, a sparse file and an ACL. Written from the host on the
+        # mounted rootfs so no guest tooling is required.
+        preload_rootfs = machine.succeeds(
+          "osctl ct show -H -o rootfs #{@preload_ct}"
+        )[1].strip
+        machine.all_succeed(
+          "osctl ct mount #{@preload_ct}",
+          "mkdir -p #{preload_rootfs}/rich",
+          "echo rich-content > #{preload_rootfs}/rich/plain",
+          "echo setuid > #{preload_rootfs}/rich/setuid",
+          "echo sticky > #{preload_rootfs}/rich/sticky",
+          "echo sparse-head > #{preload_rootfs}/rich/sparse",
+          "truncate -s 1048576 #{preload_rootfs}/rich/sparse",
+          "dd if=/dev/urandom of=#{preload_rootfs}/rich/blob bs=1024 count=32 status=none",
+          "sha256sum #{preload_rootfs}/rich/blob | awk '{print $1}' > /tmp/rich-blob.sha256",
+          "chown 1234:5678 #{preload_rootfs}/rich/plain",
+          "chmod 640 #{preload_rootfs}/rich/plain",
+          "chmod 4755 #{preload_rootfs}/rich/setuid",
+          "chmod 1777 #{preload_rootfs}/rich/sticky",
+          "ln -s plain #{preload_rootfs}/rich/link",
+          "ln #{preload_rootfs}/rich/plain #{preload_rootfs}/rich/hardlink",
+          "mkfifo #{preload_rootfs}/rich/fifo",
+          "echo acl > #{preload_rootfs}/rich/acl",
+          "setfacl -m u:4321:rwx #{preload_rootfs}/rich/acl"
         )
 
         _, arch = machine.succeeds("uname -m")
@@ -220,6 +249,34 @@ import ../../make-test.nix (
             "osctl ct start #{@recovered_ct}",
             "osctl ct exec #{@recovered_ct} true",
             "osctl ct del -f --prune #{@recovered_ct}"
+          )
+        end
+
+        it 'preserves a rich payload through the repository import pipeline' do
+          machine.all_succeed(
+            "osctl ct new --repository flaky --distribution alpine " \
+              "#{@rich_ct}",
+            "osctl ct unset start-menu #{@rich_ct}",
+            "osctl ct mount #{@rich_ct}"
+          )
+          rootfs = machine.succeeds(
+            "osctl ct show -H -o rootfs #{@rich_ct}"
+          )[1].strip
+          machine.all_succeed(
+            "test \"$(cat #{rootfs}/rich/plain)\" = rich-content",
+            "test \"$(stat -c '%u:%g:%a' #{rootfs}/rich/plain)\" = '1234:5678:640'",
+            "test \"$(stat -c '%a' #{rootfs}/rich/setuid)\" = 4755",
+            "test \"$(stat -c '%a' #{rootfs}/rich/sticky)\" = 1777",
+            "test \"$(readlink #{rootfs}/rich/link)\" = plain",
+            "test \"$(stat -c '%h' #{rootfs}/rich/plain)\" = 2",
+            "test \"$(stat -c '%i' #{rootfs}/rich/plain)\" = \"$(stat -c '%i' #{rootfs}/rich/hardlink)\"",
+            "test \"$(stat -c '%F' #{rootfs}/rich/fifo)\" = fifo",
+            "test \"$(stat -c '%s' #{rootfs}/rich/sparse)\" = 1048576",
+            "test \"$(head -c 11 #{rootfs}/rich/sparse)\" = sparse-head",
+            "test \"$(stat -c '%b' #{rootfs}/rich/sparse)\" -lt 128",
+            "sha256sum #{rootfs}/rich/blob | awk '{print $1}' | cmp - /tmp/rich-blob.sha256",
+            "getfacl -p #{rootfs}/rich/acl | grep -E '^user:4321:rwx$'",
+            "osctl ct del -f --prune #{@rich_ct}"
           )
         end
       end
