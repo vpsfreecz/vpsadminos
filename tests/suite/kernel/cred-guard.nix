@@ -230,6 +230,13 @@ import ../../make-test.nix (
           boot.enableUnifiedCgroupHierarchy = lib.mkForce false;
           boot.zfsBuiltin = lib.mkForce false;
 
+          # The live-patch builder unpacks the kernel source with `tar xf`
+          # (os/modules/services/livepatches), which cannot read the
+          # directory source a snapshot kernel is built from.  Live patches
+          # are therefore disabled for snapshot runs and stay enabled for
+          # the pinned-kernel runs.
+          services.live-patches.enable = lib.mkForce (linuxSnapshot == "");
+
           security.lsm = lib.mkForce authGuardLsms;
 
           boot.qemu.memory = lib.mkOverride 0 2048;
