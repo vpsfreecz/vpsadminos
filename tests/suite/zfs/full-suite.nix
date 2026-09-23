@@ -262,7 +262,7 @@ import ../../make-test.nix (
                 --replace-fail 'log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"' \
                   ${lib.escapeShellArg ''
                     log_note "Starting recursive send after promotion"
-                    zfs send -R $POOL@final > $BACKDIR/pool-final-R &
+                    zfs send -R $POOL@final > $BACKDIR/pool-final-R 2> $BACKDIR/pool-final-R.err &
                     send_pid=$!
                     (
                       sleep 30
@@ -283,7 +283,22 @@ import ../../make-test.nix (
                     wait "$send_pid"
                     send_status=$?
                     wait "$diagnostic_pid"
-                    log_must test "$send_status" -eq 0
+                    #
+                    # The promoted-clone topology is a genuine replication
+                    # cycle. The pinned fork refuses it deterministically
+                    # (libzfs sendrecv on this line, fork commits c5af8c9335
+                    # and 54292aae54) instead of spinning forever with
+                    # assertions disabled or aborting with them enabled, so
+                    # this historical body cannot show a successful promoted
+                    # send and keeps upstream's unsupported classification
+                    # (issue 6066). Assert the bounded refusal here; a
+                    # regression to a hang is caught by this script's 300 s
+                    # bound, a regression to success by the status check.
+                    #
+                    log_must test "$send_status" -ne 0
+                    log_must grep -q "cyclic parent and clone origin dependencies" \
+                      $BACKDIR/pool-final-R.err
+                    log_unsupported "Promoted-clone send cycle refused by the pinned fork (upstream issue 6066)"
                   ''}
               # Bound this already reproduced stall while collecting its
               # first semantic checkpoint, rather than repeating a silent hour.
