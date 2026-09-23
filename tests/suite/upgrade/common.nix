@@ -688,9 +688,16 @@ import (previous.outPath + "/tests/make-test.nix")
                       # for the in-flight operations, but they must conclude
                       # within a bound with a numeric status and leave no runner
                       # helper behind.
-                      overlap_script = "#!/bin/sh\nsleep 30\necho overlap-runscript-done > /overlap-runscript\n"
-                      machine.succeeds("(osctl ct exec upgrade1 sh -c 'sleep 30; echo overlap-exec-done > /overlap-exec' > /overlap-exec.log 2>&1; echo $? > /overlap-exec.status) & echo $! > /overlap-exec.pid")
-                      machine.succeeds("(printf %s #{Shellwords.escape(overlap_script)} | osctl ct runscript upgrade1 - > /overlap-runscript.log 2>&1; echo $? > /overlap-runscript.status) & echo $! > /overlap-runscript.pid")
+                      rootfs1 = machine.osctl_json('ct show upgrade1').fetch('rootfs')
+                      rootfs2 = machine.osctl_json('ct show upgrade2').fetch('rootfs')
+                      overlap_script = "#!/bin/sh\necho started > /overlap-runscript.started\nsleep 60\necho overlap-runscript-done > /overlap-runscript\n"
+                      machine.succeeds("(osctl ct exec upgrade1 sh -c 'echo started > /overlap-exec.started; sleep 60; echo overlap-exec-done > /overlap-exec' > /overlap-exec.log 2>&1; echo $? > /overlap-exec.status) & echo $! > /overlap-exec.pid")
+                      machine.succeeds("(printf %s #{Shellwords.escape(overlap_script)} | osctl ct runscript upgrade2 - > /overlap-runscript.log 2>&1; echo $? > /overlap-runscript.status) & echo $! > /overlap-runscript.pid")
+                      # A background client PID alone does not prove the guest
+                      # operation is in flight. Observe both guest-written
+                      # start markers through their already-mounted rootfs.
+                      machine.wait_until_succeeds("test -s #{rootfs1}/overlap-exec.started && test -s #{rootfs2}/overlap-runscript.started", timeout: 60)
+                      machine.succeeds('test ! -e /overlap-exec.status && test ! -e /overlap-runscript.status')
                     ''
                   else
                     ""
@@ -704,7 +711,7 @@ import (previous.outPath + "/tests/make-test.nix")
                       machine.wait_until_succeeds('test -s /overlap-runscript.status', timeout: 240)
                       machine.succeeds("grep -E '^[0-9]+$' /overlap-exec.status")
                       machine.succeeds("grep -E '^[0-9]+$' /overlap-runscript.status")
-                      machine.wait_until_succeeds("! ps -eo args= | grep -E '^osctld: tank:upgrade1 runner:'", timeout: 60)
+                      machine.wait_until_succeeds("! ps -eo args= | grep -E '^osctld: tank:upgrade[12] runner:'", timeout: 60)
                       machine.succeeds("osctl ct exec upgrade1 grep -Fx retained-data /upgrade/data")
                     ''
                   else

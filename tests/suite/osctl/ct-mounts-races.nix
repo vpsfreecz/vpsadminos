@@ -56,8 +56,10 @@ import ../../make-test.nix (
       machine.succeeds("osctl ct exec #{ct} sh -c 'kill -9 1' || true")
       machine.wait_until_succeeds('test -s /tmp/race-init.status', timeout: 120)
       machine.succeeds("grep -E '^[0-9]+$' /tmp/race-init.status")
-      machine.wait_until_succeeds("! grep -F '#{shared_dir}' /proc/mounts", timeout: 60)
-      machine.wait_until_succeeds("! test -e #{host_path}", timeout: 60)
+      machine.wait_until_succeeds("! grep -F '#{host_path}' /proc/mounts", timeout: 60)
+      # `test -e` follows links: require a leftover dangling symlink absent
+      # too, not only the path's target.
+      machine.wait_until_succeeds("test ! -e #{host_path} && test ! -L #{host_path}", timeout: 60)
       machine.wait_until_succeeds(
         "! ps -eo args= | grep -E '^osctld: tank:#{ct} runner:'",
         timeout: 60
@@ -72,6 +74,7 @@ import ../../make-test.nix (
       # directory the attempt must fail; if it can, the activation must still
       # not follow the replacement onto a host path. Either way the invariants
       # hold and a cleaned-up activation works.
+      machine.wait_until_succeeds("osctl ct show -H -o state #{ct} | grep -Fx stopped", timeout: 60)
       machine.succeeds("osctl ct start #{ct}")
       machine.wait_until_succeeds("osctl ct exec #{ct} rc-service networking status")
 
@@ -93,7 +96,7 @@ import ../../make-test.nix (
       machine.all_succeed(
         "mountpoint -q /tmp/decoy-target",
         "grep -Fx decoy-marker /tmp/decoy-target/marker",
-        "! grep -F '#{shared_dir}' /proc/mounts",
+        "! grep -F '#{host_path}' /proc/mounts",
         "! ps -eo args= | grep -E '^osctld: tank:#{ct} runner:'",
       )
 
