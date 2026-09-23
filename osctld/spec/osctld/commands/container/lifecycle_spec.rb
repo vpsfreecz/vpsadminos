@@ -249,7 +249,7 @@ RSpec.describe 'container lifecycle commands' do
         FileUtils.mkdir_p(console_dir)
         File.write(sock_path, '')
 
-        run_conf = Struct.new(:mount).new(nil)
+        run_conf = Struct.new(:mount, :run_id).new(nil, nil)
         allow(run_conf).to receive(:mount)
         mounts = Struct.new(:added) do
           def prune; end
@@ -277,7 +277,6 @@ RSpec.describe 'container lifecycle commands' do
           :lxc_home,
           :wrapper_cgroup_path,
           :prlimits,
-          :syslogns_tag,
           keyword_init: true
         ) do
           def can_start?
@@ -285,6 +284,10 @@ RSpec.describe 'container lifecycle commands' do
           end
 
           def init_run_conf; end
+
+          def syslogns_tag(run_id: nil)
+            run_id ? "#{id}:#{run_id}" : id
+          end
         end.new(
           pool: Struct.new(:name, :console_dir).new('tank', console_dir),
           id: 'ct1',
@@ -298,8 +301,7 @@ RSpec.describe 'container lifecycle commands' do
           lxc_config:,
           lxc_home: '/var/lib/lxc',
           wrapper_cgroup_path: '/sys/fs/cgroup/wrapper',
-          prlimits:,
-          syslogns_tag: 'ct1'
+          prlimits:
         )
         console = stub_const('OsCtld::Console', Class.new do
           def self.socket_path(_ct); end
@@ -846,6 +848,13 @@ RSpec.describe 'container lifecycle commands' do
         end
       end.new
       mounts = Struct.new(:shared_dir).new(shared_dir)
+      netifs = Struct.new do
+        attr_reader :taken_down
+
+        def take_down
+          @taken_down = true
+        end
+      end.new
       send_log = Struct.new(:opts).new(Struct.new(:key_name).new('tx'))
       user = Struct.new(:standalone, :pool, :name) do
         def has_containers?
@@ -866,6 +875,7 @@ RSpec.describe 'container lifecycle commands' do
         :id,
         :pool,
         :mounts,
+        :netifs,
         :send_log,
         :dataset,
         :lxc_dir,
@@ -900,6 +910,7 @@ RSpec.describe 'container lifecycle commands' do
         id: 'ct1',
         pool:,
         mounts:,
+        netifs:,
         send_log:,
         dataset: 'tank/ct1',
         lxc_dir:,
@@ -929,6 +940,16 @@ RSpec.describe 'container lifecycle commands' do
 
     before do
       build_db_containers
+      stub_const('OsCtld::Container::Recovery', Class.new do
+        def initialize(ct)
+          @ct = ct
+        end
+
+        def cleanup_or_taint
+          @ct.netifs.take_down
+          true
+        end
+      end)
       send_receive = stub_const('OsCtld::SendReceive', Class.new do
         def self.stopped_using_key(*); end
       end)
@@ -1002,6 +1023,7 @@ RSpec.describe 'container lifecycle commands' do
         expect(OsCtld::CGroup).to have_received(:rmpath_all).with('/sys/fs/cgroup/osctl/user.alice')
         expect(ct.clear_start_menu_calls).to eq(1)
         expect(ct.mounts.shared_dir.removed).to be(true)
+        expect(ct.netifs.taken_down).to be(true)
         expect(ct.pool.autostart_plan.cleared).to equal(ct)
         expect(ct.pool.trash_bin).to have_received(:prune)
       end

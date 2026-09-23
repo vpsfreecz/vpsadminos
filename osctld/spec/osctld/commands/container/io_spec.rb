@@ -39,6 +39,22 @@ RSpec.describe 'container io commands' do
       def ident
         "#{pool.name}:#{id}"
       end
+
+      def syslogns_tag
+        'ct1-shell'
+      end
+
+      def cgroup_path
+        'osctl/pool.tank/ct.ct1/user-owned'
+      end
+
+      def user
+        Struct.new(:ugid).new(12_345)
+      end
+
+      def root_host_gid
+        100_000
+      end
     end.new(
       id:,
       pool:,
@@ -218,6 +234,7 @@ RSpec.describe 'container io commands' do
         ct,
         'lxc-attach', '-P', '/var/lib/lxc/ct1',
         '-n', 'ct1',
+        '--elevated-privileges=CGROUP',
         '--clear-env',
         '--keep-var', 'TERM',
         '-v', 'USER=root',
@@ -252,6 +269,13 @@ RSpec.describe 'container io commands' do
   describe OsCtld::Commands::Container::Su do
     it 'attaches to the container shell through ct_attach' do
       ct = build_ct
+      cgroup = stub_const('OsCtld::CGroup', Module.new)
+      cgroup.define_singleton_method(:mkpath_all) { |*, **| nil }
+      cgroup.define_singleton_method(:subsystems) { ['unified'] }
+      cgroup.define_singleton_method(:abs_cgroup_path) { |_, path| "/run/osctl/cgroup/#{path}" }
+      cgroup.define_singleton_method(:chown_delegated) { |*, **| nil }
+      allow(cgroup).to receive(:mkpath_all)
+      allow(cgroup).to receive(:chown_delegated)
       db = stub_const('OsCtld::DB::Containers', Class.new do
         def self.find(_id, _pool); end
       end)
@@ -264,7 +288,19 @@ RSpec.describe 'container io commands' do
         ct,
         'bash',
         '--rcfile',
-        '/var/lib/lxc/ct1/.bashrc'
+        '/var/lib/lxc/ct1/.bashrc',
+        syslogns_tag: 'ct1-shell',
+        cgroup_path: 'osctl/pool.tank/ct.ct1/user-owned/init.scope'
+      )
+      expect(cgroup).to have_received(:mkpath_all).with(
+        %w[osctl pool.tank ct.ct1 user-owned],
+        delegate_existing: false
+      )
+      expect(cgroup).to have_received(:chown_delegated).with(
+        '/run/osctl/cgroup/osctl/pool.tank/ct.ct1/user-owned',
+        uid: 12_345,
+        gid: 100_000,
+        unified: true
       )
     end
   end

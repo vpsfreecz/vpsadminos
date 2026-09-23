@@ -49,17 +49,17 @@ import ../../make-test.nix (
       )
 
       # Check BPF program on container cgroup
-      ct_prog_name = check_prog_list!("/sys/fs/cgroup/osctl/pool.tank/group.default/user.testct/ct.testct")
+      ct_prog_name = check_prog_list!("/run/osctl/cgroup/osctl/pool.tank/group.default/user.testct/ct.testct")
 
       # Check group /default
-      default_prog_name = check_prog_list!("/sys/fs/cgroup/osctl/pool.tank/group.default")
+      default_prog_name = check_prog_list!("/run/osctl/cgroup/osctl/pool.tank/group.default")
 
       if ct_prog_name != default_prog_name
         fail "expected container (#{ct_prog_name}) and /default (#{default_prog_name}) programs to have the same name"
       end
 
       # Check group /
-      root_prog_name = check_prog_list!("/sys/fs/cgroup/osctl/pool.tank")
+      root_prog_name = check_prog_list!("/run/osctl/cgroup/osctl/pool.tank")
 
       if default_prog_name != root_prog_name
         fail "expected /default (#{default_prog_name}) and / (#{root_prog_name}) programs to have the same name"
@@ -102,14 +102,14 @@ import ../../make-test.nix (
       # Add custom device and verify cgroup configuration
       machine.succeeds("osctl ct devices add -p testct char 10 200 rwm /dev/net/tun")
 
-      new_ct_prog_name = check_prog_list!("/sys/fs/cgroup/osctl/pool.tank/group.default/user.testct/ct.testct")
+      new_ct_prog_name = check_prog_list!("/run/osctl/cgroup/osctl/pool.tank/group.default/user.testct/ct.testct")
 
       if new_ct_prog_name == ct_prog_name
         fail "expected different container program than #{ct_prog_name}"
       end
 
       # Check that the container's root cgroup is the same
-      new_root_prog_name = check_prog_list!("/sys/fs/cgroup/osctl/pool.tank")
+      new_root_prog_name = check_prog_list!("/run/osctl/cgroup/osctl/pool.tank")
 
       if new_root_prog_name == root_prog_name
         fail "expected different root program than #{root_prog_name}"

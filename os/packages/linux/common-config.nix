@@ -38,6 +38,12 @@ let
 
   zfsBuiltin = if builtins.hasAttr "zfsBuiltin" features then features.zfsBuiltin else false;
 
+  credGuardTest = (import ./cred-guard-test-selectors.nix).requested;
+  authorityGuardOption = {
+    optional = true;
+    tristate = whenAtLeast "6.18" "y";
+  };
+
   whenPlatformHasEBPFJit = mkIf (
     stdenv.hostPlatform.isAarch32
     || stdenv.hostPlatform.isAarch64
@@ -114,7 +120,7 @@ let
       # Easier debugging of NFS issues.
       SUNRPC_DEBUG = yes;
       # Provide access to tunables like sched_migration_cost_ns
-      SCHED_DEBUG = yes;
+      SCHED_DEBUG = whenOlder "6.15" yes;
       DEBUG_ATOMIC_SLEEP = no;
       LOCK_STAT = no;
       PROVE_LOCKING = no;
@@ -190,7 +196,7 @@ let
       IP_VS_PROTO_ESP = yes;
       IP_VS_PROTO_AH = yes;
       IP_VS_IPV6 = yes;
-      IP_DCCP_CCID3 = no; # experimental
+      IP_DCCP_CCID3 = whenOlder "6.16" no; # experimental
       CLS_U32_PERF = yes;
       CLS_U32_MARK = yes;
       BPF_JIT = whenPlatformHasEBPFJit yes;
@@ -229,7 +235,7 @@ let
       BONDING = module;
       NET_L3_MASTER_DEV = option yes;
       NET_FOU_IP_TUNNELS = option yes;
-      IP_NF_TARGET_REDIRECT = module;
+      IP_NF_TARGET_REDIRECT = whenOlder "6.17" module;
       INET_AH = yes;
       INET_ESP = yes;
       INET_ESP_OFFLOAD = yes;
@@ -372,8 +378,8 @@ let
       EXT2_FS_POSIX_ACL = yes;
       EXT2_FS_SECURITY = yes;
 
-      EXT3_FS_POSIX_ACL = yes;
-      EXT3_FS_SECURITY = yes;
+      EXT3_FS_POSIX_ACL = option yes;
+      EXT3_FS_SECURITY = option yes;
 
       EXT4_FS_POSIX_ACL = yes;
       EXT4_FS_SECURITY = yes;
@@ -450,6 +456,9 @@ let
       FORTIFY_SOURCE = yes;
       INIT_ON_ALLOC_DEFAULT_ON = no;
       INIT_ON_FREE_DEFAULT_ON = no;
+      CRED_GUARD = authorityGuardOption;
+      SELINUX_CRED_GUARD = authorityGuardOption;
+      AUTH_GUARD = authorityGuardOption;
       # Detect writes to read-only module pages
       DEBUG_SET_MODULE_RONX = {
         optional = true;
@@ -458,7 +467,7 @@ let
       RANDOMIZE_BASE = yes;
       STRICT_DEVMEM = yes; # Filter access to /dev/mem
       IO_STRICT_DEVMEM = yes; # Filter access to /dev/mem
-      SECURITY_SELINUX = no; # Irrelevant for containers
+      SECURITY_SELINUX = if versionAtLeast version "6.18" then yes else no;
       # Prevent processes from ptracing non-children processes
       SECURITY_YAMA = yes;
       DEVKMEM = whenOlder "5.13" no; # Disable /dev/kmem
@@ -469,6 +478,10 @@ let
 
       SECURITY_LANDLOCK = yes;
       SECURITY_LOCKDOWN_LSM = whenAtLeast "5.4" yes;
+    }
+    // optionalAttrs credGuardTest {
+      DEBUG_FS = whenAtLeast "6.18" yes;
+      AUTH_GUARD_TEST = authorityGuardOption;
     }
     // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
 
@@ -485,8 +498,8 @@ let
       STACKPROTECTOR_STRONG = yes;
       SCHED_STACK_END_CHECK = yes;
       STRICT_KERNEL_RWX = yes;
-      STACKLEAK_METRICS = yes;
-      GCC_PLUGIN_STACKLEAK = yes;
+      STACKLEAK_METRICS = whenOlder "6.18" yes;
+      GCC_PLUGIN_STACKLEAK = whenOlder "6.18" yes;
       RANDOMIZE_MEMORY = yes;
     };
 

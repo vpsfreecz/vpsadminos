@@ -1,10 +1,15 @@
 require 'libosctl'
+require 'fileutils'
 
 module OsCtld
   module CGroup
     include OsCtl::Lib::Utils::Log
 
-    FS = '/sys/fs/cgroup'.freeze
+    DEFAULT_FS = '/sys/fs/cgroup'.freeze
+    RUNSTATE_FS = '/run/osctl/cgroup'.freeze
+    # Compatibility for callers referring to the public hierarchy. Daemon
+    # control-plane operations must use CGroup.fs, not this fixed path.
+    FS = DEFAULT_FS
 
     ROOT_GROUP = 'osctl'.freeze
 
@@ -12,7 +17,7 @@ module OsCtld
 
     MUTEX = Mutex.new
 
-    def self.init
+    def self.init(setup_host_mount: false)
       begin
         @version = File.read(RunState::CGROUP_VERSION).strip.to_i
       rescue Errno::ENOENT
@@ -21,13 +26,63 @@ module OsCtld
 
       @version = 1 unless [1, 2].include?(@version)
 
+      self.setup_host_mount if setup_host_mount
+      @fs = detect_fs(@version)
+
       @subsystems =
         if @version == 1
-          Dir.entries(FS) - ['.', '..']
+          Dir.entries(fs) - ['.', '..']
         else
           ['']
         end
     end
+
+    # Live activation does not run stage1. Adopt the existing hierarchy before
+    # launching LXC, which always uses this private root. Never create a fresh
+    # hierarchy or replace a mount; running processes and controllers stay put.
+    def self.setup_host_mount
+      mounts = File.readlines('/proc/self/mountinfo').map(&:split)
+      source = mounts.find { |parts| parts[4] == DEFAULT_FS }
+      target = mounts.find { |parts| parts[4] == RUNSTATE_FS }
+
+      # The private view is authoritative once established. Kernfs filtering
+      # can hide the public mount from a restarted daemon on a running host.
+      if target
+        unless root_hierarchy_mount?(target, mounts)
+          raise "#{RUNSTATE_FS} is not the existing cgroup hierarchy"
+        end
+
+        if source && !(source[2..3] == target[2..3] && root_hierarchy_mount?(source, mounts) &&
+                       File.identical?(DEFAULT_FS, RUNSTATE_FS))
+          raise "#{RUNSTATE_FS} is not the existing cgroup hierarchy"
+        end
+
+        return
+      end
+
+      raise "#{DEFAULT_FS} is not mounted" unless source
+      unless root_hierarchy_mount?(source, mounts)
+        raise "#{DEFAULT_FS} is not the existing cgroup hierarchy"
+      end
+
+      FileUtils.mkdir_p(RUNSTATE_FS)
+      sys = OsCtl::Lib::Sys.new
+      sys.rbind_mount(DEFAULT_FS, RUNSTATE_FS)
+      sys.make_rprivate(RUNSTATE_FS)
+    end
+
+    def self.root_hierarchy_mount?(entry, mounts)
+      return false unless entry[3] == '/'
+
+      type = entry.fetch(entry.index('-') + 1)
+      return type == 'cgroup2' if v2?
+
+      type == 'tmpfs' && mounts.any? do |child|
+        child[4].start_with?("#{entry[4]}/") && child[3] == '/' &&
+          child[child.index('-') + 1] == 'cgroup'
+      end
+    end
+    private_class_method :root_hierarchy_mount?
 
     # @return [1, 2] cgroup hierarchy version
     def self.version
@@ -40,6 +95,14 @@ module OsCtld
 
     def self.v2?
       @version == 2
+    end
+
+    # Absolute path to the cgroup hierarchy used by osctld.
+    #
+    # vpsAdminOS keeps a private bind mount in /run/osctl/cgroup so daemon
+    # helpers do not depend on /sys visibility after kernfs filtering.
+    def self.fs
+      @fs ||= detect_fs(@version)
     end
 
     # Convert a single subsystem name to the mountpoint name, because some
@@ -70,9 +133,9 @@ module OsCtld
     # @return [String]
     def self.abs_cgroup_path(subsys, *path)
       if v1?
-        File.join(FS, real_subsystem(subsys), *path)
+        File.join(fs, real_subsystem(subsys), *path)
       else
-        File.join(FS, *path)
+        File.join(fs, *path)
       end
     end
 
@@ -104,10 +167,21 @@ module OsCtld
     # @param attach [Boolean] attach the current process to the last group
     # @param leaf [Boolean] do not delegate controllers to the last cgroup
     # @param pid [Integer, nil] pid to attach, default to the current process
+    # @param delegate_existing [Boolean] delegate controllers on already-existing
+    #   non-leaf cgroups
     # @param debug [Boolean] enable extra logging
     # @return [Boolean] `true` if the last component was created, `false` if it
     #                   already existed
-    def self.mkpath(type, path, chown: nil, attach: false, leaf: true, pid: nil, debug: false)
+    def self.mkpath(
+      type,
+      path,
+      chown: nil,
+      attach: false,
+      leaf: true,
+      pid: nil,
+      delegate_existing: true,
+      debug: false
+    )
       base = abs_cgroup_path(type)
       tmp = []
       created = false
@@ -124,24 +198,18 @@ module OsCtld
           base:
         )
 
-        if !created && v2? && delegate && File.expand_path(cgroup) != File.expand_path(base)
-          CGroup.delegate_available_controllers(cgroup)
-        end
+        next unless delegate_existing &&
+                    !created &&
+                    v2? &&
+                    delegate &&
+                    File.expand_path(cgroup) != File.expand_path(base)
+
+        CGroup.delegate_available_controllers(cgroup)
       end
 
       if chown
         cgroup = File.join(base, *path)
-
-        File.chown(chown, chown, cgroup)
-        File.chown(chown, chown, File.join(cgroup, 'cgroup.procs'))
-
-        if v2? || type == 'unified'
-          DELEGATE_FILES.each do |f|
-            File.chown(chown, chown, File.join(cgroup, f))
-          rescue Errno::ENOENT
-            # ignore
-          end
-        end
+        chown_delegated(cgroup, uid: chown, gid: chown, unified: type == 'unified')
       end
 
       attach_to(type, path, pid:, debug:) if attach
@@ -155,10 +223,20 @@ module OsCtld
     # @param attach [Boolean] attach the current process to the last group
     # @param leaf [Boolean] do not delegate controllers to the last cgroup
     # @param pid [Integer, nil] pid to attach, default to the current process
+    # @param delegate_existing [Boolean] delegate controllers on already-existing
+    #   non-leaf cgroups
     # @param debug [Boolean] enable extra logging
-    def self.mkpath_all(path, chown: nil, attach: false, leaf: true, pid: nil, debug: false)
+    def self.mkpath_all(
+      path,
+      chown: nil,
+      attach: false,
+      leaf: true,
+      pid: nil,
+      delegate_existing: true,
+      debug: false
+    )
       subsystems.each do |subsys|
-        mkpath(subsys, path, chown:, attach:, leaf:, pid:, debug:)
+        mkpath(subsys, path, chown:, attach:, leaf:, pid:, delegate_existing:, debug:)
       end
     end
 
@@ -187,6 +265,27 @@ module OsCtld
       end
 
       created
+    end
+
+    # Give a user ownership of the cgroup files that the kernel designates for
+    # delegation. Files from /sys/kernel/cgroup/delegate are optional because
+    # their availability depends on the hierarchy version and kernel config.
+    #
+    # @param cgroup [String] absolute path of the delegated cgroup
+    # @param uid [Integer] owner uid
+    # @param gid [Integer] owner gid
+    # @param unified [Boolean] treat a named v1 unified hierarchy like v2
+    def self.chown_delegated(cgroup, uid:, gid:, unified: false)
+      File.chown(uid, gid, cgroup)
+      File.chown(uid, gid, File.join(cgroup, 'cgroup.procs'))
+
+      return unless v2? || unified
+
+      (DELEGATE_FILES - ['cgroup.procs']).uniq.each do |file|
+        File.chown(uid, gid, File.join(cgroup, file))
+      rescue Errno::ENOENT
+        # A kernel can omit delegation files that do not apply to its setup.
+      end
     end
 
     # Attach process to a cgroup
@@ -272,7 +371,8 @@ module OsCtld
       v
     end
 
-    # Enable all available controllers on cgroup
+    # Enable all available controllers on cgroup. If a block is given, call it
+    # only when a controller write is needed and immediately before that write.
     # @param cgroup [String] absolute path of the cgroup
     def self.delegate_available_controllers(cgroup)
       delegated = subtree_control(cgroup)
@@ -282,6 +382,7 @@ module OsCtld
 
       return if cmd.empty?
 
+      yield if block_given?
       File.write(File.join(cgroup, 'cgroup.subtree_control'), cmd)
     end
 
@@ -508,5 +609,27 @@ module OsCtld
         MUTEX.synchronize(&block)
       end
     end
+
+    def self.detect_fs(version)
+      [RUNSTATE_FS, DEFAULT_FS].find do |path|
+        usable_fs?(path, version)
+      end || DEFAULT_FS
+    end
+    private_class_method :detect_fs
+
+    def self.usable_fs?(path, version)
+      return false unless Dir.exist?(path)
+
+      if version == 2
+        File.exist?(File.join(path, 'cgroup.procs'))
+      elsif version == 1
+        Dir.children(path).any?
+      else
+        File.exist?(File.join(path, 'cgroup.procs')) || Dir.children(path).any?
+      end
+    rescue SystemCallError
+      false
+    end
+    private_class_method :usable_fs?
   end
 end

@@ -120,7 +120,7 @@ RSpec.describe TestRunner::Executor do
     expect(executor).to have_received(:start_worker).with(2)
   end
 
-  it 'retries test attempts until the result matches expectations' do
+  it 'retries test attempts with stop_on_failure until the result matches expectations' do
     test = build_test(attempts: 3)
     script = test.test_scripts['default']
     unexpected = TestRunner::TestResult.new(
@@ -137,7 +137,7 @@ RSpec.describe TestRunner::Executor do
       0.2,
       '/tmp/state'
     )
-    executor = build_executor([script])
+    executor = build_executor([script], stop_on_failure: true)
     executor.instance_variable_set(:@pending, [[0, test, [script]]])
     allow(executor).to receive(:run_test_attempt).and_return(unexpected, expected)
     allow(executor).to receive(:sleep)
@@ -147,6 +147,7 @@ RSpec.describe TestRunner::Executor do
     expect(executor).to have_received(:run_test_attempt).twice
     expect(executor.results.first).to be_successful
     expect(executor.results.first.elapsed_time).to be_within(0.001).of(0.3)
+    expect(executor.send(:stop_work?)).to be(false)
   end
 
   it 'retries only scripts with unexpected results' do
@@ -199,13 +200,37 @@ RSpec.describe TestRunner::Executor do
       '/tmp/state',
       kernel_failure: true
     )
-    executor = build_executor([script])
+    executor = build_executor([script], stop_on_failure: true)
+    executor.instance_variable_set(:@pending, [[0, test, [script]]])
     allow(executor).to receive(:run_test_attempt).and_return(kernel_failure)
+
+    executor.send(:run_worker, 0)
+
+    expect(executor).to have_received(:run_test_attempt).once
+    expect(executor.results.first).to be_kernel_failure
+    expect(executor.send(:stop_work?)).to be(true)
+  end
+
+  it 'does not retry after another worker stops work' do
+    test = build_test(attempts: 3)
+    script = test.test_scripts.fetch('default')
+    unexpected = TestRunner::TestResult.new(
+      test,
+      [TestRunner::TestScriptResult.new(script, false, 0.1)],
+      true,
+      0.1,
+      '/tmp/state'
+    )
+    executor = build_executor([script], stop_on_failure: true)
+    allow(executor).to receive(:run_test_attempt) do
+      executor.send(:stop_work!)
+      unexpected
+    end
 
     result = executor.send(:run_test_with_retries, 0, test, [script])
 
     expect(executor).to have_received(:run_test_attempt).once
-    expect(result).to be_kernel_failure
+    expect(result).to have_attributes(successful?: false, elapsed_time: 0.1)
   end
 
   it 'runs a smaller pending test when the first pending test does not fit resources' do
@@ -671,10 +696,11 @@ RSpec.describe TestRunner::Executor do
       state_dir: '/tmp/state'
     )
     executor = build_executor([script], stop_on_failure: true)
-    allow(executor).to receive(:run_test).and_return(result)
+    executor.instance_variable_set(:@pending, [[0, test, [script]]])
+    allow(executor).to receive(:run_test_with_retries).and_return(result)
     allow(executor).to receive(:log)
 
-    executor.send(:run_test_attempt, 0, test, [script], 0)
+    executor.send(:run_worker, 0)
 
     expect(executor.send(:stop_work?)).to be(true)
   end

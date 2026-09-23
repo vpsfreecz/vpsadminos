@@ -1,0 +1,3 @@
+{
+  system.vpsadminos.enableUnstable = true;
+}

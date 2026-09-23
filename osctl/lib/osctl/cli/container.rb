@@ -1674,6 +1674,13 @@ module OsCtl::Cli
       })
     end
 
+    def recover_forget_host_link
+      require_args!('id', 'interface')
+      osctld_fmt(:ct_recover_forget_host_link, cmd_opts: {
+        id: args[0], pool: gopts[:pool], netif: args[1]
+      })
+    end
+
     def recover_cleanup
       require_args!('id')
 
@@ -1943,6 +1950,9 @@ module OsCtl::Cli
       if resp.error?
         raise(resp.message || 'exec failed')
 
+      elsif !resp.data || !resp.data.has_key?(:exitstatus)
+        raise 'exec failed: osctld returned no exit status'
+
       elsif resp[:exitstatus] && resp[:exitstatus] > 0
         raise GLI::CustomExit.new('executed command failed', resp[:exitstatus])
       end
@@ -1961,7 +1971,12 @@ module OsCtl::Cli
         Process.exec(cmd[:cmd], f.path, '--', *cmd[:args])
       end
 
-      Process.wait(pid)
+      _, status = Process.wait2(pid)
+
+      return if status.success?
+
+      code = status.signaled? ? 128 + status.termsig : (status.exitstatus || 1)
+      raise GLI::CustomExit.new('attached command failed', code)
     ensure
       begin
         f && File.unlink(f.path)

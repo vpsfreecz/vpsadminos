@@ -26,6 +26,22 @@ module ContainerHelpers
     end
   end
 
+  class FakeHostLinkNetInterface
+    attr_reader :type, :name
+
+    def initialize(type:, name:, identity:, tainted:, saved:)
+      @type = type
+      @name = name
+      @identity = identity
+      @tainted = tainted
+      @saved = saved
+    end
+
+    def host_link_identity = @identity
+    def host_link_tainted? = @tainted
+    def save = @saved
+  end
+
   class FakeRunConfigContainer
     attr_accessor :distribution, :version, :arch, :vendor, :variant
     attr_reader :pool, :id, :dataset, :user, :group, :uid_map, :gid_map, :map_mode,
@@ -173,13 +189,15 @@ module ContainerHelpers
         end
       end
 
-      attr_reader :ct, :destroy_calls, :save_calls, :distribution_updates
+      attr_reader :ct, :rootfs, :destroy_calls, :retirement_calls, :save_calls,
+                  :distribution_updates, :adopt_live_root_calls
       attr_accessor :dataset, :distribution, :version, :arch, :vendor, :variant,
-                    :cpu_package, :init_pid
+                    :cpu_package, :init_pid, :adopt_live_root_return
 
       def initialize(ct, load_conf: true)
         @ct = ct
         @dataset = ct.dataset
+        @rootfs = ct.rootfs
         @distribution = ct.distribution
         @version = ct.version
         @arch = ct.arch
@@ -188,8 +206,19 @@ module ContainerHelpers
         @cpu_package = nil
         @save_calls = 0
         @destroy_calls = 0
+        @retirement_calls = 0
         @distribution_updates = []
+        @adopt_live_root_calls = []
         @load_conf = load_conf
+      end
+
+      def clear_dead_init_identity
+        @init_pid = nil
+      end
+
+      def adopt_live_root
+        @adopt_live_root_calls << true
+        adopt_live_root_return
       end
 
       def save
@@ -198,6 +227,10 @@ module ContainerHelpers
 
       def destroy
         @destroy_calls += 1
+      end
+
+      def begin_retirement
+        @retirement_calls += 1
       end
 
       def set_distribution(distribution:, version:, arch:, vendor:, variant:)
@@ -216,6 +249,7 @@ module ContainerHelpers
         save
       end
     end.tap do |klass|
+      klass.const_set(:LifecycleError, Class.new(StandardError))
       klass.load_return = load_return
     end
   end
@@ -257,7 +291,7 @@ module ContainerHelpers
 
       attr_reader :ct
 
-      def self.load(ct, cfg)
+      def self.load(ct, cfg, **_opts)
         entries = Array(cfg).map do |entry|
           if entry.respond_to?(:can_run_distconfig?)
             entry
@@ -282,6 +316,14 @@ module ContainerHelpers
 
       def dump
         @entries.map(&:save)
+      end
+
+      def recovery_tainted?
+        false
+      end
+
+      def setup_state_changed?
+        false
       end
 
       def dup(new_ct)

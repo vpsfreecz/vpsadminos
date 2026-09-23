@@ -19,8 +19,8 @@ RSpec.describe OsCtld::Utils::SwitchUser do
     cgroup = stub_const('OsCtld::CGroup', Module.new)
     cgroup.define_singleton_method(:mkpath_all) { |*_args, **_kwargs| nil }
     allow(OsCtld::CGroup).to receive(:mkpath_all)
-    ct = Struct.new(:entry_cgroup_path, :user, :prlimits, :init_pid, keyword_init: true).new(
-      entry_cgroup_path: '/osctl/pool.tank/ct.ct1',
+    ct = Struct.new(:attach_cgroup_path, :user, :prlimits, :init_pid, keyword_init: true).new(
+      attach_cgroup_path: '/osctl/pool.tank/ct.ct1',
       user: Struct.new(:sysusername, :ugid, :homedir, keyword_init: true).new(
         sysusername: 'u-alice',
         ugid: 12_345,
@@ -35,9 +35,20 @@ RSpec.describe OsCtld::Utils::SwitchUser do
     expect(ret[:cmd]).to eq('/bin/osctld-ct-exec')
     expect(ret[:args]).to eq(%w[bash -l])
     expect(ret[:settings][:user]).to eq('u-alice')
+    expect(ret[:settings][:syslogns_tag]).to be_nil
+    shell = host.ct_attach(ct, 'bash', syslogns_tag: 'ct1-shell', cgroup_path: '/osctl/ct.ct1/init.scope')
+    expect(shell[:settings][:syslogns_tag]).to eq('ct1-shell')
+    expect(shell[:args]).to eq(['bash'])
+    expect(shell[:settings][:cgroup_path]).to eq('/osctl/ct.ct1/init.scope')
     expect(OsCtld::CGroup).to have_received(:mkpath_all).with(
       ['', 'osctl', 'pool.tank', 'ct.ct1'],
-      chown: 12_345
+      chown: 12_345,
+      delegate_existing: false
+    )
+    expect(OsCtld::CGroup).to have_received(:mkpath_all).with(
+      ['', 'osctl', 'ct.ct1', 'init.scope'],
+      chown: 12_345,
+      delegate_existing: false
     )
   end
 

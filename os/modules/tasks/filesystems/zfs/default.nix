@@ -52,6 +52,7 @@ let
   # fails to load due to unknown parameters. Set them at runtime instead.
   runtimeOnlyZfsModuleParams = [
     "zfs_xattr_trusted_userns_enable"
+    "zfs_container_statfs_enabled"
     "zfs_statfs_shack_enabled"
   ];
 
@@ -1002,7 +1003,7 @@ in
       environment.etc = {
         "zfs/zed.d/zed.rc".text = zedConf;
         "zfs/zed.d/zed-functions.sh".source = "${packages.zfsUser}/etc/zfs/zed.d/zed-functions.sh";
-        "zfs/zpool.d".source = "${packages.zfsUser}/etc/zfs/zpool.d/";
+        "zfs/zpool.d".source = "${packages.zfsUser}/libexec/zfs/zpool.d/";
       }
       // makeZedlets;
 

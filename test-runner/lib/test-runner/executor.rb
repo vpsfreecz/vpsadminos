@@ -189,6 +189,7 @@ module TestRunner
         begin
           mark_test_running(i, test)
           result = run_test_with_retries(i, test, scripts)
+          stop_work! if opts[:stop_on_failure] && result.unexpected_result?
         ensure
           release_test_resources(resources)
           mark_test_finished(test, result)
@@ -527,7 +528,6 @@ module TestRunner
       if result.kernel_failure?
         log("#{prefix} Test '#{test.path}' stopped after #{secs} seconds due to a guest kernel failure, " \
             "see #{result.state_dir}")
-        stop_work! if opts[:stop_on_failure]
       elsif result.expected_result?
         if result.successful?
           log("#{prefix} Test '#{test.path}' successful in #{secs} seconds")

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'timeout'
 require 'osctld/exceptions'
 require 'osctld/attributes'
 require 'osctld/auto_start/config'
@@ -29,7 +30,7 @@ RSpec.describe OsCtld::Container do
     stub_const('OsCtld::ContainerControl::Commands', Module.new)
     stub_const('OsCtld::ContainerControl::Commands::State', Class.new do
       def self.run!(_ct)
-        Struct.new(:state).new(:running)
+        Struct.new(:state, :init_pid).new(:running, nil)
       end
     end)
   end
@@ -42,6 +43,53 @@ RSpec.describe OsCtld::Container do
     ct = build_container(root:, **opts)
     ct.configure('almalinux', '9', 'x86_64')
     ct
+  end
+
+  describe 'recovery taint provenance' do
+    [false, true].each do |tainted|
+      it "ignores external recovery taint changes when daemon taint is #{tainted}" do
+        with_tmpdir do |dir|
+          ct = build_configured_container(root: dir)
+          ct.taint_recovery! if tainted
+          replacement = ct.dump_config.merge('recovery_tainted' => !tainted)
+
+          ct.replace_config(dump_yaml(replacement))
+          ct.reload_config
+
+          expect(ct.recovery_tainted?).to be(tainted)
+        end
+      end
+    end
+
+    it 'keeps unrelated errors when recovery taint is cleared' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        ct.state = :error
+        ct.taint_recovery!
+        ct.clear_recovery_taint!
+
+        expect(ct.state).to eq(:error)
+        expect(ct.recovery_tainted?).to be(false)
+        expect(ct.can_start?).to be(false)
+      end
+    end
+
+    it 'persists a separate recovery taint without changing container state' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        ct.state = :stopped
+        ct.taint_recovery!
+
+        expect(ct.state).to eq(:stopped)
+        expect(ct.can_start?).to be(false)
+        expect(ct.dump_config.fetch('recovery_tainted')).to be(true)
+        ct.reload_config
+        expect(ct.recovery_tainted?).to be(true)
+        ct.clear_recovery_taint!
+        expect(ct.dump_config).not_to have_key('recovery_tainted')
+        expect(ct.state).not_to eq(:error)
+      end
+    end
   end
 
   describe 'initialization and paths' do
@@ -67,6 +115,8 @@ RSpec.describe OsCtld::Container do
         expect(ct.base_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1')
         expect(ct.cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned')
         expect(ct.entry_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned/lxc.monitor.ct1')
+        expect(ct.payload_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned/lxc.payload.ct1')
+        expect(ct.attach_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned/lxc.payload.ct1/osctl.attach')
       end
     end
 
@@ -131,6 +181,431 @@ RSpec.describe OsCtld::Container do
         expect(ct.user).to eq(user)
         expect(ct.group).to eq(group)
         expect(ct.start_menu).to be_a(OsCtld::Container::StartMenu)
+      end
+    end
+
+    it 'persists a running old-config host-link migration after installing the manager' do
+      with_tmpdir do |dir|
+        pool = build_container_pool(root: dir)
+        user = FakeObjects::FakeUser.new(name: 'alice', userdir: File.join(pool.user_dir, 'alice'))
+        group = FakeObjects::FakeGroup.new(name: '/default', cgroup_path: '/osctl/pool.tank/group.default')
+        stub_users_registry([user])
+        stub_groups_registry([group], root: group)
+        manager_class = runtime[:net_interface_manager_class]
+        allow(manager_class).to receive(:load) do |ct, _cfg, discover_host_links:|
+          expect(discover_host_links).to be(true)
+          manager = manager_class.new(ct)
+          manager.define_singleton_method(:setup_state_changed?) { true }
+          manager.define_singleton_method(:dump) do
+            raise 'manager was not installed before migration save' unless ct.netifs.equal?(self)
+
+            [
+              {
+                'type' => 'bridge',
+                'name' => 'eth0',
+                'host_link' => {
+                  'name' => 'veth0',
+                  'ifindex' => 10,
+                  'ifb_ifindex' => nil,
+                  'tainted' => false
+                }
+              }
+            ]
+          end
+          manager
+        end
+
+        config = {
+          'user' => 'alice',
+          'group' => '/default',
+          'dataset' => 'tank/ct/ct1',
+          'map_mode' => 'zfs',
+          'distribution' => 'almalinux',
+          'version' => '9',
+          'arch' => 'x86_64',
+          'net_interfaces' => [{ 'type' => 'bridge', 'name' => 'eth0' }],
+          'cgparams' => {},
+          'devices' => [],
+          'prlimits' => {},
+          'mounts' => {},
+          'attrs' => {}
+        }
+        write_yaml_file(File.join(pool.conf_path, 'ct', 'ct1.yml'), config)
+
+        ct = described_class.new(
+          pool,
+          'ct1',
+          nil,
+          nil,
+          nil,
+          devices: false
+        )
+
+        expect(load_yaml_file(ct.config_path).dig('net_interfaces', 0, 'host_link')).to eq(
+          'name' => 'veth0',
+          'ifindex' => 10,
+          'ifb_ifindex' => nil,
+          'tainted' => false
+        )
+      end
+    end
+
+    it 'strips an imported host-link identity before manager load' do
+      with_tmpdir do |dir|
+        pool = build_container_pool(root: dir)
+        user = FakeObjects::FakeUser.new(name: 'alice', userdir: File.join(pool.user_dir, 'alice'))
+        group = FakeObjects::FakeGroup.new(name: '/default', cgroup_path: '/osctl/pool.tank/group.default')
+        stub_users_registry([user])
+        stub_groups_registry([group], root: group)
+        manager_class = runtime[:net_interface_manager_class]
+        loaded_netifs = nil
+        allow(manager_class).to receive(:load) do |ct, cfg, discover_host_links:|
+          expect(discover_host_links).to be(false)
+          loaded_netifs = cfg
+          manager_class.new(ct)
+        end
+
+        imported = described_class.new(
+          pool,
+          'ct1',
+          nil,
+          nil,
+          nil,
+          load_from: dump_yaml(
+            'user' => 'alice',
+            'group' => '/default',
+            'dataset' => 'tank/ct/ct1',
+            'map_mode' => 'zfs',
+            'distribution' => 'almalinux',
+            'version' => '9',
+            'arch' => 'x86_64',
+            'state' => 'error',
+            'net_interfaces' => [
+              {
+                'type' => 'bridge',
+                'name' => 'eth0',
+                'host_link' => {
+                  'name' => 'foreign0',
+                  'ifindex' => 42,
+                  'ifb_ifindex' => 43,
+                  'tainted' => false
+                }
+              }
+            ],
+            'cgparams' => {},
+            'devices' => [],
+            'prlimits' => {},
+            'mounts' => {},
+            'attrs' => {}
+          ),
+          devices: false
+        )
+
+        expect(loaded_netifs.first).not_to have_key('host_link')
+        expect(imported.state).to eq(:unknown)
+      end
+    end
+
+    it 'trusts runtime metadata only from the exact daemon config path' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        other_path = File.join(dir, 'other-container.yml')
+        write_yaml_file(other_path, ct.dump_config.merge('state' => 'error'))
+
+        expect do
+          ct.send(:load_config_file, other_path)
+        end.to raise_error(ArgumentError)
+        allow(OsCtl::Lib::ConfigFile).to receive(:load_yaml_file).and_call_original
+
+        ct.reload_config
+
+        expect(OsCtl::Lib::ConfigFile).to have_received(:load_yaml_file).with(ct.config_path)
+        expect(ct.state).not_to eq(:error)
+      end
+    end
+
+    it 'ignores replacement host-link authority and preserves the daemon record' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        internal_host_link = {
+          'name' => 'veth0',
+          'ifindex' => 10,
+          'ifb_ifindex' => 20,
+          'tainted' => true
+        }
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, 20],
+          tainted: true,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => internal_host_link
+          }
+        )
+        ct.instance_variable_set(
+          :@netifs,
+          manager_class.new(ct, entries: [current_netif])
+        )
+        ct.state = :error
+        replacement = ct.dump_config
+        replacement['state'] = 'running'
+        replacement['net_interfaces'].first['host_link'] = {
+          'name' => 'foreign0',
+          'ifindex' => 42,
+          'ifb_ifindex' => 43,
+          'tainted' => false
+        }
+        loaded_netifs = nil
+        allow(manager_class).to receive(:load) do |owner, cfg, discover_host_links:|
+          expect(discover_host_links).to be(false)
+          loaded_netifs = cfg
+          manager_class.new(owner)
+        end
+
+        ct.replace_config(dump_yaml(replacement))
+
+        expect(loaded_netifs.first['host_link']).to eq(internal_host_link)
+        expect(ct.state).to eq(:error)
+      end
+    end
+
+    it 'rejects discarding or renaming a clean stopped host-link owner' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, nil],
+          tainted: false,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => {
+              'name' => 'veth0',
+              'ifindex' => 10,
+              'ifb_ifindex' => nil,
+              'tainted' => false
+            }
+          }
+        )
+        manager = manager_class.new(ct, entries: [current_netif])
+        ct.instance_variable_set(:@netifs, manager)
+        ct.state = :stopped
+
+        removed = ct.dump_config.merge('net_interfaces' => [])
+        renamed = ct.dump_config
+        renamed['net_interfaces'].first['name'] = 'eth1'
+
+        expect do
+          ct.replace_config(dump_yaml(removed))
+        end.to raise_error(
+          OsCtld::ConfigError,
+          %r{cannot discard internal host-link owners: bridge/eth0}
+        )
+        expect do
+          ct.replace_config(dump_yaml(renamed))
+        end.to raise_error(
+          OsCtld::ConfigError,
+          %r{cannot discard internal host-link owners: bridge/eth0}
+        )
+        expect(ct.netifs).to be(manager)
+        expect(ct.state).to eq(:stopped)
+      end
+    end
+
+    it 'rejects duplicating a retained host-link owner in external config' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, nil],
+          tainted: false,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => {
+              'name' => 'veth0',
+              'ifindex' => 10,
+              'ifb_ifindex' => nil,
+              'tainted' => false
+            }
+          }
+        )
+        ct.instance_variable_set(
+          :@netifs,
+          manager_class.new(ct, entries: [current_netif])
+        )
+        replacement = ct.dump_config
+        duplicate = replacement['net_interfaces'].first.dup
+        duplicate['host_link'] = duplicate['host_link'].dup
+        replacement['net_interfaces'] << duplicate
+
+        expect do
+          ct.replace_config(dump_yaml(replacement))
+        end.to raise_error(
+          OsCtld::ConfigError,
+          %r{duplicates internal host-link owner bridge/eth0}
+        )
+      end
+    end
+
+    it 'serializes replacement authority snapshots with lifecycle state changes' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        identity_read = Queue.new
+        release_identity = Queue.new
+        state_changed = Queue.new
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, nil],
+          tainted: false,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => {
+              'name' => 'veth0',
+              'ifindex' => 10,
+              'ifb_ifindex' => nil,
+              'tainted' => false
+            }
+          }
+        )
+        allow(current_netif).to receive(:host_link_identity) do
+          identity_read << true
+          Timeout.timeout(5) { release_identity.pop }
+          ['veth0', 10, nil]
+        end
+        ct.instance_variable_set(
+          :@netifs,
+          manager_class.new(ct, entries: [current_netif])
+        )
+        replacement = ct.dump_config
+
+        replace_thread = Thread.new { ct.replace_config(dump_yaml(replacement)) }
+        Timeout.timeout(5) { identity_read.pop }
+        state_thread = Thread.new do
+          ct.state = :running
+          state_changed << true
+        end
+
+        expect { state_changed.pop(true) }.to raise_error(ThreadError)
+        expect(state_thread).to be_alive
+
+        release_identity << true
+        expect(replace_thread.join(5)).to be(replace_thread)
+        expect(state_thread.join(5)).to be(state_thread)
+        expect { replace_thread.value }.not_to raise_error
+        expect { state_thread.value }.not_to raise_error
+        expect(state_changed.pop).to be(true)
+        expect(ct.state).to eq(:running)
+      ensure
+        release_identity&.push(true) if replace_thread&.alive?
+        replace_thread&.join(5)
+        state_thread&.join(5)
+      end
+    end
+
+    it 'waits for the host-link registry before locking replacement state' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, nil],
+          tainted: false,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => {
+              'name' => 'veth0',
+              'ifindex' => 10,
+              'ifb_ifindex' => nil,
+              'tainted' => false
+            }
+          }
+        )
+        ct.instance_variable_set(
+          :@netifs,
+          manager_class.new(ct, entries: [current_netif])
+        )
+        replacement = ct.dump_config
+        allow(manager_class).to receive(:load) do |owner, _cfg, **|
+          OsCtld::NetInterface.sync_host_link_registry { true }
+          manager_class.new(owner)
+        end
+
+        replace_started = Queue.new
+        state_changed = Queue.new
+        replace_thread = nil
+        state_thread = nil
+
+        OsCtld::NetInterface.sync_host_link_registry do
+          replace_thread = Thread.new do
+            replace_started << true
+            ct.replace_config(dump_yaml(replacement))
+          end
+          replace_started.pop
+          expect(replace_thread.join(0.05)).to be_nil
+
+          state_thread = Thread.new do
+            ct.state = :running
+            state_changed << true
+          end
+          expect(state_thread.join(5)).to be(state_thread)
+          expect(state_changed.pop).to be(true)
+        end
+
+        expect(replace_thread.join(5)).to be(replace_thread)
+        expect { replace_thread.value }.not_to raise_error
+        expect(ct.state).to eq(:running)
+      ensure
+        replace_thread&.join(5)
+        state_thread&.join(5)
+      end
+    end
+  end
+
+  describe '#syslogns_tag' do
+    it 'keeps a stable tag within the kernel syslog namespace grammar' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir, id: 'ct1')
+
+        expect(ct.syslogns_tag).to eq('tank_ct1')
+      end
+    end
+
+    it 'adds a run-specific suffix when a run id is provided' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir, id: 'long-container-name')
+        run_id = 'tank:long-container-name:123.45'
+
+        tag = ct.syslogns_tag(run_id:)
+
+        expect(tag.bytesize).to eq(OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE)
+        expect(tag).to match(/\Along-co-[0-9a-f]{4}\z/)
+      end
+    end
+
+    %w[-- __ .a. aaaaaaaaaaa-abcdefgh ěšč].each do |id|
+      it "keeps normalized and truncated tags valid for #{id.inspect}" do
+        with_tmpdir do |dir|
+          ct = build_container(root: dir, id:)
+
+          [nil, 'existing-run'].each do |run_id|
+            tag = ct.syslogns_tag(run_id:)
+            expect(tag.bytesize).to be_between(1, OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE)
+            expect(tag).to match(/\A[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?\z/)
+          end
+        end
       end
     end
   end
@@ -312,17 +787,126 @@ RSpec.describe OsCtld::Container do
       end
     end
 
+    it 'adopts the live run state of an impermanence container without an init pid' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.instance_variable_set('@impermanence', OsCtld::Container::Impermanence.new({}))
+        allow(ct).to receive(:reconfigure)
+        adopted = run_conf_class.new(ct, load_conf: false)
+        adopted.adopt_live_root_return = true
+        allow(run_conf_class).to receive(:new).and_return(adopted)
+
+        expect(ct.adopt_run_conf).to eq(adopted)
+        expect(adopted.adopt_live_root_calls).to eq([true])
+        expect(adopted.init_pid).to be_nil
+        expect(adopted.save_calls).to eq(2)
+        expect(ct).to have_received(:reconfigure).twice
+      end
+    end
+
+    it 'keeps the container dataset for a container that is not impermanent' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        allow(ct).to receive(:reconfigure)
+        run_conf = run_conf_class.new(ct, load_conf: false)
+        allow(run_conf_class).to receive(:new).and_return(run_conf)
+
+        expect(ct.adopt_run_conf).to eq(run_conf)
+        expect(run_conf.adopt_live_root_calls).to be_empty
+        expect(run_conf.save_calls).to eq(1)
+        expect(ct).to have_received(:reconfigure).once
+      end
+    end
+
+    it 'adopts the live root when the state probe already reconstructed the run configuration' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.instance_variable_set('@impermanence', OsCtld::Container::Impermanence.new({}))
+        allow(ct).to receive(:reconfigure)
+        probed = run_conf_class.new(ct, load_conf: false)
+        probed.adopt_live_root_return = true
+        ct.instance_variable_set('@run_conf', probed)
+
+        expect(ct.adopt_run_conf).to eq(probed)
+        expect(probed.adopt_live_root_calls).to eq([true])
+        expect(probed.save_calls).to eq(1)
+        expect(ct).to have_received(:reconfigure).once
+      end
+    end
+
+    it 'keeps the container dataset when the live root cannot be adopted' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.instance_variable_set('@impermanence', OsCtld::Container::Impermanence.new({}))
+        allow(ct).to receive(:reconfigure)
+        run_conf = run_conf_class.new(ct, load_conf: false)
+        allow(run_conf_class).to receive(:new).and_return(run_conf)
+
+        expect(ct.adopt_run_conf).to eq(run_conf)
+        expect(run_conf.adopt_live_root_calls).to eq([true])
+        expect(run_conf.save_calls).to eq(1)
+        expect(ct).to have_received(:reconfigure).once
+      end
+    end
+
     it 'moves the active run configuration to past_run_conf when stopped' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
         active = run_conf_class.new(ct, load_conf: false)
         ct.instance_variable_set('@run_conf', active)
 
-        ct.stopped
+        expect(ct.stopped(active)).to be(true)
 
         expect(active.destroy_calls).to eq(1)
+        expect(active.retirement_calls).to eq(1)
         expect(ct.run_conf).to be_nil
         expect(ct.get_past_run_conf).to eq(active)
+      end
+    end
+
+    it 'detaches a retiring run before waiting for its active leases' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        destroy_started = Queue.new
+        release_destroy = Queue.new
+        active.define_singleton_method(:destroy) do
+          super()
+          destroy_started << true
+          release_destroy.pop
+        end
+        ct.instance_variable_set('@run_conf', active)
+
+        stop_thread = Thread.new { ct.stopped(active) }
+        destroy_started.pop
+        read_result = Queue.new
+        read_thread = Thread.new { read_result << ct.run_conf }
+
+        expect(read_thread.join(1)).to be(read_thread)
+        expect(read_result.pop).to be_nil
+        expect(stop_thread).to be_alive
+
+        release_destroy << true
+        expect(stop_thread.join(1)).to be(stop_thread)
+        expect(stop_thread.value).to be(true)
+      ensure
+        release_destroy&.push(true) if stop_thread&.alive?
+        read_thread&.join(1)
+        stop_thread&.join(1)
+      end
+    end
+
+    it 'does not stop a replacement run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        authenticated = run_conf_class.new(ct, load_conf: false)
+        replacement = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', replacement)
+
+        expect(ct.stopped(authenticated)).to be(false)
+        expect(replacement.destroy_calls).to eq(0)
+        expect(ct.run_conf).to be(replacement)
+        expect(ct.get_past_run_conf).to be_nil
       end
     end
 
@@ -489,11 +1073,32 @@ RSpec.describe OsCtld::Container do
       end
     end
 
+    it 'persists and reloads the recovery error state' do
+      with_tmpdir do |dir|
+        pool = build_container_pool(root: dir)
+        ct = build_configured_container(root: dir, pool:)
+        ct.state = :error
+        ct.save_config
+        cfg = load_yaml_file(ct.config_path)
+
+        loaded = build_container(
+          root: dir,
+          pool:,
+          load: true,
+          devices: false
+        )
+
+        expect(cfg['state']).to eq('error')
+        expect(loaded.state).to eq(:error)
+        expect(loaded.can_start?).to be(false)
+      end
+    end
+
     it 'queries runtime state only when state is unknown' do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
         allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
-          Struct.new(:state).new(:running)
+          Struct.new(:state, :init_pid).new(:running, nil)
         )
 
         expect(ct.fresh_state).to eq(:running)
@@ -502,6 +1107,78 @@ RSpec.describe OsCtld::Container do
         ct.state = :stopped
         expect(ct.fresh_state).to eq(:stopped)
         expect(OsCtld::ContainerControl::Commands::State).to have_received(:run!).once
+      end
+    end
+
+    it 'stores init_pid returned while refreshing runtime state' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
+          Struct.new(:state, :init_pid).new(:running, 4321)
+        )
+
+        expect(ct.current_state).to eq(:running)
+        expect(ct.init_pid).to eq(4321)
+      end
+    end
+
+    it 'checks retained init liveness when runtime state becomes stopped' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        run_conf = ct.ensure_run_conf
+        run_conf.init_pid = 4321
+        allow(run_conf).to receive(:clear_dead_init_identity).and_call_original
+        allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
+          Struct.new(:state, :init_pid).new(:stopped, nil)
+        )
+
+        expect(ct.current_state).to eq(:stopped)
+        expect(run_conf).to have_received(:clear_dead_init_identity)
+        expect(ct.init_pid).to be_nil
+      end
+    end
+
+    it 'ignores an init pid which exits before its identity can be pinned' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        run_conf = ct.ensure_run_conf
+        allow(run_conf).to receive(:init_pid=).and_raise(Errno::ESRCH)
+
+        expect(ct.set_init_pid(4321)).to be_nil
+        expect(ct.init_pid).to be_nil
+      end
+    end
+
+    it 'recovers a missing init_pid when exporting a running container' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        ct.state = :running
+        allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
+          Struct.new(:state, :init_pid).new(:running, 5678)
+        )
+
+        expect(ct.export[:init_pid]).to eq(5678)
+      end
+    end
+
+    it 'does not install a refreshed PID into a replacement run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        old_run_conf = ct.ensure_run_conf
+        ct.state = :running
+        replacement = nil
+        allow(OsCtld::ContainerControl::Commands::State).to receive(:run!) do
+          expect(ct.stopped(old_run_conf)).to be(true)
+          replacement = ct.ensure_run_conf
+          ct.state = :running
+          Struct.new(:state, :init_pid).new(:running, 5678)
+        end
+
+        expect(
+          ct.refresh_init_pid(expected_run_conf: old_run_conf)
+        ).to be_nil
+        expect(ct.run_conf).to be(replacement)
+        expect(replacement.init_pid).to be_nil
       end
     end
 
@@ -544,9 +1221,58 @@ RSpec.describe OsCtld::Container do
         expect(ct.find_cpu_limit(parents: false)).to be_nil
       end
     end
+
+    it 'handles containers before cgroup params are configured' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.group.memory_limit = 1_024
+
+        expect(ct.cgparams).to be_nil
+        expect(ct.find_memory_limit).to eq(1_024)
+        expect(ct.find_memory_limit(parents: false)).to be_nil
+        expect(ct.find_swap_limit).to be_nil
+        expect(ct.find_cpu_limit).to be_nil
+      end
+    end
   end
 
   describe '#set and #unset' do
+    it 'does not persist or retain requested resolvers when live application fails' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        ct.dns_resolvers = ['1.1.1.1']
+        ct.save_config
+        allow(OsCtld::DistConfig).to receive(:run)
+          .with(instance_of(run_conf_class), :dns_resolvers, resolvers: ['8.8.8.8'])
+          .and_raise(OsCtld::CommandFailed, 'DNS apply failed')
+
+        expect { ct.set(dns_resolvers: ['8.8.8.8']) }
+          .to raise_error(OsCtld::CommandFailed, 'DNS apply failed')
+
+        expect(ct.dns_resolvers).to eq(['1.1.1.1'])
+        ct.reload_config
+        expect(ct.dns_resolvers).to eq(['1.1.1.1'])
+      end
+    end
+
+    it 'retains managed resolvers when live unset fails' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        ct.dns_resolvers = ['1.1.1.1']
+        ct.save_config
+        allow(OsCtld::DistConfig).to receive(:run)
+          .with(instance_of(run_conf_class), :unset_dns_resolvers)
+          .and_raise(OsCtld::CommandFailed, 'DNS apply failed')
+
+        expect { ct.unset(dns_resolvers: true) }
+          .to raise_error(OsCtld::CommandFailed, 'DNS apply failed')
+
+        expect(ct.dns_resolvers).to eq(['1.1.1.1'])
+        ct.reload_config
+        expect(ct.dns_resolvers).to eq(['1.1.1.1'])
+      end
+    end
+
     it 'sets hostname and dns resolvers and asks dist config to update them' do
       with_tmpdir do |dir|
         ct = build_configured_container(root: dir)
@@ -567,7 +1293,8 @@ RSpec.describe OsCtld::Container do
         )
         expect(OsCtld::DistConfig).to have_received(:run).with(
           instance_of(run_conf_class),
-          :dns_resolvers
+          :dns_resolvers,
+          resolvers: %w[1.1.1.1 8.8.8.8]
         )
         expect(ct.lxc_config).to have_received(:configure_base)
       end
@@ -686,6 +1413,7 @@ RSpec.describe OsCtld::Container do
         expect(ct.attrs.dump).to eq({})
         expect(ct.pool.autostart_plan).to have_received(:stop_ct).with(ct)
         expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :unset_etc_hosts)
+        expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :unset_dns_resolvers)
         expect(ct.lxc_config).to have_received(:configure_base).twice
       end
     end

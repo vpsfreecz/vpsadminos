@@ -1153,14 +1153,26 @@ The following shortcuts are supported:
 `ct set dns-resolver` *ctid* *address...*
   Configure DNS resolvers for container *ctid*. At least one DNS resolver is
   needed. Given DNS resolvers are written to the container's `/etc/resolv.conf`
-  on every start.
+  immediately and on every start.
 
-  Note that when you assign a bridged veth with DHCP to the container, it will
-  override `/etc/resolv.conf` with DNS servers from DHCP server.
+  For NetworkManager, `osctld` manages `10-osctl-dns.conf` when that file is
+  absent or already osctld-owned. In a running container, it synchronously
+  reloads NetworkManager configuration and DNS before writing the resolver
+  file, without reactivating connections. Custom policy files are preserved.
+  Other DHCP clients or custom guest policy can still override resolvers.
+
+  A failed live application is reported as an error and the requested resolver
+  setting is not saved. See the osctld log for details. Guest policy files may
+  already have changed; repeat the command after correcting the reported
+  failure to finish application. A stopped NetworkManager reads the prepared
+  configuration on its next start.
 
 `ct unset dns-resolver` *ctid*
   Unset container DNS resolvers. `osctld` will no longer manipulate the
-  container's `/etc/resolv.conf`.
+  container's `/etc/resolv.conf`. The osctld-owned NetworkManager drop-in is
+  removed and a live configuration/DNS reload returns DNS handling to the
+  guest. Custom policy files are not removed. Live-application failures are
+  reported and the previous container setting is retained, as for set.
 
 `ct set nesting` *ctid*
   Enable LXC nesting for container *ctid*. The container needs to be restarted for
@@ -2618,6 +2630,19 @@ transfer and start again.
     recheck the container's state even if another command is operating on it.
     Use with caution. Can be used e.g. to wake up `osctl ct start` from waiting
     on a dead container.
+
+`ct recover forget-host-link` *ctid* *interface*
+  Explicitly acknowledge and discard an absent host-link ownership record,
+  including a tainted record, for one configured interface. This privileged
+  operation verifies that LXC reports the container stopped and then checks
+  both the recorded host-link name and ifindex. If an IFB is recorded, its
+  name and ifindex must also be absent. It never deletes a live link, and
+  refuses mismatched/replacement links and failed kernel queries.
+
+  After acknowledging the missing links, run `ct recover cleanup` to finish
+  cleanup and clear the separate recovery taint. This does not clear unrelated
+  container configuration/runtime errors. Neither command requires a reboot,
+  draining other containers, or manual changes to osctld state.
 
 `ct recover cleanup` [`-f`] *ctid*
   Remove any leftover cgroups and network interfaces that might have belonged

@@ -1,6 +1,10 @@
+require 'osctld/container_control/transient_network'
+
 module OsCtld
   # Frontend is run from osctld in daemon mode, when it is running as root
   class ContainerControl::Frontend
+    FAILED_RUNNER_GRACE = 5
+
     # @return [Class]
     attr_reader :command_class
 
@@ -44,6 +48,9 @@ module OsCtld
     #
     # @return [ContainerControl::Result]
     def exec_runner(opts = {})
+      transient_network = ContainerControl::TransientNetwork.new(ct) if opts[:transient_network]
+      network_socket = transient_network&.runner_socket
+
       # Used to send command to the runner
       cmd_r, cmd_w = IO.pipe
 
@@ -54,15 +61,26 @@ module OsCtld
       stdin = opts[:stdin]
       stdout = opts.fetch(:stdout, $stdout)
       stderr = opts.fetch(:stderr, $stderr)
-
       # User configuration
       sysuser = ct.user.sysusername
       ugid = ct.user.ugid
       homedir = ct.user.homedir
-      cgroup_path = ct.entry_cgroup_path
       prlimits = ct.prlimits.export
-      syslogns_pid = ct.init_pid
-      syslogns_tag = syslogns_pid.nil? && ct.syslogns_tag
+      switch_extra_namespaces = opts.fetch(:switch_extra_namespaces, true)
+      cgroup_path = opts.fetch(
+        :cgroup_path,
+        switch_extra_namespaces ? ct.entry_cgroup_path : ct.attach_cgroup_path
+      )
+      cleanup_cgroup_path = !switch_extra_namespaces && cgroup_path == ct.attach_cgroup_path
+
+      if switch_extra_namespaces
+        # This path creates a boundary only for a new transient run. Running
+        # attachment belongs to LXC's pidfd transition, never root setns of a
+        # late numeric PID (or separate syslog/tracing namespace descriptors).
+        raise ContainerControl::Error, 'container started before transient helper launch' if ct.init_pid
+
+        syslogns_tag = ct.syslogns_tag(run_id: ct.run_conf&.run_id)
+      end
 
       # Runner configuration
       runner_opts = {
@@ -78,12 +96,17 @@ module OsCtld
         kwargs: opts.fetch(:kwargs, {}),
 
         return: ret_w.fileno,
+        network_socket: network_socket&.fileno,
         stdin: stdin && stdin.fileno,
         stdout: stdout.fileno,
         stderr: stderr.fileno
       }
 
-      CGroup.mkpath_all(cgroup_path.split('/'), chown: ugid)
+      CGroup.mkpath_all(
+        cgroup_path.split('/'),
+        chown: ugid,
+        delegate_existing: false
+      )
 
       # On cgroup v2, we must reset subtree control for lxc-execute to work.
       # The subtree control is configured by osctld when creating the entry_cgroup_path,
@@ -98,7 +121,8 @@ module OsCtld
           ret_w,
           stdin,
           stdout,
-          stderr
+          stderr,
+          network_socket
         ].compact
       ) do
         # Closed by SwitchUser.fork
@@ -107,7 +131,7 @@ module OsCtld
 
         $stdin.reopen(cmd_r)
 
-        [cmd_r, ret_w, stdin, stdout, stderr].compact.each do |io|
+        [cmd_r, ret_w, stdin, stdout, stderr, network_socket].compact.each do |io|
           io.close_on_exec = false
         end
 
@@ -117,34 +141,93 @@ module OsCtld
           ugid,
           homedir,
           cgroup_path,
-          syslogns_pid:,
           syslogns_tag:
         )
         Process.exec(::OsCtld.bin('osctld-ct-runner'))
-        exit
+      rescue StandardError => e
+        write_runner_failure(ret_w, e)
+        exit(false)
       end
 
       stdin.close if stdin
       stdout.close if stdout != $stdout
       stderr.close if stderr != $stderr
 
+      # The child blocks on its command pipe until this exact identity is
+      # pinned. Numeric PID reuse therefore cannot select another helper.
+      runner_identity = ProcessIdentity.open(pid) if transient_network
+      network_socket&.close
+
       cmd_w.write(runner_opts.to_json)
       cmd_w.close
 
       ret_w.close
+      if transient_network && !transient_network.serve(runner_identity)
+        return ContainerControl::Result.new(false, message: 'transient network setup failed')
+      end
 
       begin
         ret = JSON.parse(ret_r.readline, symbolize_names: true)
-        Process.wait(pid)
-        ContainerControl::Result.from_runner(ret)
+        runner_responded = true
+        runner_result(ret)
       rescue EOFError
-        Process.wait(pid)
         ContainerControl::Result.new(
           false,
-          message: 'user runner failed',
-          user_runner: true
+          message: 'helper exited without a response'
         )
       end
+    ensure
+      transient_network&.close
+      # Release a helper still waiting for its command when pinning or command
+      # transport fails, then reap it just as on the successful result path.
+      [cmd_r, cmd_w, ret_r, ret_w].compact.each { |io| io.close unless io.closed? }
+      if pid
+        begin
+          if transient_network && !runner_responded
+            reap_failed_runner(pid)
+          else
+            Process.wait(pid)
+          end
+        ensure
+          cleanup_runner_cgroup(cgroup_path) if cleanup_cgroup_path
+          runner_identity&.close
+        end
+      else
+        runner_identity&.close
+      end
+    end
+
+    # Only our unreaped direct child is addressed here, so its numeric PID
+    # cannot be reused before waitpid. Never impose this bound on a successfully
+    # started user payload: it applies only after startup/transport failure.
+    def reap_failed_runner(pid)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + FAILED_RUNNER_GRACE
+      loop do
+        return if Process.waitpid(pid, Process::WNOHANG)
+        break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+        sleep(0.05)
+      end
+
+      Process.kill('TERM', pid)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + FAILED_RUNNER_GRACE
+      loop do
+        return if Process.waitpid(pid, Process::WNOHANG)
+        break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+        sleep(0.05)
+      end
+
+      Process.kill('KILL', pid)
+      Process.wait(pid)
+    rescue Errno::ECHILD
+      nil
+    end
+
+    def cleanup_runner_cgroup(cgroup_path)
+      CGroup.rmpath_all(cgroup_path)
+    rescue SystemCallError => e
+      ct.log(:warn, "Unable to remove runner cgroup #{cgroup_path}: #{e.message}")
     end
 
     # Fork to the container user and invoke the runner.
@@ -160,6 +243,7 @@ module OsCtld
     # @option opts [IO, nil] :stdin
     # @option opts [IO, nil] :stdout
     # @option opts [IO, nil] :stderr
+    # @option opts [Array<IO>] :keep_fds additional descriptors kept in the runner
     # @option opts [Boolean] :switch_to_system
     #
     # @return [ContainerControl::Result]
@@ -169,6 +253,7 @@ module OsCtld
       stdin = opts[:stdin]
       stdout = opts.fetch(:stdout, $stdout)
       stderr = opts.fetch(:stderr, $stderr)
+      keep_fds = Array(opts[:keep_fds])
 
       runner_opts = {
         id: ct.id,
@@ -187,24 +272,39 @@ module OsCtld
       ugid = ct.user.ugid
       homedir = ct.user.homedir
 
-      pid = SwitchUser.fork(keep_fds: [w, stdin, stdout, stderr].compact) do
+      pid = SwitchUser.fork(keep_fds: ([w, stdin, stdout, stderr] + keep_fds).compact) do
         # Closed by SwitchUser.fork
         # r.close
 
-        Process.setproctitle(
-          "osctld: #{ctid} " \
-          "runner:#{command_class.name.split('::').last.downcase}"
-        )
+        begin
+          Process.setproctitle(
+            "osctld: #{ctid} " \
+            "runner:#{command_class.name.split('::').last.downcase}"
+          )
 
-        if opts.fetch(:switch_to_system, true)
-          SwitchUser.switch_to_system(sysuser, ugid, ugid, homedir)
+          if opts.fetch(:switch_to_system, true)
+            SwitchUser.switch_to_system(sysuser, ugid, ugid, homedir)
+          end
+
+          runner = command_class::Runner.new(**runner_opts)
+        rescue StandardError => e
+          write_runner_failure(w, e, stage: :setup)
+          exit(false)
         end
 
-        runner = command_class::Runner.new(**runner_opts)
-        ret = runner.execute(*args, **kwargs)
-        w.write("#{ret.to_json}\n")
+        begin
+          ret = runner.execute(*args, **kwargs)
+        rescue StandardError => e
+          write_runner_failure(w, e, stage: :execution)
+          exit(false)
+        end
 
-        exit
+        begin
+          w.write("#{ret.to_json}\n")
+        rescue StandardError => e
+          write_runner_failure(w, e, stage: :response)
+          exit(false)
+        end
       end
 
       w.close
@@ -212,15 +312,25 @@ module OsCtld
       begin
         ret = JSON.parse(r.readline, symbolize_names: true)
         Process.wait(pid)
-        ContainerControl::Result.from_runner(ret)
+        runner_result(ret)
       rescue EOFError
         Process.wait(pid)
         ContainerControl::Result.new(
           false,
-          message: 'user runner failed',
-          user_runner: true
+          message: 'helper exited without a response'
         )
       end
+    end
+
+    def write_runner_failure(io, error, stage: :setup)
+      io.write("#{ContainerControl::Result.failure_payload(error, stage:).to_json}\n")
+    rescue SystemCallError, IOError
+      nil
+    end
+
+    def runner_result(payload)
+      ct.log(:warn, payload[:diagnostic]) if payload[:diagnostic]
+      ContainerControl::Result.from_runner(payload)
     end
   end
 end

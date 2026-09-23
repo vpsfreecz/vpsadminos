@@ -1,4 +1,5 @@
 require 'osctld/commands/logged'
+require 'osctld/bpf_fs'
 
 module OsCtld
   class Commands::Container::Delete < Commands::Logged
@@ -22,14 +23,21 @@ module OsCtld
 
       manipulate(ct) do
         progress('Stopping container')
-        call_cmd!(
-          Commands::Container::Stop,
+        stop_opts = {
           pool: ct.pool.name,
           id: ct.id,
           manipulation_lock: opts[:manipulation_lock],
           progress: opts[:progress],
           message: opts[:message]
-        )
+        }
+        stop_opts[:method] = 'kill' if opts[:force] && ct.running?
+
+        call_cmd!(Commands::Container::Stop, **stop_opts)
+
+        progress('Verifying recovery cleanup')
+        unless Container::Recovery.new(ct).cleanup_or_taint
+          error!('Unable to safely complete container cleanup')
+        end
 
         if ct.send_log
           SendReceive.stopped_using_key(ct.pool, ct.send_log.opts.key_name)
@@ -41,6 +49,7 @@ module OsCtld
         progress('Removing shared mount directory')
         ct.clear_start_menu
         ct.mounts.shared_dir.remove
+        BpfFs.remove_ct(ct.pool.name, ct.id)
 
         progress('Moving dataset to trash')
         trash_dataset(ct)

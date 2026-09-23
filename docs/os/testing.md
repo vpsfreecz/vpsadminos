@@ -252,6 +252,69 @@ The REPL can be used to issue the same commands as in the test script. The test
 script itself can be run by calling method `test_script`. You can call method
 `breakpoint` from inside the test to open the REPL from any point of execution.
 
+## Userspace upgrades between versions
+
+Version-specific upgrade cases live in `tests/suite/upgrade/`. Each case pins
+one **older OS commit**, not a moving branch. Its kernel, osctld, LXC, ZFS and
+locked dependencies come from that revision. The target is always the checkout
+being tested and its own locked dependencies; there is no target commit to
+update when developing a fix.
+
+For the 6.18 integration series, run:
+
+```sh
+export VPSADMINOS_CONFIG="$PWD/os/configs/unstable.nix"
+./test-runner.sh ls 'upgrade/*'
+./test-runner.sh test --fresh --jobs 1 -t upgrade 'upgrade/*'
+```
+
+The four cases have both `upgrade` and `ci` tags, so ordinary CI includes
+live activation. The unsuffixed cases use cgroup v2; `-v1` cases boot and
+activate cgroup v1. Each builds two generations and can also be selected
+explicitly or with `-t upgrade`. No predecessor worktree,
+production access, deployment credentials or `VPSADMINOS_UPGRADE_FROM` is
+needed. The ordinary runner fetches the pinned source. `VPSADMINOS_CONFIG`
+selects the target configuration; each case selects its predecessor
+configuration independently.
+
+`common.nix` boots the predecessor, creates two running workloads, and activates
+the target with `switch-to-configuration test`. The host kernel and boot ID
+must stay unchanged while the daemon changes. The test preserves container
+init/worker/HTTP identities, cgroups, veths, consoles, data and connectivity,
+then starts and restarts a new networked container and verifies its data.
+It also repeats activation and gracefully/abruptly restarts the daemon while
+checking workload and private mount identities. Predecessor-created never-started,
+mounted-stopped and previously-run containers must start successfully, and
+stopped exec/runscript networking must work before startup. Inherited running
+containers must stop/start, restart with normal guest init, and retain their data.
+All containers must stop and delete cleanly. This tests
+**userspace switching**, not live kernel replacement or a host reboot upgrade.
+
+Only the predecessor's **test-shell module** is replaced with the current
+runner's test transport. This permits ordinary `./test-runner.sh` use even
+when older guests used a different serial protocol. It does not replace the
+old daemon, container manager, kernel, ZFS, lifecycle callbacks or networking.
+The test shell stays open across activation; it is not an application workload.
+
+### Adding and retiring cases
+
+1. Copy a small `from-*.nix` case and choose an immutable, full predecessor
+   commit, normally the relevant default-branch revision before the change.
+   Never resolve a moving branch at test time.
+2. Give it a descriptive name and expected kernel prefix. If necessary, select
+   a configuration file **from the predecessor revision**; otherwise its
+   default is used. Keep the target unpinned.
+3. Register the case in `tests/all-tests.nix`. Reuse `common.nix` for the standard
+   continuity scenario; put independently meaningful migration assertions in
+   a focused case rather than weakening existing checks.
+4. Run the named case from the development checkout with the desired target
+   configuration. Confirm the actual predecessor kernel and target generation
+   in the native logs. A fresh target boot is not an upgrade result.
+5. Remove a case and its registration when its source version or transition is
+   no longer supported/relevant. Do not silently retarget an old case to a new
+   commit and lose the compatibility boundary it represented. Git history
+   preserves retired cases; no separate fixture registry is necessary.
+
 ## Expected failure
 A test can be expected to fail. The failure is shown, but it does not result
 in error exit status. If a test succeeds and we expected it to fail, it is

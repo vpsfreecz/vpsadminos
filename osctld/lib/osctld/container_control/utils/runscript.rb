@@ -1,13 +1,31 @@
 require 'json'
 require 'socket'
+require 'io/wait'
 
 module OsCtld
   module ContainerControl::Utils::Runscript
     module Frontend
+      def runscript_mode(run:, network:)
+        running = run ? ct.current_state == :running : ct.running?
+
+        if running
+          :running
+        elsif run && network
+          :run_network
+        elsif run
+          :run
+        else
+          raise ContainerControl::Error, 'container not running'
+        end
+      end
+
+      def sync_state_after_transient_run(mode)
+        ct.current_state if %i[run run_network].include?(mode)
+      end
+
       def add_network_opts(opts)
         opts.update(
-          init_script: File.join('/', File.basename(init_script.path)),
-          net_config: NetConfig.create(ct).export
+          init_script: File.join('/', File.basename(init_script.path))
         )
       end
 
@@ -36,6 +54,9 @@ module OsCtld
     end
 
     module Runner
+      TRANSIENT_READY_TIMEOUT = 30
+      TRANSIENT_EXIT_TIMEOUT = 5
+
       # Execute script in a stopped container
       # @param opts [Hash]
       # @option opts [String] :script path to the script relative to the rootfs
@@ -46,6 +67,7 @@ module OsCtld
       # @option opts [Boolean] :wait
       def runscript_run(opts)
         pid = Process.fork do
+          Process.setpgrp if opts[:process_group]
           cur_stdin = opts.fetch(:stdin, stdin)
           cur_stdout = opts.fetch(:stdout, stdout)
           cur_stderr = opts.fetch(:stderr, stderr)
@@ -86,6 +108,7 @@ module OsCtld
           pid
         else
           _, status = Process.wait2(pid)
+          wait_for_lxc_stopped
           ok(status.exitstatus)
         end
       end
@@ -101,7 +124,6 @@ module OsCtld
       # @param opts [Hash]
       # @option opts [String] :init_script path to the script used to control
       #                                    the container
-      # @option opts [Hash] :net_config
       def with_configured_network(opts)
         ret = nil
 
@@ -110,41 +132,97 @@ module OsCtld
         out_r, out_w = IO.pipe
 
         # Start the container with lxc-init
-        init_pid = runscript_run(
+        runner_pid = runscript_run(
           id: ctid,
           script: opts[:init_script],
           stdin: in_r,
           stdout: out_w,
           stderr: nil,
           close_fds: [in_w, out_r],
+          process_group: true,
           wait: false
         )
 
         in_r.close
         out_w.close
 
-        # Wait for the container to be started
-        if out_r.readline.strip == 'ready'
-          # Configure network
-          pid = lxc_ct.attach do
-            setup_exec_env
-            ENV['HOME'] = '/root'
-            ENV['USER'] = 'root'
-            NetConfig.import(opts[:net_config]).setup
+        # Bound startup, not the user's command. Closing these pipes must
+        # also happen on EOF, a malformed token or a failed network handshake.
+        wait_transient_ready(out_r)
+        ct_init_pid = wait_for_lxc_attachable
+        ret =
+          if ct_init_pid
+            setup_network || yield
+          else
+            error('network setup failed: container is not attachable')
           end
+        ret
+      ensure
+        [in_r, in_w, out_r, out_w].compact.each { |io| io.close unless io.closed? }
+        begin
+          if runner_pid
+            # Keep readiness open until cleanup finishes. Early EOF would
+            # make the daemon reap this runner before it stops the payload.
+            stop_transient_runner(runner_pid, graceful: ret && ret[:status])
+            wait_for_lxc_stopped
+          end
+        ensure
+          network_socket&.close unless network_socket&.closed?
+        end
+      end
 
-          Process.wait2(pid)
+      def stop_transient_runner(pid, graceful: true)
+        grace = graceful ? TRANSIENT_EXIT_TIMEOUT : 0
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + grace
+        loop do
+          waited_pid, status = Process.wait2(pid, Process::WNOHANG)
+          return status if waited_pid
+          break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
 
-          # Execute user command
-          ret = yield
+          sleep(0.05)
         end
 
-        # Closing in_w will bring down opts[:init_script] and stop the container
-        in_w.close
-        out_r.close
+        # Stop the payload while its monitor still owns the LXC control
+        # socket. Killing the monitor first makes LXC report stopped while
+        # lxc-init and its children can survive, orphaned in their namespaces.
+        lxc_ct.stop if lxc_ct.running?
+        wait_for_process(pid, timeout: TRANSIENT_EXIT_TIMEOUT)
+      rescue Errno::ECHILD
+        nil
+      end
 
-        _, status = Process.wait2(init_pid)
-        ret || ok(status.exitstatus)
+      def wait_transient_ready(io)
+        expected = "ready\n"
+        received = ''
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + TRANSIENT_READY_TIMEOUT
+
+        while received.bytesize < expected.bytesize
+          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          raise Errno::ETIMEDOUT, 'transient init readiness timed out' if remaining <= 0
+
+          chunk = io.read_nonblock(expected.bytesize - received.bytesize, exception: false)
+          case chunk
+          when :wait_readable
+            io.wait_readable(remaining)
+          when nil
+            raise EOFError, 'transient init closed readiness pipe'
+          else
+            received << chunk
+            raise 'invalid transient init readiness' unless expected.start_with?(received)
+          end
+        end
+      end
+
+      def setup_network
+        raise 'transient network channel unavailable' unless network_socket
+
+        network_socket.write("ready\n")
+        ret = JSON.parse(network_socket.readline, symbolize_names: true)
+        ret[:status] ? nil : error(ret[:message])
+      rescue StandardError => e
+        error("network setup failed: #{e.message}")
+      ensure
+        network_socket&.close
       end
 
       # Callback to osctld to relocate self-process from container's wrapper cgroup

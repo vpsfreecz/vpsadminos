@@ -7,6 +7,43 @@ RSpec.describe OsCtl::Cli::Container do
     build_command(described_class, args:, opts:, gopts:)
   end
 
+  [
+    ['exit 0', 0],
+    ['exit 23', 23],
+    ["Process.kill('TERM', Process.pid)", 143]
+  ].each do |source, expected_status|
+    it "propagates attached command status #{expected_status} through GLI" do
+      Dir.mktmpdir('osctl-attach') do |dir|
+        executable = File.join(dir, 'child')
+        File.write(executable, "#!#{RbConfig.ruby}\n#{source}\n")
+        File.chmod(0o700, executable)
+        command = cmd(args: ['ct1'])
+        allow(command).to receive(:osctld_call).with(:ct_su, id: 'ct1', pool: nil).and_return(
+          cmd: executable, args: [], env: {}, settings: {}
+        )
+        allow(described_class).to receive(:new).and_return(command)
+        app = OsCtl::Cli::App.get
+        errors = StringIO.new
+        allow(app).to receive(:stderr).and_return(errors)
+
+        expect(app.run(%w[ct su ct1])).to eq(expected_status)
+        expect(errors.string).to eq('') if expected_status == 0
+      end
+    end
+  end
+
+  it 'sends an explicit host-link acknowledgment for one configured interface' do
+    command = cmd(args: %w[ct1 eth0], gopts: { pool: 'tank' })
+    expect(command).to receive(:osctld_fmt).with(
+      :ct_recover_forget_host_link, cmd_opts: { id: 'ct1', pool: 'tank', netif: 'eth0' }
+    )
+    command.recover_forget_host_link
+  end
+
+  it 'requires an interface for host-link acknowledgment' do
+    expect { cmd(args: ['ct1']).recover_forget_host_link }.to raise_error(GLI::BadCommandLine)
+  end
+
   it 'initializes cgroup subsystems in bisect using the open client connection' do
     client = FakeClientHelpers::ClientDouble.new(
       cmd_data: { ct_list: [[{ pool: 'tank', id: 'ct1', group_path: '/grp', state: 'running' }]] }

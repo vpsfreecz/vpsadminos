@@ -2,6 +2,7 @@
 
 require 'osctld/exceptions'
 require 'osctld/promise'
+require 'osctld/process_identity'
 require 'osctld/container/run_id'
 require 'osctld/container/run_configuration'
 
@@ -166,10 +167,141 @@ RSpec.describe OsCtld::Container::RunConfiguration do
   it 'builds the runtime rootfs from the init pid' do
     with_tmpdir do |dir|
       _ct, rc = build_run_configuration(root: dir)
+      identity = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      allow(OsCtld::ProcessIdentity).to receive(:new)
+        .with(4321, namespaces: [:mnt], root: true)
+        .and_return(identity)
 
       rc.init_pid = 4321
 
       expect(rc.runtime_rootfs).to eq('/proc/4321/root')
+    end
+  end
+
+  it 'anchors and leases the exact init identity for the run' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+      retained = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      copy = instance_double(OsCtld::ProcessIdentity, close: nil)
+      allow(retained).to receive(:duplicate).and_return(copy)
+      allow(OsCtld::ProcessIdentity).to receive(:new)
+        .with(4321, namespaces: [:mnt], root: true)
+        .and_return(retained)
+
+      rc.init_pid = 4321
+      lease = rc.acquire_init_lease
+
+      expect(lease.identity).to be(copy)
+      expect(copy).not_to have_received(:close)
+      lease.close
+      expect(copy).to have_received(:close)
+    end
+  end
+
+  it 'waits for active leases during retirement without holding the run lock' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+      retained = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      copy = instance_double(OsCtld::ProcessIdentity, close: nil)
+      allow(retained).to receive(:duplicate).and_return(copy)
+      allow(OsCtld::ProcessIdentity).to receive(:new)
+        .with(4321, namespaces: [:mnt], root: true)
+        .and_return(retained)
+      rc.init_pid = 4321
+      lease = rc.acquire_init_lease
+      rc.begin_retirement
+      completed = Queue.new
+
+      destroy_thread = Thread.new do
+        rc.destroy
+        completed << true
+      end
+
+      10_000.times do
+        break if destroy_thread.status == 'sleep'
+
+        Thread.pass
+      end
+
+      expect(destroy_thread.status).to eq('sleep')
+      expect(rc.init_pid).to eq(4321)
+      expect { completed.pop(true) }.to raise_error(ThreadError)
+      expect { rc.acquire_init_lease }
+        .to raise_error(described_class::LifecycleError, 'container run is retiring')
+
+      lease.close
+      expect(destroy_thread.join(1)).to be(destroy_thread)
+      expect(completed.pop).to be(true)
+      expect(retained).to have_received(:close)
+    ensure
+      lease&.close
+      destroy_thread&.join(1)
+    end
+  end
+
+  [true, false].each do |alive|
+    it "clears stopped-run identity only when pinned init is dead (alive=#{alive})" do
+      with_tmpdir do |dir|
+        _ct, rc = build_run_configuration(root: dir)
+        identity = instance_double(OsCtld::ProcessIdentity, pid: 4321, alive?: alive, close: nil)
+        copy = instance_double(OsCtld::ProcessIdentity, close: nil)
+        allow(identity).to receive(:duplicate).and_return(copy)
+        allow(OsCtld::ProcessIdentity).to receive(:new).and_return(identity)
+        rc.init_pid = 4321
+        lease = rc.acquire_init_lease
+
+        expect(rc.clear_dead_init_identity).to be(!alive)
+        expect(rc.init_pid).to eq(alive ? 4321 : nil)
+        if alive
+          expect(identity).not_to have_received(:close)
+        else
+          expect(identity).to have_received(:close)
+        end
+        expect(copy).not_to have_received(:close)
+        lease.close
+        expect(copy).to have_received(:close)
+      ensure
+        lease&.close
+      end
+    end
+  end
+
+  it 'closes a replaced init identity' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+      first = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      second = instance_double(OsCtld::ProcessIdentity, pid: 4322, close: nil)
+      allow(OsCtld::ProcessIdentity).to receive(:new).and_return(first, second)
+
+      rc.init_pid = 4321
+      rc.init_pid = 4322
+
+      expect(rc.init_pid).to eq(4322)
+      expect(first).to have_received(:close)
+      expect(second).not_to have_received(:close)
+    end
+  end
+
+  it 'retires the init identity and prevents late installation after destroy' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+      identity = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      allow(OsCtld::ProcessIdentity).to receive(:new)
+        .with(4321, namespaces: [:mnt], root: true)
+        .and_return(identity)
+
+      rc.init_pid = 4321
+      rc.destroy
+
+      expect(rc.init_pid).to be_nil
+      expect(identity).to have_received(:close)
+      expect do
+        rc.init_pid = 4322
+      end.to raise_error(
+        described_class::LifecycleError,
+        'container run is retiring'
+      )
+      expect(OsCtld::ProcessIdentity).not_to have_received(:new).with(4322)
     end
   end
 
@@ -224,6 +356,99 @@ RSpec.describe OsCtld::Container::RunConfiguration do
       _ct, rc = build_run_configuration(root: dir)
 
       expect { rc.destroy }.not_to raise_error
+    end
+  end
+
+  describe '#adopt_live_root' do
+    def stub_mountinfo(*lines)
+      stub = allow(File).to receive(:foreach).with('/proc/self/mountinfo')
+      lines.each { |line| stub.and_yield("#{line}\n") }
+    end
+
+    before do
+      stub_const('OsCtl::Lib::Zfs::Dataset', Class.new do
+        attr_reader :name, :base
+
+        def initialize(name, base: nil)
+          @name = name
+          @base = base
+        end
+      end)
+
+      stub_const('OsCtld::GarbageCollector', Class.new do
+        class << self
+          attr_accessor :adopted
+
+          def add_container_run_dataset(run_conf, dataset)
+            @adopted = [run_conf, dataset]
+          end
+        end
+      end)
+    end
+
+    it 'adopts the mounted impermanence dataset of the container' do
+      with_tmpdir do |dir|
+        ct, rc = build_run_configuration(root: dir)
+        name = "#{ct.dataset}.impermanence-ab12cd"
+        stub_mountinfo(
+          '36 25 0:38 / /proc rw,relatime - proc proc rw',
+          "37 25 0:39 /private #{name} rw,relatime,idmapped - zfs #{name} rw,xattr,noacl,casesensitive"
+        )
+
+        expect(rc.adopt_live_root).to be(true)
+        expect(rc.dataset.name).to eq(name)
+        expect(rc.destroy_dataset_on_stop?).to be(true)
+        expect(OsCtld::GarbageCollector.adopted).to eq([rc, rc.dataset])
+      end
+    end
+
+    it 'refuses a mounted dataset that is not this container impermanence dataset' do
+      with_tmpdir do |dir|
+        ct, rc = build_run_configuration(root: dir)
+        stub_mountinfo("#{ct.dataset} #{ct.dataset} rw,relatime - zfs #{ct.dataset} rw")
+
+        expect(rc.adopt_live_root).to be(false)
+        expect(rc.dataset).to eq(ct.dataset)
+      end
+    end
+
+    it 'refuses a mount table without an impermanence ZFS mount' do
+      with_tmpdir do |dir|
+        ct, rc = build_run_configuration(root: dir)
+        stub_mountinfo('/ / rw,relatime - tmpfs tmpfs rw')
+
+        expect(rc.adopt_live_root).to be(false)
+        expect(rc.dataset).to eq(ct.dataset)
+      end
+    end
+
+    it 'stays put when the mount table cannot be read' do
+      with_tmpdir do |dir|
+        _ct, rc = build_run_configuration(root: dir)
+        allow(File).to receive(:foreach).with('/proc/self/mountinfo').and_raise(Errno::ENOENT)
+
+        expect(rc.adopt_live_root).to be(false)
+      end
+    end
+
+    it 'does nothing when the live dataset already is the boot dataset' do
+      with_tmpdir do |dir|
+        ct, rc = build_run_configuration(root: dir)
+        name = "#{ct.dataset}.impermanence-ab12cd"
+        rc.boot_from(
+          dataset: FakeObjects::FakeDataset.new(name: name, mountpoint: File.join(dir, 'live')),
+          distribution: 'nixos',
+          version: '24.05',
+          arch: 'x86_64',
+          vendor: 'vpsadminos',
+          variant: 'impermanence'
+        )
+        stub_mountinfo("37 25 0:39 /private #{name} rw,relatime,idmapped - zfs #{name} rw")
+
+        expect(rc.adopt_live_root).to be(false)
+        expect(rc.dataset.name).to eq(name)
+        expect(OsCtld::GarbageCollector.adopted).to be_nil
+      end
     end
   end
 end
