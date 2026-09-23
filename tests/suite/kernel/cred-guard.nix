@@ -245,7 +245,10 @@ import ../../make-test.nix (
           script = testPrelude + ''
             prepare_guard_machine("log")
             _, boot_log = machine.succeeds("dmesg")
-            expect(boot_log).not_to include("auth_guard:")
+            boot_messages = auth_guard_messages(boot_log)
+            seed_messages = boot_messages.select { |message| message.include?("key seeded") }
+            expect(seed_messages).not_to be_empty
+            expect(boot_messages - seed_messages).to be_empty
             machine.succeeds("dmesg -C")
 
             machine.succeeds("sh -c 'exec true'")
@@ -312,6 +315,33 @@ import ../../make-test.nix (
               auth_guard_message(test_case)
             end
             expect(auth_guard_messages(corruption_log).tally).to eq(expected_messages.tally)
+          '';
+        };
+      }
+      // pkgs.lib.optionalAttrs (selectors.log.requested || selectors.panic.requested) {
+        crng-gate = {
+          tags = [ "crng" ];
+          script = testPrelude + ''
+            # P-01: seal keys are drawn only after CRNG initialization.
+            # A boot that can confirm readiness records the seed; a boot
+            # forced to see an unready CRNG must refuse to seed and disable
+            # the guard for that boot instead of running on weak key
+            # material.
+            machine.start(kernel_params: ["auth_guard=panic"])
+            machine.wait_until_online
+
+            _, boot_log = machine.succeeds("dmesg")
+            expect(boot_log).to include("key seeded (CRNG initialized)")
+            expect(boot_log).not_to include("CRNG not initialized")
+
+            machine.kill(signal: 'KILL') if machine.running?
+
+            machine.start(kernel_params: ["auth_guard=panic", "auth_guard_test=crng-unready"])
+            machine.wait_until_online
+
+            _, refusal_log = machine.succeeds("dmesg")
+            expect(refusal_log).to include("auth_guard: CRNG not initialized: refusing")
+            expect(refusal_log).not_to include("key seeded")
           '';
         };
       }
