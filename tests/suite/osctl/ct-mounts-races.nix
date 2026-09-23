@@ -69,44 +69,32 @@ import ../../make-test.nix (
         "grep -Fx decoy-marker /tmp/decoy-target/marker",
       )
 
-      # (b) The shared-directory entry for a pending mount is replaced with a
-      # symlink to the decoy. If the container cannot write the shared
-      # directory the attempt must fail; if it can, the activation must still
-      # not follow the replacement onto a host path. Either way the invariants
-      # hold and a cleaned-up activation works.
+      # (b) Place a symlink to the host-owned decoy at the exact hashed host
+      # path of the pending shared mount. This deterministically tests refusal
+      # of an already-replaced path, not the narrower between-syscalls race.
       machine.wait_until_succeeds("osctl ct show -H -o state #{ct} | grep -Fx stopped", timeout: 60)
       machine.succeeds("osctl ct start #{ct}")
       machine.wait_until_succeeds("osctl ct exec #{ct} rc-service networking status")
-
-      writable_status, writable_output = machine.execute(
-        "osctl ct exec #{ct} sh -c 'test -w /dev/.osctl-mount-helper && echo writable || echo read-only'"
+      machine.all_succeed(
+        "test ! -e #{host_path} && test ! -L #{host_path}",
+        "ln -s /tmp/decoy-target #{host_path}",
+        "test -L #{host_path}",
       )
-      expect(writable_status).to eq(0)
-      tamper = "sh -c 'rm -rf /dev/.osctl-mount-helper/#{hash}; " \
-        "ln -s /tmp/decoy-target /dev/.osctl-mount-helper/#{hash}'"
-
-      if writable_output.strip == "writable"
-        machine.succeeds("osctl ct exec #{ct} #{tamper}")
-      else
-        machine.fails("osctl ct exec #{ct} #{tamper}")
-      end
-
-      machine.execute("osctl ct mounts activate #{ct} #{mountpoint}", timeout: 120)
+      machine.fails("osctl ct mounts activate #{ct} #{mountpoint}")
 
       machine.all_succeed(
         "mountpoint -q /tmp/decoy-target",
         "grep -Fx decoy-marker /tmp/decoy-target/marker",
+        "test -L #{host_path}",
         "! grep -F '#{host_path}' /proc/mounts",
         "! ps -eo args= | grep -E '^osctld: tank:#{ct} runner:'",
       )
 
-      # The activation above may have succeeded (when the container cannot write
-      # the shared directory); deactivate whatever is mounted, drop any leftover
-      # entry the tamper attempt created, and prove that a clean activation
-      # still works and shows the configured source.
-      machine.execute("osctl ct mounts deactivate #{ct} #{mountpoint}")
-      machine.execute("osctl ct exec #{ct} sh -c 'rm -rf /dev/.osctl-mount-helper/#{hash}'")
+      # Remove only the exact symlink created by this test; the product must
+      # not remove an unrelated pre-existing entry on failed activation.
+      machine.succeeds("test -L #{host_path} && rm #{host_path}")
 
+      # A clean activation still works and shows the configured source.
       machine.succeeds("osctl ct mounts activate #{ct} #{mountpoint}")
       _, mounted = machine.succeeds("osctl ct exec #{ct} cat #{mountpoint}/race.txt")
       fail "unexpected mount content: #{mounted.inspect}" unless mounted.strip == "race-src"
