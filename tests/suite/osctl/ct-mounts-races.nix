@@ -1,0 +1,115 @@
+import ../../make-test.nix (
+  { pkgs }:
+  {
+    name = "osctl-ct-mounts-races";
+
+    description = ''
+      Adversarial live-mount activation: container init death and
+      shared-directory path replacement must stay bounded without a host-side
+      escape or leak.
+    '';
+
+    tags = [ "ci" ];
+
+    machine = import ../../machines/vpsadminos/tank.nix pkgs;
+
+    testScript = ''
+      require 'digest'
+
+      machine.start
+      machine.wait_for_osctl_pool("tank")
+      machine.wait_until_online
+
+      ct = "mountct"
+      mountpoint = "/mnt/race"
+      hash = Digest::SHA2.hexdigest(mountpoint)
+      shared_dir = "/run/osctl/pools/tank/mounts/#{ct}"
+      host_path = File.join(shared_dir, hash)
+
+      # A harmless decoy mountpoint: no adversarial attempt may mount over it
+      # or tear it down through a replaced path.
+      machine.all_succeed(
+        "mkdir -p /tmp/decoy-target",
+        "mount -t tmpfs tmpfs /tmp/decoy-target",
+        "echo decoy-marker > /tmp/decoy-target/marker",
+      )
+
+      machine.all_succeed(
+        "zfs create -p tank/race/src",
+        "echo race-src > /tank/race/src/race.txt",
+        "osctl ct new --distribution alpine #{ct}",
+        "osctl ct unset start-menu #{ct}",
+        "osctl ct mounts new --no-automount --fs /tank/race/src --type bind " \
+          "--opts bind,create=dir --mountpoint #{mountpoint} #{ct}",
+        "osctl ct start #{ct}",
+      )
+      machine.wait_until_succeeds("osctl ct exec #{ct} rc-service networking status")
+
+      # (a) The container init dies while the live activation is in flight. The
+      # activation must conclude with a numeric status; whatever it reports, no
+      # shared-directory binding, leftover directory or runner helper may stay
+      # behind, and the decoy must survive.
+      machine.succeeds(
+        "(osctl ct mounts activate #{ct} #{mountpoint} >/tmp/race-init.log 2>&1; " \
+          "echo $? > /tmp/race-init.status) & echo $! > /tmp/race-init.pid"
+      )
+      machine.succeeds("osctl ct exec #{ct} sh -c 'kill -9 1' || true")
+      machine.wait_until_succeeds('test -s /tmp/race-init.status', timeout: 120)
+      machine.succeeds("grep -E '^[0-9]+$' /tmp/race-init.status")
+      machine.wait_until_succeeds("! grep -F '#{shared_dir}' /proc/mounts", timeout: 60)
+      machine.wait_until_succeeds("! test -e #{host_path}", timeout: 60)
+      machine.wait_until_succeeds(
+        "! ps -eo args= | grep -E '^osctld: tank:#{ct} runner:'",
+        timeout: 60
+      )
+      machine.all_succeed(
+        "mountpoint -q /tmp/decoy-target",
+        "grep -Fx decoy-marker /tmp/decoy-target/marker",
+      )
+
+      # (b) The shared-directory entry for a pending mount is replaced with a
+      # symlink to the decoy. If the container cannot write the shared
+      # directory the attempt must fail; if it can, the activation must still
+      # not follow the replacement onto a host path. Either way the invariants
+      # hold and a cleaned-up activation works.
+      machine.succeeds("osctl ct start #{ct}")
+      machine.wait_until_succeeds("osctl ct exec #{ct} rc-service networking status")
+
+      writable_status, writable_output = machine.execute(
+        "osctl ct exec #{ct} sh -c 'test -w /dev/.osctl-mount-helper && echo writable || echo read-only'"
+      )
+      expect(writable_status).to eq(0)
+      tamper = "sh -c 'rm -rf /dev/.osctl-mount-helper/#{hash}; " \
+        "ln -s /tmp/decoy-target /dev/.osctl-mount-helper/#{hash}'"
+
+      if writable_output.strip == "writable"
+        machine.succeeds("osctl ct exec #{ct} #{tamper}")
+      else
+        machine.fails("osctl ct exec #{ct} #{tamper}")
+      end
+
+      machine.execute("osctl ct mounts activate #{ct} #{mountpoint}", timeout: 120)
+
+      machine.all_succeed(
+        "mountpoint -q /tmp/decoy-target",
+        "grep -Fx decoy-marker /tmp/decoy-target/marker",
+        "! grep -F '#{shared_dir}' /proc/mounts",
+        "! ps -eo args= | grep -E '^osctld: tank:#{ct} runner:'",
+      )
+
+      machine.execute("osctl ct exec #{ct} sh -c 'rm -rf /dev/.osctl-mount-helper/#{hash}'")
+
+      # A clean activation still works and shows the configured source.
+      machine.succeeds("osctl ct mounts activate #{ct} #{mountpoint}")
+      _, mounted = machine.succeeds("osctl ct exec #{ct} cat #{mountpoint}/race.txt")
+      fail "unexpected mount content: #{mounted.inspect}" unless mounted.strip == "race-src"
+
+      machine.all_succeed(
+        "osctl ct stop #{ct}",
+        "osctl ct del --prune #{ct}",
+        "umount /tmp/decoy-target",
+        "rmdir /tmp/decoy-target",
+      )
+    '';
+  }
+)
