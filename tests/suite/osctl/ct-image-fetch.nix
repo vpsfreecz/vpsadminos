@@ -46,7 +46,7 @@ import ../../make-test.nix (
             socket.write(body)
 
           elsif (mode = File.exist?('/tmp/flaky-server.mode') ? File.read('/tmp/flaky-server.mode').strip : 'good') != 'good' &&
-                File.size(full_path) > 10_000
+                full_path.end_with?('.tar')
             # Adversarial framing for the repository-stream dispositions: the
             # stream body is either cut short under a full Content-Length or
             # replaced by garbage of the same length. The downloader/import must
@@ -59,7 +59,10 @@ import ../../make-test.nix (
             when 'truncated'
               socket.write(body.byteslice(0, body.bytesize / 2))
             when 'garbage'
-              socket.write(Random.new(32_768).bytes(body.bytesize))
+              # Corrupt the tar header without allocating a second copy of a
+              # potentially large container stream.
+              body[0, 512] = Random.new(32_768).bytes(512)
+              socket.write(body)
             end
 
           else
@@ -148,7 +151,7 @@ import ../../make-test.nix (
           "ln #{preload_rootfs}/rich/plain #{preload_rootfs}/rich/hardlink",
           "mkfifo #{preload_rootfs}/rich/fifo",
           "echo acl > #{preload_rootfs}/rich/acl",
-          "setfacl -m u:4321:rwx #{preload_rootfs}/rich/acl"
+          "${pkgs.acl}/bin/setfacl -m u:4321:rwx #{preload_rootfs}/rich/acl"
         )
 
         _, arch = machine.succeeds("uname -m")
@@ -224,17 +227,24 @@ import ../../make-test.nix (
         end
 
         it 'fails cleanly on truncated and corrupt repository streams' do
+          # Do not reuse `flaky`'s successful cache from the first example:
+          # the cached downloader deliberately falls back to it on network
+          # errors, which would turn a truncated response into a false pass.
+          # Each new alias starts with its own empty repository cache.
+          machine.succeeds("osctl repo add truncated http://127.0.0.1:18080")
           machine.succeeds("echo truncated > /tmp/flaky-server.mode")
           output = failed_output(
-            "osctl ct new --repository flaky --distribution alpine " \
+            "osctl ct new --repository truncated --distribution alpine " \
               "#{@truncated_ct}"
           )
+          expect(output).to include("repositories unavailable: truncated")
           expect(output).not_to include("internal error")
           machine.fails("osctl ct show #{@truncated_ct}")
 
+          machine.succeeds("osctl repo add garbage http://127.0.0.1:18080")
           machine.succeeds("echo garbage > /tmp/flaky-server.mode")
           output = failed_output(
-            "osctl ct new --repository flaky --distribution alpine " \
+            "osctl ct new --repository garbage --distribution alpine " \
               "#{@garbage_ct}"
           )
           expect(output).not_to include("internal error")
@@ -275,7 +285,7 @@ import ../../make-test.nix (
             "test \"$(head -c 11 #{rootfs}/rich/sparse)\" = sparse-head",
             "test \"$(stat -c '%b' #{rootfs}/rich/sparse)\" -lt 128",
             "sha256sum #{rootfs}/rich/blob | awk '{print $1}' | cmp - /tmp/rich-blob.sha256",
-            "getfacl -p #{rootfs}/rich/acl | grep -E '^user:4321:rwx$'",
+            "${pkgs.acl}/bin/getfacl -p #{rootfs}/rich/acl | grep -E '^user:4321:rwx$'",
             "osctl ct del -f --prune #{@rich_ct}"
           )
         end
