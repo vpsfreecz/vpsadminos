@@ -348,11 +348,20 @@ import ../../make-test.nix (
             machine.start(kernel_params: ["auth_guard=panic"])
             machine.wait_until_online
 
-            machine.succeeds("modprobe auth_contract_kunit || true")
+            _, has_contract = machine.succeeds(
+              "gzip -dc /proc/config.gz | grep -c '^CONFIG_AUTH_EXPECTATION=' || true"
+            )
 
-            _, kunit_log = machine.succeeds("dmesg")
-            expect(kunit_log).to include("Subtest: auth_contract")
-            expect(kunit_log).to match(/auth_contract: pass:\d+ fail:0 skip:0 total:\d+/)
+            if has_contract.strip == "0"
+              # A kernel without the contract code has no suite to execute.
+              # (Baseline kernels are used to bisect harness findings.)
+            else
+              machine.succeeds("modprobe auth_contract_kunit || true")
+
+              _, kunit_log = machine.succeeds("dmesg")
+              expect(kunit_log).to include("Subtest: auth_contract")
+              expect(kunit_log).to match(/auth_contract: pass:\d+ fail:0 skip:0 total:\d+/)
+            end
 
             # Leave no machine running for the next script in this test.
             machine.kill(signal: 'KILL') if machine.running?
