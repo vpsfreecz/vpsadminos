@@ -151,7 +151,11 @@ import ../../make-test.nix (
           "ln #{preload_rootfs}/rich/plain #{preload_rootfs}/rich/hardlink",
           "mkfifo #{preload_rootfs}/rich/fifo",
           "echo acl > #{preload_rootfs}/rich/acl",
-          "${pkgs.acl}/bin/setfacl -m u:4321:rwx #{preload_rootfs}/rich/acl"
+          "${pkgs.acl}/bin/setfacl -m u:4321:rwx #{preload_rootfs}/rich/acl",
+          "${pkgs.attr}/bin/setfattr -n user.release-transport -v inherited #{preload_rootfs}/rich/plain",
+          "echo filecap > #{preload_rootfs}/rich/filecap",
+          "chmod 755 #{preload_rootfs}/rich/filecap",
+          "${pkgs.libcap}/bin/setcap cap_chown=ep #{preload_rootfs}/rich/filecap"
         )
 
         _, arch = machine.succeeds("uname -m")
@@ -286,6 +290,8 @@ import ../../make-test.nix (
             "test \"$(stat -c '%b' #{rootfs}/rich/sparse)\" -lt 128",
             "sha256sum #{rootfs}/rich/blob | awk '{print $1}' | cmp - /tmp/rich-blob.sha256",
             "${pkgs.acl}/bin/getfacl -p #{rootfs}/rich/acl | grep -E '^user:4321:rwx$'",
+            "test \"$(${pkgs.attr}/bin/getfattr --only-values -n user.release-transport #{rootfs}/rich/plain)\" = inherited",
+            "${pkgs.libcap}/bin/getcap #{rootfs}/rich/filecap | grep -F 'cap_chown=ep'",
             "osctl ct del -f --prune #{@rich_ct}"
           )
         end
