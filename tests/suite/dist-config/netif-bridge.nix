@@ -46,6 +46,7 @@ import ../../make-test.nix (
         "osctl ct unset start-menu #{ct_dhcp}",
         "osctl ct netif new bridge --link lxcbr0 #{ct_dhcp} eth0",
         "osctl ct netif ip add #{ct_dhcp} eth0 192.168.1.71/24",
+        "osctl ct netif ip add #{ct_dhcp} eth0 fd00:618::71/64",
         "osctl ct start #{ct_dhcp}",
       )
       machine.wait_until_succeeds("osctl ct exec #{ct_dhcp} systemctl is-system-running --wait")
@@ -53,13 +54,35 @@ import ../../make-test.nix (
         "osctl ct exec #{ct_dhcp} systemctl is-active systemd-networkd.service",
         "osctl ct exec #{ct_dhcp} grep -Fx DHCP=true /etc/systemd/network/eth0.network",
         "osctl ct exec #{ct_dhcp} grep -Fx Address=192.168.1.71/24 /etc/systemd/network/eth0.network",
+        "osctl ct exec #{ct_dhcp} grep -Fx Address=fd00:618::71/64 /etc/systemd/network/eth0.network",
         "osctl ct exec #{ct_dhcp} ip -4 addr show dev eth0 | grep -F 192.168.1.71/24",
+        "osctl ct exec #{ct_dhcp} ip -6 addr show dev eth0 | grep -F fd00:618::71/64",
       )
       machine.fails(
         "osctl ct exec #{ct_dhcp} grep -F 'Gateway=' /etc/systemd/network/eth0.network"
       )
       machine.wait_until_succeeds("osctl ct exec #{ct_dhcp} ip -4 route show default | grep -F 'dev eth0'")
       machine.succeeds('ping -c 1 192.168.1.71')
+
+      # Reconfigure the running interface: the addresses must converge through
+      # a live reconfiguration and a networkd restart (DHCP renewal included)
+      # without a static Gateway= reappearing.
+      machine.all_succeed(
+        "osctl ct netif ip add #{ct_dhcp} eth0 192.168.1.72/24",
+        "osctl ct netif ip del #{ct_dhcp} eth0 192.168.1.71/24",
+      )
+      machine.succeeds("osctl ct exec #{ct_dhcp} systemctl restart systemd-networkd")
+      machine.wait_until_succeeds("osctl ct exec #{ct_dhcp} ip -4 addr show dev eth0 | grep -F 192.168.1.72/24")
+      machine.all_succeed(
+        "osctl ct exec #{ct_dhcp} grep -Fx Address=192.168.1.72/24 /etc/systemd/network/eth0.network",
+        "osctl ct exec #{ct_dhcp} ip -4 route show default | grep -F 'dev eth0'",
+      )
+      machine.fails(
+        "osctl ct exec #{ct_dhcp} grep -F 'Gateway=' /etc/systemd/network/eth0.network"
+      )
+      machine.fails(
+        "osctl ct exec #{ct_dhcp} ip -4 addr show dev eth0 | grep -F 192.168.1.71/24"
+      )
       machine.succeeds("osctl ct del -f --prune #{ct_dhcp}")
     '';
   }
