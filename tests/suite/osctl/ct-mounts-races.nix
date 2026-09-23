@@ -69,12 +69,16 @@ import ../../make-test.nix (
         "grep -Fx decoy-marker /tmp/decoy-target/marker",
       )
 
-      # (b) Place a symlink to the host-owned decoy at the exact hashed host
-      # path of the pending shared mount. This deterministically tests refusal
-      # of an already-replaced path, not the narrower between-syscalls race.
+      # (b) The shared helper is mounted read-only into the guest. First prove
+      # the untrusted guest cannot plant the symlink itself; then inject a
+      # host-side path replacement to exercise refusal of an already-replaced
+      # child. This does not reproduce a between-syscalls rename race.
       machine.wait_until_succeeds("osctl ct show -H -o state #{ct} | grep -Fx stopped", timeout: 60)
       machine.succeeds("osctl ct start #{ct}")
       machine.wait_until_succeeds("osctl ct exec #{ct} rc-service networking status")
+      machine.fails(
+        "osctl ct exec #{ct} sh -c 'ln -s /tmp/decoy-target /dev/.osctl-mount-helper/#{hash}'"
+      )
       machine.all_succeed(
         "test ! -e #{host_path} && test ! -L #{host_path}",
         "ln -s /tmp/decoy-target #{host_path}",
