@@ -39,6 +39,32 @@ while (<ANSWERS>) {
 }
 close ANSWERS;
 
+# A forced answer that the prompt does not offer (a tristate forced to `y'
+# while its parent resolves as a module offers only `m' and `n') makes
+# kconfig ask the same question again, which aborts the run as a repeated
+# question.  Clamp such answers to the closest value the prompt offers and
+# keep the substitution visible in the build log.
+my %clamped;
+
+sub clampAnswer {
+    my ($answer, $alts) = @_;
+
+    return $answer unless length $answer;
+    return $answer if $answer =~ m{[^YyNnMm]};
+
+    my @offered = grep { $_ ne "?" } split m{/}, $alts;
+    my %offered = map { lc($_) => 1 } @offered;
+    return $answer if $offered{lc $answer};
+
+    # Prefer keeping the option enabled: y -> m -> n, m -> y -> n.
+    my @preference = lc($answer) eq "m" ? qw(m y n) : qw(y m n);
+    foreach my $candidate (@preference) {
+        return $candidate if $offered{$candidate};
+    }
+
+    return $answer;
+}
+
 sub runConfig {
 
     # Run `make config'.
@@ -85,6 +111,12 @@ sub runConfig {
                 # Build everything as a module if possible.
                 $answer = "m" if $autoModules && $alts =~ qr{\A(\w/)+m/(\w/)*\?\z} && !($preferBuiltin && $alts =~ /Y/);
                 $answer = $answers{$name} if defined $answers{$name};
+                my $offered = clampAnswer($answer, $alts);
+                if ($offered ne $answer) {
+                    warn "clamped $name: '$answer' is not offered by [$alts], using '$offered'\n";
+                    $clamped{$name} = 1;
+                    $answer = $offered;
+                }
                 print STDERR "QUESTION: $question, NAME: $name, ALTS: $alts, ANSWER: $answer\n" if $debug;
                 print OUT "$answer\n";
                 die "repeated question: $question" if $prevQuestion && $prevQuestion eq $question && $name eq $prevName;
@@ -147,7 +179,7 @@ close CONFIG;
 
 my $ret = 0;
 foreach my $name (sort (keys %answers)) {
-    my $f = $requiredAnswers{$name} && $ignoreConfigErrors ne "1"
+    my $f = $requiredAnswers{$name} && $ignoreConfigErrors ne "1" && !$clamped{$name}
         ? sub { warn "error: " . $_[0]; $ret = -1; } : sub { warn "warning: " . $_[0]; };
     &$f("unused option: $name\n") unless defined $config{$name};
     &$f("option not set correctly: $name (wanted '$answers{$name}', got '$config{$name}')\n")
