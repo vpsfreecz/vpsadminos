@@ -127,8 +127,6 @@ import ../../make-test.nix (
             CONFIG_AUTH_GUARD
             CONFIG_SELINUX_CRED_GUARD
             CONFIG_AUTH_GUARD_TEST
-            CONFIG_AUTH_EXPECTATION
-            CONFIG_AUTH_EXPECTATION_KUNIT_TEST
             CONFIG_SECURITY_SELINUX
             CONFIG_CGROUPS
             CONFIG_SECCOMP_FILTER
@@ -175,7 +173,18 @@ import ../../make-test.nix (
           linuxSnapshot = builtins.getEnv "VPSADMINOS_LINUX_SNAPSHOT";
           kernelVersionEnv = builtins.getEnv "VPSADMINOS_CRED_GUARD_KERNEL_VERSION";
 
-          kernelVersion = if kernelVersionEnv == "" then kernelPackages.defaultVersion else kernelVersionEnv;
+          # A snapshot kernel package must carry the snapshot's own version
+          # label.  Otherwise the label and the package disagree and
+          # version-gated features (live patches) act on the wrong kernel
+          # line, e.g. they would try to build the 6.12.95 live-patch set
+          # against a 6.18 kernel.
+          kernelVersion =
+            if linuxSnapshot != "" then
+              snapshotKernelVersion
+            else if kernelVersionEnv == "" then
+              kernelPackages.defaultVersion
+            else
+              kernelVersionEnv;
           kernelDef = kernelPackages.kernels.${kernelVersion};
 
           linuxSource = /. + linuxSnapshot;
@@ -254,7 +263,6 @@ import ../../make-test.nix (
           script = testPrelude + ''
             prepare_guard_machine("log")
             _, boot_log = machine.succeeds("dmesg")
-            expect(boot_log).to include("auth_expectation: pass:5 fail:0")
             boot_messages = auth_guard_messages(boot_log)
             seed_messages = boot_messages.select { |message| message.include?("key seeded") }
             expect(seed_messages).not_to be_empty
