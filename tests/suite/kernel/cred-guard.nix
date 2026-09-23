@@ -353,6 +353,9 @@ import ../../make-test.nix (
             _, kunit_log = machine.succeeds("dmesg")
             expect(kunit_log).to include("Subtest: auth_contract")
             expect(kunit_log).to match(/auth_contract: pass:\d+ fail:0 skip:0 total:\d+/)
+
+            # Leave no machine running for the next script in this test.
+            machine.kill(signal: 'KILL') if machine.running?
           '';
         };
 
@@ -380,6 +383,9 @@ import ../../make-test.nix (
             _, refusal_log = machine.succeeds("dmesg")
             expect(refusal_log).to include("auth_guard: CRNG not initialized: refusing")
             expect(refusal_log).not_to include("key seeded")
+
+            # Leave no machine running for the next script in this test.
+            machine.kill(signal: 'KILL') if machine.running?
           '';
         };
       }
