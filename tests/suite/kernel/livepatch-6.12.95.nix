@@ -2011,8 +2011,6 @@ import ../../make-test.nix (
             "test \"$(sha256sum #{CORRECTED_MODULE} | cut -d' ' -f1)\" = #{CORRECTED_SHA256}"
           )
           machine.succeeds(
-          )
-          machine.succeeds(
             "test \"$(sha256sum #{RELEASED_V5_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V5_SHA256}"
           )
           machine.succeeds(
