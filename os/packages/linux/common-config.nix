@@ -482,6 +482,8 @@ let
     // optionalAttrs credGuardTest {
       DEBUG_FS = whenAtLeast "6.18" yes;
       AUTH_GUARD_TEST = authorityGuardOption;
+      KUNIT = whenAtLeast "6.18" yes;
+      AUTH_EXPECTATION_KUNIT_TEST = whenAtLeast "6.18" yes;
     }
     // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
 

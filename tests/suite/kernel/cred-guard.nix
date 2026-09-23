@@ -127,6 +127,8 @@ import ../../make-test.nix (
             CONFIG_AUTH_GUARD
             CONFIG_SELINUX_CRED_GUARD
             CONFIG_AUTH_GUARD_TEST
+            CONFIG_AUTH_EXPECTATION
+            CONFIG_AUTH_EXPECTATION_KUNIT_TEST
             CONFIG_SECURITY_SELINUX
             CONFIG_CGROUPS
             CONFIG_SECCOMP_FILTER
@@ -245,6 +247,7 @@ import ../../make-test.nix (
           script = testPrelude + ''
             prepare_guard_machine("log")
             _, boot_log = machine.succeeds("dmesg")
+            expect(boot_log).to include("auth_expectation: pass:5 fail:0")
             boot_messages = auth_guard_messages(boot_log)
             seed_messages = boot_messages.select { |message| message.include?("key seeded") }
             expect(seed_messages).not_to be_empty
