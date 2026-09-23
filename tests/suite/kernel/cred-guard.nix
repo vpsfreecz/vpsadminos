@@ -344,6 +344,7 @@ import ../../make-test.nix (
             # a tristate: a tree that offers only the module form builds it
             # as a module, which is loaded here; a built-in suite autoruns at
             # boot.  The summary must appear with no failures either way.
+            machine.kill(signal: 'KILL') if machine.running?
             machine.start(kernel_params: ["auth_guard=panic"])
             machine.wait_until_online
 
@@ -363,6 +364,7 @@ import ../../make-test.nix (
             # forced to see an unready CRNG must refuse to seed and disable
             # the guard for that boot instead of running on weak key
             # material.
+            machine.kill(signal: 'KILL') if machine.running?
             machine.start(kernel_params: ["auth_guard=panic"])
             machine.wait_until_online
 
