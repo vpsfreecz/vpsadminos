@@ -357,10 +357,17 @@ import ../../make-test.nix (
               # (Baseline kernels are used to bisect harness findings.)
             else
               machine.succeeds("modprobe auth_contract_kunit || true")
+              machine.succeeds("modprobe auth_guard_kunit || true")
 
               _, kunit_log = machine.succeeds("dmesg")
               expect(kunit_log).to include("Subtest: auth_contract")
               expect(kunit_log).to match(/auth_contract: pass:\d+ fail:0 skip:0 total:\d+/)
+              # The P-01 gate decision matrix runs in the same kernel.  Its
+              # guest script (#crng-gate) is blocked by a pre-existing panic
+              # on this tree, so the unit coverage is what keeps the gate
+              # itself verified.
+              expect(kunit_log).to include("Subtest: auth_guard")
+              expect(kunit_log).to match(/auth_guard: pass:\d+ fail:0 skip:0 total:\d+/)
             end
 
             # Leave no machine running for the next script in this test.

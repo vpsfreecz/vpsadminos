@@ -488,6 +488,7 @@ let
       # and the test loads it; a built-in suite autoruns at boot.
       KUNIT = yes;
       AUTH_EXPECTATION_KUNIT_TEST = authorityGuardOption;
+      AUTH_GUARD_KUNIT_TEST = authorityGuardOption;
     }
     // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
 
