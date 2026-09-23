@@ -97,6 +97,7 @@ let
           "upgrade/from-6.12"
           "upgrade/from-6.12-guests"
           "upgrade/from-6.12-guests-v1"
+          "upgrade/from-6.12-inherited-guests"
           "upgrade/from-6.12-v1"
           "upgrade/from-6.12-via-6.18"
           "upgrade/from-6.12-via-6.18-v1"
