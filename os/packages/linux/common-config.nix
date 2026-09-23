@@ -482,6 +482,12 @@ let
     // optionalAttrs credGuardTest {
       DEBUG_FS = whenAtLeast "6.18" yes;
       AUTH_GUARD_TEST = authorityGuardOption;
+      # The contract KUnit suite runs in the test kernel.  The test symbol is
+      # a tristate: a tree that offers only the module form builds it as a
+      # module (the generator clamps an unoffered `y' instead of aborting),
+      # and the test loads it; a built-in suite autoruns at boot.
+      KUNIT = yes;
+      AUTH_EXPECTATION_KUNIT_TEST = authorityGuardOption;
     }
     // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
 

@@ -337,6 +337,24 @@ import ../../make-test.nix (
         };
       }
       // pkgs.lib.optionalAttrs (selectors.log.requested || selectors.panic.requested) {
+        kunit = {
+          tags = [ "kunit" ];
+          script = testPrelude + ''
+            # The contract KUnit cases run in the test kernel.  The suite is
+            # a tristate: a tree that offers only the module form builds it
+            # as a module, which is loaded here; a built-in suite autoruns at
+            # boot.  The summary must appear with no failures either way.
+            machine.start(kernel_params: ["auth_guard=panic"])
+            machine.wait_until_online
+
+            machine.succeeds("modprobe auth_contract_kunit || true")
+
+            _, kunit_log = machine.succeeds("dmesg")
+            expect(kunit_log).to include("Subtest: auth_contract")
+            expect(kunit_log).to match(/auth_contract: pass:\d+ fail:0 skip:0 total:\d+/)
+          '';
+        };
+
         crng-gate = {
           tags = [ "crng" ];
           script = testPrelude + ''
