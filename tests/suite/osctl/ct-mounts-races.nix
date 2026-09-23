@@ -97,9 +97,13 @@ import ../../make-test.nix (
         "! ps -eo args= | grep -E '^osctld: tank:#{ct} runner:'",
       )
 
+      # The activation above may have succeeded (when the container cannot write
+      # the shared directory); deactivate whatever is mounted, drop any leftover
+      # entry the tamper attempt created, and prove that a clean activation
+      # still works and shows the configured source.
+      machine.execute("osctl ct mounts deactivate #{ct} #{mountpoint}")
       machine.execute("osctl ct exec #{ct} sh -c 'rm -rf /dev/.osctl-mount-helper/#{hash}'")
 
-      # A clean activation still works and shows the configured source.
       machine.succeeds("osctl ct mounts activate #{ct} #{mountpoint}")
       _, mounted = machine.succeeds("osctl ct exec #{ct} cat #{mountpoint}/race.txt")
       fail "unexpected mount content: #{mounted.inspect}" unless mounted.strip == "race-src"
