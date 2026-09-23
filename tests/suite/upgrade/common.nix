@@ -1054,6 +1054,8 @@ import (previous.outPath + "/tests/make-test.nix")
     (builtins.removeAttrs args [
       "cgroupVersion"
       "guestPolicies"
+      "reverseActivation"
+      "overlapActivation"
     ])
     // {
       inherit system;
