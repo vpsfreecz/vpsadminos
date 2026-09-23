@@ -56,8 +56,9 @@ in
   boot.kernelPackage = lib.mkForce pinnedKernel;
   # A25c/A25d: no zfsBuiltin/zfsBuiltinPkg and no kernelForBuiltinsConfig
   # override here — the OS defaults must apply so that
-  # system.build.livePatches re-evaluates to the verified
-  # 76qfpsyj…-livepatch_7-6.12.95.drv (the fixture's zfs-builtin inputDrv must
+  # system.build.livePatches re-evaluates to the row-frozen
+  # w5a5rfxh…-livepatch_7-6.12.95.drv (out 6qm5yj8q…, module 08edc44f…;
+  # the fixture's zfs-builtin inputDrv must
   # stay 249agjkf…, built against the OS-default kernel). The machine itself
   # still boots the pinned boot kernelPackage above.
 }
