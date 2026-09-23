@@ -263,6 +263,13 @@ in
         kernelSourceRevision = kernelDefinitions.kernels.${config.boot.kernelVersion}.rev or null;
         kernelConfig = toString kernel.configfile;
         sysctls = config.boot.kernel.sysctl;
+        # Containment preconditions (container-hardening preflight P1/P3):
+        # the fleet record must show whether swap is configured and what the
+        # boot command line carries (e.g. auth_guard=off/log must be visible).
+        containment = {
+          swapDeviceCount = builtins.length config.swapDevices;
+          kernelParams = config.boot.kernelParams;
+        };
       };
     };
 
