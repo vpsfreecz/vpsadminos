@@ -20,8 +20,8 @@ with lib.kernel;
         TRACING_NS = yes;
       };
       zfs = {
-        rev = "42ac998f90baa94e4a1f59b7042c73aa9ca1664e";
-        sha256 = "sha256-2ncUd4sPsme0YYG6PPcjvLBi9DT3deSd5XBYLsofvhs=";
+        rev = "4915f9d12a591212e7037ab51abb640392e231fa";
+        sha256 = "sha256-8PYQZk7KW84AwEkOebgwDc4bZ02aEOyg8mv3ughX2nI=";
       };
     };
     "6.18.44" = {
