@@ -19,6 +19,8 @@ let
   system = args.system or builtins.currentSystem;
   cgroupVersion = args.cgroupVersion or 2;
   guestPolicies = args.guestPolicies or false;
+  reverseActivation = args.reverseActivation or false;
+  overlapActivation = args.overlapActivation or false;
   cgroupConfig.boot.enableUnifiedCgroupHierarchy = cgroupVersion == 2;
   activatedSource =
     if activated == null then
@@ -677,7 +679,37 @@ import (previous.outPath + "/tests/make-test.nix")
                       assert_limits.call(25, 64)
                     ''
                 }
+
+                ${
+                  if overlapActivation then
+                    ''
+                      # Row 30 — management operations in flight across the
+                      # userspace activation below. Either outcome is acceptable
+                      # for the in-flight operations, but they must conclude
+                      # within a bound with a numeric status and leave no runner
+                      # helper behind.
+                      overlap_script = "#!/bin/sh\nsleep 30\necho overlap-runscript-done > /overlap-runscript\n"
+                      machine.succeeds("(osctl ct exec upgrade1 sh -c 'sleep 30; echo overlap-exec-done > /overlap-exec' > /overlap-exec.log 2>&1; echo $? > /overlap-exec.status) & echo $! > /overlap-exec.pid")
+                      machine.succeeds("(printf %s #{Shellwords.escape(overlap_script)} | osctl ct runscript upgrade1 - > /overlap-runscript.log 2>&1; echo $? > /overlap-runscript.status) & echo $! > /overlap-runscript.pid")
+                    ''
+                  else
+                    ""
+                }
                 activate_generation.call('${nextSystem}')
+
+                ${
+                  if overlapActivation then
+                    ''
+                      machine.wait_until_succeeds('test -s /overlap-exec.status', timeout: 240)
+                      machine.wait_until_succeeds('test -s /overlap-runscript.status', timeout: 240)
+                      machine.succeeds("grep -E '^[0-9]+$' /overlap-exec.status")
+                      machine.succeeds("grep -E '^[0-9]+$' /overlap-runscript.status")
+                      machine.wait_until_succeeds("! ps -eo args= | grep -E '^osctld: tank:upgrade1 runner:'", timeout: 60)
+                      machine.succeeds("osctl ct exec upgrade1 grep -Fx retained-data /upgrade/data")
+                    ''
+                  else
+                    ""
+                }
 
                 ${
                   if activatedSystem == null then
@@ -754,6 +786,69 @@ import (previous.outPath + "/tests/make-test.nix")
                   machine.succeeds("osctl ct set dns-resolver #{ctid} 192.0.2.53")
                 end
                 assert_retained.call
+
+                ${
+                  if reverseActivation then
+                    ''
+                      # Row 9 — rollback→forward. The guests above carry a managed
+                      # resolver set by the newer daemon, which is the documented
+                      # downgrade-consideration state. Activate the booted
+                      # predecessor userspace again and require the workload, the
+                      # guest-visible DNS policy and the newer daemon's owned guard
+                      # drop-in to survive as documented (the older daemon cannot
+                      # remove a drop-in it does not own), then return to the
+                      # target and require the newer daemon to still own and clean
+                      # up that state. The predecessor daemon cannot be assumed to
+                      # expose the newer daemon's resolver introspection, so this
+                      # leg asserts the guest-visible policy and retained workload
+                      # directly instead of reusing assert_retained.
+                      prior_daemon = daemon_identity.call
+                      sequences = snapshots.transform_values do |saved|
+                        JSON.parse(machine.succeeds("cat #{saved.fetch(:stream_prefix)}.progress")[1]).fetch('sequence')
+                      end
+                      machine.succeeds("#{booted_system}/bin/switch-to-configuration test", timeout: 300)
+                      # Keep the same connections transferring ordered data during
+                      # the reverse activation too.
+                      snapshots.each do |ctid, saved|
+                        prefix = saved.fetch(:stream_prefix)
+                        machine.succeeds("test ! -e #{prefix}.error")
+                        stream = JSON.parse(machine.succeeds("cat #{prefix}.progress")[1])
+                        expect(stream.fetch('sequence')).to be > sequences.fetch(ctid)
+                        expect(stream.fetch('port')).to eq(saved.fetch(:stream_port))
+                      end
+                      machine.wait_for_osctl_pool('tank')
+                      expect(machine.succeeds('uname -r')[1].strip).to eq(before_kernel)
+                      expect(machine.succeeds('cat /proc/sys/kernel/random/boot_id')[1].strip).to eq(before_boot)
+                      expect(machine.succeeds('readlink -f /run/booted-system')[1].strip).to eq(booted_system)
+                      expect(machine.succeeds('readlink -f /run/current-system')[1].strip).to eq(booted_system)
+                      expect(daemon_identity.call).not_to eq(prior_daemon)
+                      guest_snapshots.each do |ctid, saved|
+                        machine.succeeds("osctl ct exec #{ctid} systemctl is-system-running --wait")
+                        machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 192.0.2.53' /etc/resolv.conf")
+                        if saved.fetch(:distribution) == 'fedora'
+                          machine.succeeds("osctl ct exec #{ctid} test -e /etc/NetworkManager/conf.d/10-osctl-dns.conf")
+                        end
+                        marker = saved.fetch(:impermanent) ? '/persistent/upgrade-retained' : '/root/upgrade-retained'
+                        machine.succeeds("osctl ct exec #{ctid} grep -Fx inherited-persistent #{marker}")
+                      end
+                      activate_generation.call('${nextSystem}')
+                      guest_snapshots.each do |ctid, saved|
+                        expect(machine.osctl_json("ct show #{ctid}").fetch('dns_resolvers')).to eq(['192.0.2.53'])
+                        machine.succeeds("osctl ct unset dns-resolver #{ctid}")
+                        expect(machine.osctl_json("ct show #{ctid}").fetch('dns_resolvers')).to be_nil
+                        if saved.fetch(:distribution) == 'fedora'
+                          machine.succeeds("osctl ct exec #{ctid} nmcli general reload dns-rc")
+                          machine.succeeds("osctl ct exec #{ctid} grep -Fx 'nameserver 10.0.2.3' /etc/resolv.conf")
+                          machine.fails("osctl ct exec #{ctid} test -e /etc/NetworkManager/conf.d/10-osctl-dns.conf")
+                        end
+                        # Leave the managed resolver set again: the sections after
+                        # this one assert it as the durable configured intent.
+                        machine.succeeds("osctl ct set dns-resolver #{ctid} 192.0.2.53")
+                      end
+                    ''
+                  else
+                    ""
+                }
 
                 # Running helpers on inherited CTs have different contracts: attach
                 # and runscript enter the guest, while ct su is an unprivileged host
