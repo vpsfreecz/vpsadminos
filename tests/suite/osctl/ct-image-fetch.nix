@@ -45,6 +45,23 @@ import ../../make-test.nix (
             socket.write("Connection: close\r\n\r\n")
             socket.write(body)
 
+          elsif (mode = File.exist?('/tmp/flaky-server.mode') ? File.read('/tmp/flaky-server.mode').strip : 'good') != 'good' &&
+                File.size(full_path) > 10_000
+            # Adversarial framing for the repository-stream dispositions: the
+            # stream body is either cut short under a full Content-Length or
+            # replaced by garbage of the same length. The downloader/import must
+            # fail cleanly and must not poison a later healthy fetch.
+            body = File.binread(full_path)
+            socket.write("HTTP/1.1 200 OK\r\n")
+            socket.write("Content-Length: #{body.bytesize}\r\n")
+            socket.write("Connection: close\r\n\r\n")
+            case mode
+            when 'truncated'
+              socket.write(body.byteslice(0, body.bytesize / 2))
+            when 'garbage'
+              socket.write(Random.new(32_768).bytes(body.bytesize))
+            end
+
           else
             body = File.binread(full_path)
             socket.write("HTTP/1.1 200 OK\r\n")
@@ -93,6 +110,9 @@ import ../../make-test.nix (
         @retried_ct = "retriedct"
         @missing_ct = "missingct"
         @dead_ct = "deadct"
+        @truncated_ct = "truncatedct"
+        @garbage_ct = "garbagect"
+        @recovered_ct = "recoveredct"
 
         machine.wait_for_osctl_pool("tank")
         machine.wait_until_online
@@ -124,7 +144,7 @@ import ../../make-test.nix (
         machine.push_file("${flakyServer}", "/tmp/flaky-server.rb")
 
         machine.all_succeed(
-          "rm -f /tmp/flaky-server.count /tmp/flaky-server.error",
+          "rm -f /tmp/flaky-server.count /tmp/flaky-server.error /tmp/flaky-server.mode",
           "ruby /tmp/flaky-server.rb >/tmp/flaky-server.log 2>&1 " \
             "& echo $! > /tmp/flaky-server.pid",
           "osctl repo add flaky http://127.0.0.1:18080",
@@ -172,6 +192,35 @@ import ../../make-test.nix (
           )
           expect(output).to include("repositories unavailable: dead")
           expect(output).not_to include("internal error")
+        end
+
+        it 'fails cleanly on truncated and corrupt repository streams' do
+          machine.succeeds("echo truncated > /tmp/flaky-server.mode")
+          output = failed_output(
+            "osctl ct new --repository flaky --distribution alpine " \
+              "#{@truncated_ct}"
+          )
+          expect(output).not_to include("internal error")
+          machine.fails("osctl ct show #{@truncated_ct}")
+
+          machine.succeeds("echo garbage > /tmp/flaky-server.mode")
+          output = failed_output(
+            "osctl ct new --repository flaky --distribution alpine " \
+              "#{@garbage_ct}"
+          )
+          expect(output).not_to include("internal error")
+          machine.fails("osctl ct show #{@garbage_ct}")
+
+          # A later healthy fetch must not be poisoned by the failed attempts.
+          machine.succeeds("echo good > /tmp/flaky-server.mode")
+          machine.all_succeed(
+            "osctl ct new --repository flaky --distribution alpine " \
+              "#{@recovered_ct}",
+            "osctl ct unset start-menu #{@recovered_ct}",
+            "osctl ct start #{@recovered_ct}",
+            "osctl ct exec #{@recovered_ct} true",
+            "osctl ct del -f --prune #{@recovered_ct}"
+          )
         end
       end
     '';
