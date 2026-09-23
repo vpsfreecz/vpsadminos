@@ -51,11 +51,17 @@ import ../../make-test.nix (
         'osctl ct unset start-menu stalled',
         'osctl ct netif new routed stalled eth0',
         'osctl ct netif ip add stalled eth0 192.0.2.60/32',
+        # Row 23: the transient bodies must exercise a dual-stack,
+        # multi-interface topology, not routed IPv4 alone.
+        'osctl ct netif new routed stalled eth1',
+        'osctl ct netif ip add stalled eth1 2001:db8:1::60/128',
         'osctl ct mount stalled',
         'osctl ct new --distribution alpine sibling',
         'osctl ct unset start-menu sibling',
         'osctl ct netif new routed sibling eth0',
         'osctl ct netif ip add sibling eth0 192.0.2.61/32',
+        'osctl ct netif new routed sibling eth1',
+        'osctl ct netif ip add sibling eth1 2001:db8:1::61/128',
         'osctl ct start sibling',
       )
       machine.wait_until_succeeds('osctl ct exec sibling rc-service networking status')
@@ -112,6 +118,8 @@ import ../../make-test.nix (
           machine.all_succeed(
             'osctl ct exec sibling grep -Fx sibling-data /root/retained',
             'ping -c 1 192.0.2.61',
+            'ping -c 1 2001:db8:1::61',
+            "! ip -6 route show | grep -F '2001:db8:1::60'",
           )
         end
       end
@@ -127,6 +135,8 @@ import ../../make-test.nix (
       )
       machine.wait_until_succeeds('osctl ct exec stalled rc-service networking status')
       machine.wait_until_succeeds('ping -c 1 192.0.2.60')
+      machine.wait_until_succeeds('osctl ct exec stalled ip -6 addr show dev eth1 | grep -F 2001:db8:1::60')
+      machine.wait_until_succeeds('ping -c 1 2001:db8:1::60')
       machine.all_succeed(
         'osctl ct stop stalled',
         'osctl ct del --prune stalled',
