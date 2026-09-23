@@ -35,6 +35,32 @@ import ../../make-test.nix (
         'ping -c 1 192.168.1.70',
         "osctl ct del -f --prune #{ct}",
       )
+
+      # The gateway options are documented as "use when DHCP is disabled".
+      # With DHCP enabled, a manually added static address must not make the
+      # backend render a static Gateway=, which would add a second default
+      # route beside the DHCP-provided one.
+      ct_dhcp = get_container_id
+      machine.all_succeed(
+        "osctl ct new --distribution arch #{ct_dhcp}",
+        "osctl ct unset start-menu #{ct_dhcp}",
+        "osctl ct netif new bridge --link lxcbr0 #{ct_dhcp} eth0",
+        "osctl ct netif ip add #{ct_dhcp} eth0 192.168.1.71/24",
+        "osctl ct start #{ct_dhcp}",
+      )
+      machine.wait_until_succeeds("osctl ct exec #{ct_dhcp} systemctl is-system-running --wait")
+      machine.all_succeed(
+        "osctl ct exec #{ct_dhcp} systemctl is-active systemd-networkd.service",
+        "osctl ct exec #{ct_dhcp} grep -Fx DHCP=true /etc/systemd/network/eth0.network",
+        "osctl ct exec #{ct_dhcp} grep -Fx Address=192.168.1.71/24 /etc/systemd/network/eth0.network",
+        "osctl ct exec #{ct_dhcp} ip -4 addr show dev eth0 | grep -F 192.168.1.71/24",
+      )
+      machine.fails(
+        "osctl ct exec #{ct_dhcp} grep -F 'Gateway=' /etc/systemd/network/eth0.network"
+      )
+      machine.wait_until_succeeds("osctl ct exec #{ct_dhcp} ip -4 route show default | grep -F 'dev eth0'")
+      machine.succeeds('ping -c 1 192.168.1.71')
+      machine.succeeds("osctl ct del -f --prune #{ct_dhcp}")
     '';
   }
 )
