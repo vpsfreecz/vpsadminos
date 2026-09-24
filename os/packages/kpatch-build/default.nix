@@ -23,6 +23,10 @@ pkgs.stdenv.mkDerivation rec {
     substituteInPlace ./kpatch-build/kpatch-build --replace /bin/bash "${pkgs.bashInteractive}/bin/bash"
     substituteInPlace ./kpatch-build/kpatch-build --replace "getopt" "${getopt}/bin/getopt"
     substituteInPlace ./kpatch-build/kpatch-build --replace "DEBUG=0" 'DEBUG="''${DEBUG:-3}"'
+    # kpatch otherwise uses every host CPU even when the Nix build was
+    # explicitly admitted with a smaller --cores budget.
+    substituteInPlace ./kpatch-build/kpatch-build --replace 'CPUS="$(getconf _NPROCESSORS_ONLN)"' 'CPUS="''${NIX_BUILD_CORES:-$(getconf _NPROCESSORS_ONLN)}"'
+    grep -Fq 'CPUS="''${NIX_BUILD_CORES:-$(getconf _NPROCESSORS_ONLN)}"' ./kpatch-build/kpatch-build
     substituteInPlace ./kpatch-build/kpatch-build --replace "../patch/tmp_output.o" "\$TEMPDIR/patch/tmp_output.o"
   '';
   buildInputs = with pkgs; [
