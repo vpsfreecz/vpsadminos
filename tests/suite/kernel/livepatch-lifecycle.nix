@@ -274,6 +274,7 @@ import ../../make-template.nix (
             KVM_MODULE = ${builtins.toJSON kvmModule}
             KVM_SMOKE = "/etc/livepatch-lifecycle/kvm-smoke"
             REQUIRED_FLAGS = ${builtins.toJSON requiredFlags}
+            NFS_CONTROLS = "/sys/fs/nfs/net/nfs_client"
             KERNEL_FAULT_PATTERN =
               /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol/
 
@@ -293,10 +294,16 @@ import ../../make-template.nix (
             machine.fails("test -d /sys/module/livepatch_6")
             machine.fails("test -d /sys/module/livepatch_7")
 
-            # The terminal NFS cancellation ABI is native in .110; the full NFS
-            # sysfs/behavioral rows run with the NFS harness at Step 17/22.
-            machine.succeeds(
-              "grep -qE ' (vps_cancel_clnt_is_shutdown|vps_cancel_task_store)$' /proc/kallsyms"
+            # Assert the native ABI instead of v7 replacement symbol names.
+            # The NFS harness owns the full sysfs/behavioral continuity rows.
+            machine.wait_until_succeeds(
+              "test -r #{NFS_CONTROLS}/shutdown && " \
+                "test -r #{NFS_CONTROLS}/shutdown_tree",
+              timeout: 30,
+            )
+            machine.all_succeed(
+              "test \"$(cat #{NFS_CONTROLS}/shutdown)\" = 0",
+              "test \"$(cat #{NFS_CONTROLS}/shutdown_tree)\" = 0",
             )
 
             # KVM smoke on the native kernel.
