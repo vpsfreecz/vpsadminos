@@ -42,6 +42,15 @@ import ../../make-test.nix (
                 "osctl ct start #{testct}",
               )
 
+              ${pkgs.lib.optionalString (distribution == "nixos") ''
+                # LXC RUNNING precedes NixOS stage-2 activation. Require PID 1
+                # to finish startup before checking the cgroup mounts.
+                machine.wait_until_succeeds(
+                  "osctl ct exec #{testct} systemctl is-system-running",
+                  timeout: 180,
+                )
+              ''}
+
               # Give the container some time to start, as cgroups are mounted by the init
               # system
               sleep(10)
