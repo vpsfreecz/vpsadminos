@@ -2038,14 +2038,15 @@ index 9103896164f68..9fd392e9171b2 100644
  	}
  	mutex_unlock(&nlm_file_mutex);
 diff --git a/fs/nfs/client.c b/fs/nfs/client.c
-index 8bdde6cc873f1..fc462d034d82e 100644
+index 8bdde6cc873f1..52e9603280fe2 100644
 --- a/fs/nfs/client.c
 +++ b/fs/nfs/client.c
-@@ -38,6 +38,127 @@
+@@ -38,6 +38,159 @@
  #include <linux/sunrpc/bc_xprt.h>
  #include <linux/nsproxy.h>
  #include <linux/pid_namespace.h>
 +#include <linux/user_namespace.h>
++#include <net/net_namespace.h>
 +
 +/*
 + * Per-net cancellation state kept in a klp shadow variable. Growing struct
@@ -2060,6 +2061,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
 +	st->net = data;
 +	mutex_init(&st->nfs_server_lock);
 +	st->shutdown = false;
++	st->controls_installed = false;
 +	return 0;
 +}
 +
@@ -2107,8 +2109,8 @@ index 8bdde6cc873f1..fc462d034d82e 100644
 +	struct vps_cancel_nfs_net *st =
 +		klp_shadow_get((void *)nn, VPS_CANCEL_ID_NFS_NET);
 +
-+	if (st)
-+		list_del(&st->ns_list);
++	if (st && !list_empty(&st->ns_list))
++		list_del_init(&st->ns_list);
 +}
 +
 +void vps_cancel_nfs_net_free(struct nfs_net *nn)
@@ -2124,52 +2126,82 @@ index 8bdde6cc873f1..fc462d034d82e 100644
 + * signalled() tests) and exits through nfs_put_client(). The task pointer
 + * lives in a shadow on the client because struct nfs_client must not grow.
 + */
++struct vps_cancel_task_state {
++	spinlock_t lock;
++	struct task_struct *task;
++};
++
 +static int vps_cancel_task_ctor(void *obj, void *shadow_data, void *ctor_data)
 +{
-+	struct task_struct **tp = shadow_data;
++	struct vps_cancel_task_state *st = shadow_data;
 +
-+	*tp = NULL;
++	spin_lock_init(&st->lock);
++	st->task = NULL;
 +	return 0;
 +}
 +
 +static void vps_cancel_task_dtor(void *obj, void *shadow_data)
 +{
-+	struct task_struct **tp = shadow_data;
++	struct vps_cancel_task_state *st = shadow_data;
 +
-+	if (*tp) {
-+		put_task_struct(*tp);
-+		*tp = NULL;
-+	}
++	/* nfs_free_client() runs after the client leaves the per-net list and
++	 * the last state-manager reference to the client has been released.
++	 */
++	if (st->task)
++		put_task_struct(st->task);
++}
++
++int vps_cancel_task_prepare(struct nfs_client *clp)
++{
++	struct vps_cancel_task_state *st =
++		klp_shadow_get_or_alloc((void *)clp, VPS_CANCEL_ID_NFS_CLIENT_TASK,
++					sizeof(*st), GFP_KERNEL,
++					vps_cancel_task_ctor, NULL);
++
++	return st ? 0 : -ENOMEM;
 +}
 +
 +void vps_cancel_task_store(struct nfs_client *clp, struct task_struct *task)
 +{
-+	struct task_struct **tp =
-+		klp_shadow_get_or_alloc((void *)clp, VPS_CANCEL_ID_NFS_CLIENT_TASK,
-+					sizeof(*tp), GFP_KERNEL,
-+					vps_cancel_task_ctor, NULL);
++	struct vps_cancel_task_state *st =
++		klp_shadow_get((void *)clp, VPS_CANCEL_ID_NFS_CLIENT_TASK);
++	struct task_struct *old;
 +
-+	if (!tp)
++	/* The caller must reserve the shadow before creating the kthread. */
++	if (WARN_ON_ONCE(!st))
 +		return;
 +
 +	get_task_struct(task);
-+	if (*tp)
-+		put_task_struct(*tp);
-+	*tp = task;
++	spin_lock(&st->lock);
++	old = st->task;
++	st->task = task;
++	spin_unlock(&st->lock);
++	if (old)
++		put_task_struct(old);
 +}
 +
 +void vps_cancel_task_signal(struct nfs_client *clp)
 +{
-+	struct task_struct **tp =
++	struct vps_cancel_task_state *st =
 +		klp_shadow_get((void *)clp, VPS_CANCEL_ID_NFS_CLIENT_TASK);
++	struct task_struct *task;
 +
-+	if (tp && *tp)
-+		send_sig(SIGKILL, *tp, 1);
++	if (!st)
++		return;
++	spin_lock(&st->lock);
++	task = st->task;
++	if (task)
++		get_task_struct(task);
++	spin_unlock(&st->lock);
++	if (task) {
++		send_sig(SIGKILL, task, 1);
++		put_task_struct(task);
++	}
 +}
  
  
  #include "nfs4_fs.h"
-@@ -250,6 +371,8 @@ void nfs_free_client(struct nfs_client *clp)
+@@ -250,6 +403,8 @@ void nfs_free_client(struct nfs_client *clp)
  	put_nfs_version(clp->cl_nfs_mod);
  	kfree(clp->cl_hostname);
  	kfree(clp->cl_acceptor);
@@ -2178,7 +2210,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
  	kfree_rcu(clp, rcu);
  }
  EXPORT_SYMBOL_GPL(nfs_free_client);
-@@ -420,6 +543,14 @@ struct nfs_client *nfs_get_client(const struct nfs_client_initdata *cl_init)
+@@ -420,6 +575,14 @@ struct nfs_client *nfs_get_client(const struct nfs_client_initdata *cl_init)
  	do {
  		spin_lock(&nn->nfs_client_lock);
  
@@ -2193,7 +2225,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
  		clp = nfs_match_client(cl_init);
  		if (clp) {
  			spin_unlock(&nn->nfs_client_lock);
-@@ -451,12 +582,30 @@ EXPORT_SYMBOL_GPL(nfs_get_client);
+@@ -451,12 +614,30 @@ EXPORT_SYMBOL_GPL(nfs_get_client);
  /*
   * Mark a server as ready or failed
   */
@@ -2226,7 +2258,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
  EXPORT_SYMBOL_GPL(nfs_mark_client_ready);
  
  /*
-@@ -992,12 +1141,20 @@ void nfs_server_insert_lists(struct nfs_server *server)
+@@ -992,12 +1173,20 @@ void nfs_server_insert_lists(struct nfs_server *server)
  	struct nfs_client *clp = server->nfs_client;
  	struct nfs_net *nn = net_generic(clp->cl_net, nfs_net_id);
  
@@ -2248,7 +2280,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
  }
  EXPORT_SYMBOL_GPL(nfs_server_insert_lists);
  
-@@ -1009,14 +1166,22 @@ void nfs_server_remove_lists(struct nfs_server *server)
+@@ -1009,14 +1198,22 @@ void nfs_server_remove_lists(struct nfs_server *server)
  	if (clp == NULL)
  		return;
  	nn = net_generic(clp->cl_net, nfs_net_id);
@@ -2272,7 +2304,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
  }
  EXPORT_SYMBOL_GPL(nfs_server_remove_lists);
  
-@@ -1086,6 +1251,10 @@ static void delayed_free(struct rcu_head *p)
+@@ -1086,6 +1283,10 @@ static void delayed_free(struct rcu_head *p)
   */
  void nfs_free_server(struct nfs_server *server)
  {
@@ -2283,7 +2315,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
  	nfs_server_remove_lists(server);
  
  	if (server->destroy != NULL)
-@@ -1098,10 +1267,8 @@ void nfs_free_server(struct nfs_server *server)
+@@ -1098,10 +1299,8 @@ void nfs_free_server(struct nfs_server *server)
  
  	nfs_put_client(server->nfs_client);
  
@@ -2295,7 +2327,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
  	ida_free(&s_sysfs_ids, server->s_sysfs_id);
  
  	put_cred(server->cred);
-@@ -1168,6 +1335,10 @@ struct nfs_server *nfs_create_server(struct fs_context *fc)
+@@ -1168,6 +1367,10 @@ struct nfs_server *nfs_create_server(struct fs_context *fc)
  		(unsigned long long) server->fsid.minor);
  
  	nfs_server_insert_lists(server);
@@ -2306,7 +2338,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
  	server->mount_time = jiffies;
  	nfs_free_fattr(fattr);
  	return server;
-@@ -1230,6 +1401,10 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
+@@ -1230,6 +1433,10 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
  		goto out_free_server;
  
  	nfs_server_insert_lists(server);
@@ -2317,7 +2349,7 @@ index 8bdde6cc873f1..fc462d034d82e 100644
  	server->mount_time = jiffies;
  
  	return server;
-@@ -1240,6 +1415,52 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
+@@ -1240,6 +1447,193 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
  }
  EXPORT_SYMBOL_GPL(nfs_clone_server);
  
@@ -2327,72 +2359,198 @@ index 8bdde6cc873f1..fc462d034d82e 100644
 + */
 +static DEFINE_MUTEX(nfs_net_list_lock);
 +static LIST_HEAD(nfs_net_list);
++#ifdef CONFIG_LIVEPATCH
++static bool vpsadminos_nfs_cancel_enabled;
++static bool vpsadminos_nfs_cancel_stopping;
++static bool vpsadminos_nfs_cancel_registered;
++#endif
 +
-+void nfs_shutdown_net(struct net *net)
++bool vpsadminos_nfs_cancel_active(void)
++{
++#ifdef CONFIG_LIVEPATCH
++	return READ_ONCE(vpsadminos_nfs_cancel_enabled);
++#else
++	return false;
++#endif
++}
++
++int nfs_shutdown_net(struct net *net)
 +{
 +	struct nfs_net *nn = net_generic(net, nfs_net_id);
++	struct vps_cancel_nfs_net *st = vps_cancel_nfs_net_state(nn, net);
 +	struct nfs_server *server;
 +	struct nfs_client *clp;
++	int ret;
 +
-+	mutex_lock(vps_cancel_nfs_net_lock(nn, net));
-+	vps_cancel_nfs_net_set_shutdown(nn, net, true);
++	if (!st)
++		return -ENOMEM;
++	mutex_lock(&st->nfs_server_lock);
 +	/* Stop admission before waking recovery and initialization waiters. */
-+	rpc_cancel_net(net);
++	ret = rpc_cancel_net(net);
++	if (ret)
++		goto out_unlock;
++	WRITE_ONCE(st->shutdown, true);
 +	spin_lock(&nn->nfs_client_lock);
 +	list_for_each_entry(server, &nn->nfs_volume_list, master_link)
 +		WRITE_ONCE(server->flags, server->flags | NFS_MOUNT_SHUTDOWN);
 +	list_for_each_entry(clp, &nn->nfs_client_list, cl_share_link) {
 +		nfs_mark_client_ready_locked(clp, -EIO);
 +#if IS_ENABLED(CONFIG_NFS_V4)
++		/* A manager created before this patch has no v7 task shadow.  Make
++		 * its existing interruptible RUN_MANAGER wait leave that state;
++		 * the patched manager body will observe cl_shutdown and exit.
++		 */
++		set_bit(NFS4CLNT_RUN_MANAGER, &clp->cl_state);
 +		wake_up_var(&clp->cl_state);
-+		/* Interrupt a parked state manager so its kthread leaves the
-+		 * patched frame and the transition can complete. */
++		/* New managers can also be interrupted through their task shadow. */
 +		vps_cancel_task_signal(clp);
 +#endif
 +	}
 +	spin_unlock(&nn->nfs_client_lock);
-+	mutex_unlock(vps_cancel_nfs_net_lock(nn, net));
++out_unlock:
++	mutex_unlock(&st->nfs_server_lock);
++	return ret;
 +}
 +
-+void nfs_shutdown_userns(struct user_namespace *user_ns)
++int nfs_shutdown_userns(struct user_namespace *user_ns)
++{
++	struct net *net;
++	int ret;
++
++	ret = rpc_cancel_userns(user_ns);
++	if (ret)
++		return ret;
++	/* Published namespaces include older clients as well as new ones.
++	 * New namespaces inherit the admission barrier from their userns.
++	 */
++	down_read(&net_rwsem);
++	for_each_net(net) {
++		if (!rpc_userns_shutdown(net->user_ns))
++			continue;
++		ret = nfs_shutdown_net(net);
++		if (ret)
++			break;
++	}
++	up_read(&net_rwsem);
++	return ret;
++}
++
++#ifdef CONFIG_LIVEPATCH
++static int vpsadminos_nfs_cancel_net_init(struct net *net)
++{
++	struct nfs_net *nn = net_generic(net, nfs_net_id);
++	struct vps_cancel_nfs_net *st = vps_cancel_nfs_net_state(nn, net);
++	int ret = 0;
++
++	if (!st)
++		return -ENOMEM;
++	mutex_lock(&nfs_net_list_lock);
++	if (WARN_ON_ONCE(!list_empty(&st->ns_list))) {
++		ret = -EBUSY;
++		goto out_unlock;
++	}
++	WRITE_ONCE(st->shutdown, rpc_userns_shutdown(net->user_ns));
++	list_add_tail(&st->ns_list, &nfs_net_list);
++	if (!READ_ONCE(vpsadminos_nfs_cancel_stopping)) {
++		ret = vpsadminos_nfs_netns_controls_add(nn);
++		if (ret) {
++			list_del_init(&st->ns_list);
++			goto out_unlock;
++		}
++		st->controls_installed = true;
++	}
++
++out_unlock:
++	mutex_unlock(&nfs_net_list_lock);
++	if (ret && ret != -EBUSY)
++		vps_cancel_nfs_net_free(nn);
++	return ret;
++}
++
++static void vpsadminos_nfs_cancel_net_exit(struct net *net)
++{
++	struct nfs_net *nn = net_generic(net, nfs_net_id);
++	struct vps_cancel_nfs_net *st =
++		klp_shadow_get(nn, VPS_CANCEL_ID_NFS_NET);
++
++	if (!st)
++		return;
++	mutex_lock(&nfs_net_list_lock);
++	if (st->controls_installed) {
++		st->controls_installed = false;
++		vpsadminos_nfs_netns_controls_remove(nn);
++	}
++	vps_cancel_nfs_net_remove(nn);
++	mutex_unlock(&nfs_net_list_lock);
++	vps_cancel_nfs_net_free(nn);
++}
++
++static struct pernet_operations vpsadminos_nfs_cancel_pernet = {
++	.init = vpsadminos_nfs_cancel_net_init,
++	.exit = vpsadminos_nfs_cancel_net_exit,
++};
++
++int vpsadminos_nfs_cancel_pre_patch(void)
++{
++	int ret;
++
++	if (WARN_ON_ONCE(vpsadminos_nfs_cancel_registered))
++		return -EBUSY;
++	WRITE_ONCE(vpsadminos_nfs_cancel_enabled, false);
++	WRITE_ONCE(vpsadminos_nfs_cancel_stopping, false);
++	ret = vpsadminos_pernet_try_register(&vpsadminos_nfs_cancel_pernet);
++	if (!ret)
++		vpsadminos_nfs_cancel_registered = true;
++	return ret;
++}
++
++void vpsadminos_nfs_cancel_post_patch(void)
++{
++	WRITE_ONCE(vpsadminos_nfs_cancel_enabled, true);
++}
++
++void vpsadminos_nfs_cancel_pre_unpatch(void)
 +{
 +	struct vps_cancel_nfs_net *st;
++	struct nfs_net *nn;
 +
-+	rpc_cancel_userns(user_ns);
++	WRITE_ONCE(vpsadminos_nfs_cancel_enabled, false);
++	WRITE_ONCE(vpsadminos_nfs_cancel_stopping, true);
 +	mutex_lock(&nfs_net_list_lock);
 +	list_for_each_entry(st, &nfs_net_list, ns_list) {
-+		if (rpc_userns_shutdown(st->net->user_ns))
-+			nfs_shutdown_net(st->net);
++		if (!st->controls_installed)
++			continue;
++		st->controls_installed = false;
++		nn = net_generic(st->net, nfs_net_id);
++		vpsadminos_nfs_netns_controls_remove(nn);
 +	}
 +	mutex_unlock(&nfs_net_list_lock);
 +}
 +
++void vpsadminos_nfs_cancel_post_unpatch(void)
++{
++	if (vpsadminos_nfs_cancel_registered) {
++		vpsadminos_nfs_cancel_pre_unpatch();
++		unregister_pernet_subsys(&vpsadminos_nfs_cancel_pernet);
++		vpsadminos_nfs_cancel_registered = false;
++	}
++	/* All tasks have left the patched NFSv4 schedule path at this point. */
++	klp_shadow_free_all(VPS_CANCEL_ID_NFS_CLIENT_TASK,
++			    vps_cancel_task_dtor);
++}
++#endif
++
  void nfs_clients_init(struct net *net)
  {
  	struct nfs_net *nn = net_generic(net, nfs_net_id);
-@@ -1254,6 +1475,11 @@ void nfs_clients_init(struct net *net)
+@@ -1253,7 +1647,6 @@ void nfs_clients_init(struct net *net)
+ 	nn->boot_time = ktime_get_real();
  	memset(&nn->rpcstats, 0, sizeof(nn->rpcstats));
  	nn->rpcstats.program = &nfs_program;
- 
-+	mutex_lock(&nfs_net_list_lock);
-+	vps_cancel_nfs_net_set_shutdown(nn, net,
-+					rpc_userns_shutdown(net->user_ns));
-+	list_add_tail(vps_cancel_nfs_net_ns_list(nn, net), &nfs_net_list);
-+	mutex_unlock(&nfs_net_list_lock);
+-
  	nfs_netns_sysfs_setup(nn, net);
  }
  
-@@ -1262,6 +1488,10 @@ void nfs_clients_exit(struct net *net)
- 	struct nfs_net *nn = net_generic(net, nfs_net_id);
- 
- 	nfs_netns_sysfs_destroy(nn);
-+	mutex_lock(&nfs_net_list_lock);
-+	vps_cancel_nfs_net_remove(nn);
-+	mutex_unlock(&nfs_net_list_lock);
-+	vps_cancel_nfs_net_free(nn);
- 	nfs_cleanup_cb_ident_idr(net);
- 	WARN_ON_ONCE(!list_empty(&nn->nfs_client_list));
- 	WARN_ON_ONCE(!list_empty(&nn->nfs_volume_list));
 diff --git a/fs/nfs/delegation.c b/fs/nfs/delegation.c
 index 8bdbc4dca89ca..c1bbc358833dd 100644
 --- a/fs/nfs/delegation.c
@@ -2452,19 +2610,26 @@ index ea92d9b3c4a12..6b85d6c9c4c1a 100644
  		goto out_no_device_name;
  
 diff --git a/fs/nfs/internal.h b/fs/nfs/internal.h
-index b0ab79894544f..6c66f6d3838e8 100644
+index b0ab79894544f..6121360177079 100644
 --- a/fs/nfs/internal.h
 +++ b/fs/nfs/internal.h
-@@ -212,6 +212,8 @@ extern void nfs_umount(const struct nfs_mount_request *info);
+@@ -212,6 +212,15 @@ extern void nfs_umount(const struct nfs_mount_request *info);
  extern const struct rpc_program nfs_program;
  extern void nfs_clients_init(struct net *net);
  extern void nfs_clients_exit(struct net *net);
-+void nfs_shutdown_net(struct net *net);
-+void nfs_shutdown_userns(struct user_namespace *user_ns);
++int nfs_shutdown_net(struct net *net);
++int nfs_shutdown_userns(struct user_namespace *user_ns);
++bool vpsadminos_nfs_cancel_active(void);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_nfs_cancel_pre_patch(void);
++void vpsadminos_nfs_cancel_post_patch(void);
++void vpsadminos_nfs_cancel_pre_unpatch(void);
++void vpsadminos_nfs_cancel_post_unpatch(void);
++#endif
  extern struct nfs_client *nfs_alloc_client(const struct nfs_client_initdata *);
  int nfs_create_rpc_client(struct nfs_client *, const struct nfs_client_initdata *, rpc_authflavor_t);
  struct nfs_client *nfs_get_client(const struct nfs_client_initdata *);
-@@ -246,6 +248,7 @@ extern bool nfs_client_init_is_complete(const struct nfs_client *clp);
+@@ -246,6 +255,7 @@ extern bool nfs_client_init_is_complete(const struct nfs_client *clp);
  extern int nfs_client_init_status(const struct nfs_client *clp);
  extern int nfs_wait_client_init_complete(const struct nfs_client *clp);
  extern void nfs_mark_client_ready(struct nfs_client *clp, int state);
@@ -3113,28 +3278,74 @@ index c76acd537be05..f1720a1d9d095 100644
  nfs41_free_lock_state(struct nfs_server *server, struct nfs4_lock_state *lsp)
  {
 diff --git a/fs/nfs/nfs4state.c b/fs/nfs/nfs4state.c
-index 946acdeaf85ad..517d5aba99eb6 100644
+index 946acdeaf85ad..4688da397c134 100644
 --- a/fs/nfs/nfs4state.c
 +++ b/fs/nfs/nfs4state.c
-@@ -1200,7 +1200,7 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
+@@ -1199,8 +1199,9 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
+ 	char buf[INET6_ADDRSTRLEN + sizeof("-manager") + 1];
  	struct rpc_clnt *clnt = clp->cl_rpcclient;
  	bool swapon = false;
++	int error;
  
 -	if (clnt->cl_shutdown)
 +	if (vps_cancel_clnt_is_shutdown(clnt) || READ_ONCE(clp->cl_cons_state) < 0)
  		return;
  
  	set_bit(NFS4CLNT_RUN_MANAGER, &clp->cl_state);
-@@ -1238,6 +1238,8 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
- 		nfs4_clear_state_manager_bit(clp);
- 		nfs_put_client(clp);
- 		module_put(THIS_MODULE);
-+	} else {
-+		vps_cancel_task_store(clp, task);
- 	}
+@@ -1219,6 +1220,11 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
+ 
+ 	__module_get(THIS_MODULE);
+ 	refcount_inc(&clp->cl_count);
++	error = vps_cancel_task_prepare(clp);
++	if (error) {
++		task = ERR_PTR(error);
++		goto out_error;
++	}
+ 
+ 	/* The rcu_read_lock() is not strictly necessary, as the state
+ 	 * manager is the only thread that ever changes the rpc_xprt
+@@ -1227,18 +1233,28 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
+ 	snprintf(buf, sizeof(buf), "%s-manager",
+ 			rpc_peeraddr2str(clp->cl_rpcclient, RPC_DISPLAY_ADDR));
+ 	rcu_read_unlock();
+-	task = kthread_run(nfs4_run_state_manager, clp, "%s", buf);
+-	if (IS_ERR(task)) {
+-		printk(KERN_ERR "%s: kthread_run: %ld\n",
+-			__func__, PTR_ERR(task));
+-		if (!nfs_client_init_is_complete(clp))
+-			nfs_mark_client_ready(clp, PTR_ERR(task));
+-		if (swapon)
+-			clear_bit(NFS4CLNT_MANAGER_AVAILABLE, &clp->cl_state);
+-		nfs4_clear_state_manager_bit(clp);
+-		nfs_put_client(clp);
+-		module_put(THIS_MODULE);
+-	}
++	task = kthread_create(nfs4_run_state_manager, clp, "%s", buf);
++	if (IS_ERR(task))
++		goto out_error;
++	/* Pin the stopped thread before it can run or exit.  Cancellation may
++	 * have raced creation, so recheck the terminal bit before waking it.
++	 */
++	vps_cancel_task_store(clp, task);
++	if (vps_cancel_clnt_is_shutdown(clnt))
++		vps_cancel_task_signal(clp);
++	wake_up_process(task);
++	return;
++
++out_error:
++	printk(KERN_ERR "%s: state manager setup: %ld\n",
++		__func__, PTR_ERR(task));
++	if (!nfs_client_init_is_complete(clp))
++		nfs_mark_client_ready(clp, PTR_ERR(task));
++	if (swapon)
++		clear_bit(NFS4CLNT_MANAGER_AVAILABLE, &clp->cl_state);
++	nfs4_clear_state_manager_bit(clp);
++	nfs_put_client(clp);
++	module_put(THIS_MODULE);
  }
  
-@@ -1405,7 +1407,7 @@ int nfs4_schedule_stateid_recovery(const struct nfs_server *server, struct nfs4_
+ /*
+@@ -1405,7 +1421,7 @@ int nfs4_schedule_stateid_recovery(const struct nfs_server *server, struct nfs4_
  	dprintk("%s: scheduling stateid recovery for server %s\n", __func__,
  			clp->cl_hostname);
  	nfs4_schedule_state_manager(clp);
@@ -3143,6 +3354,25 @@ index 946acdeaf85ad..517d5aba99eb6 100644
  }
  EXPORT_SYMBOL_GPL(nfs4_schedule_stateid_recovery);
  
+@@ -2601,6 +2617,18 @@ static void nfs4_state_manager(struct nfs_client *clp)
+ 	int status = 0;
+ 	const char *section = "", *section_sep = "";
+ 
++	/* A host may activate v7 after this client's manager was created.  Such
++	 * a manager has no v7 task shadow to signal, but the terminal NFS path
++	 * wakes its RUN_MANAGER wait.  Clear the bit so the original outer
++	 * nfs4_run_state_manager() loop exits instead of restarting recovery.
++	 */
++	if (vps_cancel_clnt_is_shutdown(clp->cl_rpcclient)) {
++		clear_bit(NFS4CLNT_RUN_MANAGER, &clp->cl_state);
++		clear_bit(NFS4CLNT_MANAGER_AVAILABLE, &clp->cl_state);
++		nfs4_clear_state_manager_bit(clp);
++		return;
++	}
++
+ 	/*
+ 	 * State recovery can deadlock if the direct reclaim code tries
+ 	 * start NFS writeback. So ensure memory allocations are all
 diff --git a/fs/nfs/super.c b/fs/nfs/super.c
 index 079393dc10956..79ccb2c3ce882 100644
 --- a/fs/nfs/super.c
@@ -3157,7 +3387,7 @@ index 079393dc10956..79ccb2c3ce882 100644
  	if (memcmp(&old->fsid, &server->fsid, sizeof(old->fsid)) != 0)
  		return 0;
 diff --git a/fs/nfs/sysfs.c b/fs/nfs/sysfs.c
-index 53d4cdf28ee00..551703b868b2b 100644
+index 53d4cdf28ee00..d56e1262f7891 100644
 --- a/fs/nfs/sysfs.c
 +++ b/fs/nfs/sysfs.c
 @@ -13,6 +13,8 @@
@@ -3169,7 +3399,7 @@ index 53d4cdf28ee00..551703b868b2b 100644
  
  #include "internal.h"
  #include "nfs4_fs.h"
-@@ -135,6 +137,67 @@ static const void *nfs_netns_client_namespace(const struct kobject *kobj)
+@@ -135,6 +137,101 @@ static const void *nfs_netns_client_namespace(const struct kobject *kobj)
  static struct kobj_attribute nfs_netns_client_id = __ATTR(identifier,
  		0644, nfs_netns_identifier_show, nfs_netns_identifier_store);
  
@@ -3180,6 +3410,8 @@ index 53d4cdf28ee00..551703b868b2b 100644
 +			struct nfs_netns_client, kobject);
 +	struct nfs_net *nn = net_generic(c->net, nfs_net_id);
 +
++	if (!vpsadminos_nfs_cancel_active())
++		return -EBUSY;
 +	return sysfs_emit(buf, "%d\n", vps_cancel_nfs_net_is_shutdown(nn));
 +}
 +
@@ -3190,6 +3422,8 @@ index 53d4cdf28ee00..551703b868b2b 100644
 +			struct nfs_netns_client, kobject);
 +	int ret, val;
 +
++	if (!vpsadminos_nfs_cancel_active())
++		return -EBUSY;
 +	/* A host teardown operation, never a tenant or initial-netns control. */
 +	if (!ns_capable(&init_user_ns, CAP_SYS_ADMIN) ||
 +	    c->net->user_ns == &init_user_ns)
@@ -3201,9 +3435,11 @@ index 53d4cdf28ee00..551703b868b2b 100644
 +		return -EINVAL;
 +
 +	if (subtree)
-+		nfs_shutdown_userns(c->net->user_ns);
++		ret = nfs_shutdown_userns(c->net->user_ns);
 +	else
-+		nfs_shutdown_net(c->net);
++		ret = nfs_shutdown_net(c->net);
++	if (ret)
++		return ret;
 +	return count;
 +}
 +
@@ -3219,6 +3455,8 @@ index 53d4cdf28ee00..551703b868b2b 100644
 +	struct nfs_netns_client *c = container_of(kobj,
 +			struct nfs_netns_client, kobject);
 +
++	if (!vpsadminos_nfs_cancel_active())
++		return -EBUSY;
 +	return sysfs_emit(buf, "%d\n", rpc_userns_shutdown(c->net->user_ns));
 +}
 +
@@ -3234,31 +3472,36 @@ index 53d4cdf28ee00..551703b868b2b 100644
 +static struct kobj_attribute nfs_netns_shutdown = __ATTR(shutdown, 0600,
 +		nfs_netns_shutdown_show, nfs_netns_shutdown_store);
 +
++int vpsadminos_nfs_netns_controls_add(struct nfs_net *netns)
++{
++	struct nfs_netns_client *c = netns->nfs_client;
++	int ret;
++
++	if (!c)
++		return -ENOENT;
++	ret = sysfs_create_file(&c->kobject, &nfs_netns_shutdown.attr);
++	if (ret)
++		return ret;
++	ret = sysfs_create_file(&c->kobject, &nfs_netns_shutdown_tree.attr);
++	if (ret)
++		sysfs_remove_file(&c->kobject, &nfs_netns_shutdown.attr);
++	return ret;
++}
++
++void vpsadminos_nfs_netns_controls_remove(struct nfs_net *netns)
++{
++	struct nfs_netns_client *c = netns->nfs_client;
++
++	if (!c)
++		return;
++	sysfs_remove_file(&c->kobject, &nfs_netns_shutdown_tree.attr);
++	sysfs_remove_file(&c->kobject, &nfs_netns_shutdown.attr);
++}
++
  static struct attribute *nfs_netns_client_attrs[] = {
  	&nfs_netns_client_id.attr,
  	NULL,
-@@ -185,8 +248,19 @@ static struct nfs_netns_client *nfs_netns_client_alloc(struct kobject *parent,
- 		}
- 
- 		if (kobject_init_and_add(&p->kobject, &nfs_netns_client_type,
--					&p->nfs_net_kobj, "nfs_client") == 0)
-+					&p->nfs_net_kobj, "nfs_client") == 0) {
-+			/* The cancellation controls are registered dynamically
-+			 * rather than appended to nfs_netns_client_attrs[]:
-+			 * changing that array changes a data section, which a
-+			 * livepatch cannot carry.
-+			 */
-+			if (sysfs_create_file(&p->kobject,
-+					      &nfs_netns_shutdown.attr) ||
-+			    sysfs_create_file(&p->kobject,
-+					      &nfs_netns_shutdown_tree.attr))
-+				pr_warn("NFS: netns cancellation controls unavailable\n");
- 			return p;
-+		}
- 
- 		kobject_put(&p->kobject);
- 		kobject_put(&p->nfs_net_kobj);
-@@ -219,15 +293,9 @@ void nfs_netns_sysfs_destroy(struct nfs_net *netns)
+@@ -219,15 +316,9 @@ void nfs_netns_sysfs_destroy(struct nfs_net *netns)
  	}
  }
  
@@ -3275,7 +3518,7 @@ index 53d4cdf28ee00..551703b868b2b 100644
  }
  
  /*
-@@ -236,25 +304,44 @@ static void shutdown_client(struct rpc_clnt *clnt)
+@@ -236,25 +327,44 @@ static void shutdown_client(struct rpc_clnt *clnt)
   */
  static void shutdown_nfs_client(struct nfs_client *clp)
  {
@@ -3326,7 +3569,7 @@ index 53d4cdf28ee00..551703b868b2b 100644
  	return sysfs_emit(buf, "%d\n", shutdown);
  }
  
-@@ -263,6 +350,7 @@ shutdown_store(struct kobject *kobj, struct kobj_attribute *attr,
+@@ -263,6 +373,7 @@ shutdown_store(struct kobject *kobj, struct kobj_attribute *attr,
  				const char *buf, size_t count)
  {
  	struct nfs_server *server;
@@ -3334,7 +3577,7 @@ index 53d4cdf28ee00..551703b868b2b 100644
  	int ret, val;
  
  	server = container_of(kobj, struct nfs_server, kobj);
-@@ -274,20 +362,29 @@ shutdown_store(struct kobject *kobj, struct kobj_attribute *attr,
+@@ -274,20 +385,29 @@ shutdown_store(struct kobject *kobj, struct kobj_attribute *attr,
  	if (val != 1)
  		return -EINVAL;
  
@@ -3367,6 +3610,19 @@ index 53d4cdf28ee00..551703b868b2b 100644
  	return count;
  }
  
+diff --git a/fs/nfs/sysfs.h b/fs/nfs/sysfs.h
+index c5d1990cade50..364f95e0774a7 100644
+--- a/fs/nfs/sysfs.h
++++ b/fs/nfs/sysfs.h
+@@ -22,6 +22,8 @@ extern void nfs_sysfs_exit(void);
+ 
+ void nfs_netns_sysfs_setup(struct nfs_net *netns, struct net *net);
+ void nfs_netns_sysfs_destroy(struct nfs_net *netns);
++int vpsadminos_nfs_netns_controls_add(struct nfs_net *netns);
++void vpsadminos_nfs_netns_controls_remove(struct nfs_net *netns);
+ 
+ void nfs_sysfs_link_rpc_client(struct nfs_server *server,
+ 			struct rpc_clnt *clnt, const char *sysfs_prefix);
 diff --git a/fs/nfsd/nfs4proc.c b/fs/nfsd/nfs4proc.c
 index 2c7a8943cad9c..adaed9a38bc9b 100644
 --- a/fs/nfsd/nfs4proc.c
@@ -4169,7 +4425,7 @@ index e9a9ab34a7ccc..5c80b94467a15 100644
  int nfnetlink_has_listeners(struct net *net, unsigned int group);
  int nfnetlink_send(struct sk_buff *skb, struct net *net, u32 portid,
 diff --git a/include/linux/sunrpc/clnt.h b/include/linux/sunrpc/clnt.h
-index 5321585c778fc..fad67561d8590 100644
+index 5321585c778fc..345cd9acb3276 100644
 --- a/include/linux/sunrpc/clnt.h
 +++ b/include/linux/sunrpc/clnt.h
 @@ -23,6 +23,7 @@
@@ -4203,18 +4459,18 @@ index 5321585c778fc..fad67561d8590 100644
  void		rpc_shutdown_client(struct rpc_clnt *);
 +void		rpc_hold_client(struct rpc_clnt *);
 +void		rpc_cancel_client(struct rpc_clnt *clnt);
-+void		rpc_cancel_net(struct net *net);
++int		rpc_cancel_net(struct net *net);
 +bool		rpc_userns_shutdown(const struct user_namespace *user_ns);
-+void		rpc_cancel_userns(struct user_namespace *user_ns);
++int		rpc_cancel_userns(struct user_namespace *user_ns);
  void		rpc_release_client(struct rpc_clnt *);
  void		rpc_task_release_transport(struct rpc_task *);
  void		rpc_task_release_client(struct rpc_task *);
 diff --git a/include/linux/vpsadminos-cancel.h b/include/linux/vpsadminos-cancel.h
 new file mode 100644
-index 0000000000000..ee2a13f563a31
+index 0000000000000..19356fed861a7
 --- /dev/null
 +++ b/include/linux/vpsadminos-cancel.h
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,101 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +/*
 + * vpsAdminOS host-owned NFS/SUNRPC cancellation: out-of-struct state.
@@ -4240,30 +4496,24 @@ index 0000000000000..ee2a13f563a31
 +#include <linux/mutex.h>
 +
 +struct net;
++struct user_namespace;
 +struct rpc_clnt;
 +struct nfs_net;
 +struct nfs_client;
 +struct task_struct;
 +
-+/* One shadow id per object type that keeps state outside its struct. */
-+#define VPS_CANCEL_ID_CLNT		0x767073636e740001UL
-+#define VPS_CANCEL_ID_USERNS		0x76707375736e730001UL
-+#define VPS_CANCEL_ID_SUNRPC_NET	0x767073737270630001UL
-+#define VPS_CANCEL_ID_NFS_NET		0x7670736e66736e0001UL
-+#define VPS_CANCEL_ID_NFS_CLIENT_TASK	0x7670736e66736e0002UL
-+
-+struct vps_cancel_clnt {
-+	struct rpc_clnt		*clnt;
-+	struct list_head	global_list;
-+	struct net		*registered_net;
-+	bool			shutdown;
-+};
++/* Client cancellation uses the cl_shutdown bit already present in the boot ABI. */
++#define VPS_CANCEL_ID_USERNS		0x707375736e730001UL
++#define VPS_CANCEL_ID_SUNRPC_NET	0x7073737270630001UL
++#define VPS_CANCEL_ID_NFS_NET		0x70736e66736e0001UL
++#define VPS_CANCEL_ID_NFS_CLIENT_TASK	0x70736e66736e0002UL
 +
 +struct vps_cancel_nfs_net {
 +	struct list_head	ns_list;
 +	struct net		*net;
 +	struct mutex		nfs_server_lock;
 +	bool			shutdown;
++	bool			controls_installed;
 +};
 +
 +/*
@@ -4288,6 +4538,7 @@ index 0000000000000..ee2a13f563a31
 +			      void *ctor_data);
 +void klp_shadow_free(void *obj, unsigned long id,
 +		     vps_cancel_shadow_dtor_t dtor);
++void klp_shadow_free_all(unsigned long id, vps_cancel_shadow_dtor_t dtor);
 +#endif /* !_LINUX_LIVEPATCH_H_ */
 +
 +/* Declared here for the same reason as the shadow API above: including
@@ -4297,12 +4548,13 @@ index 0000000000000..ee2a13f563a31
 + * export. */
 +extern int send_sig(int, struct task_struct *, int);
 +
-+/* rpc_clnt cancellation state, implemented in net/sunrpc/clnt.c. */
++/* The boot rpc_clnt already has a shutdown bit. */
 +bool vps_cancel_clnt_is_shutdown(const struct rpc_clnt *clnt);
-+void vps_cancel_clnt_set_shutdown(struct rpc_clnt *clnt);
-+struct net *vps_cancel_clnt_registered_net(const struct rpc_clnt *clnt);
-+void vps_cancel_clnt_set_registered_net(struct rpc_clnt *clnt, struct net *net);
-+struct list_head *vps_cancel_clnt_global_list(struct rpc_clnt *clnt);
++void vps_cancel_userns_free(struct user_namespace *ns);
++#ifdef CONFIG_LIVEPATCH
++int vpsadminos_rpc_cancel_pre_patch(void);
++void vpsadminos_rpc_cancel_post_unpatch(void);
++#endif
 +
 +/* Per-net NFS cancellation state, implemented in fs/nfs/client.c. */
 +bool vps_cancel_nfs_net_is_shutdown(const struct nfs_net *nn);
@@ -4315,16 +4567,17 @@ index 0000000000000..ee2a13f563a31
 +
 +/* Parked NFSv4 state-manager task per client, implemented in
 + * fs/nfs/client.c. */
++int vps_cancel_task_prepare(struct nfs_client *clp);
 +void vps_cancel_task_store(struct nfs_client *clp, struct task_struct *task);
 +void vps_cancel_task_signal(struct nfs_client *clp);
 +
 +#endif /* _LINUX_VPSADMINOS_CANCEL_H */
 diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
 new file mode 100644
-index 0000000000000..ea154cfdacc57
+index 0000000000000..78acddd4fb648
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch.h
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,155 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
 +#define _LINUX_VPSADMINOS_LIVEPATCH_H
@@ -4421,11 +4674,22 @@ index 0000000000000..ea154cfdacc57
 +#endif
 +
 +#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_SUNRPC)
++int vpsadminos_rpc_cancel_pre_patch(void);
++void vpsadminos_rpc_cancel_post_unpatch(void);
 +int vpsadminos_sunrpc_livepatch_pre_patch(void);
 +void vpsadminos_sunrpc_livepatch_post_patch(void);
 +void vpsadminos_sunrpc_livepatch_pre_unpatch(void);
 +void vpsadminos_sunrpc_livepatch_post_unpatch(void);
 +#else
++static inline int vpsadminos_rpc_cancel_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_rpc_cancel_post_unpatch(void)
++{
++}
++
 +static inline int vpsadminos_sunrpc_livepatch_pre_patch(void)
 +{
 +	return 0;
@@ -4440,6 +4704,30 @@ index 0000000000000..ea154cfdacc57
 +}
 +
 +static inline void vpsadminos_sunrpc_livepatch_post_unpatch(void)
++{
++}
++#endif
++
++#if defined(CONFIG_LIVEPATCH) && defined(CONFIG_NFS_FS)
++int vpsadminos_nfs_cancel_pre_patch(void);
++void vpsadminos_nfs_cancel_post_patch(void);
++void vpsadminos_nfs_cancel_pre_unpatch(void);
++void vpsadminos_nfs_cancel_post_unpatch(void);
++#else
++static inline int vpsadminos_nfs_cancel_pre_patch(void)
++{
++	return 0;
++}
++
++static inline void vpsadminos_nfs_cancel_post_patch(void)
++{
++}
++
++static inline void vpsadminos_nfs_cancel_pre_unpatch(void)
++{
++}
++
++static inline void vpsadminos_nfs_cancel_post_unpatch(void)
 +{
 +}
 +#endif
@@ -4843,7 +5131,7 @@ index 5d39b0e8dd909..5a2963ea8b18f 100644
  int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len);
  int tcp_connect(struct sock *sk);
 diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
-index 517710c89fa50..ae3f75f61238e 100644
+index 517710c89fa50..d75b2f84ee24a 100644
 --- a/kernel/bpf/core.c
 +++ b/kernel/bpf/core.c
 @@ -38,10 +38,18 @@
@@ -4865,7 +5153,7 @@ index 517710c89fa50..ae3f75f61238e 100644
  /* Registers */
  #define BPF_R0	regs[BPF_REG_0]
  #define BPF_R1	regs[BPF_REG_1]
-@@ -892,6 +900,216 @@ void bpf_jit_fill_hole_with_zero(void *area, unsigned int size)
+@@ -892,6 +900,232 @@ void bpf_jit_fill_hole_with_zero(void *area, unsigned int size)
  	memset(area, 0, size);
  }
  
@@ -5001,8 +5289,20 @@ index 517710c89fa50..ae3f75f61238e 100644
 +	if (ret)
 +		goto restore_rhashtable;
 +
++	ret = vpsadminos_rpc_cancel_pre_patch();
++	if (ret)
++		goto restore_sunrpc;
++
++	ret = vpsadminos_nfs_cancel_pre_patch();
++	if (ret)
++		goto restore_rpc_cancel;
++
 +	return 0;
 +
++restore_rpc_cancel:
++	vpsadminos_rpc_cancel_post_unpatch();
++restore_sunrpc:
++	vpsadminos_sunrpc_livepatch_post_unpatch();
 +restore_rhashtable:
 +	vpsadminos_rhashtable_livepatch_post_unpatch();
 +restore_saferet:
@@ -5018,6 +5318,7 @@ index 517710c89fa50..ae3f75f61238e 100644
 +	vpsadminos_pipapo_livepatch_post_patch();
 +	vpsadminos_nfqueue_livepatch_post_patch();
 +	vpsadminos_sunrpc_livepatch_post_patch();
++	vpsadminos_nfs_cancel_post_patch();
 +	vpsadminos_nfs_free_stateid_livepatch_post_patch();
 +	vpsadminos_xfrm_livepatch_post_patch();
 +	vpsadminos_bpf_jit_ibpb();
@@ -5027,6 +5328,7 @@ index 517710c89fa50..ae3f75f61238e 100644
 +static void vpsadminos_livepatch_pre_unpatch(struct klp_object *obj)
 +{
 +	(void)obj;
++	vpsadminos_nfs_cancel_pre_unpatch();
 +	vpsadminos_sunrpc_livepatch_pre_unpatch();
 +	vpsadminos_xfrm_livepatch_pre_unpatch();
 +}
@@ -5034,6 +5336,8 @@ index 517710c89fa50..ae3f75f61238e 100644
 +static void vpsadminos_livepatch_post_unpatch(struct klp_object *obj)
 +{
 +	(void)obj;
++	vpsadminos_nfs_cancel_post_unpatch();
++	vpsadminos_rpc_cancel_post_unpatch();
 +	vpsadminos_nfs_free_stateid_livepatch_post_unpatch();
 +	vpsadminos_sunrpc_livepatch_post_unpatch();
 +	vpsadminos_nfqueue_livepatch_post_unpatch();
@@ -5082,7 +5386,7 @@ index 517710c89fa50..ae3f75f61238e 100644
  #define BPF_PROG_SIZE_TO_NBITS(size)	(round_up(size, BPF_PROG_CHUNK_SIZE) / BPF_PROG_CHUNK_SIZE)
  
  static DEFINE_MUTEX(pack_mutex);
-@@ -981,6 +1199,7 @@ void *bpf_prog_pack_alloc(u32 size, bpf_jit_fill_hole_t bpf_fill_ill_insns)
+@@ -981,6 +1215,7 @@ void *bpf_prog_pack_alloc(u32 size, bpf_jit_fill_hole_t bpf_fill_ill_insns)
  	pos = 0;
  
  found_free_area:
@@ -6434,6 +6738,31 @@ index 4deeb613c556a..141b8e304e661 100644
  
  	rb_update_meta_page(cpu_buffer);
  
+diff --git a/kernel/user_namespace.c b/kernel/user_namespace.c
+index 7d48ff2ddeb42..73a455fc76da4 100644
+--- a/kernel/user_namespace.c
++++ b/kernel/user_namespace.c
+@@ -23,6 +23,10 @@
+ #include <linux/bsearch.h>
+ #include <linux/sort.h>
+ #include <linux/vpsadminos.h>
++#ifdef CONFIG_LIVEPATCH
++/* Avoid changing genksyms' view of unrelated exported userns types. */
++void vps_cancel_userns_free(struct user_namespace *ns);
++#endif
+ 
+ static struct kmem_cache *user_ns_cachep __ro_after_init;
+ static DEFINE_MUTEX(userns_state_mutex);
+@@ -239,6 +243,9 @@ static void free_user_ns(struct work_struct *work)
+ 		key_free_user_ns(ns);
+ 		ns_free_inum(&ns->ns);
+ 		fake_sysctl_bufs_free(ns);
++#ifdef CONFIG_LIVEPATCH
++		vps_cancel_userns_free(ns);
++#endif
+ 		kmem_cache_free(user_ns_cachep, ns);
+ 		dec_user_namespaces(ucounts);
+ 		ns = parent;
 diff --git a/lib/rhashtable.c b/lib/rhashtable.c
 index 0e9a1d4cf89be..16d2ce87c22e2 100644
 --- a/lib/rhashtable.c
@@ -10137,7 +10466,7 @@ index dd416c8532c55..0c0a1f20e853f 100644
  	return true;
  }
 diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
-index 838c9f49e4e01..b922c054c10c5 100644
+index 838c9f49e4e01..a942dad624c10 100644
 --- a/net/netfilter/nf_tables_api.c
 +++ b/net/netfilter/nf_tables_api.c
 @@ -16,6 +16,10 @@
@@ -10151,7 +10480,7 @@ index 838c9f49e4e01..b922c054c10c5 100644
  #include <net/netfilter/nf_flow_table.h>
  #include <net/netfilter/nf_tables_core.h>
  #include <net/netfilter/nf_tables.h>
-@@ -7751,24 +7755,18 @@ struct nft_object *nft_obj_lookup(const struct net *net,
+@@ -7751,30 +7755,23 @@ struct nft_object *nft_obj_lookup(const struct net *net,
  				  const struct nlattr *nla, u32 objtype,
  				  u8 genmask)
  {
@@ -10179,7 +10508,13 @@ index 838c9f49e4e01..b922c054c10c5 100644
  		    nft_active_genmask(obj, genmask)) {
  			rcu_read_unlock();
  			return obj;
-@@ -8240,8 +8238,8 @@ nf_tables_getobj_single(u32 portid, const struct nfnl_info *info,
+ 		}
+ 	}
+-out:
+ 	rcu_read_unlock();
+ 	return ERR_PTR(-ENOENT);
+ }
+@@ -8240,8 +8237,8 @@ nf_tables_getobj_single(u32 portid, const struct nfnl_info *info,
  	struct netlink_ext_ack *extack = info->extack;
  	u8 genmask = nft_genmask_cur(info->net);
  	u8 family = info->nfmsg->nfgen_family;
@@ -10189,7 +10524,7 @@ index 838c9f49e4e01..b922c054c10c5 100644
  	struct nft_object *obj;
  	struct sk_buff *skb2;
  	u32 objtype;
-@@ -8411,18 +8409,17 @@ static int nf_tables_delobj(struct sk_buff *skb, const struct nfnl_info *info,
+@@ -8411,18 +8408,17 @@ static int nf_tables_delobj(struct sk_buff *skb, const struct nfnl_info *info,
  	return nft_delobj(&ctx, obj);
  }
  
@@ -10213,7 +10548,7 @@ index 838c9f49e4e01..b922c054c10c5 100644
  
  	skb = nlmsg_new(NLMSG_GOODSIZE, gfp);
  	if (skb == NULL)
-@@ -8436,10 +8433,10 @@ __nft_obj_notify(struct net *net, const struct nft_table *table,
+@@ -8436,10 +8432,10 @@ __nft_obj_notify(struct net *net, const struct nft_table *table,
  		goto err;
  	}
  
@@ -10226,7 +10561,7 @@ index 838c9f49e4e01..b922c054c10c5 100644
  }
  
  void nft_obj_notify(struct net *net, const struct nft_table *table,
-@@ -8448,6 +8445,7 @@ void nft_obj_notify(struct net *net, const struct nft_table *table,
+@@ -8448,6 +8444,7 @@ void nft_obj_notify(struct net *net, const struct nft_table *table,
  {
  	char *buf = kasprintf(gfp, "%s:%u",
  			      table->name, nft_base_seq(net));
@@ -10234,7 +10569,7 @@ index 838c9f49e4e01..b922c054c10c5 100644
  
  	audit_log_nfcfg(buf,
  			family,
-@@ -8458,17 +8456,27 @@ void nft_obj_notify(struct net *net, const struct nft_table *table,
+@@ -8458,17 +8455,27 @@ void nft_obj_notify(struct net *net, const struct nft_table *table,
  			gfp);
  	kfree(buf);
  
@@ -10267,7 +10602,7 @@ index 838c9f49e4e01..b922c054c10c5 100644
  }
  
  /*
-@@ -11122,6 +11130,172 @@ static const struct nfnetlink_subsystem nf_tables_subsys = {
+@@ -11122,6 +11129,172 @@ static const struct nfnetlink_subsystem nf_tables_subsys = {
  	.owner		= THIS_MODULE,
  };
  
@@ -10440,7 +10775,7 @@ index 838c9f49e4e01..b922c054c10c5 100644
  int nft_chain_validate_dependency(const struct nft_chain *chain,
  				  enum nft_chain_types type)
  {
-@@ -11716,6 +11890,10 @@ static int nft_rcv_nl_event(struct notifier_block *this, unsigned long event,
+@@ -11716,6 +11889,10 @@ static int nft_rcv_nl_event(struct notifier_block *this, unsigned long event,
  	bool restart = false;
  	unsigned int gc_seq;
  
@@ -12151,7 +12486,7 @@ index 25aeb2596c675..b994367d68180 100644
  EXPORT_SYMBOL_GPL(sunrpc_destroy_cache_detail);
  
 diff --git a/net/sunrpc/clnt.c b/net/sunrpc/clnt.c
-index e492655cb2212..664f308ce52fd 100644
+index e492655cb2212..153f464e7454d 100644
 --- a/net/sunrpc/clnt.c
 +++ b/net/sunrpc/clnt.c
 @@ -29,6 +29,7 @@
@@ -12162,84 +12497,23 @@ index e492655cb2212..664f308ce52fd 100644
  #include <linux/in.h>
  #include <linux/in6.h>
  #include <linux/un.h>
-@@ -49,6 +50,12 @@
+@@ -44,6 +45,9 @@
+ #include "sysfs.h"
+ #include "netns.h"
+ 
++/* Exported by net/core/net_namespace.c; take it before net_rwsem. */
++extern struct rw_semaphore pernet_ops_rwsem;
++
+ #if IS_ENABLED(CONFIG_SUNRPC_DEBUG)
+ # define RPCDBG_FACILITY	RPCDBG_CALL
  #endif
- 
- static DECLARE_WAIT_QUEUE_HEAD(destroy_wait);
-+/* Serializes subtree shutdown with RPC admission, including clients in
-+ * network namespaces whose pernet initialization has not yet completed.
-+ * Lock order: rpc_global_lock -> sn->rpc_client_lock -> clnt->cl_lock.
-+ */
-+static DEFINE_SPINLOCK(rpc_global_lock);
-+static LIST_HEAD(rpc_global_clients);
- 
- static void	call_start(struct rpc_task *task);
- static void	call_reserve(struct rpc_task *task);
-@@ -74,24 +81,158 @@ static int	rpc_ping(struct rpc_clnt *clnt);
+@@ -74,26 +78,157 @@ static int	rpc_ping(struct rpc_clnt *clnt);
  static int	rpc_ping_noreply(struct rpc_clnt *clnt);
  static void	rpc_check_timeout(struct rpc_task *task);
  
-+/*
-+ * Out-of-struct cancellation state. Shadow variables are keyed on the
-+ * objects themselves, so no structure layout changes and the patch stays
-+ * representable by kpatch.
-+ */
-+static int vps_cancel_clnt_ctor(void *obj, void *shadow, void *data)
-+{
-+	struct vps_cancel_clnt *st = shadow;
-+
-+	st->clnt = obj;
-+	INIT_LIST_HEAD(&st->global_list);
-+	st->registered_net = NULL;
-+	st->shutdown = false;
-+	return 0;
-+}
-+
-+static struct vps_cancel_clnt *vps_cancel_clnt_state(struct rpc_clnt *clnt)
-+{
-+	return klp_shadow_get_or_alloc(clnt, VPS_CANCEL_ID_CLNT,
-+			sizeof(struct vps_cancel_clnt), GFP_ATOMIC,
-+			vps_cancel_clnt_ctor, NULL);
-+}
-+
 +bool vps_cancel_clnt_is_shutdown(const struct rpc_clnt *clnt)
 +{
-+	struct vps_cancel_clnt *st =
-+		klp_shadow_get((void *)clnt, VPS_CANCEL_ID_CLNT);
-+
-+	/* The patched kernel's own flag still counts too. */
-+	return clnt->cl_shutdown || (st && READ_ONCE(st->shutdown));
-+}
-+
-+void vps_cancel_clnt_set_shutdown(struct rpc_clnt *clnt)
-+{
-+	struct vps_cancel_clnt *st = vps_cancel_clnt_state(clnt);
-+
-+	if (st)
-+		WRITE_ONCE(st->shutdown, true);
-+}
-+
-+struct net *vps_cancel_clnt_registered_net(const struct rpc_clnt *clnt)
-+{
-+	struct vps_cancel_clnt *st =
-+		klp_shadow_get((void *)clnt, VPS_CANCEL_ID_CLNT);
-+
-+	return st ? st->registered_net : NULL;
-+}
-+
-+void vps_cancel_clnt_set_registered_net(struct rpc_clnt *clnt, struct net *net)
-+{
-+	struct vps_cancel_clnt *st = vps_cancel_clnt_state(clnt);
-+
-+	if (st)
-+		st->registered_net = net;
-+}
-+
-+struct list_head *vps_cancel_clnt_global_list(struct rpc_clnt *clnt)
-+{
-+	struct vps_cancel_clnt *st = vps_cancel_clnt_state(clnt);
-+
-+	return st ? &st->global_list : NULL;
++	return clnt->cl_shutdown;
 +}
 +
 +static bool vps_cancel_flag(const void *obj, unsigned long id)
@@ -12249,13 +12523,15 @@ index e492655cb2212..664f308ce52fd 100644
 +	return flag && READ_ONCE(*flag);
 +}
 +
-+static void vps_cancel_flag_set(void *obj, unsigned long id)
++static int vps_cancel_flag_set(void *obj, unsigned long id)
 +{
-+	bool *flag = klp_shadow_get_or_alloc(obj, id, sizeof(bool), GFP_ATOMIC,
++	bool *flag = klp_shadow_get_or_alloc(obj, id, sizeof(bool), GFP_KERNEL,
 +					     NULL, NULL);
 +
-+	if (flag)
-+		WRITE_ONCE(*flag, true);
++	if (!flag)
++		return -ENOMEM;
++	WRITE_ONCE(*flag, true);
++	return 0;
 +}
 +
 +static bool vps_cancel_userns_flag(const struct user_namespace *ns)
@@ -12263,9 +12539,14 @@ index e492655cb2212..664f308ce52fd 100644
 +	return vps_cancel_flag(ns, VPS_CANCEL_ID_USERNS);
 +}
 +
-+static void vps_cancel_userns_flag_set(struct user_namespace *ns)
++static int vps_cancel_userns_flag_set(struct user_namespace *ns)
 +{
-+	vps_cancel_flag_set(ns, VPS_CANCEL_ID_USERNS);
++	return vps_cancel_flag_set(ns, VPS_CANCEL_ID_USERNS);
++}
++
++void vps_cancel_userns_free(struct user_namespace *ns)
++{
++	klp_shadow_free(ns, VPS_CANCEL_ID_USERNS, NULL);
 +}
 +
 +static bool vps_cancel_sunrpc_net_flag(const struct sunrpc_net *sn)
@@ -12273,9 +12554,9 @@ index e492655cb2212..664f308ce52fd 100644
 +	return vps_cancel_flag(sn, VPS_CANCEL_ID_SUNRPC_NET);
 +}
 +
-+static void vps_cancel_sunrpc_net_flag_set(struct sunrpc_net *sn)
++static int vps_cancel_sunrpc_net_flag_set(struct sunrpc_net *sn)
 +{
-+	vps_cancel_flag_set(sn, VPS_CANCEL_ID_SUNRPC_NET);
++	return vps_cancel_flag_set(sn, VPS_CANCEL_ID_SUNRPC_NET);
 +}
 +
 +bool rpc_userns_shutdown(const struct user_namespace *user_ns)
@@ -12287,57 +12568,117 @@ index e492655cb2212..664f308ce52fd 100644
 +	return false;
 +}
 +
++#ifdef CONFIG_LIVEPATCH
++static bool vpsadminos_rpc_cancel_registered;
++
++static int vpsadminos_rpc_cancel_net_init(struct net *net)
++{
++	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
++	struct rpc_clnt *clnt;
++	bool *flag;
++
++	/* New and pre-existing nets use the same durable admission flag. */
++	flag = klp_shadow_get_or_alloc(sn, VPS_CANCEL_ID_SUNRPC_NET,
++				       sizeof(*flag), GFP_KERNEL, NULL, NULL);
++	if (!flag)
++		return -ENOMEM;
++	if (!rpc_userns_shutdown(net->user_ns))
++		return 0;
++	spin_lock(&sn->rpc_client_lock);
++	list_for_each_entry(clnt, &sn->all_clients, cl_clients)
++		rpc_cancel_client(clnt);
++	spin_unlock(&sn->rpc_client_lock);
++	return 0;
++}
++
++static void vpsadminos_rpc_cancel_net_exit(struct net *net)
++{
++	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
++
++	klp_shadow_free(sn, VPS_CANCEL_ID_SUNRPC_NET, NULL);
++}
++
++static struct pernet_operations vpsadminos_rpc_cancel_pernet = {
++	.init = vpsadminos_rpc_cancel_net_init,
++	.exit = vpsadminos_rpc_cancel_net_exit,
++};
++
++int vpsadminos_rpc_cancel_pre_patch(void)
++{
++	int ret;
++
++	if (WARN_ON_ONCE(vpsadminos_rpc_cancel_registered))
++		return -EBUSY;
++	ret = vpsadminos_pernet_try_register(&vpsadminos_rpc_cancel_pernet);
++	if (!ret)
++		vpsadminos_rpc_cancel_registered = true;
++	return ret;
++}
++
++void vpsadminos_rpc_cancel_post_unpatch(void)
++{
++	if (!vpsadminos_rpc_cancel_registered)
++		return;
++	unregister_pernet_subsys(&vpsadminos_rpc_cancel_pernet);
++	vpsadminos_rpc_cancel_registered = false;
++	klp_shadow_free_all(VPS_CANCEL_ID_USERNS, NULL);
++}
++#endif
++
  static void rpc_register_client(struct rpc_clnt *clnt)
  {
--	struct net *net = rpc_net_ns(clnt);
-+	struct net *net = get_net(rpc_net_ns(clnt));
+ 	struct net *net = rpc_net_ns(clnt);
  	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
-+	struct list_head *node;
  
-+	spin_lock(&rpc_global_lock);
  	spin_lock(&sn->rpc_client_lock);
 +	if (vps_cancel_sunrpc_net_flag(sn) || rpc_userns_shutdown(net->user_ns))
 +		rpc_cancel_client(clnt);
-+	vps_cancel_clnt_set_registered_net(clnt, net);
  	list_add(&clnt->cl_clients, &sn->all_clients);
-+	node = vps_cancel_clnt_global_list(clnt);
-+	if (node)
-+		list_add(node, &rpc_global_clients);
  	spin_unlock(&sn->rpc_client_lock);
-+	spin_unlock(&rpc_global_lock);
  }
  
- static void rpc_unregister_client(struct rpc_clnt *clnt)
+-static void rpc_unregister_client(struct rpc_clnt *clnt)
++static void rpc_unregister_client_from_net(struct rpc_clnt *clnt,
++					struct net *net)
  {
 -	struct net *net = rpc_net_ns(clnt);
--	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
-+	struct net *net;
-+	struct sunrpc_net *sn;
-+	struct list_head *node;
+ 	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
++	struct rpc_clnt *pos;
  
-+	spin_lock(&rpc_global_lock);
-+	net = vps_cancel_clnt_registered_net(clnt);
-+	/* A failed transport replacement may also fail to re-register the
-+	 * original transport. Final release must tolerate that empty state.
++	/* Both pre-v7 and newly registered clients use the original per-net
++	 * list.  The caller supplies the list's net even if a transport was
++	 * switched before unregistering its previous registration.
 +	 */
-+	if (!net) {
-+		spin_unlock(&rpc_global_lock);
-+		return;
-+	}
-+	sn = net_generic(net, sunrpc_net_id);
  	spin_lock(&sn->rpc_client_lock);
- 	list_del(&clnt->cl_clients);
-+	node = vps_cancel_clnt_global_list(clnt);
-+	if (node)
-+		list_del(node);
-+	vps_cancel_clnt_set_registered_net(clnt, NULL);
+-	list_del(&clnt->cl_clients);
++	list_for_each_entry(pos, &sn->all_clients, cl_clients) {
++		if (pos != clnt)
++			continue;
++		list_del_init(&clnt->cl_clients);
++		break;
++	}
  	spin_unlock(&sn->rpc_client_lock);
-+	spin_unlock(&rpc_global_lock);
-+	put_net(net);
  }
  
++static void rpc_unregister_client(struct rpc_clnt *clnt)
++{
++	rpc_unregister_client_from_net(clnt, rpc_net_ns(clnt));
++}
++
  static void __rpc_clnt_remove_pipedir(struct rpc_clnt *clnt)
-@@ -931,6 +1072,68 @@ unsigned long rpc_cancel_tasks(struct rpc_clnt *clnt, int error,
+ {
+ 	rpc_remove_client_dir(clnt);
+@@ -755,7 +890,8 @@ int rpc_switch_client_transport(struct rpc_clnt *clnt,
+ 	old = rpc_clnt_set_transport(clnt, xprt, timeout);
+ 	oldxps = xprt_iter_xchg_switch(&clnt->cl_xpi, xps);
+ 
+-	rpc_unregister_client(clnt);
++	/* The registration still belongs to the previous transport's net. */
++	rpc_unregister_client_from_net(clnt, old->xprt_net);
+ 	__rpc_clnt_remove_pipedir(clnt);
+ 	rpc_sysfs_client_destroy(clnt);
+ 	rpc_clnt_debugfs_unregister(clnt);
+@@ -931,6 +1067,96 @@ unsigned long rpc_cancel_tasks(struct rpc_clnt *clnt, int error,
  }
  EXPORT_SYMBOL_GPL(rpc_cancel_tasks);
  
@@ -12354,7 +12695,10 @@ index e492655cb2212..664f308ce52fd 100644
 +	struct rpc_task *task;
 +
 +	spin_lock(&clnt->cl_lock);
-+	vps_cancel_clnt_set_shutdown(clnt);
++	/* The boot ABI already carries this bit; cancellation must not depend on
++	 * allocating a livepatch shadow while holding the client spinlock.
++	 */
++	clnt->cl_shutdown = 1;
 +	list_for_each_entry(task, &clnt->cl_tasks, tk_task) {
 +		if (RPC_IS_ACTIVATED(task))
 +			rpc_task_try_cancel(task, -EIO);
@@ -12369,53 +12713,69 @@ index e492655cb2212..664f308ce52fd 100644
 + * Serialize with client registration, including clients created by an
 + * in-progress mount or recovery after the shutdown walk has passed.
 + */
-+void rpc_cancel_net(struct net *net)
++int rpc_cancel_net(struct net *net)
 +{
 +	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
 +	struct rpc_clnt *clnt;
++	int ret;
 +
++	/* Allocation may sleep; publish the barrier before taking the list lock. */
++	ret = vps_cancel_sunrpc_net_flag_set(sn);
++	if (ret)
++		return ret;
 +	spin_lock(&sn->rpc_client_lock);
-+	vps_cancel_sunrpc_net_flag_set(sn);
 +	list_for_each_entry(clnt, &sn->all_clients, cl_clients)
 +		rpc_cancel_client(clnt);
 +	spin_unlock(&sn->rpc_client_lock);
++	return 0;
 +}
 +
 +/**
 + * rpc_cancel_userns - stop RPC admission and cancel a user namespace subtree
 + * @user_ns: non-initial owner namespace selected by host teardown
 + *
-+ * The global list includes clients in initializing and processless network
-+ * namespaces. Future descendants inherit the barrier by walking ancestors.
++ * Serialized with netns initialization; published nets are scanned via their
++ * original per-net client lists, and new admissions check the userns flag.
 + */
-+void rpc_cancel_userns(struct user_namespace *user_ns)
++int rpc_cancel_userns(struct user_namespace *user_ns)
 +{
-+	struct vps_cancel_clnt *st;
++	struct rpc_clnt *clnt;
++	struct sunrpc_net *sn;
++	struct net *net;
++	int ret;
 +
 +	if (WARN_ON_ONCE(user_ns == &init_user_ns))
-+		return;
-+	spin_lock(&rpc_global_lock);
-+	vps_cancel_userns_flag_set(user_ns);
-+	list_for_each_entry(st, &rpc_global_clients, global_list) {
-+		if (rpc_userns_shutdown(st->registered_net->user_ns))
-+			rpc_cancel_client(st->clnt);
++		return -EPERM;
++	/* A namespace must finish pernet initialization before it can be
++	 * omitted from this scan.  If another initializer owns that lock,
++	 * report a retryable result rather than claiming terminal success.
++	 */
++	if (!down_write_trylock(&pernet_ops_rwsem))
++		return -EBUSY;
++	ret = vps_cancel_userns_flag_set(user_ns);
++	if (ret)
++		goto out_pernet;
++	down_read(&net_rwsem);
++	for_each_net(net) {
++		if (!rpc_userns_shutdown(net->user_ns))
++			continue;
++		sn = net_generic(net, sunrpc_net_id);
++		spin_lock(&sn->rpc_client_lock);
++		list_for_each_entry(clnt, &sn->all_clients, cl_clients)
++			rpc_cancel_client(clnt);
++		spin_unlock(&sn->rpc_client_lock);
 +	}
-+	spin_unlock(&rpc_global_lock);
++	up_read(&net_rwsem);
++
++out_pernet:
++	up_write(&pernet_ops_rwsem);
++	return ret;
 +}
 +
  static int rpc_clnt_disconnect_xprt(struct rpc_clnt *clnt,
  				    struct rpc_xprt *xprt, void *dummy)
  {
-@@ -982,6 +1185,8 @@ static void rpc_free_client_work(struct work_struct *work)
- 	rpc_clnt_debugfs_unregister(clnt);
- 	rpc_free_clid(clnt);
- 	rpc_clnt_remove_pipedir(clnt);
-+	/* Release the cancellation state that belongs to this client. */
-+	klp_shadow_free(clnt, VPS_CANCEL_ID_CLNT, NULL);
- 	xprt_put(rcu_dereference_raw(clnt->cl_xprt));
- 
- 	kfree(clnt);
-@@ -1026,8 +1231,23 @@ rpc_free_auth(struct rpc_clnt *clnt)
+@@ -1026,8 +1252,23 @@ rpc_free_auth(struct rpc_clnt *clnt)
  	return NULL;
  }
  
@@ -12441,7 +12801,7 @@ index e492655cb2212..664f308ce52fd 100644
   */
  void
  rpc_release_client(struct rpc_clnt *clnt)
-@@ -1670,10 +1890,20 @@ EXPORT_SYMBOL_GPL(rpc_force_rebind);
+@@ -1670,10 +1911,20 @@ EXPORT_SYMBOL_GPL(rpc_force_rebind);
  static int
  __rpc_restart_call(struct rpc_task *task, void (*action)(struct rpc_task *))
  {
@@ -12463,7 +12823,7 @@ index e492655cb2212..664f308ce52fd 100644
  }
  
  /*
-@@ -1742,7 +1972,7 @@ call_start(struct rpc_task *task)
+@@ -1742,7 +1993,7 @@ call_start(struct rpc_task *task)
  
  	trace_rpc_request(task);
  
