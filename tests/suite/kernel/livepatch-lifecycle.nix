@@ -1,10 +1,26 @@
 import ../../make-template.nix (
-  { kernelVersion }:
+  {
+    kernelVersion,
+    predecessorVariant ? null,
+  }:
   let
     line = import (./livepatch-lifecycle + "/${kernelVersion}.nix");
+    native = line.native or false;
+    predecessorVariantEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_VARIANT";
+    selectedPredecessor =
+      if predecessorVariant != null then
+        predecessorVariant
+      else if predecessorVariantEnv == "" then
+        "v5"
+      else
+        predecessorVariantEnv;
   in
   rec {
-    instance = kernelVersion;
+    instance =
+      if native || selectedPredecessor == "v5" then
+        kernelVersion
+      else
+        "${kernelVersion}-${selectedPredecessor}";
 
     test =
       { pkgs }:
@@ -14,20 +30,17 @@ import ../../make-template.nix (
           inherit lib;
           version = kernelVersion;
         };
-        native = line.native or false;
         candidateVersion = if native then 0 else patches.patchVersion;
         candidateName = "livepatch_${toString candidateVersion}";
-        predecessorVariantEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_VARIANT";
-        predecessorVariant = if predecessorVariantEnv == "" then "v5" else predecessorVariantEnv;
         predecessors =
           if native then
             { }
-          else if predecessorVariant == "v5" then
+          else if selectedPredecessor == "v5" then
             line.predecessors or { }
-          else if predecessorVariant == "v6" then
+          else if selectedPredecessor == "v6" then
             line.predecessorsV6 or { }
           else
-            throw "VPSADMINOS_LIVEPATCH_PREDECESSOR_VARIANT must be v5 or v6 (got ${predecessorVariantEnv})";
+            throw "livepatch predecessor variant must be v5 or v6 (got ${selectedPredecessor})";
 
         kvmSmoke = pkgs.stdenv.mkDerivation {
           pname = "livepatch-lifecycle-kvm-smoke";
@@ -94,7 +107,7 @@ import ../../make-template.nix (
             KVM_MODULE = ${builtins.toJSON kvmModule}
             KVM_SMOKE = "/etc/livepatch-lifecycle/kvm-smoke"
             REQUIRED_FLAGS = ${builtins.toJSON requiredFlags}
-            PREDECESSOR_VARIANT = ${builtins.toJSON predecessorVariant}
+            PREDECESSOR_VARIANT = ${builtins.toJSON selectedPredecessor}
             PREDECESSOR_VERSION = ${builtins.toJSON (if predecessor == null then null else predecessor.version)}
             PREDECESSOR_NAME = ${builtins.toJSON (if predecessor == null then null else predecessor.moduleName)}
             PREDECESSOR_SHA256 = ${builtins.toJSON (if predecessor == null then null else predecessor.sha256)}
@@ -295,7 +308,7 @@ import ../../make-template.nix (
       in
       assert native || candidateVersion > 0;
       {
-        name = "kernel-livepatch-lifecycle-${kernelVersion}";
+        name = "kernel-livepatch-lifecycle-${instance}";
 
         description = ''
           Validate the active ${kernelVersion} livepatch lifecycle on real x86 host CPUs
