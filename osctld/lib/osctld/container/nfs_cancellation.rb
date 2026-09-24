@@ -198,20 +198,20 @@ module OsCtld
     end
 
     def cancel_in_worker
+      deadline = monotonic_time + WORKER_TIMEOUT
       reader, writer = IO.pipe
       pid = SwitchUser.fork(keep_fds: [writer, @owner, *@netns.values].compact) do
         Process.setproctitle("osctld: #{@ident} NFS cancellation")
         # Bound the process/thread scan with the same deadline as sysfs work.
         # Newly discovered handles need live only until this worker exits.
         capture_descendants
-        writer.puts(JSON.generate(count: cancel_namespaces))
+        writer.puts(JSON.generate(count: cancel_namespaces(deadline)))
         exit!(true)
       rescue StandardError => e
         writer.puts(JSON.generate(error: "#{e.class}: #{e.message}"))
         exit!
       end
       writer.close
-      deadline = monotonic_time + WORKER_TIMEOUT
       output = read_worker_output(reader, deadline)
       status = wait_for_worker(pid, deadline)
       pid = nil
@@ -274,7 +274,7 @@ module OsCtld
       nil
     end
 
-    def cancel_namespaces
+    def cancel_namespaces(deadline)
       sys = OsCtl::Lib::Sys.new
       sys.unshare_ns(OsCtl::Lib::Sys::CLONE_NEWNS)
       sys.make_rslave('/')
@@ -285,7 +285,7 @@ module OsCtld
           sys.setns_io(netns, OsCtl::Lib::Sys::CLONE_NEWNET)
           sys.mount_sysfs(mountpoint)
           begin
-            count += cancel_namespace(File.join(mountpoint, 'fs/nfs'), subtree: root_network_namespace?(netns))
+            count += cancel_namespace(File.join(mountpoint, 'fs/nfs'), subtree: root_network_namespace?(netns), deadline: deadline)
           ensure
             sys.unmount(mountpoint)
           end
@@ -301,26 +301,40 @@ module OsCtld
       owner&.close
     end
 
-    def cancel_namespace(path, subtree: false)
+    def cancel_namespace(path, subtree: false, deadline: monotonic_time + WORKER_TIMEOUT)
       return 0 unless Dir.exist?(path)
 
       tree_control = File.join(path, 'net/nfs_client/shutdown_tree')
       if subtree && File.exist?(tree_control)
         # Only select the authenticated run owner, never an ancestor reached
         # through an inherited host namespace or a tenant-controlled path.
-        File.open(tree_control, File::WRONLY) { |f| f.write("1\n") }
+        write_shutdown_control(tree_control, deadline)
         return 1
       end
 
       control = File.join(path, 'net/nfs_client/shutdown')
       if File.exist?(control)
         # Sticky shutdown covers initializing mounts and future RPC clients.
-        File.open(control, File::WRONLY) { |f| f.write("1\n") }
+        write_shutdown_control(control, deadline)
         return 1
       end
 
       # Older kernels still enforce soft mounts and lack the admission barrier.
       cancel_filesystems(path)
+    end
+
+    def write_shutdown_control(control, deadline)
+      loop do
+        begin
+          File.open(control, File::WRONLY) { |f| f.write("1\n") }
+          return
+        rescue Errno::EBUSY
+          # Kernel-side subtree admission uses a trylock to avoid blocking a
+          # concurrent netns teardown. Retry here, outside the sysfs callback,
+          # within the existing bounded cancellation-worker deadline.
+          sleep([worker_time_left(deadline), 0.05].min)
+        end
+      end
     end
 
     def cancel_filesystems(path)

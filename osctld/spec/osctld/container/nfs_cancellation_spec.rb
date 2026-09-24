@@ -163,6 +163,43 @@ RSpec.describe OsCtld::Container::NfsCancellation do
     end
   end
 
+  it 'retries a busy subtree control before falling back to no other namespace' do
+    with_tmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, 'net/nfs_client'))
+      tree = File.join(dir, 'net/nfs_client/shutdown_tree')
+      single = File.join(dir, 'net/nfs_client/shutdown')
+      File.write(tree, "0\n")
+      File.write(single, "0\n")
+      attempts = 0
+      allow(File).to receive(:open).and_call_original
+      allow(File).to receive(:open).with(tree, File::WRONLY).and_wrap_original do |original, *args, &block|
+        attempts += 1
+        raise Errno::EBUSY if attempts == 1
+
+        original.call(*args, &block)
+      end
+
+      expect(cancellation.send(:cancel_namespace, dir, subtree: true)).to eq(1)
+      expect(attempts).to eq(2)
+      expect(File.read(tree)).to eq("1\n")
+      expect(File.read(single)).to eq("0\n")
+    end
+  end
+
+  it 'bounds a permanently busy shutdown control by the existing worker deadline' do
+    with_tmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, 'net/nfs_client'))
+      control = File.join(dir, 'net/nfs_client/shutdown')
+      File.write(control, "0\n")
+      allow(File).to receive(:open).with(control, File::WRONLY).and_raise(Errno::EBUSY)
+
+      expect do
+        cancellation.send(:cancel_namespace, dir, deadline: cancellation.send(:monotonic_time) - 1)
+      end.to raise_error(described_class::WorkerTimeout)
+      expect(File.read(control)).to eq("0\n")
+    end
+  end
+
   it 'falls back to single-namespace shutdown when subtree shutdown is unavailable' do
     with_tmpdir do |dir|
       FileUtils.mkdir_p(File.join(dir, 'net/nfs_client'))
@@ -284,7 +321,7 @@ RSpec.describe OsCtld::Container::NfsCancellation do
     def run_worker(scan: -> {}, &block)
       worker_class = Class.new(described_class) do
         define_method(:capture_descendants, &scan)
-        define_method(:cancel_namespaces, &block)
+        define_method(:cancel_namespaces) { |_deadline| block.call }
       end
       worker = worker_class.new(ct)
       worker.send(:cancel_in_worker)
