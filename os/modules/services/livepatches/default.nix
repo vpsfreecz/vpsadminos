@@ -223,7 +223,8 @@ let
       if [ ! -d ${modDetectDir} ]; then
         echo live-patches: loading and applying ${moduleName}...
         if ! insmod ${installModPath}; then
-          echo live-patches: loading and applying ${moduleName} FAILED
+          echo live-patches: loading and applying ${moduleName} FAILED >&2
+          exit 1
         fi
       fi
       if [ -f ${modDetectDir}/enabled ] && [ "$(cat ${modDetectDir}/enabled 2>/dev/null)" = "1" ]; then
@@ -232,6 +233,9 @@ let
           date --utc +%Y-%m-%dT%H:%M:%SZ \
             > /run/vpsadminos/livepatches/${moduleName}.applied-at
         fi
+      else
+        echo live-patches: ${moduleName} is not enabled >&2
+        exit 1
       fi
     '';
 
@@ -243,7 +247,23 @@ let
     ''
       if [ -d ${modDetectDir} ] && [ -f ${modDetectDir}/enabled ]; then
         echo -en live-patches: disabling ${moduleName}..
-        echo 0 > ${modDetectDir}/enabled 2>/dev/null
+        enabled_state=$(cat ${modDetectDir}/enabled 2>/dev/null) || {
+          echo -e "\nlive-patches: reading ${moduleName} state FAILED" >&2
+          exit 1
+        }
+        case "$enabled_state" in
+          1)
+            if ! echo 0 > ${modDetectDir}/enabled 2>/dev/null; then
+              echo -e "\nlive-patches: disabling ${moduleName} FAILED" >&2
+              exit 1
+            fi
+            ;;
+          0) ;; # Already disabled: a repeated write is rejected by livepatch.
+          *)
+            echo -e "\nlive-patches: invalid ${moduleName} state" >&2
+            exit 1
+            ;;
+        esac
         retries=91
         while [ -d ${modDetectDir} ] && [ $retries -gt 0 ]; do
           if [ "$(( $retries % 5 ))" -eq 0 ]; then
@@ -272,11 +292,12 @@ let
           if ! rmmod ${moduleName} 2>/dev/null; then
             sleep 0.2
           fi
-          if [ "$retries" -eq 0 ]; then
-            echo -en "\nlive-patches: unloading ${moduleName}... FAILED"
-          fi
         done
         echo
+      fi
+      if [ -d /sys/module/${moduleName} ] || [ -d ${modDetectDir} ]; then
+        echo live-patches: unloading ${moduleName} FAILED >&2
+        exit 1
       fi
       rm -f /run/vpsadminos/livepatches/${moduleName}.applied-at
     '';
