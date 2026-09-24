@@ -91,8 +91,9 @@ let
       depsBuildBuild = [ pkgs.stdenv.cc ];
 
       buildPhase = ''
-        # set to 3 if you want to see compile process
-        export DEBUG=0
+        # Retain kpatch's object-pair temp tree and build.log until installPhase
+        # copies the existing evidence set.  DEBUG=0 deletes both on success.
+        export DEBUG=1
 
         # Boot-line toolchain lock (agent0 :324/:328/:340): kpatch-build resolves
         # gcc/ld/readelf/objcopy via PATH, so the kpatch-build invocation below is run
@@ -105,7 +106,9 @@ let
         export CCACHE_UMASK=007
         export CCACHE_DIR=/nix/var/cache/ccache
         export CACHEDIR=$(pwd)/tmp/cache
-        export TEMPDIR=$(pwd)/tmp
+        # kpatch-build internally sets TEMPDIR="$CACHEDIR/tmp"; use the
+        # same path when retaining objects in the existing installPhase.
+        export TEMPDIR=$CACHEDIR/tmp
         echo copying kpatch-build locally
         cp -r ${kpatch-build} kpatch-build
         kpb=$(pwd)/kpatch-build
