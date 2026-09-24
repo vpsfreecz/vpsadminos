@@ -31,7 +31,14 @@ let
   # Keep this list limited to kernels still running in the fleet. Repository
   # retention alone does not mean that a kernel needs current lifecycle CI.
   livepatchLifecycleInstances = [
-    { kernelVersion = "6.12.95"; }
+    {
+      kernelVersion = "6.12.95";
+      predecessorVariant = "v5";
+    }
+    {
+      kernelVersion = "6.12.95";
+      predecessorVariant = "v6";
+    }
     { kernelVersion = "6.12.110"; }
   ];
 
@@ -57,7 +64,14 @@ let
   sctpHostileTestEnabled = builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE" != "";
 
   proactiveSwapTests = if proactiveSwapEnabled then [ "kernel/proactive-swap" ] else [ ];
-  livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" "kernel/livepatch-perf-v7" ] else [ ];
+  livepatchTests =
+    if livepatchTestEnabled then
+      [
+        "kernel/livepatch-6.12.95"
+        "kernel/livepatch-perf-v7"
+      ]
+    else
+      [ ];
   nfsTransitionTests =
     if nfsTransitionTestEnabled then [ "kernel/livepatch-nfs-transition" ] else [ ];
   sctpHostileTests = if sctpHostileTestEnabled then [ "kernel/livepatch-sctp-hostile" ] else [ ];
