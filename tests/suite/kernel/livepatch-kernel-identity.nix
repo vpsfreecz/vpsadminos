@@ -10,6 +10,8 @@ import ../../make-test.nix (
       config =
         { lib, ... }:
         {
+          imports = [ ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix ];
+          boot.kernelVersion = lib.mkForce "6.12.95";
           services.live-patches.enable = true;
           runit.services.live-patches.run = lib.mkForce "sleep inf";
         };
@@ -87,6 +89,30 @@ import ../../make-test.nix (
         it 'unloads, restores boot identity, and reloads on the matching kernel' do
           machine.succeeds('live-patches unload', timeout: 180)
           machine.wait_until_succeeds("test ! -d #{@patch_dir}", timeout: 180)
+          machine.succeeds('live-patches load')
+          wait_enabled
+          machine.succeeds('live-patches unload', timeout: 180)
+          machine.wait_until_succeeds("test ! -d #{@patch_dir}", timeout: 180)
+        end
+
+        it 'reports rejected insertion and permits a clean retry' do
+          machine.all_succeed(
+            "test \"$(readlink -f /run/booted-system/kernel)\" = #{@kernel_image}",
+            "${pkgs.diffutils}/bin/cmp #{@kernel_notes} /sys/kernel/notes",
+            'mkdir -p /run/livepatch-test-bin',
+            "ln -sfn ${pkgs.coreutils}/bin/false /run/livepatch-test-bin/insmod",
+          )
+          machine.fails("test -d #{@patch_dir}")
+          machine.fails("test -d /sys/module/#{@module_name}")
+
+          _, output = machine.fails(
+            "PATH=/run/livepatch-test-bin:$PATH #{@livepatch_tool} load"
+          )
+          expect(output).to include("loading and applying #{@module_name} FAILED")
+          machine.fails("test -d #{@patch_dir}")
+          machine.fails("test -d /sys/module/#{@module_name}")
+
+          machine.succeeds('rm -f /run/livepatch-test-bin/insmod')
           machine.succeeds('live-patches load')
           wait_enabled
           machine.succeeds('live-patches unload', timeout: 180)

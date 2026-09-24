@@ -50,15 +50,11 @@ let
 in
 {
   boot.kernelVersion = lib.mkForce "6.12.95";
-  # A8(b) + §265 (corrected): pin the singular boot.kernelPackage AND
-  # boot.kernelForBuiltinsConfig to the locked objects, as plain store-path refs
-  # (no derivation ⇒ nothing builds); the OS set derives from the singular pin.
+  # Boot the reviewed .95 kernel from its existing store paths. Keep the OS
+  # defaults for kernelForBuiltinsConfig and builtin ZFS below.
   boot.kernelPackage = lib.mkForce pinnedKernel;
-  # A25c/A25d: no zfsBuiltin/zfsBuiltinPkg and no kernelForBuiltinsConfig
-  # override here — the OS defaults must apply so that
-  # system.build.livePatches re-evaluates to the row-frozen
-  # w5a5rfxh…-livepatch_7-6.12.95.drv (out 6qm5yj8q…, module 08edc44f…;
-  # the fixture's zfs-builtin inputDrv must
-  # stay 249agjkf…, built against the OS-default kernel). The machine itself
-  # still boots the pinned boot kernelPackage above.
+  # Do not override builtin-ZFS or kernelForBuiltinsConfig here: livePatches
+  # must derive from the current OS payload and build inputs, not from a
+  # historical module drv named by this boot fixture. Compare the evaluated
+  # drv to the selected candidate separately from the pinned guest boot.
 }
