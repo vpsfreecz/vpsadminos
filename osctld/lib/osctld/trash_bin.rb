@@ -42,11 +42,25 @@ module OsCtld
     end
 
     def prune
+      activity_tracker&.enqueue(pool.name, activity_instance_uuid, :trash_prune)
       @queue << :prune
+    rescue StandardError
+      activity_unknown('trash_queue_failed')
+      raise
     end
 
     # @param dataset [OsCtl::Lib::Zfs::Dataset]
     def add_dataset(dataset)
+      with_activity(:trash_move) { do_add_dataset(dataset) }
+    end
+
+    def log_type
+      "#{pool.name}:trash"
+    end
+
+    protected
+
+    def do_add_dataset(dataset)
       # Set canmount on the dataset and umount it with and all its descendants
       dataset.list.reverse_each do |ds|
         zfs(:set, 'canmount=noauto', ds.name)
@@ -58,6 +72,7 @@ module OsCtld
         rescue SystemCommandFailed => e
           unless e.output.include?('not currently mounted')
             log(:warn, "Unable to unmount #{ds}: #{e.message}")
+            activity_unknown('trash_unmount_failed')
           end
         end
       end
@@ -79,20 +94,27 @@ module OsCtld
       )
     end
 
-    def log_type
-      "#{pool.name}:trash"
-    end
-
-    protected
-
     def run_gc
+      stopped_normally = false
+
       loop do
         v = @queue.pop(timeout: Daemon.get.config.trash_bin.prune_interval)
-        return if v == :stop
+        if v == :stop
+          stopped_normally = true
+          return
+        end
 
-        log(:info, 'Pruning')
-        prune_datasets
+        if v == :prune || v.nil?
+          with_activity(:trash_prune, queued: v == :prune) do
+            log(:info, 'Pruning')
+            prune_datasets
+          end
+        else
+          activity_unknown('trash_queue_event_unknown')
+        end
       end
+    ensure
+      activity_unknown('trash_worker_lost') unless stopped_normally
     end
 
     def prune_datasets
@@ -114,6 +136,7 @@ module OsCtld
 
         if ds.properties[check_property] == '-' || ds.properties[check_property].to_i <= 0
           log(:debug, "Skipping #{ds} as it is still being trashed")
+          activity_unknown('trash_metadata_incomplete')
           next
         end
 
@@ -123,6 +146,7 @@ module OsCtld
           ds.destroy!(recursive: true)
         rescue SystemCommandFailed => e
           log(:warn, "Unable to destroy #{ds}: #{e.message}")
+          activity_unknown('trash_destroy_failed')
           next
         end
 
@@ -145,6 +169,34 @@ module OsCtld
       )
 
       [path, t]
+    end
+
+    def activity_tracker
+      pool.respond_to?(:storage_activity) ? pool.storage_activity : nil
+    end
+
+    def activity_instance_uuid
+      pool.storage_activity_instance_uuid
+    end
+
+    def activity_unknown(reason)
+      activity_tracker&.unknown(pool.name, activity_instance_uuid, reason)
+    end
+
+    def with_activity(kind, queued: false)
+      tracker = activity_tracker
+      if tracker
+        if queued
+          tracker.start_queued(pool.name, activity_instance_uuid, kind)
+        else
+          tracker.start_direct(pool.name, activity_instance_uuid, kind)
+        end
+      end
+
+      yield
+    ensure
+      activity_unknown('trash_job_failed') if $!
+      tracker&.finish(pool.name, activity_instance_uuid, kind)
     end
   end
 end

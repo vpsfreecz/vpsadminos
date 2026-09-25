@@ -348,6 +348,7 @@ RSpec.describe 'heavy system commands' do
 
           def begin_export; end
           def begin_stop; end
+          def storage_activity_absent; end
 
           def exclusively
             yield
@@ -435,8 +436,10 @@ RSpec.describe 'heavy system commands' do
       allow(command).to receive(:call_cmd!).with(subugids).and_return(status: true, output: nil)
       allow(command).to receive(:call_cmd!).with(usernet).and_return(status: true, output: nil)
       allow(command).to receive(:syscmd)
+      allow(pool).to receive(:storage_activity_absent)
 
       expect(command.execute).to eq(status: true, output: nil)
+      expect(pool).to have_received(:storage_activity_absent).once
       expect(monitor).to have_received(:demonitor).with(ct)
       expect(console).to have_received(:remove).with(ct)
       expect(history).to have_received(:close).with(pool)
