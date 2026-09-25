@@ -162,6 +162,7 @@ let
         "osctl-exportfs/mount"
         "osctld/resilience"
         "osctld/restart"
+        "osctld/storage-activity"
         "prometheus/exporters"
         "podman/almalinux"
         "podman/arch"

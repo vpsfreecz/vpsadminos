@@ -31,7 +31,8 @@ module OsCtld
     include OsCtl::Lib::Utils::Exception
 
     attr_reader :name, :dataset, :state, :send_receive_key_chain, :autostart_plan,
-                :autostop_plan, :trash_bin, :garbage_collector, :attrs
+                :autostop_plan, :trash_bin, :garbage_collector, :attrs,
+                :storage_activity, :storage_activity_instance_uuid
 
     def initialize(name, dataset)
       init_lock
@@ -40,6 +41,9 @@ module OsCtld
       @name = name
       @dataset = dataset || name
       @state = :importing
+      daemon = Daemon.get if defined?(Daemon)
+      @storage_activity = daemon.storage_activity if daemon.respond_to?(:storage_activity)
+      @storage_activity_instance_uuid = @storage_activity&.attach_pool(name)
       @attrs = Attributes.new
       @abort_export = false
     end
@@ -323,6 +327,7 @@ module OsCtld
       garbage_collector.start
 
       exclusively { @state = :active }
+      storage_activity&.state(name, storage_activity_instance_uuid, 'active')
 
       # Schedule hint updates
       @hint_updater.start
@@ -408,6 +413,7 @@ module OsCtld
     end
 
     def begin_stop
+      storage_activity&.state(name, storage_activity_instance_uuid, 'stopping')
       autostart_plan.stop if autostart_plan.started?
       trash_bin.stop if trash_bin.started?
     end
@@ -449,6 +455,15 @@ module OsCtld
 
     def disable
       @state = :disabled
+      storage_activity&.state(name, storage_activity_instance_uuid, 'stopping')
+    end
+
+    def storage_activity_absent
+      if garbage_collector&.started?
+        storage_activity&.unknown(name, storage_activity_instance_uuid, 'gc_worker_unstopped')
+      end
+
+      storage_activity&.state(name, storage_activity_instance_uuid, 'absent')
     end
 
     def ct_ds

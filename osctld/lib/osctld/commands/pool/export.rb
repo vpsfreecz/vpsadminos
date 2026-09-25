@@ -150,6 +150,7 @@ module OsCtld
 
         # Remove pool from the database
         DB::Pools.remove(pool)
+        pool.storage_activity_absent
 
         # Remove outdated send/receive keys
         SendReceive.deploy

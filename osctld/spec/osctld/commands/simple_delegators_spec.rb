@@ -2,14 +2,24 @@
 
 require 'osctld/exceptions'
 require 'osctld/command'
+require 'osctld/lockable'
+require 'osctld/garbage_collector'
+require 'osctld/trash_bin'
+
+module OsCtld::Commands
+  module Pool; end
+end
+
 require 'osctld/commands/self/ping'
 require 'osctld/commands/debug/lock_registry'
 require 'osctld/commands/history/list'
 require 'osctld/commands/trash_bin/prune'
 require 'osctld/commands/trash_bin/dataset_add'
 require 'osctld/commands/garbage_collector/prune'
+require 'osctld/commands/pool/storage_activity'
 require 'osctld/commands/send/key_path'
 require 'osctld/commands/receive/authkey_list'
+require 'osctld/storage_activity'
 
 RSpec.describe OsCtld::Commands::Self::Ping do
   it 'returns pong from self ping' do
@@ -107,6 +117,46 @@ RSpec.describe OsCtld::Commands::Self::Ping do
       output: nil
     )
     expect(trash).to have_received(:add_dataset).with(dataset)
+  end
+
+  it 'returns one imported pool activity snapshot without enqueuing work' do
+    tracker = OsCtld::StorageActivity.new
+    instance_uuid = tracker.attach_pool('tank')
+    tracker.state('tank', instance_uuid, 'active')
+    gc = instance_double(OsCtld::GarbageCollector, started?: true)
+    trash = instance_double(OsCtld::TrashBin, started?: true)
+    pool = Struct.new(
+      :storage_activity_instance_uuid, :garbage_collector, :trash_bin
+    ).new(instance_uuid, gc, trash)
+    daemon = Struct.new(:storage_activity).new(tracker)
+
+    stub_const('OsCtld::Daemon', Class.new do
+      def self.get; end
+    end)
+    allow(OsCtld::Daemon).to receive(:get).and_return(daemon)
+    stub_const('OsCtld::DB::Pools', Class.new do
+      def self.find(_name); end
+    end)
+    allow(OsCtld::DB::Pools).to receive(:find).with('tank').and_return(pool)
+
+    expect(OsCtld::Command.find(:pool_storage_activity)).to eq(
+      OsCtld::Commands::Pool::StorageActivity
+    )
+    ret = OsCtld::Commands::Pool::StorageActivity.run(pool: 'tank')
+
+    expect(ret[:status]).to be(true)
+    expect(ret[:output]).to include(
+      version: 1, coverage: 'gc_trash_v1', unknown: false, overflow: false, idle: true
+    )
+    allow(OsCtld::DB::Pools).to receive(:find).with('pond').and_return(nil)
+    absent = OsCtld::Commands::Pool::StorageActivity.run(pool: 'pond')
+    expect(absent[:output]).to include(state: 'absent', idle: false)
+    expect { OsCtld::Commands::Pool::StorageActivity.run(pools: ['tank']) }.to raise_error(
+      OsCtld::CommandFailed, /exactly one zpool/
+    )
+    expect { OsCtld::Commands::Pool::StorageActivity.run(pool: 'tank', extra: true) }.to raise_error(
+      OsCtld::CommandFailed, /exactly one zpool/
+    )
   end
 
   it 'returns send key paths and receive auth key exports for the selected pool' do
