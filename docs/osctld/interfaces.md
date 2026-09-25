@@ -28,6 +28,26 @@ and reports success or failure.
 For the list of commands, see *osctld* sources. This interface may change
 between versions, you're encouraged to use `osctl` instead.
 
+### Pool storage activity
+
+The read-only `pool_storage_activity` command takes one `pool` name and returns
+one bounded activity sample. Version `1` reports coverage `gc_trash_v1`: the
+per-pool run-dataset garbage collector and trash-bin workers. The sample has a
+daemon boot UUID, a UUID for the current pool import, and a daemon-local
+monotonic generation. It also reports the pool state (`importing`, `active`,
+`stopping`, or `absent`), pending and running counts for `run_gc`,
+`trash_prune`, and `trash_move`, the registered run-dataset count, both worker
+states, `unknown` and `overflow` flags, and any unknown reason codes. Counts
+stop at 10,000; overflow remains unknown for the life of the daemon.
+
+`idle: true` means only that this sample found an active pool, both workers
+alive, no pending or running work in this coverage, and no unknown reason.
+It does not stop new work, prove that external ZFS commands have finished, or
+authorize a storage repair. A missing command on an older daemon, a failed
+request, an invalid response, or a changed boot UUID or generation must be
+treated as unknown by a caller that compares samples. A pool reimport gets a
+new instance UUID without resetting the daemon's generation.
+
 ## Events
 One of the management commands is `event_subscribe`. Subscribed clients are
 informed abour various events, such as management commands,

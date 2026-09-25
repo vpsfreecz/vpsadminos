@@ -7,6 +7,7 @@ require 'osctld/hook'
 require 'osctld/hook/base'
 require 'osctld/run_state'
 require 'osctld/generic/client_handler'
+require 'osctld/storage_activity'
 
 module OsCtld
   class Daemon
@@ -74,6 +75,9 @@ module OsCtld
     # @return [Config]
     attr_reader :config
 
+    # @return [StorageActivity]
+    attr_reader :storage_activity
+
     # @return [Time]
     attr_reader :started_at
 
@@ -85,6 +89,7 @@ module OsCtld
     # @param config_file [String] path to config file
     def initialize(config_file)
       @config = Config.new(config_file)
+      @storage_activity = StorageActivity.new
       @started_at = Time.now
       @initialized = false
       @stopping = false
