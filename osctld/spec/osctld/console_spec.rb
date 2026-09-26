@@ -22,6 +22,14 @@ RSpec.describe OsCtld::Console do
         @connect_calls << [pid, socket]
       end
 
+      def expect_tty0(run_conf)
+        @run_conf = run_conf
+      end
+
+      def handles_run?(run_conf)
+        @run_conf.equal?(run_conf)
+      end
+
       def add_client(n, io)
         @client_calls << [n, io]
       end
@@ -64,7 +72,7 @@ RSpec.describe OsCtld::Console do
   it 'delegates tty0 connections and clients to the cached container' do
     with_tmpdir do |tmpdir|
       pool = Struct.new(:name, :console_dir, keyword_init: true).new(name: 'tank', console_dir: tmpdir)
-      ct = Struct.new(:id, :pool, keyword_init: true).new(id: 'ct1', pool: pool)
+      ct = Struct.new(:id, :pool, :run_conf, keyword_init: true).new(id: 'ct1', pool: pool, run_conf: Object.new)
       io = StringIO.new
 
       FileUtils.mkdir_p(File.dirname(described_class.socket_path(ct)))
@@ -80,6 +88,8 @@ RSpec.describe OsCtld::Console do
                                               [nil, File.join(tmpdir, 'ct1', 'tty0.sock')]
                                             ])
       expect(container.client_calls).to eq([[2, io]])
+      expect(described_class.handles_run?(ct, ct.run_conf)).to be(true)
+      expect(described_class.handles_run?(ct, Object.new)).to be(false)
     end
   end
 
