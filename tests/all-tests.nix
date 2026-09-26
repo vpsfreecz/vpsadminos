@@ -212,6 +212,7 @@ let
           "osctl/image-repository-build-service"
           "osctl/ct-map-mode"
           "osctl/ct-mounts"
+          "osctl/ct-mounts-races"
           "osctl/ct-passwd"
           "osctl/ct-runscript-v1"
           "osctl/ct-runscript-v2"
