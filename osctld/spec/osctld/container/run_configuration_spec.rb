@@ -7,6 +7,16 @@ require 'osctld/container/run_id'
 require 'osctld/container/run_configuration'
 
 RSpec.describe OsCtld::Container::RunConfiguration do
+  it 'assigns exit cleanup to one handler when callbacks race' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+      results = Array.new(4) { Thread.new { rc.claim_exit_handling } }.map(&:value)
+
+      expect(results.count(true)).to eq(1)
+      expect(results.count(false)).to eq(3)
+    end
+  end
+
   def build_run_configuration(root:, **opts)
     ct = build_run_config_container(root:, **opts)
     [ct, described_class.new(ct, load_conf: false)]
