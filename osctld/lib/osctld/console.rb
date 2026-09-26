@@ -10,6 +10,15 @@ module OsCtld
       @cts = {}
     end
 
+    # Reserve exit cleanup for the wrapper even if its console cannot connect.
+    def self.expect_tty0(ct)
+      @mutex.synchronize { container(ct).expect_tty0(ct.run_conf) }
+    end
+
+    def self.handles_run?(ct, run_conf)
+      @mutex.synchronize { @cts[container_key(ct)]&.handles_run?(run_conf) || false }
+    end
+
     # Connect to tty0 of container `ct`
     def self.connect_tty0(ct, pid)
       @mutex.synchronize do
@@ -21,6 +30,7 @@ module OsCtld
     def self.reconnect_tty0(ct)
       @mutex.synchronize do
         log(:info, ct, 'Reopening TTY0')
+        container(ct).expect_tty0(ct.run_conf)
 
         socket = socket_path(ct)
 
