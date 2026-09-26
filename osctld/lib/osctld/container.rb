@@ -232,8 +232,10 @@ module OsCtld
       inclusively { @past_run_conf }
     end
 
-    def forget_past_run_conf
-      exclusively { @past_run_conf = nil }
+    def forget_past_run_conf(expected_run_conf = nil)
+      exclusively do
+        @past_run_conf = nil if expected_run_conf.nil? || @past_run_conf.equal?(expected_run_conf)
+      end
     end
 
     # @param next_run_conf [Container::RunConfiguration]
