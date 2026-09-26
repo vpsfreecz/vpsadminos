@@ -378,11 +378,15 @@ import ../../make-test.nix (
         crng-gate = {
           tags = [ "crng" ];
           script = testPrelude + ''
-            # P-01: seal keys are drawn only after CRNG initialization.
-            # A boot that can confirm readiness records the seed; a boot
-            # forced to see an unready CRNG must refuse to seed and disable
-            # the guard for that boot instead of running on weak key
-            # material.
+            # P-01: seal keys are drawn only after CRNG initialization.  A
+            # boot that can confirm readiness records the seed; a boot forced
+            # to see an unready CRNG must refuse to seed.  Round 1
+            # (Linux ce9d13bec63cd) keeps the operator's guard mode on refusal
+            # and leaves the domain unseeded, so the first sealing path fails
+            # closed: the guest prints the refusal marker and then panics with
+            # an unseeded domain.  A node in that state must fail containment
+            # preflight rather than run on weak key material — it must not come
+            # up with the guard off, which was the old, fail-open behaviour.
             machine.kill(signal: 'KILL') if machine.running?
             machine.start(kernel_params: ["auth_guard=panic"])
             machine.wait_until_online
@@ -394,11 +398,15 @@ import ../../make-test.nix (
             machine.kill(signal: 'KILL') if machine.running?
 
             machine.start(kernel_params: ["auth_guard=panic", "auth_guard_test=crng-unready"])
-            machine.wait_until_online
-
-            _, refusal_log = machine.succeeds("dmesg")
-            expect(refusal_log).to include("auth_guard: CRNG not initialized: refusing")
-            expect(refusal_log).not_to include("key seeded")
+            refusal_panic = /Kernel panic - not syncing: .*unseeded domain/
+            machine.allow_kernel_failure(refusal_panic) do
+              # The distinct refusal marker first...
+              machine.wait_for_console_text(/auth_guard: crng-refusal:/,
+                                            timeout: 60)
+              # ...then the fail-closed panic: an unseeded domain proves that
+              # no key material was drawn on this boot.
+              machine.wait_for_console_text(refusal_panic, timeout: 30)
+            end
 
             # Leave no machine running for the next script in this test.
             machine.kill(signal: 'KILL') if machine.running?
