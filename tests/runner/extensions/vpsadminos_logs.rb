@@ -61,6 +61,7 @@ module VpsadminosFailureLogs
       run uptime
       run free -m
       run df -h
+      show_glob '/proc/pressure/*'
       # A routed guest can remain running while its host route is unusable.
       # Snapshot route selection and link state before teardown removes the veth.
       run_sh 'timeout 10 ip -o link show'
@@ -69,6 +70,28 @@ module VpsadminosFailureLogs
       run_sh 'timeout 10 ip -4 route show table all'
       run dmesg -T
       run ps -eo pid,ppid,stat,comm,args
+      run ps -eLo pid,tid,stat,wchan:32,comm
+
+      # A timed-out module loader can remain running rather than blocked.
+      # Prioritize it without letting other blocked threads exhaust the cap.
+      section 'module loader and blocked task kernel stacks (at most 32 threads)'
+      ps -eLo pid=,tid=,stat=,comm= |
+        awk '
+          $4 ~ /^(insmod|modprobe)$/ {
+            if (loader_count < 32) loaders[++loader_count] = $1 " " $2
+            next
+          }
+          $3 ~ /^D/ && blocked_count < 32 { blocked[++blocked_count] = $1 " " $2 }
+          END {
+            for (i = 1; i <= loader_count; i++) print loaders[i]
+            for (i = 1; i <= blocked_count; i++) print blocked[i]
+          }
+        ' |
+        head -n 32 |
+        while read -r pid tid; do
+          run timeout 2 cat "/proc/$pid/task/$tid/wchan" "/proc/$pid/task/$tid/stack"
+        done
+
 
       # A ps snapshot shows blocked tasks but not what they await. Capture
       # a bounded set of kernel stacks before teardown changes their state.
