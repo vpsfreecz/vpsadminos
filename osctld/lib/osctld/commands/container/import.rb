@@ -31,7 +31,11 @@ module OsCtld
         ct_id: opts[:as_id],
         image_file:
       )
-      importer.load_metadata
+      begin
+        importer.load_metadata
+      rescue Gem::Package::TarInvalidError => e
+        error!("invalid container image archive: #{e.message}")
+      end
 
       unless importer.has_ct_id?
         error!('the image does not include container id, specify it')
