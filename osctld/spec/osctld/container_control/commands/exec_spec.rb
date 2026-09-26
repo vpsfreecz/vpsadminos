@@ -3,6 +3,7 @@
 require 'osctld/container_control/commands/exec'
 require 'osctld/container_control/result'
 require 'osctld/dist_config'
+require 'osctld/promise'
 require 'stringio'
 
 RSpec.describe OsCtld::ContainerControl::Commands::Exec do
@@ -19,7 +20,7 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
   end
 
   def build_ct(running:, mounts:, run_conf:)
-    Struct.new(:running, :mounts, :run_conf, :ensure_calls, keyword_init: true) do
+    Struct.new(:running, :mounts, :run_conf, :ensure_calls, :exit_promise, keyword_init: true) do
       def running?
         running
       end
@@ -30,6 +31,10 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
 
       def ensure_run_conf
         self.ensure_calls += 1
+      end
+
+      def get_exit_promise
+        exit_promise
       end
     end.new(running:, mounts:, run_conf:, ensure_calls: 0)
   end
@@ -78,6 +83,7 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
 
   it 'prepares run mode for stopped containers when run is requested' do
     ct.running = false
+    ct.exit_promise = instance_spy(OsCtld::Promise::Token, wait: true)
     frontend.exec_result = OsCtld::ContainerControl::Result.new(true, data: 0)
 
     frontend.execute(cmd: %w[id], run: true, stdin: nil, stdout: StringIO.new, stderr: StringIO.new)
@@ -92,6 +98,7 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
     expect(call[:stdout]).to be_a(StringIO)
     expect(call[:stderr]).to be_a(StringIO)
     expect(call[:reset_subtree_control]).to be(true)
+    expect(ct.exit_promise).to have_received(:wait).with(timeout: 30)
     expect(frontend.cleanup_calls).to eq(1)
   end
 

@@ -5,6 +5,9 @@ require 'io/wait'
 module OsCtld
   module ContainerControl::Utils::Runscript
     module Frontend
+      # Bound exit cleanup separately from startup and the user's payload.
+      TRANSIENT_CLEANUP_TIMEOUT = 30
+
       def runscript_mode(run:, network:)
         running = run ? ct.current_state == :running : ct.running?
 
@@ -20,7 +23,16 @@ module OsCtld
       end
 
       def sync_state_after_transient_run(mode)
-        ct.current_state if %i[run run_network].include?(mode)
+        return unless %i[run run_network].include?(mode)
+
+        ct.current_state
+        # STOPPED can precede the exit worker's rootfs remount. Use the
+        # current or retired run's latched completion, not a fresh run config.
+        promise = ct.get_exit_promise
+        return unless promise
+        return if promise.wait(timeout: TRANSIENT_CLEANUP_TIMEOUT)
+
+        raise ContainerControl::Error, 'Transient container cleanup has not finished'
       end
 
       def add_network_opts(opts)
