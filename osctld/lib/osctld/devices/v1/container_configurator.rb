@@ -26,6 +26,8 @@ module OsCtld
     end
 
     def remove_device(device)
+      # A deny on the shared user cgroup also revokes access from siblings.
+      # Its policy belongs to the group, not this container.
       abs_ct_cgroup_paths.reverse_each do |cgpath, req|
         next unless prepare_cgroup(cgpath, req)
 
@@ -34,6 +36,7 @@ module OsCtld
     end
 
     def apply_changes(changes)
+      # Mode expansions still have to be allowed by the shared ancestor.
       abs_group_cgroup_paths.each do |cgpath, req|
         next unless prepare_cgroup(cgpath, req)
 
