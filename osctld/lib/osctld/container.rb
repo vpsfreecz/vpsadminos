@@ -227,13 +227,28 @@ module OsCtld
       run_conf || new_run_conf
     end
 
+    # STOPPED can precede asynchronous exit cleanup. Do not substitute a fresh
+    # configuration for the retired run when subscribing to its completion.
+    # @return [Promise::Token, nil]
+    def get_exit_promise
+      inclusively do
+        if @run_conf&.init_pid
+          @run_conf.get_exit_promise
+        else
+          @past_run_conf&.get_exit_promise
+        end
+      end
+    end
+
     # @return [Container::RunConfiguration, nil]
     def get_past_run_conf
       inclusively { @past_run_conf }
     end
 
-    def forget_past_run_conf
-      exclusively { @past_run_conf = nil }
+    def forget_past_run_conf(expected_run_conf = nil)
+      exclusively do
+        @past_run_conf = nil if expected_run_conf.nil? || @past_run_conf.equal?(expected_run_conf)
+      end
     end
 
     # @param next_run_conf [Container::RunConfiguration]
