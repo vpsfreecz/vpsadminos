@@ -17,6 +17,18 @@ module OsCtld
       tty(0).connect(pid, socket)
     end
 
+    def expect_tty0(run_conf)
+      @mutex.synchronize { @expected_run_conf = run_conf }
+    end
+
+    def handles_run?(run_conf)
+      @mutex.synchronize do
+        next false unless run_conf
+
+        @expected_run_conf.equal?(run_conf) || @ttys[0]&.handles_run?(run_conf) || false
+      end
+    end
+
     def tty(n)
       @mutex.synchronize do
         if @ttys.has_key?(n)
