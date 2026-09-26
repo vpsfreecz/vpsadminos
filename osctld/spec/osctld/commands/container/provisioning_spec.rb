@@ -16,6 +16,7 @@ end
 require 'osctld/commands/container/create'
 require 'osctld/commands/container/create_empty'
 require 'osctld/commands/container/import'
+require 'osctld/container/importer'
 require 'osctld/commands/container/copy'
 require 'osctld/commands/container/move'
 require 'osctld/commands/container/reinstall'
@@ -225,6 +226,18 @@ RSpec.describe 'container provisioning commands' do
     it 'rejects disabled pools' do
       expect { described_class.new({}, {}).execute(build_pool(active: false)) }
         .to raise_error(OsCtld::CommandFailed, 'the pool is disabled')
+    end
+
+    it 'reports malformed image headers before provisioning any container state' do
+      header = "\0" * 512
+      header[100, 8] = 'not-oct!'
+      command = described_class.new({}, {})
+      expect(OsCtld::DB::Containers).not_to receive(:find)
+      expect(OsCtld::DB::Users).not_to receive(:find)
+
+      expect do
+        command.send(:import, pool, StringIO.new(header), '/tmp/corrupt-image.tar')
+      end.to raise_error(OsCtld::CommandFailed, /invalid container image archive/)
     end
 
     it 'cleans up partially imported containers when provisioning fails after registration' do
