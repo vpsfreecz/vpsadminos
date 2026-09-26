@@ -94,7 +94,7 @@ jobs:
     name: Run test suite
     needs: build
     runs-on: self-hosted
-    timeout-minutes: 240
+    timeout-minutes: 360
 
     steps:
       - uses: actions/checkout@v7
@@ -105,7 +105,9 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        timeout-minutes: 260
+        # Cold kernel/livepatch builds can consume most of four hours; the
+        # NFS guest cases then need over an hour. Keep time for log upload.
+        timeout-minutes: 350
         env:
           STOP_ON_FAILURE: ${{ github.event.inputs.stop_on_failure || 'false' }}
         run: |
