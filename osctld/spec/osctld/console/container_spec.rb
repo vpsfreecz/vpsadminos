@@ -71,6 +71,18 @@ RSpec.describe OsCtld::Console::Container do
     expect(tty_instances.size).to eq(1)
   end
 
+  it 'reserves cleanup for only the expected run without starting a tty thread' do
+    container = described_class.new(ct)
+    run_conf = Object.new
+
+    expect(container.handles_run?(run_conf)).to be(false)
+    container.expect_tty0(run_conf)
+
+    expect(container.handles_run?(run_conf)).to be(true)
+    expect(container.handles_run?(Object.new)).to be(false)
+    expect(console_instances).to be_empty
+  end
+
   it 'delegates tty0 connections through tty 0' do
     container = described_class.new(ct)
 
