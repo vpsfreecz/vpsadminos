@@ -49,7 +49,7 @@ import ../../make-test.nix (
       victim_init = machine.osctl_json("ct show #{victim}").fetch('init_pid')
       host_loopback = machine.succeeds('ip -o address show dev lo')[1]
       victim_loopback = machine.succeeds("osctl ct exec #{victim} ip -o address show dev lo")[1]
-      2.times do
+      2.times do |attempt|
         info = machine.osctl_json("ct show #{ct}")
         command = "exec lxc-start -P #{Shellwords.escape(info.fetch('lxc_path'))} -n #{ct} -d -l TRACE -o #{Shellwords.escape(info.fetch('log_file'))}"
         # Use the supported unprivileged host shell, not osctl ct start.
@@ -85,6 +85,15 @@ import ../../make-test.nix (
         info = machine.osctl_json("ct show #{ct}")
         expect(info.fetch('state')).to eq('stopped')
         expect(info.fetch('recovery_tainted')).to be(false)
+        # A previous managed console must not claim cleanup of a later direct
+        # run of the same container. Exercise both paths without daemon restart.
+        if attempt.zero?
+          machine.all_succeed(
+            "osctl ct start #{ct}",
+            "osctl ct exec #{ct} true",
+            "osctl ct stop #{ct}",
+          )
+        end
       end
       machine.all_succeed(
         "osctl ct exec #{victim} grep -Fx retained /root/netns-guard",
