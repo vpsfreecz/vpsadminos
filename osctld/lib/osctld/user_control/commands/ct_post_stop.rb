@@ -1,5 +1,6 @@
 require 'libosctl'
 require 'osctld/bpf_fs'
+require 'osctld/container/stop_handler'
 require 'osctld/user_control/commands/base'
 
 module OsCtld
@@ -26,10 +27,20 @@ module OsCtld
       end
 
       BpfFs.remove_ct(ct.pool.name, ct.id)
-      ct.stopped
+      run_conf = ct.run_conf
+      ct.stopped(run_conf)
 
       # User-defined hook
-      Hook.run(ct, :post_stop)
+      begin
+        Hook.run(ct, :post_stop)
+      ensure
+        # Direct lxc-start has no tty0 wrapper to trigger exit cleanup. Use the
+        # same handler, with exact run identity and once-only ownership, instead
+        # of fulfilling the stop promise before cleanup has actually finished.
+        if run_conf && !Console.handles_run?(ct, run_conf)
+          Container::StopHandler.schedule(ct, run_conf)
+        end
+      end
 
       ok
     rescue HookFailed => e

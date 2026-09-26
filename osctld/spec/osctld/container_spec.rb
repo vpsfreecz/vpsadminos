@@ -45,6 +45,68 @@ RSpec.describe OsCtld::Container do
     ct
   end
 
+  it 'does not let old exit cleanup forget a replacement past run' do
+    with_tmpdir do |dir|
+      ct = build_container(root: dir)
+      retired = Object.new
+      replacement = Object.new
+      ct.instance_variable_set(:@past_run_conf, replacement)
+
+      ct.forget_past_run_conf(retired)
+      expect(ct.get_past_run_conf).to equal(replacement)
+      ct.forget_past_run_conf(replacement)
+      expect(ct.get_past_run_conf).to be_nil
+    end
+  end
+
+  describe '#get_exit_promise' do
+    let(:exit_run_class) do
+      Struct.new(:init_pid, :token) do
+        def get_exit_promise
+          token
+        end
+      end
+    end
+
+    it 'subscribes to the initialized current run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        token = Object.new
+        ct.instance_variable_set(:@run_conf, exit_run_class.new(1234, token))
+        ct.instance_variable_set(:@past_run_conf, exit_run_class.new(nil, Object.new))
+
+        expect(ct.get_exit_promise).to equal(token)
+      end
+    end
+
+    it 'subscribes to the retired run even without an init pid' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        token = Object.new
+        ct.instance_variable_set(:@past_run_conf, exit_run_class.new(nil, token))
+
+        expect(ct.get_exit_promise).to equal(token)
+      end
+    end
+
+    it 'does not invent a promise for a container that has never run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+
+        expect(ct.get_exit_promise).to be_nil
+      end
+    end
+
+    it 'does not wait for an uninitialized current run with no pending cleanup' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.instance_variable_set(:@run_conf, exit_run_class.new(nil, Object.new))
+
+        expect(ct.get_exit_promise).to be_nil
+      end
+    end
+  end
+
   describe 'recovery taint provenance' do
     [false, true].each do |tainted|
       it "ignores external recovery taint changes when daemon taint is #{tainted}" do
