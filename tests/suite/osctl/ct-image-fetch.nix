@@ -45,6 +45,53 @@ import ../../make-test.nix (
             socket.write("Connection: close\r\n\r\n")
             socket.write(body)
 
+          elsif (mode = File.exist?('/tmp/flaky-server.mode') ? File.read('/tmp/flaky-server.mode').strip : 'good') != 'good' &&
+                full_path.end_with?('.tar')
+            # Adversarial framing for the repository-stream dispositions: cut
+            # the body short under a full Content-Length, replace the tar
+            # header, or corrupt a gzip member without changing its tar header
+            # or Content-Length. None may poison a same-alias healthy retry.
+            body = File.binread(full_path)
+            if mode == 'bad-gzip'
+              offset = 0
+              found = false
+
+              while offset + 512 <= body.bytesize
+                header = body.byteslice(offset, 512)
+                break if header.getbyte(0) == 0
+
+                name = header.byteslice(0, 100).split("\0", 2).first
+                size = header.byteslice(124, 12).to_i(8)
+                if name.start_with?('rootfs/') && name.end_with?('.dat.gz')
+                  raise 'gzip member too short' if size < 8
+
+                  body[offset + 512, 8] = 'notgzip!'
+                  File.write('/tmp/flaky-server.bad-gzip-delivered', "#{name}\n")
+                  found = true
+                  break
+                end
+
+                offset += 512 + ((size + 511) / 512) * 512
+              end
+
+              raise 'no gzip stream found in exported image' unless found
+            end
+
+            socket.write("HTTP/1.1 200 OK\r\n")
+            socket.write("Content-Length: #{body.bytesize}\r\n")
+            socket.write("Connection: close\r\n\r\n")
+            case mode
+            when 'truncated'
+              socket.write(body.byteslice(0, body.bytesize / 2))
+            when 'garbage'
+              # Corrupt the tar header without allocating a second copy of a
+              # potentially large container stream.
+              body[0, 512] = Random.new(32_768).bytes(512)
+              socket.write(body)
+            when 'bad-gzip'
+              socket.write(body)
+            end
+
           else
             body = File.binread(full_path)
             socket.write("HTTP/1.1 200 OK\r\n")
@@ -73,7 +120,15 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
-    machine = import ../../machines/vpsadminos/tank.nix pkgs;
+    machine = import ../../machines/vpsadminos/with-tank.nix {
+      inherit pkgs;
+      # Absolute tool references in the script do not populate the guest store.
+      config.system.extraDependencies = [
+        pkgs.acl
+        pkgs.attr
+        pkgs.libcap
+      ];
+    };
 
     testScript = ''
       machine.start
@@ -93,6 +148,10 @@ import ../../make-test.nix (
         @retried_ct = "retriedct"
         @missing_ct = "missingct"
         @dead_ct = "deadct"
+        @truncated_ct = "truncatedct"
+        @garbage_ct = "garbagect"
+        @bad_gzip_ct = "badgzipct"
+        @rich_ct = "richct"
 
         machine.wait_for_osctl_pool("tank")
         machine.wait_until_online
@@ -102,12 +161,46 @@ import ../../make-test.nix (
           "osctl ct unset start-menu #{@preload_ct}"
         )
 
+        # Rich payload for the repository import pipeline (row 31): contents,
+        # numeric ownership, mode bits including setuid/sticky, symlink,
+        # hardlink, FIFO, a sparse file and an ACL. Written from the host on the
+        # mounted rootfs so no guest tooling is required.
+        preload_rootfs = machine.succeeds(
+          "osctl ct show -H -o rootfs #{@preload_ct}"
+        )[1].strip
+        preload_dataset = machine.osctl_json("ct show #{@preload_ct}").fetch('dataset')
+        machine.all_succeed(
+          "osctl ct mount #{@preload_ct}",
+          "zfs set acltype=posixacl #{preload_dataset}",
+          "mkdir -p #{preload_rootfs}/rich",
+          "echo rich-content > #{preload_rootfs}/rich/plain",
+          "echo setuid > #{preload_rootfs}/rich/setuid",
+          "echo sticky > #{preload_rootfs}/rich/sticky",
+          "echo sparse-head > #{preload_rootfs}/rich/sparse",
+          "truncate -s 1048576 #{preload_rootfs}/rich/sparse",
+          "dd if=/dev/urandom of=#{preload_rootfs}/rich/blob bs=1024 count=32 status=none",
+          "sha256sum #{preload_rootfs}/rich/blob | awk '{print $1}' > /tmp/rich-blob.sha256",
+          "chown 1234:5678 #{preload_rootfs}/rich/plain",
+          "chmod 640 #{preload_rootfs}/rich/plain",
+          "chmod 4755 #{preload_rootfs}/rich/setuid",
+          "chmod 1777 #{preload_rootfs}/rich/sticky",
+          "ln -s plain #{preload_rootfs}/rich/link",
+          "ln #{preload_rootfs}/rich/plain #{preload_rootfs}/rich/hardlink",
+          "mkfifo #{preload_rootfs}/rich/fifo",
+          "echo acl > #{preload_rootfs}/rich/acl",
+          "${pkgs.acl}/bin/setfacl -m u:4321:rwx #{preload_rootfs}/rich/acl",
+          "${pkgs.attr}/bin/setfattr -n user.release-transport -v inherited #{preload_rootfs}/rich/plain",
+          "echo filecap > #{preload_rootfs}/rich/filecap",
+          "chmod 755 #{preload_rootfs}/rich/filecap",
+          "${pkgs.libcap}/bin/setcap cap_chown=ep #{preload_rootfs}/rich/filecap"
+        )
+
         _, arch = machine.succeeds("uname -m")
         @arch = arch.strip
 
         machine.all_succeed(
           "rm -f /tmp/preloadct-stream.tar",
-          "osctl ct export #{@preload_ct} /tmp/preloadct-stream.tar",
+          "osctl ct export --compression gzip #{@preload_ct} /tmp/preloadct-stream.tar",
           "test -f /tmp/preloadct-stream.tar",
           "rm -rf /tmp/flaky-repo",
           "mkdir -p /tmp/flaky-repo",
@@ -124,7 +217,7 @@ import ../../make-test.nix (
         machine.push_file("${flakyServer}", "/tmp/flaky-server.rb")
 
         machine.all_succeed(
-          "rm -f /tmp/flaky-server.count /tmp/flaky-server.error",
+          "rm -f /tmp/flaky-server.count /tmp/flaky-server.error /tmp/flaky-server.mode /tmp/flaky-server.bad-gzip-delivered",
           "ruby /tmp/flaky-server.rb >/tmp/flaky-server.log 2>&1 " \
             "& echo $! > /tmp/flaky-server.pid",
           "osctl repo add flaky http://127.0.0.1:18080",
@@ -172,6 +265,112 @@ import ../../make-test.nix (
           )
           expect(output).to include("repositories unavailable: dead")
           expect(output).not_to include("internal error")
+        end
+
+        it 'fails cleanly on truncated and corrupt repository streams' do
+          # Do not reuse `flaky`'s successful cache from the first example:
+          # the cached downloader deliberately falls back to it on network
+          # errors, which would turn a truncated response into a false pass.
+          # Each new alias starts with its own empty repository cache.
+          machine.succeeds("osctl repo add truncated http://127.0.0.1:18080")
+          machine.succeeds("echo truncated > /tmp/flaky-server.mode")
+          output = failed_output(
+            "osctl ct new --repository truncated --distribution alpine " \
+              "#{@truncated_ct}"
+          )
+          expect(output).to include("repositories unavailable: truncated")
+          expect(output).not_to include("internal error")
+          machine.fails("osctl ct show #{@truncated_ct}")
+
+          machine.succeeds("osctl repo add garbage http://127.0.0.1:18080")
+          machine.succeeds("echo garbage > /tmp/flaky-server.mode")
+          output = failed_output(
+            "osctl ct new --repository garbage --distribution alpine " \
+              "#{@garbage_ct}"
+          )
+          expect(output).to include("invalid container image archive")
+          expect(output).not_to include("internal error")
+          machine.fails("osctl ct show #{@garbage_ct}")
+
+          # Retry the *same aliases* rather than `flaky`: its first example
+          # already populated a healthy cache and would mask poisoned entries.
+          machine.succeeds("echo good > /tmp/flaky-server.mode")
+          machine.all_succeed(
+            "osctl ct new --repository truncated --distribution alpine " \
+              "#{@truncated_ct}",
+            "osctl ct unset start-menu #{@truncated_ct}",
+            "osctl ct start #{@truncated_ct}",
+            "osctl ct exec #{@truncated_ct} grep -qx rich-content /rich/plain",
+            "osctl ct del -f --prune #{@truncated_ct}",
+            "osctl ct new --repository garbage --distribution alpine " \
+              "#{@garbage_ct}",
+            "osctl ct unset start-menu #{@garbage_ct}",
+            "osctl ct start #{@garbage_ct}",
+            "osctl ct exec #{@garbage_ct} grep -qx rich-content /rich/plain",
+            "osctl ct del -f --prune #{@garbage_ct}"
+          )
+        ensure
+          # Preserve the corrupt-stream failure without poisoning the separate
+          # rich-payload example when an assertion above fails.
+          machine.succeeds("echo good > /tmp/flaky-server.mode")
+        end
+
+        it 'rejects a corrupt compressed stream and recovers the same alias' do
+          machine.succeeds("osctl repo add badgzip http://127.0.0.1:18080")
+          machine.succeeds("echo bad-gzip > /tmp/flaky-server.mode")
+          output = failed_output(
+            "osctl ct new --repository badgzip --distribution alpine " \
+              "#{@bad_gzip_ct}"
+          )
+          machine.succeeds("test -s /tmp/flaky-server.bad-gzip-delivered")
+          expect(output).to include("failed to import stream")
+          expect(output).to include("gunzip")
+          expect(output).not_to include("internal error")
+          machine.fails("osctl ct show #{@bad_gzip_ct}")
+
+          machine.succeeds("echo good > /tmp/flaky-server.mode")
+          machine.all_succeed(
+            "osctl ct new --repository badgzip --distribution alpine " \
+              "#{@bad_gzip_ct}",
+            "osctl ct unset start-menu #{@bad_gzip_ct}",
+            "osctl ct start #{@bad_gzip_ct}",
+            "osctl ct exec #{@bad_gzip_ct} grep -qx rich-content /rich/plain",
+            "osctl ct del -f --prune #{@bad_gzip_ct}"
+          )
+        ensure
+          machine.succeeds("echo good > /tmp/flaky-server.mode")
+        end
+
+        it 'preserves a rich payload through the repository import pipeline' do
+          # `ct export` sends ZFS data without dataset properties. ACL support
+          # is destination policy, so enable it before receiving the stream.
+          machine.all_succeed(
+            "osctl ct new --repository flaky --distribution alpine --zfs-property acltype=posixacl " \
+              "#{@rich_ct}",
+            "osctl ct unset start-menu #{@rich_ct}",
+            "osctl ct mount #{@rich_ct}"
+          )
+          rootfs = machine.succeeds(
+            "osctl ct show -H -o rootfs #{@rich_ct}"
+          )[1].strip
+          machine.all_succeed(
+            "test \"$(cat #{rootfs}/rich/plain)\" = rich-content",
+            "test \"$(stat -c '%u:%g:%a' #{rootfs}/rich/plain)\" = '1234:5678:640'",
+            "test \"$(stat -c '%a' #{rootfs}/rich/setuid)\" = 4755",
+            "test \"$(stat -c '%a' #{rootfs}/rich/sticky)\" = 1777",
+            "test \"$(readlink #{rootfs}/rich/link)\" = plain",
+            "test \"$(stat -c '%h' #{rootfs}/rich/plain)\" = 2",
+            "test \"$(stat -c '%i' #{rootfs}/rich/plain)\" = \"$(stat -c '%i' #{rootfs}/rich/hardlink)\"",
+            "test \"$(stat -c '%F' #{rootfs}/rich/fifo)\" = fifo",
+            "test \"$(stat -c '%s' #{rootfs}/rich/sparse)\" = 1048576",
+            "test \"$(head -c 11 #{rootfs}/rich/sparse)\" = sparse-head",
+            "test \"$(stat -c '%b' #{rootfs}/rich/sparse)\" -lt 128",
+            "sha256sum #{rootfs}/rich/blob | awk '{print $1}' | cmp - /tmp/rich-blob.sha256",
+            "${pkgs.acl}/bin/getfacl -n -p #{rootfs}/rich/acl | grep -E '^user:4321:rwx$'",
+            "test \"$(${pkgs.attr}/bin/getfattr --only-values -n user.release-transport #{rootfs}/rich/plain)\" = inherited",
+            "${pkgs.libcap}/bin/getcap #{rootfs}/rich/filecap | grep -F 'cap_chown=ep'",
+            "osctl ct del -f --prune #{@rich_ct}"
+          )
         end
       end
     '';
