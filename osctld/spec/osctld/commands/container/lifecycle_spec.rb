@@ -527,6 +527,18 @@ RSpec.describe 'container lifecycle commands' do
       expect(promise).to have_received(:wait)
     end
 
+    it 'refuses to finish stopping when the exit callback is still pending' do
+      promise = double('exit_promise', wait: nil)
+      ct = build_stop_container(promise:)
+      command = described_class.new({ timeout: 10 }, {})
+      allow(command).to receive(:remove_accounting_cgroups)
+
+      expect { command.execute(ct) }
+        .to raise_error(OsCtld::CommandFailed, 'Container stop cleanup has not finished')
+      expect(promise).to have_received(:wait)
+      expect(command).not_to have_received(:remove_accounting_cgroups)
+    end
+
     it 'auto-deletes ephemeral containers only for direct stops' do
       ct = build_stop_container(ephemeral: true)
       delete_class = stub_const('OsCtld::Commands::Container::Delete', Class.new)
@@ -1026,6 +1038,21 @@ RSpec.describe 'container lifecycle commands' do
         expect(ct.netifs.taken_down).to be(true)
         expect(ct.pool.autostart_plan.cleared).to equal(ct)
         expect(ct.pool.trash_bin).to have_received(:prune)
+      end
+    end
+
+    it 'does not trash the dataset if stop cleanup is still pending' do
+      with_tmpdir do |tmpdir|
+        ct = build_delete_container(root: tmpdir)
+        command = described_class.new({}, {})
+        allow(command).to receive(:call_cmd!).and_raise(
+          OsCtld::CommandFailed, 'Container stop cleanup has not finished'
+        )
+
+        expect { command.execute(ct) }
+          .to raise_error(OsCtld::CommandFailed, 'Container stop cleanup has not finished')
+        expect(OsCtld::TrashBin).not_to have_received(:add_dataset)
+        expect(OsCtld::DB::Containers).not_to have_received(:remove)
       end
     end
 
