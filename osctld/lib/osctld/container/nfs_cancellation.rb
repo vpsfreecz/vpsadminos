@@ -325,15 +325,13 @@ module OsCtld
 
     def write_shutdown_control(control, deadline)
       loop do
-        begin
-          File.open(control, File::WRONLY) { |f| f.write("1\n") }
-          return
-        rescue Errno::EBUSY
-          # Kernel-side subtree admission uses a trylock to avoid blocking a
-          # concurrent netns teardown. Retry here, outside the sysfs callback,
-          # within the existing bounded cancellation-worker deadline.
-          sleep([worker_time_left(deadline), 0.05].min)
-        end
+        File.open(control, File::WRONLY) { |f| f.write("1\n") }
+        return
+      rescue Errno::EBUSY
+        # Kernel-side subtree admission uses a trylock to avoid blocking a
+        # concurrent netns teardown. Retry here, outside the sysfs callback,
+        # within the existing bounded cancellation-worker deadline.
+        sleep([worker_time_left(deadline), 0.05].min)
       end
     end
 
