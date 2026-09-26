@@ -61,8 +61,20 @@ module VpsadminosFailureLogs
       run uptime
       run free -m
       run df -h
+      show_glob '/proc/pressure/*'
       run dmesg -T
       run ps -eo pid,ppid,stat,comm,args
+      run ps -eLo pid,tid,stat,wchan:32,comm
+
+      # Keep blocked-task evidence bounded within the collection timeout.
+      section 'blocked task kernel stacks (at most 32 threads)'
+      ps -eLo pid=,tid=,stat= |
+        awk '$3 ~ /^D/ { print $1, $2 }' |
+        head -n 32 |
+        while read -r pid tid; do
+          run timeout 2 cat "/proc/$pid/task/$tid/wchan" "/proc/$pid/task/$tid/stack"
+        done
+
       run_sh 'sv status /service/*'
 
       if command -v osctl >/dev/null 2>&1; then
