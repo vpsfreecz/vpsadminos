@@ -255,6 +255,7 @@ let
           "zfs/fallocate-deadlock"
           "zfs/large-folios"
           "zfs/mmap-nosync"
+          "zfs/mmap-write-truncate"
           "zfs/overlayfs-deadlock"
           "zfs/ugidmap"
         ]
