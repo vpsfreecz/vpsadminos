@@ -106,22 +106,32 @@ module OsCtld
     end
 
     def prune
+      activity_enqueue
       @queue << :prune
+    rescue StandardError
+      activity_unknown('gc_queue_failed')
+      raise
     end
 
     # @param run_conf [Container::RunConfiguration]
     # @param dataset [OsCtl::Lib::Zfs::Dataset]
     def add_container_run_dataset(run_conf, dataset)
-      exclusively do
-        @container_run_datasets << ContainerRunDataset.new(run_conf.run_id, dataset)
-        save_config
+      with_activity do
+        exclusively do
+          @container_run_datasets << ContainerRunDataset.new(run_conf.run_id, dataset)
+          save_config
+        end
       end
     end
 
     # @param run_conf [Container::RunConfiguration]
     # @param dataset [OsCtl::Lib::Zfs::Dataset]
     def free_container_run_dataset(run_conf, dataset)
+      activity_enqueue
       @queue << [:free_container_run_dataset, ContainerRunDataset.new(run_conf.run_id, dataset)]
+    rescue StandardError
+      activity_unknown('gc_queue_failed')
+      raise
     end
 
     def log_type
@@ -136,12 +146,14 @@ module OsCtld
       begin
         cfg = OsCtl::Lib::ConfigFile.load_yaml_file(@config_path)
       rescue Errno::ENOENT
+        activity_registered
         return
       end
 
       @container_run_datasets = cfg.fetch('container_run_datasets', []).map do |ct_run_ds_cfg|
         ContainerRunDataset.load(ct_run_ds_cfg)
       end
+      activity_registered
     end
 
     def save_config
@@ -151,25 +163,42 @@ module OsCtld
             'container_run_datasets' => @container_run_datasets.map(&:dump)
           }))
         end
+        activity_registered
       end
     end
 
     def run_gc
+      stopped_normally = false
+
       loop do
         v = @queue.pop(timeout: Daemon.get.config.garbage_collector.prune_interval)
 
         case v
         in :stop
+          stopped_normally = true
           return
 
-        in :prune | nil
-          log(:info, 'Pruning container run datasets')
-          prune_container_run_datasets
+        in :prune
+          with_activity(queued: true) do
+            log(:info, 'Pruning container run datasets')
+            prune_container_run_datasets
+          end
+
+        in nil
+          with_activity do
+            log(:info, 'Pruning container run datasets')
+            prune_container_run_datasets
+          end
 
         in [:free_container_run_dataset, ct_run_ds]
-          do_free_container_run_dataset(ct_run_ds)
+          with_activity(queued: true) { do_free_container_run_dataset(ct_run_ds) }
+
+        else
+          activity_unknown('gc_queue_event_unknown')
         end
       end
+    ensure
+      activity_unknown('gc_worker_lost') unless stopped_normally
     end
 
     def prune_container_run_datasets
@@ -230,6 +259,42 @@ module OsCtld
         log(:warn, "Attempted to trash a non-existent dataset '#{dataset}' (original error: #{e.message})")
         true
       end
+    end
+
+    def activity_tracker
+      pool.respond_to?(:storage_activity) ? pool.storage_activity : nil
+    end
+
+    def activity_instance_uuid
+      pool.storage_activity_instance_uuid
+    end
+
+    def activity_enqueue
+      activity_tracker&.enqueue(pool.name, activity_instance_uuid, :run_gc)
+    end
+
+    def activity_registered
+      activity_tracker&.registered(pool.name, activity_instance_uuid, @container_run_datasets.length)
+    end
+
+    def activity_unknown(reason)
+      activity_tracker&.unknown(pool.name, activity_instance_uuid, reason)
+    end
+
+    def with_activity(queued: false)
+      tracker = activity_tracker
+      if tracker
+        if queued
+          tracker.start_queued(pool.name, activity_instance_uuid, :run_gc)
+        else
+          tracker.start_direct(pool.name, activity_instance_uuid, :run_gc)
+        end
+      end
+
+      yield
+    ensure
+      activity_unknown('gc_job_failed') if $!
+      tracker&.finish(pool.name, activity_instance_uuid, :run_gc)
     end
   end
 end
