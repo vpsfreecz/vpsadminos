@@ -210,6 +210,9 @@ import ../../make-template.nix (
             machine.fails("test -d /sys/module/#{KVM_MODULE}")
 
             candidate = candidate_module(machine)
+            # Producer identity for later independently pinned main/perf runs;
+            # this is a log witness, not an expected checksum derived at runtime.
+            machine.succeeds("sha256sum #{candidate}")
             machine.all_succeed(
               "test \"$(modinfo -F name #{candidate})\" = #{CANDIDATE_NAME}",
               "modinfo -F vermagic #{candidate} | grep -q '^#{BOOT_VERSION} '",

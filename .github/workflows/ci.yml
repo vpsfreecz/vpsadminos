@@ -202,14 +202,16 @@ jobs:
             --tag "livepatch-${{ matrix.vendor }}" \
             | tee "$TEST_RUNNER_STATE_DIR/test.log"
 
+      # Keep producer module checksums available even when every case passes.
       - name: Upload full test logs
         id: upload-test-logs
         if: >-
-          (failure() || cancelled()) &&
+          always() &&
           steps.prepare-tests.outcome == 'success' &&
           steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/upload-test-logs
         with:
+          name: livepatch-lifecycle-${{ matrix.vendor }}-logs-${{ github.run_id }}
           paths: |
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt

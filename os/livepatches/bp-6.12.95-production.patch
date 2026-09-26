@@ -2038,10 +2038,18 @@ index 9103896164f68..9fd392e9171b2 100644
  	}
  	mutex_unlock(&nlm_file_mutex);
 diff --git a/fs/nfs/client.c b/fs/nfs/client.c
-index 8bdde6cc873f1..52e9603280fe2 100644
+index 8bdde6cc873f1..3cecba9462a2e 100644
 --- a/fs/nfs/client.c
 +++ b/fs/nfs/client.c
-@@ -38,6 +38,159 @@
+@@ -11,6 +11,7 @@
+ #include <linux/sched.h>
+ #include <linux/time.h>
+ #include <linux/kernel.h>
++#include <linux/livepatch.h>
+ #include <linux/mm.h>
+ #include <linux/string.h>
+ #include <linux/stat.h>
+@@ -38,6 +39,159 @@
  #include <linux/sunrpc/bc_xprt.h>
  #include <linux/nsproxy.h>
  #include <linux/pid_namespace.h>
@@ -2201,7 +2209,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  
  
  #include "nfs4_fs.h"
-@@ -250,6 +403,8 @@ void nfs_free_client(struct nfs_client *clp)
+@@ -250,6 +404,8 @@ void nfs_free_client(struct nfs_client *clp)
  	put_nfs_version(clp->cl_nfs_mod);
  	kfree(clp->cl_hostname);
  	kfree(clp->cl_acceptor);
@@ -2210,7 +2218,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  	kfree_rcu(clp, rcu);
  }
  EXPORT_SYMBOL_GPL(nfs_free_client);
-@@ -420,6 +575,14 @@ struct nfs_client *nfs_get_client(const struct nfs_client_initdata *cl_init)
+@@ -420,6 +576,14 @@ struct nfs_client *nfs_get_client(const struct nfs_client_initdata *cl_init)
  	do {
  		spin_lock(&nn->nfs_client_lock);
  
@@ -2225,7 +2233,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  		clp = nfs_match_client(cl_init);
  		if (clp) {
  			spin_unlock(&nn->nfs_client_lock);
-@@ -451,12 +614,30 @@ EXPORT_SYMBOL_GPL(nfs_get_client);
+@@ -451,12 +615,30 @@ EXPORT_SYMBOL_GPL(nfs_get_client);
  /*
   * Mark a server as ready or failed
   */
@@ -2258,7 +2266,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  EXPORT_SYMBOL_GPL(nfs_mark_client_ready);
  
  /*
-@@ -992,12 +1173,20 @@ void nfs_server_insert_lists(struct nfs_server *server)
+@@ -992,12 +1174,20 @@ void nfs_server_insert_lists(struct nfs_server *server)
  	struct nfs_client *clp = server->nfs_client;
  	struct nfs_net *nn = net_generic(clp->cl_net, nfs_net_id);
  
@@ -2280,7 +2288,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  }
  EXPORT_SYMBOL_GPL(nfs_server_insert_lists);
  
-@@ -1009,14 +1198,22 @@ void nfs_server_remove_lists(struct nfs_server *server)
+@@ -1009,14 +1199,22 @@ void nfs_server_remove_lists(struct nfs_server *server)
  	if (clp == NULL)
  		return;
  	nn = net_generic(clp->cl_net, nfs_net_id);
@@ -2304,7 +2312,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  }
  EXPORT_SYMBOL_GPL(nfs_server_remove_lists);
  
-@@ -1086,6 +1283,10 @@ static void delayed_free(struct rcu_head *p)
+@@ -1086,6 +1284,10 @@ static void delayed_free(struct rcu_head *p)
   */
  void nfs_free_server(struct nfs_server *server)
  {
@@ -2315,7 +2323,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  	nfs_server_remove_lists(server);
  
  	if (server->destroy != NULL)
-@@ -1098,10 +1299,8 @@ void nfs_free_server(struct nfs_server *server)
+@@ -1098,10 +1300,8 @@ void nfs_free_server(struct nfs_server *server)
  
  	nfs_put_client(server->nfs_client);
  
@@ -2327,7 +2335,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  	ida_free(&s_sysfs_ids, server->s_sysfs_id);
  
  	put_cred(server->cred);
-@@ -1168,6 +1367,10 @@ struct nfs_server *nfs_create_server(struct fs_context *fc)
+@@ -1168,6 +1368,10 @@ struct nfs_server *nfs_create_server(struct fs_context *fc)
  		(unsigned long long) server->fsid.minor);
  
  	nfs_server_insert_lists(server);
@@ -2338,7 +2346,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  	server->mount_time = jiffies;
  	nfs_free_fattr(fattr);
  	return server;
-@@ -1230,6 +1433,10 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
+@@ -1230,6 +1434,10 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
  		goto out_free_server;
  
  	nfs_server_insert_lists(server);
@@ -2349,7 +2357,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  	server->mount_time = jiffies;
  
  	return server;
-@@ -1240,6 +1447,193 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
+@@ -1240,6 +1448,209 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
  }
  EXPORT_SYMBOL_GPL(nfs_clone_server);
  
@@ -2360,6 +2368,22 @@ index 8bdde6cc873f1..52e9603280fe2 100644
 +static DEFINE_MUTEX(nfs_net_list_lock);
 +static LIST_HEAD(nfs_net_list);
 +#ifdef CONFIG_LIVEPATCH
++/*
++ * Cancellation owns pernet registrations, sysfs controls and shadow state.
++ * Atomic replacement skips the old patch's unpatch callbacks, so an older
++ * cumulative patch must not discard this owner without knowing its state.
++ * A successor advertising this state must implement ownership handoff;
++ * keeping the same data layout alone is not sufficient.
++ */
++#define VPSADMINOS_NFS_CANCEL_STATE_ID	0xb26301576c765e7dUL
++
++static struct klp_state vpsadminos_nfs_cancel_state
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_NFS_CANCEL_STATE_ID,
++	.version = 1,
++};
++
 +static bool vpsadminos_nfs_cancel_enabled;
 +static bool vpsadminos_nfs_cancel_stopping;
 +static bool vpsadminos_nfs_cancel_registered;
@@ -2543,7 +2567,7 @@ index 8bdde6cc873f1..52e9603280fe2 100644
  void nfs_clients_init(struct net *net)
  {
  	struct nfs_net *nn = net_generic(net, nfs_net_id);
-@@ -1253,7 +1647,6 @@ void nfs_clients_init(struct net *net)
+@@ -1253,7 +1664,6 @@ void nfs_clients_init(struct net *net)
  	nn->boot_time = ktime_get_real();
  	memset(&nn->rpcstats, 0, sizeof(nn->rpcstats));
  	nn->rpcstats.program = &nfs_program;
