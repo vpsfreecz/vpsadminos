@@ -175,6 +175,9 @@ module OsCtld
       r, w = IO.pipe
 
       progress('Starting container')
+      # Register ownership before spawning: a failed console connection must
+      # not make the post-stop hook assume this is an unmanaged direct start.
+      Console.expect_tty0(ct)
       pid = SwitchUser.fork_and_switch_to(
         ct.user.sysusername,
         ct.user.ugid,
