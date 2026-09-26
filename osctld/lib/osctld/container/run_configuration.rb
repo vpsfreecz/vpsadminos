@@ -75,6 +75,7 @@ module OsCtld
       @aborted = false
       @do_reboot = false
       @exit_promise = Promise.new
+      @exit_handling_started = false
       @dist_network_configured = false
       self.load_conf(from_file: load_conf)
     end
@@ -331,6 +332,14 @@ module OsCtld
 
     def get_exit_promise
       @exit_promise.add
+    end
+
+    def claim_exit_handling
+      exclusively do
+        next false if @exit_handling_started
+
+        @exit_handling_started = true
+      end
     end
 
     def fulfil_exit

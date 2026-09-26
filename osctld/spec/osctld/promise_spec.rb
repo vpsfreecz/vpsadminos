@@ -20,4 +20,19 @@ RSpec.describe OsCtld::Promise do
     expect(token_a.wait(timeout: 0)).to be(true)
     expect(token_b.wait(timeout: 0)).to be(true)
   end
+
+  it 'fulfils a subscriber registered after completion' do
+    promise.fulfil
+
+    expect(promise.add.wait(timeout: 0)).to be(true)
+  end
+
+  it 'does not signal existing subscribers twice' do
+    token = promise.add
+
+    2.times { promise.fulfil }
+
+    expect(token.wait(timeout: 0)).to be(true)
+    expect(token.wait(timeout: 0)).to be_nil
+  end
 end
