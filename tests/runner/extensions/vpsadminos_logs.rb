@@ -63,9 +63,27 @@ module VpsadminosFailureLogs
       run df -h
       run dmesg -T
       run ps -eo pid,ppid,stat,comm,args
+
+      # A ps snapshot shows blocked tasks but not what they await. Capture
+      # a bounded set of kernel stacks before teardown changes their state.
+      section 'D-state and ZFS sync-task kernel stacks'
+      ps -eo pid=,stat=,comm= |
+        awk '$2 ~ /^D/ || $3 == "dp_sync_taskq" { print $1, $2, $3 }' |
+        head -n 16 |
+        while read -r pid state comm; do
+          section "/proc/$pid/stack ($state $comm)"
+          timeout 2 cat "/proc/$pid/stack" 2>&1
+        done
+
       run_sh 'sv status /service/*'
 
       if command -v osctl >/dev/null 2>&1; then
+        # RPC clients can block in a Ruby pipe read without entering D-state.
+        # Snapshot them before diagnostic container queries create new workers.
+        section 'osctld Ruby thread backtraces'
+        timeout 10 osctl debug threads ls 2>&1
+        printf 'osctl debug threads ls status=%s\n' "$?"
+
         run_sh 'timeout 10 osctl pool ls'
         run_sh 'timeout 10 osctl ct ls'
         run_sh 'timeout 10 osctl ct ls -H -o pool,id,state,init-pid,log-file 2>/dev/null || true'
