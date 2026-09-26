@@ -45,6 +45,20 @@ RSpec.describe OsCtld::Container do
     ct
   end
 
+  it 'does not let old exit cleanup forget a replacement past run' do
+    with_tmpdir do |dir|
+      ct = build_container(root: dir)
+      retired = Object.new
+      replacement = Object.new
+      ct.instance_variable_set(:@past_run_conf, replacement)
+
+      ct.forget_past_run_conf(retired)
+      expect(ct.get_past_run_conf).to equal(replacement)
+      ct.forget_past_run_conf(replacement)
+      expect(ct.get_past_run_conf).to be_nil
+    end
+  end
+
   describe 'recovery taint provenance' do
     [false, true].each do |tainted|
       it "ignores external recovery taint changes when daemon taint is #{tainted}" do

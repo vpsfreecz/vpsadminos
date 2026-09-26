@@ -84,6 +84,7 @@ module OsCtld
             ct.log(:debug, 'Exit promise fulfilled')
           else
             ct.log(:warn, 'Timeout while waiting for exit promise')
+            error!('Container stop cleanup has not finished')
           end
         end
 
