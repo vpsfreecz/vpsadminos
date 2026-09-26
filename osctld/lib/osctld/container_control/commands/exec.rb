@@ -56,8 +56,11 @@ module OsCtld
 
         ret.ok? ? ret.data : ret
       ensure
-        sync_state_after_transient_run(mode) if mode
-        cleanup_init_script
+        begin
+          sync_state_after_transient_run(mode) if mode
+        ensure
+          cleanup_init_script
+        end
       end
     end
 

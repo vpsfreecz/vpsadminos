@@ -51,13 +51,8 @@ module OsCtld
         # in low memory situations.
         ct.cgparams.temporarily_expand_memory if ct.running?
 
-        run_conf = ct.get_run_conf
-
-        if run_conf.init_pid
-          promise = run_conf.get_exit_promise
-        else
-          ct.log(:debug, 'init_pid is not set, skipping exit promise')
-        end
+        promise = ct.get_exit_promise
+        ct.log(:debug, 'No started or retiring run, skipping exit promise') unless promise
 
         begin
           DistConfig.run(
@@ -84,6 +79,7 @@ module OsCtld
             ct.log(:debug, 'Exit promise fulfilled')
           else
             ct.log(:warn, 'Timeout while waiting for exit promise')
+            error!('Container stop cleanup has not finished')
           end
         end
 
