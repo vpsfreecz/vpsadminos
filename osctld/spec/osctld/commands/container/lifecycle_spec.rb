@@ -306,6 +306,8 @@ RSpec.describe 'container lifecycle commands' do
         console = stub_const('OsCtld::Console', Class.new do
           def self.socket_path(_ct); end
 
+          def self.expect_tty0(_ct); end
+
           def self.connect_tty0(*); end
         end)
         dist_config = stub_const('OsCtld::DistConfig', Class.new do
@@ -325,6 +327,7 @@ RSpec.describe 'container lifecycle commands' do
           101
         end
         allow(console).to receive(:socket_path).with(container).and_return(sock_path)
+        allow(console).to receive(:expect_tty0)
         allow(console).to receive(:connect_tty0).and_raise(Errno::ECONNREFUSED)
         allow(dist_config).to receive(:run)
         allow(cpu_scheduler).to receive(:schedule_ct)
@@ -353,6 +356,8 @@ RSpec.describe 'container lifecycle commands' do
         allow(command).to receive(:log)
 
         expect(command.send(:start_now, container)).to eq(:wait)
+        expect(console).to have_received(:expect_tty0).with(container).ordered
+        expect(console).to have_received(:connect_tty0).with(container, 202).ordered
         expect(spawn_args[0]).to eq('/run/wrappers/osctld-ct-wrapper')
         expect(command).to have_received(:log).with(:warn, container, 'Unable to connect to tty0')
       end
@@ -387,6 +392,7 @@ RSpec.describe 'container lifecycle commands' do
         :state,
         :cgparams,
         :run_conf,
+        :past_run_conf,
         :cgroup_path,
         keyword_init: true
       ) do
@@ -397,7 +403,15 @@ RSpec.describe 'container lifecycle commands' do
         end
 
         def get_run_conf
-          run_conf
+          run_conf || Struct.new(:init_pid).new
+        end
+
+        def get_exit_promise
+          if run_conf&.init_pid
+            run_conf.get_exit_promise
+          else
+            past_run_conf&.get_exit_promise
+          end
         end
 
         def log(level, message)
@@ -525,6 +539,43 @@ RSpec.describe 'container lifecycle commands' do
       command.execute(ct)
 
       expect(promise).to have_received(:wait)
+    end
+
+    it 'refuses to finish stopping when the exit callback is still pending' do
+      promise = double('exit_promise', wait: nil)
+      ct = build_stop_container(promise:)
+      command = described_class.new({ timeout: 10 }, {})
+      allow(command).to receive(:remove_accounting_cgroups)
+
+      expect { command.execute(ct) }
+        .to raise_error(OsCtld::CommandFailed, 'Container stop cleanup has not finished')
+      expect(promise).to have_received(:wait)
+      expect(command).not_to have_received(:remove_accounting_cgroups)
+    end
+
+    it 'waits for cleanup of a run that was already retired before stop' do
+      promise = double('exit_promise', wait: true)
+      ct = build_stop_container(state: :stopped, running: false, promise:)
+      ct.past_run_conf = ct.run_conf
+      ct.run_conf = nil
+      command = described_class.new({ timeout: 10 }, {})
+      allow(command).to receive(:remove_accounting_cgroups)
+
+      expect(command.execute(ct)).to eq(status: true, output: nil)
+      expect(promise).to have_received(:wait)
+    end
+
+    it 'refuses to finish stopping while an already retired run still needs cleanup' do
+      promise = double('exit_promise', wait: nil)
+      ct = build_stop_container(state: :stopped, running: false, promise:)
+      ct.past_run_conf = ct.run_conf
+      ct.run_conf = nil
+      command = described_class.new({ timeout: 10 }, {})
+      allow(command).to receive(:remove_accounting_cgroups)
+
+      expect { command.execute(ct) }
+        .to raise_error(OsCtld::CommandFailed, 'Container stop cleanup has not finished')
+      expect(command).not_to have_received(:remove_accounting_cgroups)
     end
 
     it 'auto-deletes ephemeral containers only for direct stops' do
@@ -1026,6 +1077,21 @@ RSpec.describe 'container lifecycle commands' do
         expect(ct.netifs.taken_down).to be(true)
         expect(ct.pool.autostart_plan.cleared).to equal(ct)
         expect(ct.pool.trash_bin).to have_received(:prune)
+      end
+    end
+
+    it 'does not trash the dataset if stop cleanup is still pending' do
+      with_tmpdir do |tmpdir|
+        ct = build_delete_container(root: tmpdir)
+        command = described_class.new({}, {})
+        allow(command).to receive(:call_cmd!).and_raise(
+          OsCtld::CommandFailed, 'Container stop cleanup has not finished'
+        )
+
+        expect { command.execute(ct) }
+          .to raise_error(OsCtld::CommandFailed, 'Container stop cleanup has not finished')
+        expect(OsCtld::TrashBin).not_to have_received(:add_dataset)
+        expect(OsCtld::DB::Containers).not_to have_received(:remove)
       end
     end
 
