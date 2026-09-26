@@ -58,13 +58,16 @@ module OsCtld
 
         ret.ok? ? ret.data : ret
       ensure
-        sync_state_after_transient_run(mode) if mode
+        begin
+          sync_state_after_transient_run(mode) if mode
+        ensure
+          if script
+            script.close
+            unlink_file(script.path)
+          end
 
-        if script
-          script.close
-          unlink_file(script.path)
+          cleanup_init_script
         end
-        cleanup_init_script
       end
 
       protected
