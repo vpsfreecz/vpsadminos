@@ -256,6 +256,13 @@ import ../../make-test.nix (
         };
     };
 
+    /*
+     * The three scripts (log, crng-gate, kunit) each boot their own machine
+     * and are independent, so run them concurrently instead of serially:
+     * the runner's script-level parallelism knob.
+     */
+    testScriptJobs = 3;
+
     testScripts =
       pkgs.lib.optionalAttrs selectors.log.requested {
         log = {
