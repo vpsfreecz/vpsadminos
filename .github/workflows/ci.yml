@@ -173,7 +173,7 @@ jobs:
     runs-on:
       group: vpsAdminOS runners
       labels: "${{ matrix.runner }}"
-    timeout-minutes: 240
+    timeout-minutes: 360
 
     strategy:
       fail-fast: false
@@ -193,9 +193,9 @@ jobs:
 
       - name: Run livepatch lifecycle tests
         id: run-tests
-        # The first cold .95 build and lifecycle case took 166 minutes.
-        # Leave time for all lifecycle cases and final cleanup/reporting.
-        timeout-minutes: 230
+        # Native setup and the first cold .95 build consumed 226 minutes.
+        # Allow all three cases, with ten minutes left for logs and cleanup.
+        timeout-minutes: 350
         run: |
           set -o pipefail
 
