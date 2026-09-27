@@ -451,7 +451,10 @@ import ../../make-test.nix (
       Validate 6.12.95 livepatch failure, removal, replacement, and downgrade
     '';
 
-    tags = [ "ci" ];
+    tags = [
+      "ci"
+      "livepatch-amd"
+    ];
 
     machines = {
       machine = import ../../machines/vpsadminos/with-empty.nix {
