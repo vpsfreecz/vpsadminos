@@ -174,6 +174,34 @@ module OsCtld
         end
       end
 
+      # A second IO wrapper can close the descriptor without invalidating its
+      # original Ruby owner. Later GC could then close a worker's reused fd.
+      # Retain and disarm the old owners until their streams are closed below.
+      inherited_ios = ObjectSpace.each_object(IO).to_a.filter_map do |io|
+        next if io.closed? || except_filenos.include?(io.fileno)
+
+        io.autoclose = false
+        if io.stat.pipe?
+          begin
+            # Detach a duplex pipe's read side while its fd is still valid.
+            # Never do this to sockets: shutdown would affect the parent.
+            io.close_read
+          rescue IOError, Errno::ECHILD
+            # Write-only streams, or popen processes owned by the parent.
+          end
+          next if io.closed? || except_filenos.include?(io.fileno)
+
+          io.autoclose = false
+        end
+        io
+      rescue IOError
+        # An allocated but uninitialized IO has no descriptor to discard.
+        nil
+      rescue Errno::EBADF
+        # An already-invalid owner still needs its Ruby stream closed below.
+        io
+      end
+
       walk_fds do |fd|
         next if except_filenos.include?(fd)
 
@@ -182,6 +210,14 @@ module OsCtld
         rescue ArgumentError, Errno::EBADF
           # ignore
         end
+      end
+
+      # Close the Ruby streams only after the raw descriptors are gone, so
+      # inherited write buffers cannot be flushed into the parent's pipes.
+      inherited_ios.each do |io|
+        io.close
+      rescue IOError, Errno::EBADF, Errno::ECHILD
+        # Buffered flushes see closed fds; popen children belong to the parent.
       end
     end
 
