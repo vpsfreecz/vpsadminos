@@ -1,4 +1,5 @@
 require 'base64'
+require 'securerandom'
 require 'shellwords'
 require 'socket'
 
@@ -295,30 +296,28 @@ module OsVm
       real_timeout = [timeout, 5].max
       vm_command = "set -euo pipefail; #{cmd}"
       timeout_command = "timeout #{real_timeout}"
+      marker = "osvm-#{SecureRandom.hex(16)}"
 
       # For unknown reason, the first character written to the shell is cut. Sometimes
       # more characters are lost. We therefore prefix the executed command with whitespace
       # which can be lost.
       workaround = ' ' * 10
 
-      io.write("#{workaround}#{timeout_command} bash -c #{Shellwords.escape(vm_command)} 2>&1 | (base64 -w 0; echo)\n")
+      # Return the output and its status in one command-specific record. After an
+      # unrecoverable read timeout, older responses may still arrive on this IO.
+      io.write(
+        "#{workaround}#{timeout_command} bash -c #{Shellwords.escape(vm_command)} 2>&1 | base64 -w 0; " \
+        "printf ':#{marker}:%s\\n' \"${PIPESTATUS[0]}\"\n"
+      )
       log_started_at = log.execute_begin(cmd)
 
       begin
-        raw_output = read_output(timeout: real_timeout + 5, command: vm_command)
+        status, output = read_command_result(marker, timeout: real_timeout + 5, command: vm_command)
       rescue MachineShellClosed
         log.execute_end(-1, '[machine shell closed]', log_started_at)
         raise
-      end
-
-      output = Base64.decode64(raw_output)
-
-      io.write("#{workaround}echo ${PIPESTATUS[0]}\n")
-
-      begin
-        status = read_output(timeout: 60, command: 'echo ${PIPESTATUS[0]}').strip.to_i
-      rescue MachineShellClosed
-        log.execute_end(-1, output, log_started_at)
+      rescue UnrecoverableTimeoutError => e
+        log.execute_end(-1, e.message, log_started_at)
         raise
       end
 
@@ -330,6 +329,24 @@ module OsVm
 
       log.execute_end(status, output, log_started_at)
       [status, output]
+    end
+
+    def read_command_result(marker, timeout:, command:)
+      deadline = Time.now + timeout
+      pattern = %r{\A([A-Za-z0-9+/=]*):#{Regexp.escape(marker)}:(\d+)\r?\n\z}
+
+      loop do
+        # Discard late replies without renewing the original deadline. A read
+        # can contain several complete records, including the current one.
+        raw_output = read_output(timeout: deadline - Time.now, command:)
+
+        raw_output.each_line do |line|
+          match = pattern.match(line)
+          next unless match
+
+          return [match[2].to_i, Base64.strict_decode64(match[1])]
+        end
+      end
     end
 
     def read_output(timeout:, command:)
