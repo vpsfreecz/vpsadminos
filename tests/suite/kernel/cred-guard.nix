@@ -361,13 +361,13 @@ import ../../make-test.nix (
 
               _, kunit_log = machine.succeeds("dmesg")
               expect(kunit_log).to include("Subtest: auth_contract")
-              expect(kunit_log).to match(/auth_contract: pass:\d+ fail:0 skip:0 total:\d+/)
+              expect(kunit_log).to match(/auth_contract: pass:23 fail:0 skip:0 total:23/)
               # The P-01 gate decision matrix runs in the same kernel.  Its
               # guest script (#crng-gate) is blocked by a pre-existing panic
               # on this tree, so the unit coverage is what keeps the gate
               # itself verified.
               expect(kunit_log).to include("Subtest: auth_guard")
-              expect(kunit_log).to match(/auth_guard: pass:\d+ fail:0 skip:0 total:\d+/)
+              expect(kunit_log).to match(/auth_guard: pass:5 fail:0 skip:0 total:5/)
             end
 
             # Leave no machine running for the next script in this test.
