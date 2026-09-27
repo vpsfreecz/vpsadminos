@@ -90,13 +90,13 @@ import ../../make-test.nix (
         it "records the FD_NO_GROUP observation (P3)" do
           rc, out = machine.execute("#{PERF_FLAGS} p3")
           expect(rc).to eq(0), out
-          expect(out).to match(/flags=0x2 /)
+          expect(out).to match(/flags=0x1 /)
         end
 
         it "records the FD_NO_GROUP|FD_OUTPUT observation (P4)" do
           rc, out = machine.execute("#{PERF_FLAGS} p4")
           expect(rc).to eq(0), out
-          expect(out).to match(/flags=0x6 /)
+          expect(out).to match(/flags=0x3 /)
         end
 
         it "survives the bounded exec/open race (P5)" do

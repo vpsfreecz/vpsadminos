@@ -335,12 +335,15 @@ import ../../make-test.nix (
       }:
       let
         kernel = config.boot.kernelPackage;
-        livepatchTestModules = pkgs.stdenv.mkDerivation {
+        # These helpers load into the frozen boot kernel, whose GCC plugins
+        # require its compiler. Keep the current livepatch payload inputs alone.
+        bootKernel = (import ../../../os/packages/linux/boot-6.12.95.nix).kernel;
+        livepatchTestModules = bootKernel.stdenv.mkDerivation {
           pname = "livepatch-test-modules";
-          version = kernel.modDirVersion;
+          version = bootKernel.modDirVersion;
           src = ./livepatch-6.12.95;
 
-          nativeBuildInputs = kernel.nativeBuildInputs ++ [ pkgs.gnumake ];
+          nativeBuildInputs = bootKernel.nativeBuildInputs ++ [ pkgs.gnumake ];
           hardeningDisable = [
             "bindnow"
             "format"
@@ -350,15 +353,15 @@ import ../../make-test.nix (
           ];
 
           buildPhase = ''
-            make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
+            make -C ${bootKernel.dev}/lib/modules/${bootKernel.modDirVersion}/build \
               M="$PWD" modules
           '';
 
           installPhase = ''
             install -Dm644 livepatch_test_pernet_hold.ko \
-              "$out/lib/modules/${kernel.modDirVersion}/extra/livepatch_test_pernet_hold.ko"
+              "$out/lib/modules/${bootKernel.modDirVersion}/extra/livepatch_test_pernet_hold.ko"
             install -Dm644 livepatch_test_probe.ko \
-              "$out/lib/modules/${kernel.modDirVersion}/extra/livepatch_test_probe.ko"
+              "$out/lib/modules/${bootKernel.modDirVersion}/extra/livepatch_test_probe.ko"
           '';
         };
         svmNestedVmcall = pkgs.stdenv.mkDerivation {
