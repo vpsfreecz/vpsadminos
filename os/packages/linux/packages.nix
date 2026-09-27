@@ -52,11 +52,13 @@ let
         let
           baseFeatures = kernels.${kernelVersion}.features or { };
         in
-        if (baseFeatures.livepatchVariant or null) != null then
+        if
+          lib.versionAtLeast kernelVersion "6.18.49" || (baseFeatures.livepatchVariant or null) != null
+        then
           # callPackage expects an attribute set, not a module merge marker.
           baseFeatures // { zfsBuiltin = true; }
         else
-          # Keep legacy boot artifacts stable for their existing livepatches.
+          # Keep other retained boot artifacts stable for their livepatches.
           lib.mkMerge [
             baseFeatures
             { zfsBuiltin = true; }
