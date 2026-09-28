@@ -20,19 +20,36 @@ import ../../make-test.nix (
   { pkgs }:
   let
     moduleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE";
+    qualifying = moduleEnv == "";
+    selectedModule =
+      if qualifying then builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_MODULE" else moduleEnv;
+    expectedSha256 = (import ../../fixtures/livepatch { inherit pkgs; }).correctedSha256;
     # The livepatch name is parameterised so a module with a different name
     # (for example a differently named single-series build) can run
     # through the same case; the default is the single-series name.
     moduleNameEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_MODULE_NAME";
     moduleName = if moduleNameEnv == "" then "livepatch_7" else moduleNameEnv;
   in
-  assert moduleEnv != "";
+  assert selectedModule != "";
+  assert
+    !qualifying
+    || (
+      moduleName == "livepatch_7"
+      && builtins.hashFile "sha256" (builtins.storePath selectedModule) == expectedSha256
+    );
   {
     name = "kernel-livepatch-nfs-transition";
     description =
       "NFS cancellation livepatch: forward and reverse transition complete "
       + "while an idle NFSv4 state manager is parked";
-    tags = [ "ci" ];
+    tags =
+      if qualifying then
+        [
+          "livepatch-amd"
+          "livepatch-intel"
+        ]
+      else
+        [ "ci" ];
 
     machine = import ../../machines/vpsadminos/with-empty.nix {
       inherit pkgs;
@@ -64,13 +81,14 @@ import ../../make-test.nix (
             pkgs.util-linux
           ];
 
-          environment.etc."livepatch-nfs-transition/module.ko".source = builtins.storePath moduleEnv;
+          environment.etc."livepatch-nfs-transition/module.ko".source = builtins.storePath selectedModule;
         };
     };
 
     testScript = ''
       NFS_STATE = "/run/livepatch-nfs"
       MODULE_NAME = ${builtins.toJSON moduleName}
+      MODULE_SHA256 = ${if qualifying then builtins.toJSON expectedSha256 else "nil"}
       MODULE_FILE = "/etc/livepatch-nfs-transition/module.ko"
       PATCH_DIR = "/sys/kernel/livepatch/#{MODULE_NAME}"
 
@@ -91,14 +109,27 @@ import ../../make-test.nix (
       before(:suite) do
         machine.start
         machine.wait_until_online
+        machine.succeeds("test \"$(uname -r)\" = 6.12.95")
+        unless MODULE_SHA256.nil?
+          machine.succeeds("test \"$(sha256sum #{MODULE_FILE} | cut -d' ' -f1)\" = #{MODULE_SHA256}")
+        end
       end
 
       describe 'NFS cancellation livepatch with a parked state manager' do
+        before(:example) do
+          @nfs_dmesg_start = machine.succeeds("dmesg | wc -l")[1].to_i + 1
+          machine.fails("test -d /sys/module/#{MODULE_NAME}")
+        end
+
+        after(:example) do
+          if machine.running?
+            machine.execute("test ! -d #{NFS_STATE}/load || touch #{NFS_STATE}/load/stop")
+            diagnostics = machine.succeeds("dmesg | tail -n +#{@nfs_dmesg_start}")[1]
+            expect(diagnostics).not_to match(/BUG:|WARNING:|Oops:|kernel panic|soft lockup|hung task|rcu.*detected stall/i)
+          end
+        end
+
         it 'activates and reverses while the NFSv4 state manager is idle' do
-          # Self-cleaning start: a previous example may have left the module
-          # loaded or the mount behind, which would make this run unrepresentative.
-          machine.succeeds("rmmod #{MODULE_NAME} 2>/dev/null || true")
-          machine.succeeds("umount -l #{NFS_STATE}/mnt 2>/dev/null || true")
           # NFSv4.2 over loopback, the same shape the main livepatch suite uses.
           machine.succeeds('modprobe nfsv4')
           machine.succeeds("mkdir -p #{NFS_STATE}/mnt")
@@ -135,19 +166,19 @@ import ../../make-test.nix (
             puts "parked task pid=#{pid} wchan=#{wchan}"
           end
 
-          # Load the single-series cancellation module. This is the step that
-          # never completes today: it must reach enabled=1, transition=0.
+          # The former patched wait loop stalled here. Require completed
+          # activation while the original manager is still parked.
           machine.succeeds(
             'insmod /etc/livepatch-nfs-transition/module.ko',
             timeout: 300,
           )
-          deadline = Time.now + 300
+          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 300
           loop do
             enabled = machine.succeeds("cat #{PATCH_DIR}/enabled 2>&1 || true")[1].strip
             transition = machine.succeeds("cat #{PATCH_DIR}/transition 2>&1 || true")[1].strip
             puts "post-insmod: enabled=#{enabled.inspect} transition=#{transition.inspect} livepatch_dir=#{machine.succeeds('ls /sys/kernel/livepatch/ 2>&1 || true')[1].strip.inspect}"
             break if enabled == '1' && transition == '0'
-            raise "forward leg did not settle: enabled=#{enabled.inspect} transition=#{transition.inspect}" if Time.now > deadline
+            raise "forward leg did not settle: enabled=#{enabled.inspect} transition=#{transition.inspect}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
             sleep 5
           end
 
@@ -155,7 +186,7 @@ import ../../make-test.nix (
           machine.succeeds("sh -c 'echo 0 > #{PATCH_DIR}/enabled'", timeout: 300)
           # Instrumented reverse leg: print the observed state every 10 s and fail
           # with the values rather than an opaque timeout.
-          deadline = Time.now + 300
+          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 300
           iteration = 0
           loop do
             iteration += 1
@@ -193,12 +224,15 @@ import ../../make-test.nix (
               puts "reverse leg dmesg: #{machine.succeeds('dmesg 2>/dev/null | grep -iE "livepatch|unpatch" | tail -4 || true')[1].strip.inspect}"
               break
             end
-            raise "reverse leg did not settle: enabled=#{enabled.inspect} transition=#{transition.inspect} dir=#{dir_state}" if Time.now > deadline
+            raise "reverse leg did not settle: enabled=#{enabled.inspect} transition=#{transition.inspect} dir=#{dir_state}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
             sleep 10
           end
           # Idempotent: in the `transition == 0` shape the module is still loaded and
           # this rmmod is what takes it out; in the gone shape it is already out.
-          machine.succeeds("sh -c 'rmmod #{MODULE_NAME} 2>/dev/null || true'", timeout: 300)
+          if machine.execute("test -d /sys/module/#{MODULE_NAME}")[0] == 0
+            machine.succeeds("rmmod #{MODULE_NAME}", timeout: 300)
+          end
+          machine.fails("test -d /sys/module/#{MODULE_NAME}")
           lpt_final_dir = machine.succeeds("test -e #{PATCH_DIR}/enabled && echo present || echo gone")[1].strip
           raise "module still present after the reverse leg: #{PATCH_DIR}" unless lpt_final_dir == 'gone'
 
@@ -207,12 +241,8 @@ import ../../make-test.nix (
           machine.succeeds("umount #{NFS_STATE}/mnt", timeout: 300)
         end
 
-        it 'activates with several parked NFSv4 clients under load' do
-          # Self-cleaning start, as in the first example.
-          machine.succeeds("rmmod #{MODULE_NAME} 2>/dev/null || true")
-          machine.succeeds("umount -l #{NFS_STATE}/mnt 2>/dev/null || true")
-          # root0's "loads right on more loaded machines" axis: more than one
-          # parked state manager, and a busy box, at activation time.
+        it 'activates with four NFSv4 mounts and a parked manager under load' do
+          # Separate superblocks do not imply distinct nfs_client objects.
           machine.succeeds('modprobe nfsv4')
           (1..4).each do |i|
             dir = "#{NFS_STATE}/mnt#{i}"
@@ -224,32 +254,34 @@ import ../../make-test.nix (
             machine.succeeds("touch #{dir}/klp-nfs-lock-#{i}", timeout: 180)
           end
 
-          # One of the four clients is a swap client, so its manager stays
+          # One mount is a swap mount, so its client manager stays
           # resident and parked while the rest are ordinary mounts.
           machine.succeeds("dd if=/dev/zero of=#{NFS_STATE}/mnt1/swapfile bs=1M count=32", timeout: 300)
           machine.succeeds("chmod 600 #{NFS_STATE}/mnt1/swapfile")
           machine.succeeds("mkswap #{NFS_STATE}/mnt1/swapfile", timeout: 300)
           machine.succeeds("swapon #{NFS_STATE}/mnt1/swapfile", timeout: 300)
 
+          load = "#{NFS_STATE}/load"
+          machine.succeeds("mkdir #{load}")
           machine.succeeds(
-            "setsid sh -ec 'for i in $(seq 1 8); do (while :; do :; done) & done; " \
-              "wait' >/run/livepatch-load.log 2>&1 & echo $! > /run/livepatch-load.pid"
+            "( sh -ec 'for i in $(seq 1 8); do " \
+            "(while ! test -e #{load}/stop; do :; done; touch #{load}/done.$i) & done; wait'; " \
+            "echo $? > #{load}/exit ) > #{load}/log 2>&1 &"
           )
-          machine.succeeds('test -s /run/livepatch-load.pid')
           expect(parked_state_manager_tasks).not_to be_empty
 
           machine.succeeds('insmod /etc/livepatch-nfs-transition/module.ko', timeout: 300)
-          deadline = Time.now + 300
+          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 300
           loop do
             enabled = machine.succeeds("cat #{PATCH_DIR}/enabled 2>&1 || true")[1].strip
             transition = machine.succeeds("cat #{PATCH_DIR}/transition 2>&1 || true")[1].strip
             puts "post-insmod: enabled=#{enabled.inspect} transition=#{transition.inspect} livepatch_dir=#{machine.succeeds('ls /sys/kernel/livepatch/ 2>&1 || true')[1].strip.inspect}"
             break if enabled == '1' && transition == '0'
-            raise "forward leg did not settle: enabled=#{enabled.inspect} transition=#{transition.inspect}" if Time.now > deadline
+            raise "forward leg did not settle: enabled=#{enabled.inspect} transition=#{transition.inspect}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
             sleep 5
           end
           machine.succeeds("sh -c 'echo 0 > #{PATCH_DIR}/enabled'", timeout: 300)
-          deadline = Time.now + 300
+          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 300
           iteration = 0
           loop do
             iteration += 1
@@ -287,17 +319,23 @@ import ../../make-test.nix (
               puts "reverse leg dmesg: #{machine.succeeds('dmesg 2>/dev/null | grep -iE "livepatch|unpatch" | tail -4 || true')[1].strip.inspect}"
               break
             end
-            raise "reverse leg did not settle: enabled=#{enabled.inspect} transition=#{transition.inspect} dir=#{dir_state}" if Time.now > deadline
+            raise "reverse leg did not settle: enabled=#{enabled.inspect} transition=#{transition.inspect} dir=#{dir_state}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
             sleep 10
           end
           # Idempotent: in the `transition == 0` shape the module is still loaded and
           # this rmmod is what takes it out; in the gone shape it is already out.
-          machine.succeeds("sh -c 'rmmod #{MODULE_NAME} 2>/dev/null || true'", timeout: 300)
+          if machine.execute("test -d /sys/module/#{MODULE_NAME}")[0] == 0
+            machine.succeeds("rmmod #{MODULE_NAME}", timeout: 300)
+          end
+          machine.fails("test -d /sys/module/#{MODULE_NAME}")
           lpt_final_dir = machine.succeeds("test -e #{PATCH_DIR}/enabled && echo present || echo gone")[1].strip
           raise "module still present after the reverse leg: #{PATCH_DIR}" unless lpt_final_dir == 'gone'
 
           machine.succeeds("swapoff #{NFS_STATE}/mnt1/swapfile", timeout: 300)
-          machine.succeeds("sh -c 'kill $(cat /run/livepatch-load.pid) 2>/dev/null || true'")
+          machine.succeeds("touch #{load}/stop")
+          machine.wait_until_succeeds("test -e #{load}/exit", timeout: 60)
+          machine.succeeds("test \"$(cat #{load}/exit)\" = 0")
+          (1..8).each { |i| machine.succeeds("test -e #{load}/done.#{i}") }
           (1..4).each do |i|
             machine.succeeds("umount #{NFS_STATE}/mnt#{i}", timeout: 300)
           end

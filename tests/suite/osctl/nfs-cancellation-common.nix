@@ -33,7 +33,10 @@ let
 in
 {
   inherit name description;
-  tags = [ "ci" ];
+  tags = [
+    "ci"
+    "livepatch-intel"
+  ];
   inherit machine;
 
   testScript = ''

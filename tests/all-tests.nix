@@ -42,6 +42,52 @@ let
     { kernelVersion = "6.12.110"; }
   ];
 
+  livepatchQualificationInstances =
+    lib.concatMap
+      (
+        shape:
+        map (predecessor: shape // { inherit predecessor; }) [
+          "v5"
+          "v6"
+        ]
+      )
+      [
+        {
+          vendor = "amd";
+          profile = "scale-aged";
+        }
+        {
+          vendor = "amd";
+          profile = "low-memory";
+        }
+        {
+          vendor = "intel";
+          profile = "representative";
+        }
+        {
+          vendor = "amd";
+          profile = "retention";
+        }
+        {
+          vendor = "intel";
+          profile = "retention";
+        }
+      ]
+    ++
+      lib.concatMap
+        (
+          predecessor:
+          map (iteration: {
+            vendor = "amd";
+            profile = "fresh";
+            inherit predecessor iteration;
+          }) (lib.range 1 10)
+        )
+        [
+          "v5"
+          "v6"
+        ];
+
   imageScripts =
     let
       entriesAttrs = builtins.readDir ../image-scripts/images;
@@ -60,8 +106,9 @@ let
   proactiveSwapOnly = builtins.getEnv "VPSADMINOS_ONLY_PROACTIVE_SWAP_TEST" == "1";
   livepatchTestEnabled = builtins.getEnv "VPSADMINOS_ENABLE_LIVEPATCH_TEST" == "1";
   livepatchOnly = builtins.getEnv "VPSADMINOS_ONLY_LIVEPATCH_TEST" == "1";
-  nfsTransitionTestEnabled = builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE" != "";
-  sctpHostileTestEnabled = builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE" != "";
+  nfsTransitionTestEnabled =
+    livepatchTestEnabled || builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE" != "";
+  sctpHostileTestEnabled = nfsTransitionTestEnabled;
 
   proactiveSwapTests = if proactiveSwapEnabled then [ "kernel/proactive-swap" ] else [ ];
   livepatchTests =
@@ -69,6 +116,11 @@ let
       [
         "kernel/livepatch-6.12.95"
         "kernel/livepatch-perf-v7"
+        "kernel/livepatch-tun-intel"
+        {
+          template = "kernel/livepatch-qualification";
+          instances = livepatchQualificationInstances;
+        }
       ]
     else
       [ ];
@@ -78,7 +130,7 @@ let
 
   selectedTests =
     if livepatchOnly then
-      livepatchTests
+      livepatchTests ++ nfsTransitionTests ++ sctpHostileTests
     else if proactiveSwapOnly then
       proactiveSwapTests
     else

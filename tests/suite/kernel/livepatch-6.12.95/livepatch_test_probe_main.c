@@ -70,6 +70,8 @@ static bool svm_x2apic_require_nested;
 static atomic_t svm_x2apic_injections = ATOMIC_INIT(0);
 
 static unsigned long sctp_asoc_address;
+static bool sctp_check_retran;
+static atomic64_t sctp_hostile_hits = ATOMIC64_INIT(0);
 static atomic_t sctp_mismatch_injections = ATOMIC_INIT(0);
 static unsigned int rhashtable_restart_passes;
 
@@ -258,6 +260,33 @@ void notrace livepatch_test_wait_for_release(void)
 NOKPROBE_SYMBOL(livepatch_test_wait_for_release);
 NOKPROBE_SYMBOL(livepatch_test_hold_trampoline);
 
+/* Observe the hostile condition at the actual scan entry, not only earlier
+ * during sysfs setup: a heartbeat could have confirmed a path meanwhile.
+ * The SCTP caller already serializes this association's transport list.
+ */
+static void livepatch_test_sctp_check_retran(struct pt_regs *regs)
+{
+	struct sctp_association *asoc;
+	struct sctp_transport *transport;
+	bool retran_present = false;
+
+	if (!READ_ONCE(sctp_check_retran))
+		return;
+	asoc = (void *)regs_get_kernel_argument(regs, 0);
+	if (!asoc || (unsigned long)asoc != READ_ONCE(sctp_asoc_address))
+		return;
+	list_for_each_entry(transport, &asoc->peer.transport_addr_list,
+			    transports) {
+		if (READ_ONCE(transport->state) != SCTP_UNCONFIRMED)
+			return;
+		if (transport == READ_ONCE(asoc->peer.retran_path))
+			retran_present = true;
+	}
+	if (retran_present)
+		atomic64_inc(&sctp_hostile_hits);
+}
+NOKPROBE_SYMBOL(livepatch_test_sctp_check_retran);
+
 static int livepatch_test_probe_pre(struct kprobe *probe,
 				    struct pt_regs *regs)
 {
@@ -278,6 +307,7 @@ static int livepatch_test_probe_pre(struct kprobe *probe,
 	    atomic_cmpxchg(&probe_redirect_active, 0, 1))
 		return 0;
 	livepatch_test_record_probe_hit();
+	livepatch_test_sctp_check_retran(regs);
 	if (READ_ONCE(probe_capture_vxlan_age_timer)) {
 		dev = (struct net_device *)regs_get_kernel_argument(regs, 0);
 		if (dev) {
@@ -1150,6 +1180,17 @@ static const struct kernel_param_ops sctp_arm_unconfirmed_ops = {
 	.set = livepatch_test_set_sctp_arm_unconfirmed,
 };
 
+static int livepatch_test_get_sctp_hostile_hits(char *buffer,
+					     const struct kernel_param *param)
+{
+	(void)param;
+	return sysfs_emit(buffer, "%lld\n", atomic64_read(&sctp_hostile_hits));
+}
+
+static const struct kernel_param_ops sctp_hostile_hits_ops = {
+	.get = livepatch_test_get_sctp_hostile_hits,
+};
+
 static const struct kernel_param_ops sctp_unconfirmed_count_ops = {
 	.get = livepatch_test_get_sctp_unconfirmed_count,
 };
@@ -1350,6 +1391,12 @@ MODULE_PARM_DESC(sctp_mismatch_injections,
 		 "Real SCTP transmitted chunks given a mismatched transport pointer");
 
 module_param_cb(sctp_arm_unconfirmed, &sctp_arm_unconfirmed_ops, NULL, 0200);
+module_param(sctp_check_retran, bool, 0600);
+MODULE_PARM_DESC(sctp_check_retran,
+		 "Observe all-unconfirmed SCTP scan entries for the selected association");
+module_param_cb(sctp_hostile_hits, &sctp_hostile_hits_ops, NULL, 0400);
+MODULE_PARM_DESC(sctp_hostile_hits,
+		 "Scan entries with all transports unconfirmed and retran_path in the list");
 MODULE_PARM_DESC(sctp_arm_unconfirmed,
 		 "Mark every test transport unconfirmed and arm the retran scan at the tail");
 
