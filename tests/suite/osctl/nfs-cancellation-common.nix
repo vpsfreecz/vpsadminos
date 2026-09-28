@@ -3,6 +3,7 @@
   machine,
   name,
   description,
+  baseline ? false,
 }:
 let
   dirtyInitProgram = pkgs.pkgsStatic.stdenv.mkDerivation {
@@ -33,7 +34,14 @@ let
 in
 {
   inherit name description;
-  tags = [ "ci" ];
+  tags =
+    if baseline then
+      [ "livepatch-amd" ]
+    else
+      [
+        "ci"
+        "livepatch-intel"
+      ];
   inherit machine;
 
   testScript = ''
@@ -41,6 +49,10 @@ in
       machine.start
       machine.wait_for_osctl_pool("tank")
       machine.wait_until_online
+
+      ${pkgs.lib.optionalString baseline ''
+        assert_unpatched_baseline
+      ''}
 
       %w[nfs1 nfs2].each_with_index do |ct, i|
         machine.all_succeed(
@@ -79,10 +91,11 @@ in
       )
     end
 
-    def isolate_client(operation)
+    def isolate_client(operation, reset: false)
+      action = reset ? '-p tcp -j REJECT --reject-with tcp-reset' : '-j DROP'
       machine.all_succeed(
-        "iptables -#{operation} FORWARD -s 192.168.1.21 -d 10.0.0.10 -j DROP",
-        "iptables -#{operation} FORWARD -s 10.0.0.10 -d 192.168.1.21 -j DROP",
+        "iptables -#{operation} FORWARD -s 192.168.1.21 -d 10.0.0.10 #{action}",
+        "iptables -#{operation} FORWARD -s 10.0.0.10 -d 192.168.1.21 #{action}",
       )
     end
 
@@ -92,12 +105,44 @@ in
           "-o vers=#{version},proto=tcp,timeo=10,retrans=2 " \
           "10.0.0.10:/srv/nfs-cancellation #{path}",
       )
-      # No explicit hard option: the default must no longer be overridden.
+      # Do not request soft: only the unpatched container policy forces it.
       options = machine.succeeds("osctl ct exec #{ct} cat /proc/mounts")[1]
         .lines.find { |line| line.split[1] == path }.split[3].split(',')
-      expect(options).to include('hard')
-      expect(options).not_to include('soft', 'softerr')
+      expect(options).to include('${if baseline then "soft" else "hard"}')
+      expect(options).not_to include('${if baseline then "hard" else "soft"}', 'softerr')
     end
+
+    ${pkgs.lib.optionalString baseline ''
+      def assert_unpatched_baseline
+        puts 'VULNERABLE BASELINE: frozen .95, no livepatch; not a v7 target pass'
+        machine.all_succeed(
+          'test "$(uname -r)" = 6.12.95',
+          'test -d /sys/kernel/livepatch',
+          'test -z "$(find /sys/kernel/livepatch -mindepth 1 -maxdepth 1 -print -quit)"',
+          'test -z "$(find /sys/module -maxdepth 1 -name "livepatch_[0-9]*" -print -quit)"',
+          'uname -a; cat /proc/modules; ls -la /sys/kernel/livepatch',
+        )
+      end
+
+      def baseline_writer_diagnostics
+        # Capture the blocked syscall/socket before restoring the route. Mount
+        # flags alone do not show which operation exhausted the test deadline.
+        [
+          "osctl ct exec nfs1 sh -c 'cat /root/nfs-writer.log; cat /root/nfs-done'",
+          "ps -eLo pid,tid,ppid,stat,wchan:32,comm,args",
+          "for p in $(pgrep -x dd); do echo WRITER:$p; " \
+            "cat /proc/$p/syscall /proc/$p/wchan /proc/$p/stack; ls -l /proc/$p/fd; done",
+          "osctl ct exec nfs1 ss -ntoi",
+          "dmesg | tail -n 100",
+        ].each do |command|
+          begin
+            machine.execute(command, timeout: 15)
+          rescue StandardError => e
+            warn "Baseline diagnostic failed: #{command}: #{e.message}"
+          end
+        end
+      end
+    ''}
 
     def start_writer(version, path = '/mnt/nfs')
       machine.all_succeed(
@@ -138,16 +183,60 @@ in
           mount_nfs('nfs2', version)
         end
 
-        it "retries an outage beyond soft timeout and preserves the payload" do
-          isolate_client('I')
+  ''
+  + (
+    if baseline then
+      ''
+        it "observes forced soft retry and absent cancellation controls without v7" do
+          assert_unpatched_baseline
+          init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
+          machine.succeeds("test \"$(readlink /proc/#{init_pid}/ns/user)\" != \"$(readlink /proc/1/ns/user)\"")
+          control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+          machine.succeeds(
+            "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+              "test -d /sys/fs/nfs/net/nfs_client; " \
+              "test ! -e /sys/fs/nfs/net/nfs_client/shutdown; " \
+              "test ! -e /sys/fs/nfs/net/nfs_client/shutdown_tree; " \
+              "find /sys/fs/nfs -maxdepth 5 -print'",
+          )
+          # NFSv4 soft RPCs suppress retransmission timeouts while TCP remains
+          # connected. Break the transport rather than merely blackholing it;
+          # use the same fault in the target's hard-retry/payload example.
+          isolate_client('I', reset: true)
           begin
             start_writer(version)
-            # timeo=10,retrans=2 would fail a soft RPC well before this.
+            # The old forced-soft policy must fail I/O, unlike the target's
+            # continuing hard retry. A timeout is a failed control, not PASS.
+            machine.wait_until_succeeds("osctl ct exec nfs1 test -e /root/nfs-done", timeout: 90)
+            status = Integer(machine.succeeds("osctl ct exec nfs1 cat /root/nfs-done")[1].strip)
+            expect(status).to be > 0
+            output = machine.succeeds("osctl ct exec nfs1 cat /root/nfs-writer.log")[1]
+            expect(output).to match(/Input\/output error|I\/O error/)
+            machine.succeeds("osctl ct exec nfs2 sh -c 'echo live > /mnt/nfs/other-client'")
+          rescue StandardError, RSpec::Expectations::ExpectationNotMetError
+            baseline_writer_diagnostics
+            raise
+          ensure
+            isolate_client('D', reset: true)
+          end
+          machine.succeeds("osctl ct exec nfs1 sh -c 'echo recovered > /mnt/nfs/recovered-#{version}'")
+          expect(machine.succeeds("cat /srv/nfs-cancellation/recovered-#{version}")[1].strip).to eq('recovered')
+          assert_unpatched_baseline
+        end
+      ''
+    else
+      ''
+        it "retries an outage beyond soft timeout and preserves the payload" do
+          isolate_client('I', reset: true)
+          begin
+            start_writer(version)
+            # The baseline proves soft I/O fails with this broken transport;
+            # a TCP blackhole alone does not bound NFSv4 soft RPC retries.
             sleep(30)
             machine.fails("osctl ct exec nfs1 test -e /root/nfs-done")
             machine.succeeds("osctl ct exec nfs2 sh -c 'echo live > /mnt/nfs/other-client'")
           ensure
-            isolate_client('D')
+            isolate_client('D', reset: true)
           end
           machine.wait_until_succeeds("osctl ct exec nfs1 test -e /root/nfs-done", timeout: 120)
           expect(machine.succeeds("osctl ct exec nfs1 cat /root/nfs-done")[1].strip).to eq('0')
@@ -699,6 +788,9 @@ in
           end
         end
 
+      ''
+  )
+  + ''
         after(:context) do
           %w[nfs1 nfs2].each do |ct|
             # Preserve the original failure if an example could not restart

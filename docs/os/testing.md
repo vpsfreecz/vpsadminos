@@ -252,6 +252,20 @@ The REPL can be used to issue the same commands as in the test script. The test
 script itself can be run by calling method `test_script`. You can call method
 `breakpoint` from inside the test to open the REPL from any point of execution.
 
+## Guest kernel failures
+
+Unexpected guest kernel failures remain fatal and are not retried. During
+cleanup, the runner continues collecting the console so that a panic's later
+stack traces and per-CPU tracing dumps can reach `<machine>-console.log`.
+Collection stops at console EOF, after 30 seconds without new console bytes,
+or 600 seconds after the first failure was detected, whichever comes first.
+The runner then terminates the guest. New output, including repeated failure
+messages, cannot extend that hard collection deadline.
+
+This wait only affects failure cleanup: it does not suppress kernel-failure
+detection, permit further guest commands, or turn a failing test into a pass.
+A dump can still be incomplete if a collection limit is reached.
+
 ## Expected failure
 A test can be expected to fail. The failure is shown, but it does not result
 in error exit status. If a test succeeds and we expected it to fail, it is
