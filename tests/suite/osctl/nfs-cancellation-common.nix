@@ -3,6 +3,7 @@
   machine,
   name,
   description,
+  baseline ? false,
 }:
 let
   dirtyInitProgram = pkgs.pkgsStatic.stdenv.mkDerivation {
@@ -33,7 +34,14 @@ let
 in
 {
   inherit name description;
-  tags = [ "ci" ];
+  tags =
+    if baseline then
+      [ "livepatch-amd" ]
+    else
+      [
+        "ci"
+        "livepatch-intel"
+      ];
   inherit machine;
 
   testScript = ''
@@ -41,6 +49,10 @@ in
       machine.start
       machine.wait_for_osctl_pool("tank")
       machine.wait_until_online
+
+      ${pkgs.lib.optionalString baseline ''
+        assert_unpatched_baseline
+      ''}
 
       %w[nfs1 nfs2].each_with_index do |ct, i|
         machine.all_succeed(
@@ -79,11 +91,50 @@ in
       )
     end
 
-    def isolate_client(operation)
+    def isolate_client(operation, reset: false)
+      action = reset ? '-p tcp -j REJECT --reject-with tcp-reset' : '-j DROP'
       machine.all_succeed(
-        "iptables -#{operation} FORWARD -s 192.168.1.21 -d 10.0.0.10 -j DROP",
-        "iptables -#{operation} FORWARD -s 10.0.0.10 -d 192.168.1.21 -j DROP",
+        "iptables -#{operation} FORWARD -s 192.168.1.21 -d 10.0.0.10 #{action}",
+        "iptables -#{operation} FORWARD -s 10.0.0.10 -d 192.168.1.21 #{action}",
       )
+    end
+
+    def with_nfs_lock_trace
+      trace = '/sys/kernel/tracing/instances/nfs_cancellation_lock'
+      machine.succeeds('mountpoint -q /sys/kernel/tracing || mount -t tracefs tracefs /sys/kernel/tracing')
+      machine.succeeds("mkdir #{trace}")
+      completed = false
+      begin
+        # Retain the holder, delegation recall and contender in one bounded
+        # per-CPU ring. This observes the unchanged lock assertions below.
+        machine.all_succeed(
+          "echo 1024 > #{trace}/buffer_size_kb",
+          "echo global > #{trace}/trace_clock",
+        )
+        %w[nfs4 nfsd sunrpc filelock].each do |group|
+          machine.succeeds("echo 1 > #{trace}/events/#{group}/enable")
+        end
+        machine.succeeds("echo 1 > #{trace}/tracing_on")
+        yield trace
+        completed = true
+      ensure
+        # Try every cleanup operation. Preserve an original test/setup error,
+        # but a successful body must not hide failed trace cleanup.
+        cleanup_error = nil
+        [
+          "echo 0 > #{trace}/tracing_on",
+          "echo 0 > #{trace}/events/enable",
+          "rmdir #{trace}",
+        ].each do |command|
+          begin
+            machine.succeeds(command, timeout: 15)
+          rescue StandardError => e
+            cleanup_error ||= e
+            warn "NFS lock trace cleanup failed: #{e.message}"
+          end
+        end
+        raise cleanup_error if completed && cleanup_error
+      end
     end
 
     def mount_nfs(ct, version, path = '/mnt/nfs')
@@ -92,12 +143,44 @@ in
           "-o vers=#{version},proto=tcp,timeo=10,retrans=2 " \
           "10.0.0.10:/srv/nfs-cancellation #{path}",
       )
-      # No explicit hard option: the default must no longer be overridden.
+      # Do not request soft: only the unpatched container policy forces it.
       options = machine.succeeds("osctl ct exec #{ct} cat /proc/mounts")[1]
         .lines.find { |line| line.split[1] == path }.split[3].split(',')
-      expect(options).to include('hard')
-      expect(options).not_to include('soft', 'softerr')
+      expect(options).to include('${if baseline then "soft" else "hard"}')
+      expect(options).not_to include('${if baseline then "hard" else "soft"}', 'softerr')
     end
+
+    ${pkgs.lib.optionalString baseline ''
+      def assert_unpatched_baseline
+        puts 'VULNERABLE BASELINE: frozen .95, no livepatch; not a v7 target pass'
+        machine.all_succeed(
+          'test "$(uname -r)" = 6.12.95',
+          'test -d /sys/kernel/livepatch',
+          'test -z "$(find /sys/kernel/livepatch -mindepth 1 -maxdepth 1 -print -quit)"',
+          'test -z "$(find /sys/module -maxdepth 1 -name "livepatch_[0-9]*" -print -quit)"',
+          'uname -a; cat /proc/modules; ls -la /sys/kernel/livepatch',
+        )
+      end
+
+      def baseline_writer_diagnostics
+        # Capture the blocked syscall/socket before restoring the route. Mount
+        # flags alone do not show which operation exhausted the test deadline.
+        [
+          "osctl ct exec nfs1 sh -c 'cat /root/nfs-writer.log; cat /root/nfs-done'",
+          "ps -eLo pid,tid,ppid,stat,wchan:32,comm,args",
+          "for p in $(pgrep -x dd); do echo WRITER:$p; " \
+            "cat /proc/$p/syscall /proc/$p/wchan /proc/$p/stack; ls -l /proc/$p/fd; done",
+          "osctl ct exec nfs1 ss -ntoi",
+          "dmesg | tail -n 100",
+        ].each do |command|
+          begin
+            machine.execute(command, timeout: 15)
+          rescue StandardError => e
+            warn "Baseline diagnostic failed: #{command}: #{e.message}"
+          end
+        end
+      end
+    ''}
 
     def start_writer(version, path = '/mnt/nfs')
       machine.all_succeed(
@@ -138,16 +221,60 @@ in
           mount_nfs('nfs2', version)
         end
 
-        it "retries an outage beyond soft timeout and preserves the payload" do
-          isolate_client('I')
+  ''
+  + (
+    if baseline then
+      ''
+        it "observes forced soft retry and absent cancellation controls without v7" do
+          assert_unpatched_baseline
+          init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
+          machine.succeeds("test \"$(readlink /proc/#{init_pid}/ns/user)\" != \"$(readlink /proc/1/ns/user)\"")
+          control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+          machine.succeeds(
+            "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+              "test -d /sys/fs/nfs/net/nfs_client; " \
+              "test ! -e /sys/fs/nfs/net/nfs_client/shutdown; " \
+              "test ! -e /sys/fs/nfs/net/nfs_client/shutdown_tree; " \
+              "find /sys/fs/nfs -maxdepth 5 -print'",
+          )
+          # NFSv4 soft RPCs suppress retransmission timeouts while TCP remains
+          # connected. Break the transport rather than merely blackholing it;
+          # use the same fault in the target's hard-retry/payload example.
+          isolate_client('I', reset: true)
           begin
             start_writer(version)
-            # timeo=10,retrans=2 would fail a soft RPC well before this.
+            # The old forced-soft policy must fail I/O, unlike the target's
+            # continuing hard retry. A timeout is a failed control, not PASS.
+            machine.wait_until_succeeds("osctl ct exec nfs1 test -e /root/nfs-done", timeout: 90)
+            status = Integer(machine.succeeds("osctl ct exec nfs1 cat /root/nfs-done")[1].strip)
+            expect(status).to be > 0
+            output = machine.succeeds("osctl ct exec nfs1 cat /root/nfs-writer.log")[1]
+            expect(output).to match(/Input\/output error|I\/O error/)
+            machine.succeeds("osctl ct exec nfs2 sh -c 'echo live > /mnt/nfs/other-client'")
+          rescue StandardError, RSpec::Expectations::ExpectationNotMetError
+            baseline_writer_diagnostics
+            raise
+          ensure
+            isolate_client('D', reset: true)
+          end
+          machine.succeeds("osctl ct exec nfs1 sh -c 'echo recovered > /mnt/nfs/recovered-#{version}'")
+          expect(machine.succeeds("cat /srv/nfs-cancellation/recovered-#{version}")[1].strip).to eq('recovered')
+          assert_unpatched_baseline
+        end
+      ''
+    else
+      ''
+        it "retries an outage beyond soft timeout and preserves the payload" do
+          isolate_client('I', reset: true)
+          begin
+            start_writer(version)
+            # The baseline proves soft I/O fails with this broken transport;
+            # a TCP blackhole alone does not bound NFSv4 soft RPC retries.
             sleep(30)
             machine.fails("osctl ct exec nfs1 test -e /root/nfs-done")
             machine.succeeds("osctl ct exec nfs2 sh -c 'echo live > /mnt/nfs/other-client'")
           ensure
-            isolate_client('D')
+            isolate_client('D', reset: true)
           end
           machine.wait_until_succeeds("osctl ct exec nfs1 test -e /root/nfs-done", timeout: 120)
           expect(machine.succeeds("osctl ct exec nfs1 cat /root/nfs-done")[1].strip).to eq('0')
@@ -228,66 +355,79 @@ in
         end
 
         it "cancels a remote lock waiter without releasing another container's lock" do
-          machine.succeeds(
-            "osctl ct exec nfs2 sh -c \"rm -f /root/nfs-lock-held /root/nfs-lock-control; " \
-              "mkfifo /root/nfs-lock-control; " \
-              "nohup flock -x /mnt/nfs/cancel-lock sh -c " \
-              "'touch /root/nfs-lock-held; read ignored < /root/nfs-lock-control' " \
-              ">/root/nfs-lock.log 2>&1 </dev/null &\"",
-          )
-          machine.wait_until_succeeds("osctl ct exec nfs2 test -e /root/nfs-lock-held")
-          begin
-            # Verify that this is a remotely contended lock, not local-only
-            # flock emulation, before making the server unreachable.
-            machine.fails("osctl ct exec nfs1 flock -n /mnt/nfs/cancel-lock true")
+          with_nfs_lock_trace do |trace|
             machine.succeeds(
-              "osctl ct exec nfs1 sh -c 'rm -f /root/nfs-lock-acquired; " \
-                "nohup flock -x /mnt/nfs/cancel-lock touch /root/nfs-lock-acquired " \
-                ">/root/nfs-lock.log 2>&1 </dev/null &'",
+              "osctl ct exec nfs2 sh -c \"rm -f /root/nfs-lock-held /root/nfs-lock-control; " \
+                "mkfifo /root/nfs-lock-control; " \
+                "nohup flock -x /mnt/nfs/cancel-lock sh -c " \
+                "'touch /root/nfs-lock-held; read ignored < /root/nfs-lock-control' " \
+                ">/root/nfs-lock.log 2>&1 </dev/null &\"",
             )
-            sleep(5)
-            machine.fails("osctl ct exec nfs1 test -e /root/nfs-lock-acquired")
-            isolate_client('I')
+            machine.wait_until_succeeds("osctl ct exec nfs2 test -e /root/nfs-lock-held")
             begin
-              stop_nfs_client
-              expect(machine.succeeds("osctl ct show -H -o state nfs1")[1].strip).to eq('stopped')
-              machine.fails("osctl ct exec nfs2 flock -n /mnt/nfs/cancel-lock true")
-              machine.succeeds("osctl ct exec nfs2 sh -c 'echo lock-survived > /mnt/nfs/other-client'")
-            ensure
-              isolate_client('D')
-            end
-          rescue StandardError, RSpec::Expectations::ExpectationNotMetError
-            # Preserve lock-owner and NFS state before releasing the holder's
-            # FIFO. Suite-end diagnostics run after cleanup and miss it.
-            nfs_server = "nsenter -t $(cat /run/osctl/exportfs/servers/server1/pid) -m -n"
-            commands = [
-              "cat /proc/locks",
-              "#{nfs_server} sh -c '" \
-                "cat /proc/fs/nfsd/clients/*/info /proc/fs/nfsd/clients/*/states'",
-              "#{nfs_server} nfsstat -s",
-              "iptables-save",
-              "dmesg | tail -n 150",
-            ]
-            %w[nfs1 nfs2].each do |ct|
-              commands << "osctl ct exec #{ct} sh -c '" \
-                "ps -ef; cat /root/nfs-lock.log; cat /proc/locks; " \
-                "cat /proc/fs/nfsfs/servers /proc/fs/nfsfs/volumes; " \
-                "cat /proc/mounts; nfsstat -c'"
-            end
-            commands.each do |command|
+              # Verify that this is a remotely contended lock, not local-only
+              # flock emulation, before making the server unreachable.
+              machine.fails("osctl ct exec nfs1 flock -n /mnt/nfs/cancel-lock true")
+              machine.succeeds(
+                "osctl ct exec nfs1 sh -c 'rm -f /root/nfs-lock-acquired; " \
+                  "nohup flock -x /mnt/nfs/cancel-lock touch /root/nfs-lock-acquired " \
+                  ">/root/nfs-lock.log 2>&1 </dev/null &'",
+              )
+              sleep(5)
+              machine.fails("osctl ct exec nfs1 test -e /root/nfs-lock-acquired")
+              isolate_client('I')
               begin
-                machine.execute(command, timeout: 15)
-              rescue StandardError
-                next
+                stop_nfs_client
+                expect(machine.succeeds("osctl ct show -H -o state nfs1")[1].strip).to eq('stopped')
+                machine.fails("osctl ct exec nfs2 flock -n /mnt/nfs/cancel-lock true")
+                machine.succeeds("osctl ct exec nfs2 sh -c 'echo lock-survived > /mnt/nfs/other-client'")
+              ensure
+                isolate_client('D')
               end
+            rescue StandardError, RSpec::Expectations::ExpectationNotMetError
+              # Preserve lock-owner and NFS state before releasing the holder's
+              # FIFO. Suite-end diagnostics run after cleanup and miss it.
+              # The server mounts proc in its own PID namespace. Enter it too,
+              # so /proc/self/net resolves for nfsstat instead of returning ENOENT.
+              nfs_server = "nsenter -t $(cat /run/osctl/exportfs/servers/server1/pid) -m -n -p"
+              commands = [
+                "echo 0 > #{trace}/tracing_on",
+                "cat #{trace}/per_cpu/cpu*/stats",
+                "cat #{trace}/trace",
+                "cat /proc/locks",
+                'stat -Lc "path=%n dev=%d inode=%i links=%h" /srv/nfs-cancellation/cancel-lock',
+                "#{nfs_server} sh -c '" \
+                  "cat /proc/fs/nfsd/clients/*/info /proc/fs/nfsd/clients/*/states'",
+                "#{nfs_server} nfsstat -s",
+                "iptables-save",
+                "dmesg | tail -n 150",
+              ]
+              %w[nfs1 nfs2].each do |ct|
+                commands << "osctl ct exec #{ct} sh -c '" \
+                  "ps -ef; cat /root/nfs-lock.log; cat /proc/locks; " \
+                  "for pid in $(pgrep -x flock); do " \
+                  "echo NFS_LOCK_HOLDER pid=$pid; ls -l /proc/$pid/fd; " \
+                  "for fd in /proc/$pid/fdinfo/*; do echo NFS_LOCK_FD $fd; cat \"$fd\"; done; " \
+                  "stat -Lc \"path=%n dev=%d inode=%i links=%h\" /proc/$pid/fd/*; done; " \
+                  "stat -Lc \"path=%n dev=%d inode=%i links=%h\" /mnt/nfs/cancel-lock; " \
+                  "cat /proc/fs/nfsfs/servers /proc/fs/nfsfs/volumes; " \
+                  "cat /proc/mounts; nfsstat -c'"
+              end
+              commands.each do |command|
+                begin
+                  machine.execute(command, timeout: 15)
+                rescue StandardError
+                  next
+                end
+              end
+              raise
+            ensure
+              machine.succeeds("osctl ct exec nfs2 sh -c 'echo release > /root/nfs-lock-control'", timeout: 15)
             end
-            raise
-          ensure
-            machine.succeeds("osctl ct exec nfs2 sh -c 'echo release > /root/nfs-lock-control'", timeout: 15)
+            machine.wait_until_succeeds("osctl ct exec nfs2 flock -n /mnt/nfs/cancel-lock true")
+            machine.succeeds("osctl ct start nfs1", timeout: 60)
+            mount_nfs('nfs1', version)
           end
-          machine.wait_until_succeeds("osctl ct exec nfs2 flock -n /mnt/nfs/cancel-lock true")
-          machine.succeeds("osctl ct start nfs1", timeout: 60)
-          mount_nfs('nfs1', version)
         end
 
         it "cancels an NFS mount in a processless child network namespace" do
@@ -699,6 +839,9 @@ in
           end
         end
 
+      ''
+  )
+  + ''
         after(:context) do
           %w[nfs1 nfs2].each do |ct|
             # Preserve the original failure if an example could not restart
