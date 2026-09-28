@@ -5,3 +5,4 @@ livepatch_test_probe-y := livepatch_test_probe_main.o \
 
 ccflags-y += -I$(srctree)/arch/x86/kvm
 ccflags-y += -I$(srctree)/arch/x86/kvm/svm
+ccflags-y += -Werror
