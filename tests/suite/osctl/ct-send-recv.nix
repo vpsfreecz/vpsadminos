@@ -18,6 +18,9 @@ let
         ../../configs/vpsadminos/pool-tank.nix
       ];
 
+      # Keep owning-thread evidence available if a transfer stalls.
+      osctld.settings.lock_registry = true;
+
       networking.custom = ''
         ip addr add ${addr}/24 dev eth1
         ip link set eth1 up
@@ -474,6 +477,53 @@ import ../../make-test.nix (
 
           ${commonScript}
 
+          @authorization_diagnostics_collected = false
+
+          def self.collect_authorization_diagnostics
+            return if @authorization_diagnostics_collected
+
+            @authorization_diagnostics_collected = true
+            commands = [
+              'osctl debug threads ls',
+              'osctl debug locks ls -v',
+              <<~'PROCESSES',
+                ps -e -o pid,ppid,stat,wchan:24,args | head -n 120
+                for pid in $(pgrep -f '(^|/)(osctld|mbuffer)( |$)|zfs (send|recv)|ssh .*receive' | head -n 24); do
+                  printf '\n--- process %s descriptors ---\n' "$pid"
+                  ls -l "/proc/$pid/fd" | head -n 40
+                  grep '^flags:' /proc/"$pid"/fdinfo/* | head -n 40
+                done
+              PROCESSES
+            ]
+
+            machines.each do |name, machine|
+              next unless machine.running?
+
+              commands.each_with_index do |command, index|
+                begin
+                  _, output = machine.execute(
+                    "timeout -k 2 10 sh -c #{command.shellescape} 2>&1 | head -c 32768",
+                    timeout: 20,
+                  )
+                  warn "#{name} transfer snapshot #{index}:\n#{output.to_s.byteslice(0, 32768)}"
+                rescue StandardError => e
+                  warn "#{name} transfer snapshot #{index} unavailable: #{e.class}: #{e.message.to_s.byteslice(0, 512)}"
+                end
+              end
+            end
+          end
+
+          def self.send_clone_with_diagnostics(command)
+            node1.succeeds(command)
+          rescue StandardError
+            begin
+              collect_authorization_diagnostics
+            rescue StandardError
+              # Reporting must never replace the original transfer failure.
+            end
+            raise
+          end
+
           def self.reset_authorization_state(ctid, auth_key_names)
             cancel_send(node1, ctid)
             node2.succeeds("osctl ct del -f --prune #{ctid} >/dev/null 2>&1 || true")
@@ -504,7 +554,7 @@ import ../../make-test.nix (
               reset_authorization_state(ctid, auth_key_names)
               authorize_send_key(node2, 'node1-repeat', node1_pubkey, passphrase: 'repeat')
 
-              node1.succeeds("osctl ct send --clone --passphrase repeat #{ctid} node2")
+              send_clone_with_diagnostics("osctl ct send --clone --passphrase repeat #{ctid} node2")
               expect_authorized_key(node2, 'node1-repeat')
 
               node2.succeeds("osctl ct del -f --prune #{ctid}")
@@ -525,7 +575,7 @@ import ../../make-test.nix (
                 single_use: true
               )
 
-              node1.succeeds("osctl ct send --clone --passphrase once #{ctid} node2")
+              send_clone_with_diagnostics("osctl ct send --clone --passphrase once #{ctid} node2")
               expect_authorized_key(node2, 'node1-once', present: false)
 
               node2.succeeds("osctl ct del -f --prune #{ctid}")
@@ -544,13 +594,13 @@ import ../../make-test.nix (
               )
               authorize_send_key(node2, 'node1-repeat', node1_pubkey, passphrase: 'repeat')
 
-              node1.succeeds("osctl ct send --clone --passphrase repeat #{ctid} node2")
+              send_clone_with_diagnostics("osctl ct send --clone --passphrase repeat #{ctid} node2")
               expect_authorized_key(node2, 'node1-repeat')
               expect_authorized_key(node2, 'node1-once')
               expect(authorized_key(node2, 'node1-once')['in_use']).to be(false)
 
               node2.succeeds("osctl ct del -f --prune #{ctid}")
-              node1.succeeds("osctl ct send --clone --passphrase once #{ctid} node2")
+              send_clone_with_diagnostics("osctl ct send --clone --passphrase once #{ctid} node2")
               expect_authorized_key(node2, 'node1-repeat')
               expect_authorized_key(node2, 'node1-once', present: false)
             end
