@@ -61,11 +61,12 @@ import ../../make-test.nix (
 
           # The test loads the module itself, after the state manager parks.
           services.live-patches.enable = false;
+          networking.firewall.allowedTCPPorts = [ 2049 ];
 
           services.nfs.server = {
             enable = true;
             exports = ''
-              /tmp 127.0.0.1(rw,fsid=0,no_subtree_check,no_root_squash,insecure)
+              /tmp 127.0.0.1(rw,fsid=0,no_subtree_check,no_root_squash,insecure) 192.0.2.0/24(rw,fsid=0,no_subtree_check,no_root_squash,insecure)
             '';
             nfsd.allowedVersions = [
               "4"
@@ -76,6 +77,7 @@ import ../../make-test.nix (
 
           environment.systemPackages = [
             pkgs.binutils
+            pkgs.iproute2
             pkgs.kmod
             pkgs.procps
             pkgs.util-linux
@@ -104,6 +106,66 @@ import ../../make-test.nix (
             "case \"$s\" in *nfs4_run_state_manager*) echo \"$p\";; esac; " \
             "done | head -5"
         )[1].split
+      end
+
+      def create_parked_namespaced_client(name, subnet)
+        dir = "#{NFS_STATE}/#{name}"
+        server = "192.0.2.#{subnet + 1}"
+        client = "192.0.2.#{subnet + 2}"
+        host_if = "lp-#{name}"
+        before = parked_state_manager_tasks
+        machine.succeeds("mkdir -p #{dir}/mnt")
+        machine.succeeds(
+          "unshare --user --map-root-user --net sh -ec 'echo $$ > #{dir}/pid; " \
+            "exec sleep 3600' > #{dir}/holder.log 2>&1 < /dev/null &"
+        )
+        machine.wait_until_succeeds("test -s #{dir}/pid", timeout: 30)
+        pid = Integer(machine.succeeds("cat #{dir}/pid")[1].strip)
+        machine.succeeds("test \"$(readlink /proc/#{pid}/ns/user)\" != \"$(readlink /proc/1/ns/user)\"")
+        machine.succeeds("ip link add #{host_if} type veth peer name lp-peer")
+        machine.succeeds("ip link set lp-peer netns #{pid}")
+        machine.succeeds("ip addr add #{server}/30 dev #{host_if} && ip link set #{host_if} up")
+        machine.succeeds(
+          "nsenter -t #{pid} --net sh -ec 'ip link set lo up; " \
+            "ip addr add #{client}/30 dev lp-peer; ip link set lp-peer up'"
+        )
+        # Enter only the network namespace: mounting/control stays privileged
+        # in the initial user namespace, while this net belongs to a child.
+        machine.succeeds(
+          "nsenter -t #{pid} --net mount -t nfs -o vers=4.2,proto=tcp,nosharecache " \
+            "#{server}:/ #{dir}/mnt",
+          timeout: 180,
+        )
+        swap = "#{dir}/mnt/swap-#{name}"
+        machine.succeeds("dd if=/dev/zero of=#{swap} bs=1M count=32 conv=fsync", timeout: 180)
+        machine.succeeds("chmod 600 #{swap} && mkswap #{swap} && swapon #{swap}", timeout: 180)
+        managers = parked_state_manager_tasks - before
+        expect(managers.length).to eq(1)
+        task = managers.fetch(0)
+        machine.wait_until_succeeds("grep -q nfs4_run_state_manager #{task}/wchan", timeout: 30)
+        expect(machine.succeeds("cat #{task}/stack")[1]).to match(/nfs4_run_state_manager.*\[nfsv4\]/)
+        start_time = machine.succeeds("awk '{print $22}' #{task}/stat")[1].strip
+        { name: name, dir: dir, pid: pid, host_if: host_if, swap: swap, task: task, start_time: start_time }
+      end
+
+      def cancel_client_namespace(client)
+        control = "nsenter -t #{client[:pid]} --net unshare --mount sh -ec"
+        machine.succeeds(
+          "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+            "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown)\" = 0; " \
+            "echo 1 > /sys/fs/nfs/net/nfs_client/shutdown; " \
+            "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown)\" = 1'",
+          timeout: 60,
+        )
+        machine.wait_until_succeeds("test ! -d #{client[:task]}", timeout: 60)
+      end
+
+      def remove_namespaced_client(client)
+        machine.succeeds("swapoff #{client[:swap]}", timeout: 180)
+        machine.succeeds("umount #{client[:dir]}/mnt", timeout: 180)
+        machine.succeeds("kill #{client[:pid]}")
+        machine.wait_until_succeeds("test ! -d /proc/#{client[:pid]}", timeout: 30)
+        machine.wait_until_succeeds("! ip link show #{client[:host_if]}", timeout: 30)
       end
 
       before(:suite) do
@@ -161,9 +223,9 @@ import ../../make-test.nix (
                  "#{machine.succeeds('ps -e -o pid=,comm= | head -20 || true')[1].inspect}"
           end
           expect(parked).not_to be_empty
-          parked.each do |pid|
-            wchan = machine.succeeds("cat /proc/#{pid}/wchan 2>/dev/null || true")[1].strip
-            puts "parked task pid=#{pid} wchan=#{wchan}"
+          parked.each do |task_path|
+            wchan = machine.succeeds("cat #{task_path}/wchan 2>/dev/null || true")[1].strip
+            puts "parked task path=#{task_path} wchan=#{wchan}"
           end
 
           # The former patched wait loop stalled here. Require completed
@@ -339,6 +401,43 @@ import ../../make-test.nix (
           (1..4).each do |i|
             machine.succeeds("umount #{NFS_STATE}/mnt#{i}", timeout: 300)
           end
+        end
+
+        it 'cancels legacy and new managers only in the selected namespace' do
+          machine.succeeds('modprobe nfsv4 && modprobe veth')
+          legacy = create_parked_namespaced_client('old', 0)
+          neighbor = create_parked_namespaced_client('other', 4)
+          machine.succeeds("insmod #{MODULE_FILE}", timeout: 300)
+          machine.wait_until_succeeds(
+            "test \"$(cat #{PATCH_DIR}/enabled)\" = 1 && test \"$(cat #{PATCH_DIR}/transition)\" = 0",
+            timeout: 300,
+          )
+          # Activation must not terminate/recreate either pre-existing task.
+          [legacy, neighbor].each do |client|
+            expect(machine.succeeds("awk '{print $22}' #{client[:task]}/stat")[1].strip).to eq(client[:start_time])
+            expect(machine.succeeds("cat #{client[:task]}/stack")[1]).to match(/nfs4_run_state_manager.*\[nfsv4\]/)
+          end
+          cancel_client_namespace(legacy)
+          remove_namespaced_client(legacy)
+
+          # New managers also keep the original entry point. Their referenced
+          # task shadow and the legacy fallback must both deliver cancellation.
+          fresh = create_parked_namespaced_client('new', 8)
+          cancel_client_namespace(fresh)
+          remove_namespaced_client(fresh)
+          expect(machine.succeeds("awk '{print $22}' #{neighbor[:task]}/stat")[1].strip).to eq(neighbor[:start_time])
+          witness = "#{neighbor[:dir]}/mnt/neighbor-witness"
+          machine.succeeds("printf neighbor-alive | dd of=#{witness} conv=fsync", timeout: 60)
+          expect(machine.succeeds("cat #{witness}")[1]).to eq('neighbor-alive')
+
+          machine.succeeds("echo 0 > #{PATCH_DIR}/enabled", timeout: 300)
+          machine.wait_until_succeeds("test ! -d #{PATCH_DIR}", timeout: 300)
+          machine.succeeds("rmmod #{MODULE_NAME}", timeout: 300)
+          machine.fails("test -d /sys/module/#{MODULE_NAME}")
+          expect(machine.succeeds("awk '{print $22}' #{neighbor[:task]}/stat")[1].strip).to eq(neighbor[:start_time])
+          machine.succeeds("printf neighbor-unpatched | dd of=#{witness} conv=fsync", timeout: 60)
+          expect(machine.succeeds("cat #{witness}")[1]).to eq('neighbor-unpatched')
+          remove_namespaced_client(neighbor)
         end
       end
     '';
