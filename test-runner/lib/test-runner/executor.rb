@@ -1,6 +1,7 @@
 require 'fileutils'
 require 'json'
 require 'digest'
+require 'tmpdir'
 require 'test-runner/resource_pool'
 
 module TestRunner
@@ -489,6 +490,7 @@ module TestRunner
         end
 
         break if remaining_scripts.empty?
+        break unless preserve_test_attempt_logs(test, attempt + 1)
 
         sleep(5)
         attempt += 1
@@ -501,6 +503,31 @@ module TestRunner
         elapsed_time,
         last_result
       )
+    end
+
+    # A retry reuses the machine state directory and truncates its logs. Keep
+    # the completed attempt's standard reports before any of those paths are
+    # reopened. Do not copy disk images, shared directories or symlinks.
+    def preserve_test_attempt_logs(test, attempt)
+      dir = test_state_dir(test)
+      archive = Dir.mktmpdir("attempt-#{attempt}-", dir)
+
+      Dir.children(dir).sort.each do |name|
+        next unless name.end_with?('.log') || name == 'test-result.txt'
+
+        source = File.join(dir, name)
+        next unless File.lstat(source).file?
+
+        # Only the latest result remains a test-result.txt, so CI result
+        # discovery does not count an earlier attempt as another test.
+        destination = name == 'test-result.txt' ? 'outcome.txt' : name
+        FileUtils.cp(source, File.join(archive, destination))
+      end
+
+      true
+    rescue SystemCallError, IOError => e
+      log("Unable to retain attempt #{attempt} logs for '#{test.path}': #{e.message}; not retrying")
+      false
     end
 
     def run_test_attempt(i, test, scripts, attempt)
