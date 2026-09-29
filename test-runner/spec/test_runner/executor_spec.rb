@@ -104,11 +104,13 @@ RSpec.describe TestRunner::Executor do
     executor = build_executor([script], stop_on_failure: true)
     executor.instance_variable_set(:@pending, [[0, test, [script]]])
     allow(executor).to receive(:run_test_attempt).and_return(unexpected, expected)
+    allow(executor).to receive(:preserve_test_attempt_logs).and_return(true)
     allow(executor).to receive(:sleep)
 
     executor.send(:run_worker, 0)
 
     expect(executor).to have_received(:run_test_attempt).twice
+    expect(executor).to have_received(:preserve_test_attempt_logs).with(test, 1).once
     expect(executor.results.first).to be_successful
     expect(executor.results.first.elapsed_time).to be_within(0.001).of(0.3)
     expect(executor.send(:stop_work?)).to be(false)
@@ -143,6 +145,7 @@ RSpec.describe TestRunner::Executor do
     executor = build_executor([stable, flaky])
     executor.instance_variable_set(:@pending, [[0, test, [stable, flaky]]])
     allow(executor).to receive(:run_test_attempt).and_return(first, second)
+    allow(executor).to receive(:preserve_test_attempt_logs).and_return(true)
     allow(executor).to receive(:sleep)
 
     executor.send(:run_worker, 0)
@@ -151,6 +154,88 @@ RSpec.describe TestRunner::Executor do
     expect(executor).to have_received(:run_test_attempt).with(0, test, [flaky], 1)
     expect(executor.results.first.script_results.map(&:test_script)).to eq([stable, flaky])
     expect(executor.results.first).to be_successful
+  end
+
+  it 'retains attempt logs without duplicating results, copying disks or following symlinks' do
+    test = build_test
+
+    Dir.mktmpdir('test-runner-attempt-') do |root|
+      executor = build_executor([test.test_scripts['default']], state_dir: root)
+      dir = executor.send(:test_state_dir, test)
+      FileUtils.mkdir_p(dir)
+      File.binwrite(File.join(dir, 'test-runner.log'), "first failure\n\x00")
+      File.write(File.join(dir, 'machine-shell.log'), 'failed command')
+      File.write(File.join(dir, 'test-result.txt'), 'unexpected_failure')
+      File.write(File.join(dir, 'disk.img'), 'not a log')
+      FileUtils.mkdir_p(File.join(dir, 'shared-dir'))
+      File.write(File.join(dir, 'shared-dir', 'nested.log'), 'not a standard log')
+      File.symlink('machine-shell.log', File.join(dir, 'linked.log'))
+
+      expect(executor.send(:preserve_test_attempt_logs, test, 1)).to be(true)
+      archive = Dir.glob(File.join(dir, 'attempt-1-*')).fetch(0)
+      expect(Dir.children(archive).sort).to eq(%w[machine-shell.log outcome.txt test-runner.log])
+      expect(File.binread(File.join(archive, 'test-runner.log'))).to eq("first failure\n\x00")
+      expect(File.read(File.join(archive, 'outcome.txt'))).to eq('unexpected_failure')
+
+      File.write(File.join(dir, 'test-runner.log'), 'second attempt')
+      File.write(File.join(dir, 'test-result.txt'), 'expected_success')
+      expect(File.binread(File.join(archive, 'test-runner.log'))).to eq("first failure\n\x00")
+      expect(Dir.glob(File.join(dir, '**', 'test-result.txt'))).to eq([File.join(dir, 'test-result.txt')])
+    end
+  end
+
+  it 'retains attempt logs without replacing an existing archive' do
+    test = build_test
+
+    Dir.mktmpdir('test-runner-attempt-') do |root|
+      executor = build_executor([test.test_scripts['default']], state_dir: root)
+      dir = executor.send(:test_state_dir, test)
+      FileUtils.mkdir_p(File.join(dir, 'attempt-1'))
+      File.write(File.join(dir, 'attempt-1', 'test-runner.log'), 'retained')
+      File.write(File.join(dir, 'test-runner.log'), 'current')
+      allow(executor).to receive(:log)
+
+      expect(executor.send(:preserve_test_attempt_logs, test, 1)).to be(true)
+      expect(File.read(File.join(dir, 'attempt-1', 'test-runner.log'))).to eq('retained')
+      expect(File.read(File.join(dir, 'test-runner.log'))).to eq('current')
+      archive = Dir.glob(File.join(dir, 'attempt-1-*')).fetch(0)
+      expect(File.read(File.join(archive, 'test-runner.log'))).to eq('current')
+    end
+  end
+
+  it 'retains original attempt logs when a copy fails' do
+    test = build_test
+
+    Dir.mktmpdir('test-runner-attempt-') do |root|
+      executor = build_executor([test.test_scripts['default']], state_dir: root)
+      dir = executor.send(:test_state_dir, test)
+      FileUtils.mkdir_p(dir)
+      File.write(File.join(dir, 'test-runner.log'), 'retained failure')
+      allow(FileUtils).to receive(:cp).and_raise(Errno::ENOSPC)
+      allow(executor).to receive(:log)
+
+      expect(executor.send(:preserve_test_attempt_logs, test, 1)).to be(false)
+      expect(File.read(File.join(dir, 'test-runner.log'))).to eq('retained failure')
+    end
+  end
+
+  it 'does not retry or lose the failed result when attempt logs cannot be retained' do
+    test = build_test(attempts: 3)
+    script = test.test_scripts['default']
+    failed = TestRunner::TestResult.new(
+      test, [TestRunner::TestScriptResult.new(script, false, 0.1)], true, 0.1, '/tmp/state'
+    )
+    executor = build_executor([script])
+    allow(executor).to receive(:run_test_attempt).and_return(failed)
+    allow(executor).to receive(:preserve_test_attempt_logs).with(test, 1).and_return(false)
+    allow(executor).to receive(:sleep)
+
+    result = executor.send(:run_test_with_retries, 0, test, [script])
+
+    expect(executor).to have_received(:run_test_attempt).once
+    expect(executor).not_to have_received(:sleep)
+    expect(result).not_to be_successful
+    expect(result.script_results.first).to eq(failed.script_results.first)
   end
 
   it 'does not retry a test after a guest kernel failure' do
