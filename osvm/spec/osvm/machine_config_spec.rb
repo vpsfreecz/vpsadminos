@@ -107,6 +107,23 @@ RSpec.describe OsVm::MachineConfig do
     end.to raise_error(ArgumentError, /testShells must be an integer/)
   end
 
+  it 'keeps old guest configurations on console ports' do
+    expect(build_machine_config.test_shell_transport).to eq('virtconsole')
+  end
+
+  it 'loads and validates the test shell transport' do
+    %w[virtconsole virtserialport].each do |transport|
+      config = build_machine_config('testShellTransport' => transport)
+      expect(config.test_shell_transport).to eq(transport)
+    end
+
+    [nil, '', 'unknown'].each do |transport|
+      expect do
+        build_machine_config('testShellTransport' => transport)
+      end.to raise_error(ArgumentError, /unsupported test shell transport/)
+    end
+  end
+
   it 'loads and validates named shells' do
     config = build_machine_config('testShells' => 3, 'shells' => %w[first second])
 
