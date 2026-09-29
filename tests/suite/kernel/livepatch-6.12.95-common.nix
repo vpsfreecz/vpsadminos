@@ -915,9 +915,12 @@ assert selectedExample == null || exampleFilter == "";
 
     def self.disable_patch(machine, name)
       dir = patch_dir(name)
-      return unless machine.execute("test -e #{dir}/enabled")[0] == 0
+      status, enabled = machine.execute("cat #{dir}/enabled 2>/dev/null")
+      return unless status == 0
 
-      machine.succeeds("sh -c 'echo 0 > #{dir}/enabled'")
+      # Rewriting an already-requested state returns EINVAL. A pending
+      # disable still needs the same bounded convergence wait.
+      machine.succeeds("sh -c 'echo 0 > #{dir}/enabled'") if enabled.strip == "1"
       wait_for_patch(machine, name, 0)
     end
 
@@ -1136,23 +1139,6 @@ assert selectedExample == null || exampleFilter == "";
       )
 
       machine.execute(
-        "for name in #{CORRECTED_NAME} " \
-        "#{RELEASED_V5_NAME} #{PREDECESSOR_NAME}; do " \
-        "dir=/sys/kernel/livepatch/$name; " \
-        "if test -e \"$dir/enabled\"; then " \
-        "echo 0 > \"$dir/enabled\" 2>/dev/null || true; " \
-        "attempt=0; " \
-        "while test $attempt -lt 300; do " \
-        "test ! -e \"$dir/transition\" && break; " \
-        "test \"$(cat \"$dir/transition\" 2>/dev/null)\" = 0 && break; " \
-        "attempt=$((attempt + 1)); sleep 0.1; " \
-        "done; " \
-        "fi; " \
-        "rmmod \"$name\" >/dev/null 2>&1 || true; " \
-        "done"
-      )
-
-      machine.execute(
         "nft delete table inet klp_obj_pre_a >/dev/null 2>&1 || true; " \
         "nft delete table inet klp_obj_pre_b >/dev/null 2>&1 || true; " \
         "nft delete table inet klp_obj_post_a >/dev/null 2>&1 || true; " \
@@ -1172,6 +1158,14 @@ assert selectedExample == null || exampleFilter == "";
         "ip netns del klp_fast >/dev/null 2>&1 || true; " \
         "rm -rf #{V5_STATE}"
       )
+
+      # Release workloads before waiting for unpatching. The old 30-second
+      # best-effort loop could leave a disabled module behind, making the next
+      # example fail with EEXIST instead of testing its intended transition.
+      [CORRECTED_NAME, RELEASED_V5_NAME, PREDECESSOR_NAME].each do |name|
+        disable_patch(machine, name)
+        remove_module(machine, name)
+      end
 
       machine.execute(
         "for module in fuse nfsv4 nf_tables nfnetlink_queue nft_queue " \
@@ -2272,6 +2266,25 @@ assert selectedExample == null || exampleFilter == "";
         expect(status).not_to eq(0), output
         machine.fails("test -d /sys/module/#{PREDECESSOR_NAME}")
         wait_for_patch(machine, CORRECTED_NAME, 1)
+
+        # Request disable independently: its sysfs write can wait for callbacks,
+        # so a synchronous request may never exercise the already-disabled state.
+        # The helper must tolerate either a pending or already-completed unpatch;
+        # common cleanup then removes the module before the next fresh insertion.
+        disable_status = "/run/livepatch-disable-status"
+        machine.succeeds("rm -f #{disable_status}")
+        machine.succeeds(
+          "sh -c '(echo 0 > #{patch_dir(CORRECTED_NAME)}/enabled; " \
+          "echo $? > #{disable_status}) >/dev/null 2>&1 </dev/null &'"
+        )
+        machine.wait_until_succeeds(
+          "test -s #{disable_status} || " \
+          "test \"$(cat #{patch_dir(CORRECTED_NAME)}/enabled 2>/dev/null)\" = 0"
+        )
+        disable_patch(machine, CORRECTED_NAME)
+        machine.wait_until_succeeds("test -s #{disable_status}")
+        machine.succeeds("test \"$(cat #{disable_status})\" = 0")
+        machine.succeeds("rm -f #{disable_status}")
       end
 
       it "repairs legacy and future nested-SVM x2APIC bitmaps" do
