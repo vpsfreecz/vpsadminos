@@ -274,6 +274,10 @@ in
 
         ${optionalString cfg.lxcbr.enable ''
           brctl addbr lxcbr0
+          # Keep the generated address instead of adopting the lowest port MAC.
+          # Otherwise stopping a container can invalidate other clients' ARP
+          # entries and interrupt their established connections to the gateway.
+          ip link set dev lxcbr0 address "$(cat /sys/class/net/lxcbr0/address)"
           brctl setfd lxcbr0 0
           ip addr add 192.168.1.1 dev lxcbr0
           ip link set promisc on lxcbr0

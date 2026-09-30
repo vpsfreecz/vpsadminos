@@ -8,6 +8,12 @@ Virtual machines run with `make qemu` have `lxcbr0` preconfigured. To enable
 `lxcbr0` in other configurations, set option `networking.lxcbr.enable = true;`,
 e.g. in your `config/local.nix`.
 
+The preconfigured bridge keeps its initial generated MAC address for the
+lifetime of the interface. Adding or removing container ports must not change
+the gateway's MAC, which would invalidate other containers' neighbour entries
+and interrupt their existing connections. This does not assign a fixed MAC
+across bridge recreation or host reboots.
+
 To create a bridged veth, use:
 
 ```bash
