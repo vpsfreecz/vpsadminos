@@ -297,6 +297,10 @@ This wait only affects failure cleanup: it does not suppress kernel-failure
 detection, permit further guest commands, or turn a failing test into a pass.
 A dump can still be incomplete if a collection limit is reached.
 
+Console detection includes bad-RSS accounting BUGs reported during final
+shutdown. A successful script body and zero QEMU exit status do not clear a
+recorded kernel failure; the runner checks again after final console collection.
+
 ## NFS cancellation lock diagnostics
 
 The NFS cancellation test's remote-lock example enables a dedicated trace
