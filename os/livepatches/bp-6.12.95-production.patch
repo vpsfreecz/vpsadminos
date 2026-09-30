@@ -2038,7 +2038,7 @@ index 9103896164f68..9fd392e9171b2 100644
  	}
  	mutex_unlock(&nlm_file_mutex);
 diff --git a/fs/nfs/client.c b/fs/nfs/client.c
-index 8bdde6cc873f1..b1115d8fb2b5a 100644
+index 8bdde6cc873f1..233e17840f16b 100644
 --- a/fs/nfs/client.c
 +++ b/fs/nfs/client.c
 @@ -11,6 +11,10 @@
@@ -2052,7 +2052,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  #include <linux/mm.h>
  #include <linux/string.h>
  #include <linux/stat.h>
-@@ -38,6 +42,159 @@
+@@ -38,6 +42,160 @@
  #include <linux/sunrpc/bc_xprt.h>
  #include <linux/nsproxy.h>
  #include <linux/pid_namespace.h>
@@ -2191,28 +2191,29 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
 +		put_task_struct(old);
 +}
 +
-+void vps_cancel_task_signal(struct nfs_client *clp)
++bool vps_cancel_task_signal(struct nfs_client *clp)
 +{
 +	struct vps_cancel_task_state *st =
 +		klp_shadow_get((void *)clp, VPS_CANCEL_ID_NFS_CLIENT_TASK);
 +	struct task_struct *task;
 +
 +	if (!st)
-+		return;
++		return false;
 +	spin_lock(&st->lock);
 +	task = st->task;
 +	if (task)
 +		get_task_struct(task);
 +	spin_unlock(&st->lock);
-+	if (task) {
-+		send_sig(SIGKILL, task, 1);
-+		put_task_struct(task);
-+	}
++	if (!task)
++		return false;
++	send_sig(SIGKILL, task, 1);
++	put_task_struct(task);
++	return true;
 +}
  
  
  #include "nfs4_fs.h"
-@@ -250,6 +407,8 @@ void nfs_free_client(struct nfs_client *clp)
+@@ -250,6 +408,8 @@ void nfs_free_client(struct nfs_client *clp)
  	put_nfs_version(clp->cl_nfs_mod);
  	kfree(clp->cl_hostname);
  	kfree(clp->cl_acceptor);
@@ -2221,7 +2222,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  	kfree_rcu(clp, rcu);
  }
  EXPORT_SYMBOL_GPL(nfs_free_client);
-@@ -420,6 +579,14 @@ struct nfs_client *nfs_get_client(const struct nfs_client_initdata *cl_init)
+@@ -420,6 +580,14 @@ struct nfs_client *nfs_get_client(const struct nfs_client_initdata *cl_init)
  	do {
  		spin_lock(&nn->nfs_client_lock);
  
@@ -2236,7 +2237,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  		clp = nfs_match_client(cl_init);
  		if (clp) {
  			spin_unlock(&nn->nfs_client_lock);
-@@ -451,12 +618,30 @@ EXPORT_SYMBOL_GPL(nfs_get_client);
+@@ -451,12 +619,30 @@ EXPORT_SYMBOL_GPL(nfs_get_client);
  /*
   * Mark a server as ready or failed
   */
@@ -2269,7 +2270,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  EXPORT_SYMBOL_GPL(nfs_mark_client_ready);
  
  /*
-@@ -992,12 +1177,20 @@ void nfs_server_insert_lists(struct nfs_server *server)
+@@ -992,12 +1178,20 @@ void nfs_server_insert_lists(struct nfs_server *server)
  	struct nfs_client *clp = server->nfs_client;
  	struct nfs_net *nn = net_generic(clp->cl_net, nfs_net_id);
  
@@ -2291,7 +2292,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  }
  EXPORT_SYMBOL_GPL(nfs_server_insert_lists);
  
-@@ -1009,14 +1202,22 @@ void nfs_server_remove_lists(struct nfs_server *server)
+@@ -1009,14 +1203,22 @@ void nfs_server_remove_lists(struct nfs_server *server)
  	if (clp == NULL)
  		return;
  	nn = net_generic(clp->cl_net, nfs_net_id);
@@ -2315,7 +2316,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  }
  EXPORT_SYMBOL_GPL(nfs_server_remove_lists);
  
-@@ -1086,6 +1287,10 @@ static void delayed_free(struct rcu_head *p)
+@@ -1086,6 +1288,10 @@ static void delayed_free(struct rcu_head *p)
   */
  void nfs_free_server(struct nfs_server *server)
  {
@@ -2326,7 +2327,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  	nfs_server_remove_lists(server);
  
  	if (server->destroy != NULL)
-@@ -1098,10 +1303,8 @@ void nfs_free_server(struct nfs_server *server)
+@@ -1098,10 +1304,8 @@ void nfs_free_server(struct nfs_server *server)
  
  	nfs_put_client(server->nfs_client);
  
@@ -2338,7 +2339,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  	ida_free(&s_sysfs_ids, server->s_sysfs_id);
  
  	put_cred(server->cred);
-@@ -1168,6 +1371,10 @@ struct nfs_server *nfs_create_server(struct fs_context *fc)
+@@ -1168,6 +1372,10 @@ struct nfs_server *nfs_create_server(struct fs_context *fc)
  		(unsigned long long) server->fsid.minor);
  
  	nfs_server_insert_lists(server);
@@ -2349,7 +2350,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  	server->mount_time = jiffies;
  	nfs_free_fattr(fattr);
  	return server;
-@@ -1230,6 +1437,10 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
+@@ -1230,6 +1438,10 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
  		goto out_free_server;
  
  	nfs_server_insert_lists(server);
@@ -2360,7 +2361,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  	server->mount_time = jiffies;
  
  	return server;
-@@ -1240,6 +1451,215 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
+@@ -1240,6 +1452,219 @@ struct nfs_server *nfs_clone_server(struct nfs_server *source,
  }
  EXPORT_SYMBOL_GPL(nfs_clone_server);
  
@@ -2414,6 +2415,9 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
 +	struct nfs_server *server;
 +	struct nfs_client *clp;
 +	int ret;
++#if IS_ENABLED(CONFIG_NFS_V4)
++	bool scan_managers = false;
++#endif
 +
 +	if (!st)
 +		return -ENOMEM;
@@ -2429,16 +2433,17 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
 +	list_for_each_entry(clp, &nn->nfs_client_list, cl_share_link) {
 +		nfs_mark_client_ready_locked(clp, -EIO);
 +#if IS_ENABLED(CONFIG_NFS_V4)
-+		/* A manager created before this patch has no v7 task shadow.  Make
-+		 * its existing interruptible RUN_MANAGER wait leave that state;
-+		 * the patched manager body will observe cl_shutdown and exit.
-+		 */
-+		set_bit(NFS4CLNT_RUN_MANAGER, &clp->cl_state);
-+		wake_up_var(&clp->cl_state);
-+		/* New managers can also be interrupted through their task shadow. */
-+		vps_cancel_task_signal(clp);
++		if (clp->rpc_ops->version == 4 && !vps_cancel_task_signal(clp))
++			scan_managers = true;
 +#endif
 +	}
++#if IS_ENABLED(CONFIG_NFS_V4)
++	/* Only legacy managers lack the task shadow.  Walk tasks once per
++	 * cancelled namespace, not once for every client, and never on load.
++	 */
++	if (scan_managers)
++		vps_cancel_nfs4_tasks(nn);
++#endif
 +	spin_unlock(&nn->nfs_client_lock);
 +out_unlock:
 +	mutex_unlock(&st->nfs_server_lock);
@@ -2576,7 +2581,7 @@ index 8bdde6cc873f1..b1115d8fb2b5a 100644
  void nfs_clients_init(struct net *net)
  {
  	struct nfs_net *nn = net_generic(net, nfs_net_id);
-@@ -1253,7 +1673,6 @@ void nfs_clients_init(struct net *net)
+@@ -1253,7 +1678,6 @@ void nfs_clients_init(struct net *net)
  	nn->boot_time = ktime_get_real();
  	memset(&nn->rpcstats, 0, sizeof(nn->rpcstats));
  	nn->rpcstats.program = &nfs_program;
@@ -3311,10 +3316,18 @@ index c76acd537be05..f1720a1d9d095 100644
  nfs41_free_lock_state(struct nfs_server *server, struct nfs4_lock_state *lsp)
  {
 diff --git a/fs/nfs/nfs4state.c b/fs/nfs/nfs4state.c
-index 946acdeaf85ad..4688da397c134 100644
+index 946acdeaf85ad..318a786742018 100644
 --- a/fs/nfs/nfs4state.c
 +++ b/fs/nfs/nfs4state.c
-@@ -1199,8 +1199,9 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
+@@ -50,6 +50,7 @@
+ #include <linux/bitops.h>
+ #include <linux/jiffies.h>
+ #include <linux/sched/mm.h>
++#include <linux/sched/signal.h>
+ 
+ #include <linux/sunrpc/clnt.h>
+ 
+@@ -1199,8 +1200,9 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
  	char buf[INET6_ADDRSTRLEN + sizeof("-manager") + 1];
  	struct rpc_clnt *clnt = clp->cl_rpcclient;
  	bool swapon = false;
@@ -3325,7 +3338,7 @@ index 946acdeaf85ad..4688da397c134 100644
  		return;
  
  	set_bit(NFS4CLNT_RUN_MANAGER, &clp->cl_state);
-@@ -1219,6 +1220,11 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
+@@ -1219,6 +1221,11 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
  
  	__module_get(THIS_MODULE);
  	refcount_inc(&clp->cl_count);
@@ -3337,7 +3350,7 @@ index 946acdeaf85ad..4688da397c134 100644
  
  	/* The rcu_read_lock() is not strictly necessary, as the state
  	 * manager is the only thread that ever changes the rpc_xprt
-@@ -1227,18 +1233,28 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
+@@ -1227,18 +1234,30 @@ void nfs4_schedule_state_manager(struct nfs_client *clp)
  	snprintf(buf, sizeof(buf), "%s-manager",
  			rpc_peeraddr2str(clp->cl_rpcclient, RPC_DISPLAY_ADDR));
  	rcu_read_unlock();
@@ -3356,6 +3369,8 @@ index 946acdeaf85ad..4688da397c134 100644
 +	task = kthread_create(nfs4_run_state_manager, clp, "%s", buf);
 +	if (IS_ERR(task))
 +		goto out_error;
++	/* Prepare the stopped task before publishing its shadow. */
++	vps_cancel_nfs4_enable_signal(task);
 +	/* Pin the stopped thread before it can run or exit.  Cancellation may
 +	 * have raced creation, so recheck the terminal bit before waking it.
 +	 */
@@ -3378,7 +3393,7 @@ index 946acdeaf85ad..4688da397c134 100644
  }
  
  /*
-@@ -1405,7 +1421,7 @@ int nfs4_schedule_stateid_recovery(const struct nfs_server *server, struct nfs4_
+@@ -1405,7 +1424,7 @@ int nfs4_schedule_stateid_recovery(const struct nfs_server *server, struct nfs4_
  	dprintk("%s: scheduling stateid recovery for server %s\n", __func__,
  			clp->cl_hostname);
  	nfs4_schedule_state_manager(clp);
@@ -3387,25 +3402,40 @@ index 946acdeaf85ad..4688da397c134 100644
  }
  EXPORT_SYMBOL_GPL(nfs4_schedule_stateid_recovery);
  
-@@ -2601,6 +2617,18 @@ static void nfs4_state_manager(struct nfs_client *clp)
- 	int status = 0;
- 	const char *section = "", *section_sep = "";
- 
-+	/* A host may activate v7 after this client's manager was created.  Such
-+	 * a manager has no v7 task shadow to signal, but the terminal NFS path
-+	 * wakes its RUN_MANAGER wait.  Clear the bit so the original outer
-+	 * nfs4_run_state_manager() loop exits instead of restarting recovery.
-+	 */
-+	if (vps_cancel_clnt_is_shutdown(clp->cl_rpcclient)) {
-+		clear_bit(NFS4CLNT_RUN_MANAGER, &clp->cl_state);
-+		clear_bit(NFS4CLNT_MANAGER_AVAILABLE, &clp->cl_state);
-+		nfs4_clear_state_manager_bit(clp);
-+		return;
-+	}
+@@ -2793,3 +2812,33 @@ static int nfs4_run_state_manager(void *ptr)
+ 	module_put_and_kthread_exit(0);
+ 	return 0;
+ }
 +
- 	/*
- 	 * State recovery can deadlock if the direct reclaim code tries
- 	 * start NFS writeback. So ensure memory allocations are all
++/* nn->nfs_client_lock pins the list and each client throughout this walk.
++ * Task RCU protects task_struct and its kthread metadata.  Compare the data
++ * pointer only: a manager may already have dropped its client reference, so
++ * dereferencing an arbitrary kthread_data() result would not be safe.
++ * Function identity and list membership exclude unrelated kernel threads and
++ * every other network namespace.  No allocation or name/PID matching is used.
++ */
++void vps_cancel_nfs4_tasks(struct nfs_net *nn)
++{
++	struct task_struct *group, *task;
++	struct nfs_client *clp;
++	void *data;
++
++	lockdep_assert_held(&nn->nfs_client_lock);
++	rcu_read_lock();
++	for_each_process_thread(group, task) {
++		if (kthread_func(task) != nfs4_run_state_manager)
++			continue;
++		data = kthread_data(task);
++		list_for_each_entry(clp, &nn->nfs_client_list, cl_share_link) {
++			if (clp->rpc_ops->version != 4 || data != clp)
++				continue;
++			vps_cancel_nfs4_enable_signal(task);
++			send_sig(SIGKILL, task, 1);
++			break;
++		}
++	}
++	rcu_read_unlock();
++}
 diff --git a/fs/nfs/super.c b/fs/nfs/super.c
 index 079393dc10956..79ccb2c3ce882 100644
 --- a/fs/nfs/super.c
@@ -4500,10 +4530,10 @@ index 5321585c778fc..345cd9acb3276 100644
  void		rpc_task_release_client(struct rpc_task *);
 diff --git a/include/linux/vpsadminos-cancel.h b/include/linux/vpsadminos-cancel.h
 new file mode 100644
-index 0000000000000..19356fed861a7
+index 0000000000000..53553063e5011
 --- /dev/null
 +++ b/include/linux/vpsadminos-cancel.h
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,105 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +/*
 + * vpsAdminOS host-owned NFS/SUNRPC cancellation: out-of-struct state.
@@ -4602,7 +4632,11 @@ index 0000000000000..19356fed861a7
 + * fs/nfs/client.c. */
 +int vps_cancel_task_prepare(struct nfs_client *clp);
 +void vps_cancel_task_store(struct nfs_client *clp, struct task_struct *task);
-+void vps_cancel_task_signal(struct nfs_client *clp);
++bool vps_cancel_task_signal(struct nfs_client *clp);
++void vps_cancel_nfs4_tasks(struct nfs_net *nn);
++
++/* Built-in bridge to the unexported sighand locking helper. */
++void vps_cancel_nfs4_enable_signal(struct task_struct *task);
 +
 +#endif /* _LINUX_VPSADMINOS_CANCEL_H */
 diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
@@ -5838,6 +5872,44 @@ index 4f5abcf777a7c..e9048e5731dad 100644
  	spin_unlock(&sighand->siglock);
  
  	__cleanup_sighand(sighand);
+diff --git a/kernel/kthread.c b/kernel/kthread.c
+index 9bb36897b6c62..a7f27faedcec8 100644
+--- a/kernel/kthread.c
++++ b/kernel/kthread.c
+@@ -29,6 +29,7 @@
+ #include <linux/numa.h>
+ #include <linux/sched/isolation.h>
+ #include <trace/events/sched.h>
++#include <linux/vpsadminos-cancel.h>
+ 
+ 
+ static DEFINE_SPINLOCK(kthread_create_lock);
+@@ -159,6 +160,25 @@ bool kthread_should_stop(void)
+ }
+ EXPORT_SYMBOL(kthread_should_stop);
+ 
++/*
++ * The original NFSv4 manager calls allow_signal(), but cancellation can
++ * win that race, including for managers created before the livepatch.
++ * Keep this finite bridge in built-in code: __lock_task_sighand is not
++ * exported, so nfsv4 must not acquire an ordinary module import of it.
++ */
++void vps_cancel_nfs4_enable_signal(struct task_struct *task)
++{
++	struct sighand_struct *sighand;
++	unsigned long flags;
++
++	sighand = lock_task_sighand(task, &flags);
++	if (!sighand)
++		return;
++	if (sighand->action[SIGKILL - 1].sa.sa_handler == SIG_IGN)
++		sighand->action[SIGKILL - 1].sa.sa_handler = SIG_KTHREAD_KERNEL;
++	unlock_task_sighand(task, &flags);
++}
++
+ static bool __kthread_should_park(struct task_struct *k)
+ {
+ 	return test_bit(KTHREAD_SHOULD_PARK, &to_kthread(k)->flags);
 diff --git a/kernel/livepatch/Makefile b/kernel/livepatch/Makefile
 index cf03d4bdfc663..0eedad5e9dcc4 100644
 --- a/kernel/livepatch/Makefile
