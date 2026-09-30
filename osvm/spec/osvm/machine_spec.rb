@@ -893,11 +893,30 @@ RSpec.describe OsVm::Machine do
     end
   end
 
-  it 'renders qemu options for multiple test shells' do
+  it 'renders compatible console options for multiple legacy test shells' do
     with_tmpdir do |dir|
       machine = build_machine(
         dir:,
         config: build_machine_config('testShells' => 2)
+      )
+
+      expect(machine.send(:qemu_shell_options)).to eq(
+        [
+          '-device', 'virtio-serial',
+          '-chardev', "socket,id=shell,path=#{machine.send(:shell_socket_path, 0)}",
+          '-device', 'virtconsole,chardev=shell',
+          '-chardev', "socket,id=shell1,path=#{machine.send(:shell_socket_path, 1)}",
+          '-device', 'virtconsole,chardev=shell1'
+        ]
+      )
+    end
+  end
+
+  it 'renders flow-controlled serial ports for new guest configurations' do
+    with_tmpdir do |dir|
+      machine = build_machine(
+        dir:,
+        config: build_machine_config('testShells' => 2, 'testShellTransport' => 'virtserialport')
       )
 
       expect(machine.send(:qemu_shell_options)).to eq(

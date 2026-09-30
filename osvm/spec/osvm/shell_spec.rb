@@ -66,6 +66,13 @@ RSpec.describe OsVm::Shell do
     end
   end
 
+  it 'preserves a large reply, its exit status, and the following reply' do
+    with_command_shell do |shell, _io|
+      expect(shell.execute("head -c 1048576 /dev/zero | tr '\\0' x; exit 37")).to eq([37, 'x' * 1_048_576])
+      expect(shell.execute('printf after; exit 11')).to eq([11, 'after'])
+    end
+  end
+
   it 'ignores stale framed records without renewing the response deadline' do
     with_tmpdir do |dir|
       shell = build_shell(dir:)
@@ -117,14 +124,15 @@ RSpec.describe OsVm::Shell do
     end
   end
 
-  it 'builds qemu options from its index and socket path' do
+  it 'builds serial-port options from its index and socket path' do
     with_tmpdir do |dir|
       shell = described_class.new(
         instance_double(OsVm::Machine),
         2,
         File.join(dir, 'shell2.sock'),
         File.join(dir, 'shell2.log'),
-        default_timeout: 10
+        default_timeout: 10,
+        transport: 'virtserialport'
       )
 
       expect(shell.chardev_id).to eq('shell2')

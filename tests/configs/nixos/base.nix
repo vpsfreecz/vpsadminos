@@ -6,11 +6,14 @@
 }:
 let
   shellIndexes = lib.range 0 (config.osvm.testShells - 1);
+  serial = config.osvm.testShellTransport == "virtserialport";
+  shellDevice =
+    i: if serial then "/dev/virtio-ports/org.osvm.shell${toString i}" else "/dev/hvc${toString i}";
 
   testShell =
     i:
     let
-      device = "/dev/virtio-ports/org.osvm.shell${toString i}";
+      device = shellDevice i;
     in
     pkgs.writeShellScript "osvm-test-shell-${toString i}" ''
       until [ -c ${device} ]; do
@@ -28,37 +31,69 @@ let
       export PAGER=
       export PS1=
 
-      # A virtio serial port permits one open; share that descriptor for I/O.
-      exec 3<> ${device}
-      exec <&3 >&3 2>&3
-      exec 3>&-
+      ${
+        if serial then
+          ''
+            # A virtio serial port permits one open; share that descriptor.
+            exec 3<> ${device}
+            exec <&3 >&3 2>&3
+            exec 3>&-
+            echo test-shell-ready
+          ''
+        else
+          ''
+            stty -F ${device} raw -echo
+            echo test-shell-ready > ${device}
+          ''
+      }
 
-      echo test-shell-ready
-
-      exec ${pkgs.bash}/bin/bash --norc
+      exec ${pkgs.bash}/bin/bash --norc ${if serial then "-s" else device}
     '';
 
   serviceName = i: if i == 0 then "test-shell" else "test-shell-${toString i}";
 
-  shellService = i: {
-    description = "osvm test shell";
-    wantedBy = [ "multi-user.target" ];
-    restartIfChanged = false;
-    stopIfChanged = false;
-    reloadIfChanged = false;
-    serviceConfig = {
-      Type = "simple";
-      ExecStart = testShell i;
-      Restart = "always";
-      RestartSec = 1;
+  shellService =
+    i:
+    let
+      device = shellDevice i;
+    in
+    {
+      description = "osvm test shell";
+      wantedBy = [ "multi-user.target" ];
+      after = lib.optionals (!serial) [ "dev-hvc${toString i}.device" ];
+      restartIfChanged = false;
+      stopIfChanged = false;
+      reloadIfChanged = false;
+      serviceConfig = {
+        Type = "simple";
+        ExecStart = testShell i;
+        Restart = "always";
+        RestartSec = 1;
+      }
+      // lib.optionalAttrs (!serial) {
+        StandardInput = "tty";
+        StandardOutput = "tty";
+        StandardError = "tty";
+        TTYPath = device;
+        TTYReset = "yes";
+        TTYVHangup = "yes";
+      };
     };
-  };
 in
 {
   options.osvm.testShells = lib.mkOption {
     type = lib.types.ints.positive;
     default = 1;
     description = "Number of test shells to run.";
+  };
+
+  options.osvm.testShellTransport = lib.mkOption {
+    type = lib.types.enum [
+      "virtconsole"
+      "virtserialport"
+    ];
+    default = "virtconsole";
+    description = "Test shell transport supplied by the host VM runner.";
   };
 
   config = {

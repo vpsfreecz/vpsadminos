@@ -26,10 +26,12 @@ module OsVm
     # @param socket_path [String]
     # @param log_path [String]
     # @param default_timeout [Integer]
-    def initialize(machine, index, socket_path, log_path, default_timeout:, name: nil)
+    # @param transport ['virtconsole', 'virtserialport']
+    def initialize(machine, index, socket_path, log_path, default_timeout:, name: nil, transport: 'virtconsole')
       @machine = machine
       @index = index
       @name = name
+      @transport = transport
       @socket_path = socket_path
       @default_timeout = default_timeout
       @log = ShellLog.new(log_path, shell_index: index, shell_name: name)
@@ -52,10 +54,14 @@ module OsVm
     end
 
     def qemu_options
+      device = "#{@transport},chardev=#{chardev_id}"
+      # Console ports discard output under backpressure; new guests use a
+      # flow-controlled serial port instead. Keep old guest JSON compatible.
+      device << ",name=org.osvm.shell#{index}" if @transport == 'virtserialport'
+
       [
         '-chardev', "socket,id=#{chardev_id},path=#{socket_path}",
-        # Console ports discard output under backpressure; shell replies must not.
-        '-device', "virtserialport,chardev=#{chardev_id},name=org.osvm.shell#{index}"
+        '-device', device
       ]
     end
 
