@@ -118,6 +118,7 @@ let
         "kernel/livepatch-perf-v7"
         "kernel/livepatch-tun-intel"
         "kernel/livepatch-sctp-baseline"
+        "kernel/livepatch-inet-frag"
         "osctl/nfs-cancellation-baseline"
         {
           template = "kernel/livepatch-qualification";
