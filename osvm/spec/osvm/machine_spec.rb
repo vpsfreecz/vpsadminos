@@ -391,6 +391,7 @@ RSpec.describe OsVm::Machine do
     signatures = [
       'BUG: unable to handle page fault for address: deadbeef',
       'BUG: kernel NULL pointer dereference, address: 0',
+      'BUG: Bad rss-counter state mm:0000000000000001 type:MM_FILEPAGES val:-25',
       'kernel BUG at arch/x86/kernel/alternative.c:2531!',
       'Oops: 0003 [#1] SMP',
       'general protection fault, probably for non-canonical address',
@@ -417,6 +418,30 @@ RSpec.describe OsVm::Machine do
 
       expect(machine.kernel_failed?).to be(false)
       expect(machine.raise_if_kernel_failed!).to eq(machine)
+    end
+  end
+
+  it 'recognizes a fragmented bad RSS counter report after powerdown' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      machine.send(
+        :append_console_output,
+        "[  284.744778] reboot: Power down\n[  284.746937] BUG: Bad rss-counter"
+      )
+      expect(machine.kernel_failed?).to be(false)
+
+      machine.send(:append_console_output, " state mm:0000000000000001 type:MM_FILEPAGES val:-25\n")
+
+      expect { machine.raise_if_kernel_failed! }.to raise_error(OsVm::KernelFailure, /Bad rss-counter state/)
+    end
+  end
+
+  it 'does not treat a DEBUG prefix as a kernel BUG marker' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      machine.send(:append_console_output, "DEBUG: Bad rss-counter state diagnostic enabled\n")
+
+      expect(machine.kernel_failed?).to be(false)
     end
   end
 
