@@ -381,7 +381,7 @@ import ../../make-test.nix (
               # on this tree, so the unit coverage is what keeps the gate
               # itself verified.
               expect(kunit_log).to include("Subtest: auth_guard")
-              expect(kunit_log).to match(/auth_guard: pass:8 fail:0 skip:0 total:8/)
+              expect(kunit_log).to match(/auth_guard: pass:10 fail:0 skip:0 total:10/)
               # The tty cdev-slot lifetime suite (round-161 follow-up).
               expect(kunit_log).to include("Subtest: tty")
               expect(kunit_log).to match(/tty: pass:3 fail:0 skip:0 total:3/)
