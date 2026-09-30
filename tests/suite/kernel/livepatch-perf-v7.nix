@@ -108,7 +108,7 @@ import ../../make-test.nix (
         it "leaves no kernel fault after the perf rows" do
           output = machine.succeeds("dmesg | tail -n +#{@dmesg_start + 1}")[1]
           expect(output).not_to match(
-            /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol/,
+            /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol|blocked for more than|soft lockup|hard LOCKUP|(?:rcu|RCU).*stall/,
           )
         end
       end
