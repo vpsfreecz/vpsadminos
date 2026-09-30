@@ -489,6 +489,8 @@ let
       KUNIT = yes;
       AUTH_EXPECTATION_KUNIT_TEST = authorityGuardOption;
       AUTH_GUARD_KUNIT_TEST = authorityGuardOption;
+      # The tty cdev-slot lifetime suite (round-161 follow-up).
+      TTY_KUNIT_TEST = authorityGuardOption;
     }
     // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
 

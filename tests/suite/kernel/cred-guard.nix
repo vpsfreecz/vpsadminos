@@ -358,6 +358,7 @@ import ../../make-test.nix (
             else
               machine.succeeds("modprobe auth_contract_kunit || true")
               machine.succeeds("modprobe auth_guard_kunit || true")
+              machine.succeeds("modprobe tty_kunit || true")
 
               _, kunit_log = machine.succeeds("dmesg")
               expect(kunit_log).to include("Subtest: auth_contract")
@@ -368,6 +369,9 @@ import ../../make-test.nix (
               # itself verified.
               expect(kunit_log).to include("Subtest: auth_guard")
               expect(kunit_log).to match(/auth_guard: pass:5 fail:0 skip:0 total:5/)
+              # The tty cdev-slot lifetime suite (round-161 follow-up).
+              expect(kunit_log).to include("Subtest: tty")
+              expect(kunit_log).to match(/tty: pass:3 fail:0 skip:0 total:3/)
             end
 
             # Leave no machine running for the next script in this test.
