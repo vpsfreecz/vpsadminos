@@ -5,9 +5,9 @@
   },
 }:
 let
-  # Independently checked after the completed local build and matched against
-  # the passing AMD lifecycle artifact. Never derive this pin from the fixture.
-  correctedSha256 = "bea178e9f7fce5db246f2bded1c2b964f0cbfc4e41c80c9328f3b11857d0d3f9";
+  # Independently checked production artifact from CI 36473097441 (OS3907dbc2).
+  # Never derive this pin from the candidate selected during test execution.
+  correctedSha256 = "a42661bad0632c43977c065c24956e62b44aa25a4d0f6a5fbc5c0bace8c57645";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
