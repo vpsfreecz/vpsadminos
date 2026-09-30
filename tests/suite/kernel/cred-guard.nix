@@ -269,6 +269,19 @@ import ../../make-test.nix (
             expect(boot_messages - seed_messages).to be_empty
             machine.succeeds("dmesg -C")
 
+            # §10.4 telemetry readout: present, tuple-carrying, and its boot id
+            # is stable across reads.
+            _, stats1 = machine.succeeds("cat /proc/vpsadminos/auth_guard/stats")
+            _, stats2 = machine.succeeds("cat /proc/vpsadminos/auth_guard/stats")
+            expect(stats1).to include("mode:")
+            expect(stats1).to include("boot_id:")
+            expect(stats1).to include("counter transitions:")
+            expect(stats1).to include("fail_sites:")
+            boot1 = stats1[/^boot_id: (\d+)$/, 1]
+            boot2 = stats2[/^boot_id: (\d+)$/, 1]
+            expect(boot1).not_to be_nil
+            expect(boot2).to eq(boot1)
+
             machine.succeeds("sh -c 'exec true'")
             machine.succeeds(<<~'SH', timeout: 60)
               set -eu
@@ -368,7 +381,7 @@ import ../../make-test.nix (
               # on this tree, so the unit coverage is what keeps the gate
               # itself verified.
               expect(kunit_log).to include("Subtest: auth_guard")
-              expect(kunit_log).to match(/auth_guard: pass:5 fail:0 skip:0 total:5/)
+              expect(kunit_log).to match(/auth_guard: pass:8 fail:0 skip:0 total:8/)
               # The tty cdev-slot lifetime suite (round-161 follow-up).
               expect(kunit_log).to include("Subtest: tty")
               expect(kunit_log).to match(/tty: pass:3 fail:0 skip:0 total:3/)
