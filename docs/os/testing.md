@@ -252,6 +252,64 @@ The REPL can be used to issue the same commands as in the test script. The test
 script itself can be run by calling method `test_script`. You can call method
 `breakpoint` from inside the test to open the REPL from any point of execution.
 
+## Livepatch qualification shutdown diagnostics
+
+Livepatch qualification guests retain a shutdown-only RSS diagnostic.
+After workload cleanup, a return probe mirrors `__mmdrop` completion during
+poweroff to the kernel console, with the return caller, task name and
+online/dying CPU masks. Console tracing is allocated at boot but remains off
+through the workload. Console verbosity is raised only after cleanup so the
+records reach the serial console rather than only the dmesg ring. They help
+investigate late accounting BUGs; they do not suppress faults or establish
+that a particular BUG is harmless.
+The counter-sum helper itself is not traceable on the pinned boot kernel;
+the diagnostic respects that restriction and observes mm teardown instead.
+
+If qualification already failed, its after-example hook reports unavailable
+diagnostics or cleanup without replacing the original example failure. A
+wedged cgroup migration can also prevent the guest from forking the commands
+needed to collect diagnostics. No successful cleanup or snapshot is inferred
+from this fallback. Cleanup exceptions after completed qualification still
+propagate and fail the test.
+
+## Guest kernel failures
+
+Unexpected guest kernel failures remain fatal and are not retried. During
+cleanup, the runner continues collecting the console so that a panic's later
+stack traces and per-CPU tracing dumps can reach `<machine>-console.log`.
+Collection stops at console EOF, after 30 seconds without new console bytes,
+or 600 seconds after the first failure was detected, whichever comes first.
+The runner then terminates the guest. New output, including repeated failure
+messages, cannot extend that hard collection deadline.
+
+This wait only affects failure cleanup: it does not suppress kernel-failure
+detection, permit further guest commands, or turn a failing test into a pass.
+A dump can still be incomplete if a collection limit is reached.
+
+## NFS cancellation lock diagnostics
+
+The NFS cancellation test's remote-lock example enables a dedicated trace
+instance while the FIFO-held lock and competing client are exercised. Its
+`nfs4`, `nfsd`, `sunrpc`, and `filelock` event rings are bounded to 1 MiB per
+virtual CPU. On failure, tracing is stopped and per-CPU loss statistics and
+the retained events are collected before the holder is released, alongside
+lock, mount, process, firewall and server-state snapshots. A wrapped ring is
+not a complete operation history; use the recorded loss statistics.
+
+The trace instance and enabled events are removed after the example. Capture
+and cleanup do not turn a failed lock assertion into a pass. Server diagnostics
+enter the server's mount, network and PID namespaces so its private proc mount
+can resolve the diagnostic process's network statistics.
+
+Failure snapshots also retain each live `flock` process's descriptors and
+`fdinfo`, plus device/inode/link-count observations for those descriptors and
+the server/client lock paths. This distinguishes a live lock holder from a
+stale or different path without changing the remote contention assertion.
+These are post-failure observations: the short-lived contender has already
+closed its descriptor, and path metadata can require fresh NFS requests.
+Use the retained trace and its loss statistics to establish operation-time
+filehandle identity; a matching pathname alone is not proof.
+
 ## Expected failure
 A test can be expected to fail. The failure is shown, but it does not result
 in error exit status. If a test succeeds and we expected it to fail, it is
