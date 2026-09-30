@@ -167,23 +167,7 @@ let
     '';
   };
 
-  ipv6FragmentPartial = pkgs.stdenv.mkDerivation {
-    pname = "livepatch-test-ipv6-fragment-partial";
-    version = "1";
-    src = ./livepatch-6.12.95;
-
-    dontConfigure = true;
-
-    buildPhase = ''
-      "$CC" -std=gnu11 -O2 -Wall -Wextra -Werror \
-        -o ipv6_fragment_partial ipv6_fragment_partial.c
-    '';
-
-    installPhase = ''
-      install -Dm755 ipv6_fragment_partial \
-        "$out/bin/ipv6_fragment_partial"
-    '';
-  };
+  ipv6FragmentPartial = (import ../../fixtures/livepatch { inherit pkgs; }).ipv6FragmentPartial;
 
   v2Runtime = pkgs.stdenv.mkDerivation {
     pname = "livepatch-test-v2-runtime";
