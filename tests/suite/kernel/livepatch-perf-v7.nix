@@ -20,10 +20,13 @@ import ../../make-test.nix (
       buildPhase = ''
         "$CC" -std=gnu11 -O2 -Wall -Wextra -Werror -pthread \
           -o perf_flags perf_flags.c
+        "$CC" -std=gnu11 -O2 -Wall -Wextra -Werror -pthread \
+          -o perf_cgroup_migration perf_cgroup_migration.c
       '';
 
       installPhase = ''
         install -Dm755 perf_flags "$out/bin/perf_flags"
+        install -Dm755 perf_cgroup_migration "$out/bin/perf_cgroup_migration"
       '';
     };
   in
@@ -31,7 +34,8 @@ import ../../make-test.nix (
     name = "kernel-livepatch-perf-v7";
     description = ''
       Livepatch v7 perf witness rows: real group-leader remove-on-exec ENODEV,
-      observational FD_NO_GROUP / FD_NO_GROUP|FD_OUTPUT, bounded exec/open race
+      observational FD_NO_GROUP / FD_NO_GROUP|FD_OUTPUT, bounded exec/open race,
+      and cgroup-filtered accounting across small and large taskset moves
     '';
     tags = [
       "ci"
@@ -50,6 +54,7 @@ import ../../make-test.nix (
           environment.etc = {
             "livepatch-test/corrected.ko".source = correctedModule;
             "livepatch-test/perf-flags".source = "${perfFlags}/bin/perf_flags";
+            "livepatch-test/perf-cgroup-migration".source = "${perfFlags}/bin/perf_cgroup_migration";
           };
         };
     };
@@ -59,6 +64,7 @@ import ../../make-test.nix (
       CORRECTED_NAME = "livepatch_7"
       CORRECTED_SHA256 = ${builtins.toJSON correctedSha256Env}
       PERF_FLAGS = "/etc/livepatch-test/perf-flags"
+      PERF_CGROUP_MIGRATION = "/etc/livepatch-test/perf-cgroup-migration"
       PATCH_DIR = "/sys/kernel/livepatch/#{CORRECTED_NAME}"
 
       before(:suite) do
@@ -81,6 +87,26 @@ import ../../make-test.nix (
       end
 
       describe "perf witnesses over livepatch_7", order: :defined do
+        ["small", "large"].each do |size|
+          it "moves cgroup-filtered counters with a #{size} taskset" do
+            cpus = Integer(machine.succeeds("getconf _NPROCESSORS_ONLN")[1].strip)
+            tasks = size == "small" ? 1 : cpus + 1
+            groups = %w[a b].map { |suffix| "/sys/fs/cgroup/klp_perf_#{size}_#{suffix}" }
+            machine.all_succeed(
+              "test -e /sys/fs/cgroup/cgroup.controllers",
+              "mkdir #{groups.join(' ')}",
+            )
+            status, output = machine.execute(
+              "#{PERF_CGROUP_MIGRATION} #{groups.join(' ')} #{tasks}",
+              timeout: 60,
+            )
+            cleanup_status, cleanup_output = machine.execute("rmdir #{groups.join(' ')}")
+            expect(status).to eq(0), output
+            expect(cleanup_status).to eq(0), cleanup_output
+            expect(output).to include("cgroup migration tasks=#{tasks} cpus=#{cpus} phases=3 passed")
+          end
+        end
+
         it "rejects a sibling attach to a remove-on-exec group leader with ENODEV (P1)" do
           rc, out = machine.execute("#{PERF_FLAGS} p1")
           expect(rc).to eq(0), out
