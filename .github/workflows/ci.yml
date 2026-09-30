@@ -71,7 +71,18 @@ jobs:
       - name: Build toplevel closure
         run: |
           make OUTPUT=ci-toplevel toplevel
-          echo "BUILD_OUT=$(readlink -f os/result/toplevel)" >> "$GITHUB_ENV"
+          build_out=$(readlink -e os/result/toplevel)
+          livepatch_out=$(readlink -e "$build_out/livepatch-6.12.95")
+          echo "BUILD_OUT=$build_out" >> "$GITHUB_ENV"
+          echo "LIVEPATCH_BUILD_OUT=$livepatch_out" >> "$GITHUB_ENV"
+
+      - name: Upload production livepatch package
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-livepatch-6.12.95-${{ github.run_id }}
+          path: ${{ env.LIVEPATCH_BUILD_OUT }}/
+          include-hidden-files: true
+          if-no-files-found: error
 
       - name: Copy toplevel closure to binary cache
         env:
