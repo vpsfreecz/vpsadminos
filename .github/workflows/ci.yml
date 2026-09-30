@@ -168,7 +168,7 @@ jobs:
           upload-outcome: ${{ steps.upload-test-logs.outcome }}
 
   livepatch-lifecycle:
-    name: Livepatch lifecycle (${{ matrix.vendor }})
+    name: Livepatch lifecycle (${{ matrix.label }})
     needs: build
     runs-on:
       group: vpsAdminOS runners
@@ -181,8 +181,42 @@ jobs:
         include:
           - vendor: amd
             runner: amd-livepatch
+            label: amd
+            tag: livepatch-amd
           - vendor: intel
             runner: intel-kvm
+            label: intel
+            tag: livepatch-intel
+          - vendor: amd
+            runner: amd-livepatch
+            label: amd-fresh
+            tag: livepatch-qualification-amd-fresh
+          - vendor: amd
+            runner: amd-livepatch
+            label: amd-scale-aged-v5
+            tag: livepatch-qualification-amd-scale-aged-v5
+            large: true
+          - vendor: amd
+            runner: amd-livepatch
+            label: amd-scale-aged-v6
+            tag: livepatch-qualification-amd-scale-aged-v6
+            large: true
+          - vendor: amd
+            runner: amd-livepatch
+            label: amd-low-memory-v5
+            tag: livepatch-qualification-amd-low-memory-v5
+          - vendor: amd
+            runner: amd-livepatch
+            label: amd-low-memory-v6
+            tag: livepatch-qualification-amd-low-memory-v6
+          - vendor: intel
+            runner: intel-kvm
+            label: intel-representative-v5
+            tag: livepatch-qualification-intel-representative-v5
+          - vendor: intel
+            runner: intel-kvm
+            label: intel-representative-v6
+            tag: livepatch-qualification-intel-representative-v6
 
     steps:
       - uses: actions/checkout@v7
@@ -204,6 +238,9 @@ jobs:
           # Prepare normal repository fixtures, preserving every main/perf
           # identity assertion. The expected hash is a reviewed source pin,
           # not a checksum computed from the module being tested.
+          unset VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE \
+            VPSADMINOS_LIVEPATCH_MODULE_NAME VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER \
+            VPSADMINOS_ONLY_LIVEPATCH_TEST
           nix eval --impure --raw --expr \
             '(import ./tests/fixtures/livepatch {}).correctedSha256' \
             > "$TEST_RUNNER_STATE_DIR/livepatch-corrected-sha256.txt"
@@ -221,12 +258,27 @@ jobs:
           export VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-released-v5-path.txt")"
           export VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6-path.txt")"
 
-          ./test-runner.sh test \
-            --state-dir "$TEST_RUNNER_STATE_DIR" \
-            --fresh \
-            --jobs 1 \
-            --tag "livepatch-${{ matrix.vendor }}" \
-            | tee "$TEST_RUNNER_STATE_DIR/test.log"
+          args=(
+            test
+            --state-dir "$TEST_RUNNER_STATE_DIR"
+            --fresh
+            --jobs 1
+            --tag "${{ matrix.tag }}"
+          )
+
+          if [[ "${{ matrix.large || false }}" == "true" ]]; then
+            # Step 25 requires 128 *guest* vCPUs. Admit one such VM using
+            # the normal runner's CPU-only oversubscription option. Keep
+            # memory admission unchanged; never pretend these are 128
+            # physical host CPUs or lower the guest/task requirements.
+            host_cpus=$(nproc)
+            cpu_factor=$(((128 + host_cpus - 1) / host_cpus))
+            printf '128 guest vCPUs on %s host-visible CPUs; factor=%s\n' \
+              "$host_cpus" "$cpu_factor"
+            args+=(--max-cpus 128 --cpu-overcommit "$cpu_factor")
+          fi
+
+          ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"
 
       # Keep producer module checksums available even when every case passes.
       - name: Upload full test logs
@@ -237,7 +289,7 @@ jobs:
           steps.run-tests.outcome != 'skipped'
         uses: ./.github/actions/upload-test-logs
         with:
-          name: livepatch-lifecycle-${{ matrix.vendor }}-logs-${{ github.run_id }}
+          name: livepatch-lifecycle-${{ matrix.label }}-logs-${{ github.run_id }}
           paths: |
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
             ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
