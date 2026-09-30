@@ -9,9 +9,11 @@ with lib;
 let
   cfg = config.osctl.test-shell;
   shellIndexes = range 0 (cfg.shells - 1);
+  serial = cfg.transport == "virtserialport";
 
   serviceName = i: if i == 0 then "test-shell" else "test-shell-${toString i}";
-  device = i: "/dev/hvc${toString i}";
+  device =
+    i: if serial then "/dev/virtio-ports/org.osvm.shell${toString i}" else "/dev/hvc${toString i}";
   shellService = i: {
     run = ''
       until [ -c ${device i} ] ; do
@@ -31,13 +33,25 @@ let
 
       cd /tmp
 
-      exec < ${device i} > ${device i}
-      exec 2>&1
-      stty -F ${device i} raw -echo # prevent nl -> cr/nl conversion
+      ${
+        if serial then
+          ''
+            # A virtio serial port permits one open; share that descriptor.
+            exec 3<> ${device i}
+            exec <&3 >&3 2>&3
+            exec 3>&-
+          ''
+        else
+          ''
+            exec < ${device i} > ${device i}
+            exec 2>&1
+            stty -F ${device i} raw -echo # prevent nl -> cr/nl conversion
+          ''
+      }
 
       echo test-shell-ready
 
-      exec ${pkgs.bash}/bin/bash --norc ${device i}
+      exec ${pkgs.bash}/bin/bash --norc ${if serial then "-s" else device i}
     '';
     oneShot = true;
     onChange = "ignore";
@@ -61,6 +75,18 @@ in
         default = 1;
         description = ''
           Number of test shells to run.
+        '';
+      };
+
+      transport = mkOption {
+        type = types.enum [
+          "virtconsole"
+          "virtserialport"
+        ];
+        default = "virtconsole";
+        description = ''
+          Transport supplied by the host VM runner. Generated tests select
+          virtserialport for lossless shell replies under backpressure.
         '';
       };
     };

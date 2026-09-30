@@ -257,6 +257,9 @@ module OsVm
     # @return [Integer]
     attr_reader :test_shells
 
+    # @return ['virtconsole', 'virtserialport']
+    attr_reader :test_shell_transport
+
     # @return [Array<String>]
     attr_reader :shell_names
 
@@ -314,6 +317,8 @@ module OsVm
       @iso = cfg['iso']
       @extra_qemu_options = cfg.fetch('extraQemuOptions', [])
       @test_shells = cfg.fetch('testShells', 1)
+      # Older JSON describes guests whose shell service still uses /dev/hvcN.
+      @test_shell_transport = cfg.fetch('testShellTransport', 'virtconsole')
       @shell_names = cfg.fetch('shells', [])
       @virtiofsd = cfg.fetch('virtiofsd')
       @kernel = cfg['kernel']
@@ -341,6 +346,10 @@ module OsVm
 
       unless @test_shells.is_a?(Integer) && @test_shells >= 1
         raise ArgumentError, 'testShells must be an integer greater than or equal to 1'
+      end
+
+      unless %w[virtconsole virtserialport].include?(@test_shell_transport)
+        raise ArgumentError, "unsupported test shell transport #{@test_shell_transport.inspect}"
       end
 
       unless @shell_names.is_a?(Array) && @shell_names.all? { |v| v.is_a?(String) && !v.empty? }

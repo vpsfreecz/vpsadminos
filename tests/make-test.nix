@@ -81,6 +81,10 @@ let
   testScriptJobs = testAttrs.testScriptJobs or 1;
   machineShellNames = machine: machine.shells or [ ];
   machineTestShells = machine: testScriptJobs + builtins.length (machineShellNames machine);
+  machineTestShellTransport =
+    machine:
+    machine.testShellTransport
+      or (if machineBootMode machine == "firmware" then "virtconsole" else "virtserialport");
 
   vpsadminosSystem =
     cfg:
@@ -111,7 +115,14 @@ let
           ++ [ ./configs/vpsadminos/base.nix ]
           ++ [ { system.vpsadminos.nixpkgsRevision = exactNixpkgsRevision; } ]
           ++ [ cfg.config or { } ]
-          ++ [ { osctl.test-shell.shells = testShells; } ];
+          ++ [
+            {
+              osctl.test-shell = {
+                shells = testShells;
+                transport = machineTestShellTransport cfg;
+              };
+            }
+          ];
       }
       // osInputArgs
     );
@@ -131,7 +142,12 @@ let
         ++ (machine.modules or [ ])
         ++ [ ./configs/nixos/base.nix ]
         ++ [ machine.config or { } ]
-        ++ [ { osvm.testShells = testShells; } ];
+        ++ [
+          {
+            osvm.testShells = testShells;
+            osvm.testShellTransport = machineTestShellTransport machine;
+          }
+        ];
     };
 
   machineAttrs =
@@ -178,6 +194,7 @@ let
       bootMode = "firmware";
       bootOrder = machine.bootOrder or "n";
       testShells = machineTestShells machine;
+      testShellTransport = machineTestShellTransport machine;
       shells = machineShellNames machine;
       kernelParams = machine.kernelParams or [ ];
       extraQemuOptions = machine.extraQemuOptions or [ ];
@@ -215,6 +232,7 @@ let
       cpu = qemuCfg.cpu;
       disks = machine.disks or [ ];
       testShells = machineTestShells machine;
+      testShellTransport = machineTestShellTransport machine;
       shells = machineShellNames machine;
       networks = machine.networks or defaultNetworks;
       sharedFileSystems = machine.sharedFileSystems or { };
@@ -285,6 +303,7 @@ let
       // (machine.rootDisk or { });
       disks = machine.disks or [ ];
       testShells = machineTestShells machine;
+      testShellTransport = machineTestShellTransport machine;
       shells = machineShellNames machine;
       networks = machine.networks or defaultNetworks;
       sharedFileSystems = machine.sharedFileSystems or { };

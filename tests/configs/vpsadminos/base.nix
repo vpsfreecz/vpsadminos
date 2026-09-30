@@ -34,6 +34,8 @@ with lib;
   networking.firewall.conntrack.enable = mkDefault true;
   networking.nameservers = mkDefault [ "10.0.2.3" ];
   osctl.test-shell.enable = true;
+  # Switch targets also import this module outside make-test.nix.
+  osctl.test-shell.transport = mkDefault "virtserialport";
   tty.autologin.enable = mkDefault true;
   services.haveged.enable = mkDefault true;
   os.channel-registration.enable = mkDefault false;

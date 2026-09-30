@@ -548,6 +548,25 @@ RSpec.describe OsVm::Machine do
     end
   end
 
+  it 'renders flow-controlled serial ports for new guest configurations' do
+    with_tmpdir do |dir|
+      machine = build_machine(
+        dir:,
+        config: build_machine_config('testShells' => 2, 'testShellTransport' => 'virtserialport')
+      )
+
+      expect(machine.send(:qemu_shell_options)).to eq(
+        [
+          '-device', 'virtio-serial',
+          '-chardev', "socket,id=shell,path=#{machine.send(:shell_socket_path, 0)}",
+          '-device', 'virtserialport,chardev=shell,name=org.osvm.shell0',
+          '-chardev', "socket,id=shell1,path=#{machine.send(:shell_socket_path, 1)}",
+          '-device', 'virtserialport,chardev=shell1,name=org.osvm.shell1'
+        ]
+      )
+    end
+  end
+
   it 'exposes named shells after worker shells' do
     with_tmpdir do |dir|
       machine = build_machine(
