@@ -624,6 +624,30 @@ RSpec.describe TestRunner::TestEvaluator do
     expect(machine.calls).not_to include(:kill)
   end
 
+  it 'fails when final console collection reports a bad RSS counter' do
+    machine = build_fake_machine
+    failure = OsVm::KernelFailure.new(
+      machine_name: 'machine',
+      console_line: 'BUG: Bad rss-counter state mm:0000000000000001 type:MM_FILEPAGES val:-25',
+      console_log_path: '/tmp/machine-console.log'
+    )
+    allow(machine).to receive(:finalize).and_wrap_original do |method|
+      method.call
+      allow(machine).to receive(:raise_if_kernel_failed!).and_raise(failure)
+    end
+    evaluator = build_evaluator(
+      machines: [machine],
+      config_data: {
+        'machines' => { 'machine' => { 'spin' => 'vpsadminos' } },
+        'framework' => {},
+        'testScripts' => { 'default' => { 'script' => '' } }
+      }
+    )
+
+    expect { evaluator.run }.to raise_error(OsVm::KernelFailure, /Bad rss-counter state/)
+    expect(machine.calls).to include(:stop, :kill, :destroy, :finalize, :cleanup)
+  end
+
   it 'stops runnable machines and always kills, finalizes, and cleans up' do
     evaluator = build_evaluator
     runnable = instance_spy(
