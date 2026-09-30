@@ -9,6 +9,7 @@ module OsVm
     KERNEL_FAILURE_PATTERN = Regexp.union(
       /BUG: unable to handle/,
       /BUG: kernel NULL pointer dereference/,
+      /\bBUG: Bad rss-counter state\b/,
       /kernel BUG at/,
       /Oops:/,
       /general protection fault/,
