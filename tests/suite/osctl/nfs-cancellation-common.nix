@@ -57,6 +57,12 @@ in
       machine.start
       machine.wait_for_osctl_pool("tank")
       machine.wait_until_online
+      # A port-selected gateway MAC makes stopping one container disrupt the
+      # other client's TCP connection, independently of NFS cancellation.
+      @nfs_bridge_mac = machine.succeeds(
+        'test "$(cat /sys/class/net/lxcbr0/addr_assign_type)" = 3 && ' \
+          'cat /sys/class/net/lxcbr0/address',
+      )[1].strip
 
       ${pkgs.lib.optionalString baseline ''
         assert_unpatched_baseline
@@ -202,7 +208,9 @@ in
     end
 
     def stop_nfs_client(options = '--kill', timeout: 60)
-      machine.succeeds("osctl ct stop #{options} nfs1", timeout: timeout)
+      result = machine.succeeds("osctl ct stop #{options} nfs1", timeout: timeout)
+      expect(machine.succeeds('cat /sys/class/net/lxcbr0/address')[1].strip).to eq(@nfs_bridge_mac)
+      result
     rescue StandardError
       # Keep diagnostics in the native command log before the caller restores
       # connectivity, and never replace the original stop failure.
