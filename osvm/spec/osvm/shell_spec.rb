@@ -58,6 +58,13 @@ RSpec.describe OsVm::Shell do
     end
   end
 
+  it 'preserves a large reply, its exit status, and the following reply' do
+    with_command_shell do |shell, _io|
+      expect(shell.execute("head -c 1048576 /dev/zero | tr '\\0' x; exit 37")).to eq([37, 'x' * 1_048_576])
+      expect(shell.execute('printf after; exit 11')).to eq([11, 'after'])
+    end
+  end
+
   it 'ignores stale framed records without renewing the response deadline' do
     with_tmpdir do |dir|
       shell = build_shell(dir:)

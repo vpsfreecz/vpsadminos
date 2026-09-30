@@ -74,7 +74,10 @@ module OsVm
       worker_shell_count = config.test_shells - config.shell_names.length
       @shell_instances = Array.new(config.test_shells) do |i|
         shell_name = i >= worker_shell_count ? config.shell_names[i - worker_shell_count] : nil
-        shell = Shell.new(self, i, shell_socket_path(i), shell_log_path(i), default_timeout:, name: shell_name)
+        shell = Shell.new(
+          self, i, shell_socket_path(i), shell_log_path(i),
+          default_timeout:, name: shell_name, transport: config.test_shell_transport
+        )
         named_shells[shell_name] = shell if shell_name
         shell
       end

@@ -446,6 +446,21 @@ run without blocking the script's default shell:
 Named shells share the same VM state as the default shell. Shell names can be
 looked up as strings or symbols, e.g. `machine.shells[:first]`.
 
+Generated direct-boot test guests use flow-controlled `virtserialport` devices
+for command traffic, separate from the serial console used for boot and kernel
+diagnostics. Unlike `virtconsole`, these ports do not discard shell replies
+when the host socket is temporarily full. Each guest service opens its named
+`/dev/virtio-ports/org.osvm.shellN` device once and shares that descriptor for
+stdin, stdout and stderr; it is not a TTY and does not use `stty`.
+
+The machine JSON records `testShellTransport`, which can be `virtserialport`
+or `virtconsole`. Old JSON without this field keeps the legacy `/dev/hvcN`
+transport. Firmware-boot machines also default to `virtconsole`, because their
+guest image is supplied separately. A machine can explicitly set
+`testShellTransport` when its image needs a different transport; the guest
+service and host port must agree. For separately built vpsAdminOS images, the
+matching guest option is `osctl.test-shell.transport`.
+
 ## Test templates
 Templates can be used to create multiple instances of a test. The difference between
 templates and multiple test scripts is that tests created by templates are isolated,

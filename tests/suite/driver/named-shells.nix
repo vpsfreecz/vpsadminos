@@ -63,6 +63,19 @@ import ../../make-test.nix (
         machine.wait_until_succeeds('true', shell: 'second')
         machine.wait_until_fails('false', shell: 'second')
 
+        # A reply larger than the host socket buffer must not lose either
+        # payload bytes or its exit marker, including on a named shell.
+        payload = "begin\n" + ('x' * 1_048_576) + "\nend\n"
+        run_expect("#{name} large shell reply", [37, payload]) do
+          machine.execute(
+            "printf 'begin\\n'; head -c 1048576 /dev/zero | tr '\\0' x; printf '\\nend\\n'; exit 37",
+            shell: :first
+          )
+        end
+        run_expect("#{name} reply after large output", [11, 'after']) do
+          machine.execute('printf after; exit 11', shell: :first)
+        end
+
         machine.succeeds("rm -f #{first_started} #{first_done}")
 
         first_thread = Thread.new do
