@@ -5,9 +5,9 @@
   },
 }:
 let
-  # Independently checked production artifact from CI 36473097441 (OS3907dbc2).
+  # Independently checked normal package from OS ac3b0ced9 (perf-cgroup repair).
   # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "a42661bad0632c43977c065c24956e62b44aa25a4d0f6a5fbc5c0bace8c57645";
+  correctedSha256 = "c297ff71d92bab33ff44d9b5060b29d9448ed65fc670a8d7e793b24d0a3f8ddc";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
