@@ -2466,6 +2466,16 @@ import (previous.outPath + "/tests/make-test.nix")
                       machine.succeeds('osctl ct unfreeze inheritedfrozen')
                       machine.wait_until_succeeds('test "$(osctl ct show -H -o state inheritedfrozen)" = running', timeout: 90)
                       machine.succeeds('osctl ct exec inheritedfrozen grep -Fx predecessor-frozen /root/frozen-data')
+                      # The predecessor freeze is seeded from the host because
+                      # its public helper is incompatible with its kernel. Now
+                      # exercise the repaired target public freeze path as well,
+                      # retaining the original init/data identities throughout.
+                      machine.succeeds('osctl ct freeze inheritedfrozen')
+                      machine.wait_until_succeeds('test "$(osctl ct show -H -o state inheritedfrozen)" = frozen', timeout: 90)
+                      assert_frozen.call('target public freeze')
+                      machine.succeeds('osctl ct unfreeze inheritedfrozen')
+                      machine.wait_until_succeeds('test "$(osctl ct show -H -o state inheritedfrozen)" = running', timeout: 90)
+                      machine.succeeds('osctl ct exec inheritedfrozen grep -Fx predecessor-frozen /root/frozen-data')
                       machine.all_succeed('osctl ct stop inheritedfrozen', 'osctl ct del --prune inheritedfrozen')
                     ''
                   else
