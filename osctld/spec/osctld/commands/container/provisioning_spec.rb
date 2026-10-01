@@ -282,6 +282,7 @@ RSpec.describe 'container provisioning commands' do
         load_metadata: nil,
         has_ct_id?: true,
         ct_id: 'ct1',
+        user_name: 'ct1',
         load_ct: ct,
         create_datasets: nil,
         import_all_datasets: nil,
@@ -290,15 +291,19 @@ RSpec.describe 'container provisioning commands' do
       allow(builder_class).to receive(:new).and_return(builder)
       allow(importer_class).to receive(:new).and_return(importer)
       allow(OsCtld::DB::Containers).to receive(:find).with('ct1', pool).and_return(nil)
-      allow(importer).to receive_messages(get_or_create_user: Object.new, get_or_create_group: Object.new)
+      existing_user = Object.new
+      allow(OsCtld::DB::Users).to receive(:find).with('ct1', pool).and_return(existing_user)
+      allow(importer).to receive_messages(get_or_create_user: existing_user, get_or_create_group: Object.new)
       allow(importer).to receive(:create_datasets).and_raise('import failed')
       command = described_class.new({}, {})
       allow(command).to receive(:progress)
+      allow(command).to receive(:call_cmd!)
 
       expect do
         command.send(:import, pool, StringIO.new('image'), '/tmp/image.tar')
       end.to raise_error(RuntimeError, 'import failed')
       expect(builder).to have_received(:cleanup).with(dataset: true)
+      expect(command).not_to have_received(:call_cmd!)
     end
 
     it 'uses explicit user and group overrides when loading the container' do
