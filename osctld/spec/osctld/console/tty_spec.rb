@@ -67,6 +67,19 @@ RSpec.describe OsCtld::Console::TTY do
     expect(thread).to have_received(:join)
   end
 
+  it 'closes both wake descriptors when its worker stops' do
+    tty = described_class.new(build_ct, 1)
+    reader = tty.instance_variable_get(:@wake_r)
+    writer = tty.instance_variable_get(:@wake_w)
+    tty.start
+
+    tty.close
+
+    expect(reader).to be_closed
+    expect(writer).to be_closed
+    expect { tty.close }.not_to raise_error
+  end
+
   it 'clears tty state and invokes on_close when tty reads fail' do
     klass = Class.new(described_class) do
       attr_reader :closed
