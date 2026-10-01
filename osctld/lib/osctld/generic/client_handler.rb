@@ -53,6 +53,7 @@ module OsCtld
     end
 
     def communicate
+      hijacked = false
       v = server_version
       send_data({ version: v }) if v
 
@@ -60,13 +61,20 @@ module OsCtld
         buf = read_request
 
         break if buf.nil? || buf.empty?
-        break if parse(buf) == :handled
+
+        if parse(buf) == :handled
+          hijacked = true
+          break
+        end
+
         break if stop_requested?
       end
     rescue Errno::ECONNRESET, IOError
       # pass
     ensure
-      close_socket if stop_requested?
+      # Normal client EOF must not leave the accepted socket waiting for GC.
+      # A hijacked connection belongs to its new protocol handler instead.
+      close_socket unless hijacked
     end
 
     # Return the server version that is sent to the client in the first message.

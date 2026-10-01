@@ -81,6 +81,8 @@ module OsCtld
     rescue IOError
       log(:info, :monitor, "Monitoring of #{@pool.name}:#{@user.name}:#{@group.name} failed")
       false
+    ensure
+      @stdout.close unless @stdout.closed?
     end
 
     protected
