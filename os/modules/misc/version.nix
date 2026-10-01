@@ -317,8 +317,10 @@ in
       # changes enforcement or fails the boot.
       containment_swap=$(awk 'END { print (NR > 1) ? NR - 1 : 0 }' /proc/swaps 2>/dev/null || echo unknown)
       containment_resume=$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | grep -cE '^(resume|resume_offset)=' || true)
-      containment_auth_test=$(zcat /proc/config.gz 2>/dev/null | grep -m1 '^CONFIG_AUTH_GUARD_TEST=' | cut -d= -f2 || echo unknown)
-      containment_sig_force=$(zcat /proc/config.gz 2>/dev/null | grep -m1 '^CONFIG_MODULE_SIG_FORCE=' | cut -d= -f2 || echo unknown)
+      containment_auth_test=$(zcat /proc/config.gz 2>/dev/null | sed -n 's/^CONFIG_AUTH_GUARD_TEST=//p' | head -n1)
+      [ -n "$containment_auth_test" ] || containment_auth_test=no
+      containment_sig_force=$(zcat /proc/config.gz 2>/dev/null | sed -n 's/^CONFIG_MODULE_SIG_FORCE=//p' | head -n1)
+      [ -n "$containment_sig_force" ] || containment_sig_force=no
       echo "containment-preflight: swap_devices=$containment_swap resume_params=$containment_resume auth_guard_test=$containment_auth_test module_sig_force=$containment_sig_force" > /dev/kmsg
       printf '{"schemaVersion":1,"swapDevices":%s,"resumeParams":%s,"authGuardTest":%s,"moduleSigForce":%s}\n' \
         "$containment_swap" "$containment_resume" "$containment_auth_test" "$containment_sig_force" \
