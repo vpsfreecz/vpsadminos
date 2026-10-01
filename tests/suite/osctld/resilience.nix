@@ -315,6 +315,53 @@ import ../../make-test.nix (
         end
       end
 
+      describe 'quota-limited image import cleanup', order: :defined do
+        it 'reclaims the partial container and permits a clean retry' do
+          failed = get_container_id('quota-import')
+          escaped_id = Shellwords.escape(failed)
+          dataset = "tank/ct/#{failed}"
+          escaped_dataset = Shellwords.escape(dataset)
+          expect(machine.execute("osctl user show #{escaped_id} >/dev/null 2>&1")[0]).not_to eq(0)
+
+          # Restrict only this new CT's dataset, not the pool or VM disk. The
+          # same existing import path must reach rootfs extraction and fail
+          # with a real storage limit, rather than an invalid CLI option.
+          status, stdout, stderr = machine.execute(
+            "osctl ct new --distribution alpine --zfs-property refquota=1M #{escaped_id}"
+          )
+          expect(status).not_to eq(0)
+          expect(stdout).to include('Importing rootfs')
+          expect(stdout).to include('Writing data stream', 'Error occurred, cleaning up')
+          # The generic daemon client handler returns "internal error" to the
+          # CLI. Prove that rootfs extraction actually hit this CT's quota.
+          machine.wait_until_succeeds(
+            "grep -F 'Disk quota exceeded' /var/log/osctld | grep -F #{escaped_dataset}",
+            timeout: 30
+          )
+
+          machine.wait_until_succeeds(
+            "! zfs list -H #{escaped_dataset} >/dev/null 2>&1 && " \
+            "! osctl ct show #{escaped_id} >/dev/null 2>&1 && " \
+            "test ! -e #{Shellwords.escape(shared_dir_path(failed))} && " \
+            "test ! -e /run/osctl/ct-bpf/tank/#{escaped_id}",
+            timeout: 60
+          )
+          expect(output_of("find /run/osctl/cgroup -name #{Shellwords.escape("ct.#{failed}")} -print")).to be_empty
+          expect(machine.execute("osctl user show #{escaped_id} >/dev/null 2>&1")[0]).not_to eq(0)
+
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{escaped_id}",
+            "osctl ct unset start-menu #{escaped_id}",
+            "osctl ct start #{escaped_id}",
+            "osctl ct exec #{escaped_id} sh -c 'echo recovered > /root/retry-marker'",
+            "osctl ct exec #{escaped_id} grep -Fx recovered /root/retry-marker",
+            "osctl ct stop #{escaped_id}",
+            "osctl ct del --prune #{escaped_id}"
+          )
+          machine.succeeds("! zfs list -H #{escaped_dataset} >/dev/null 2>&1")
+        end
+      end
+
       describe 'bounded pooled cleanup with live I/O', order: :defined do
         it 'isolates paired identities and reclaims processes and quota failures' do
           machine.all_succeed(
