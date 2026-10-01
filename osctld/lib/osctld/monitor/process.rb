@@ -86,8 +86,12 @@ module OsCtld
       log(:info, :monitor, "Monitoring of #{@pool.name}:#{@user.name}:#{@group.name} failed")
       false
     ensure
-      exit_checks << true if exit_checks
-      exit_thread&.join
+      begin
+        exit_checks << true if exit_checks
+        exit_thread&.join
+      ensure
+        @stdout.close unless @stdout.closed?
+      end
     end
 
     protected

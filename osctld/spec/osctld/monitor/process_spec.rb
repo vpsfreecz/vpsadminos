@@ -33,6 +33,11 @@ RSpec.describe OsCtld::Monitor::Process do
     allow(OsCtl::Lib::Logger).to receive(:log)
   end
 
+  it 'closes the monitor pipe after reaching EOF' do
+    expect(process.monitor).to be(true)
+    expect(stdout).to be_closed
+  end
+
   def build_ct(id: 'ct1')
     cancellation = instance_double(OsCtld::Container::NfsCancellation, capture: nil, abort: 0, abort_if_exiting: 0)
     run_conf = Struct.new(:init_pid, :aborted, :nfs_cancellation).new(nil, false, cancellation)
