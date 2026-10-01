@@ -11,6 +11,11 @@ let
   kernel = config.boot.kernelPackages.kernel;
   kernelDefinitions = import ../../packages/linux/available-kernels.nix { inherit lib; };
 
+  # Node-preflight (P-20): whether this image is a cred-guard *test* build.
+  # A serving node must not be one; the record and the warning below make
+  # that visible.
+  credGuardTest = (import ../../packages/linux/cred-guard-test-selectors.nix).requested;
+
   versionFile = ../../../.version;
   suffixFile = ../../../.version-suffix;
   revisionFile = ../../../.git-revision;
@@ -221,6 +226,23 @@ in
   };
 
   config = {
+    # Node-preflight (P-20) warnings: each is a containment precondition that
+    # must hold on a node running tenant workloads; the evidence record above
+    # carries the same facts to the fleet.  Warnings, not assertions: swap and
+    # debugfs are opt-in, so making them unbuildable would be an operator
+    # decision, while the checklist's failure action is the fleet record.
+    warnings = lib.optionals credGuardTest [
+      "containment: this image is a cred-guard test build (P-20/P1) — it must not run tenant workloads."
+    ] ++ lib.optional (builtins.length config.swapDevices != 0)
+      "containment: swapDevices is not empty (P-20/P3) — swap must be off on nodes running tenant workloads."
+    ++ lib.optional (builtins.any
+      (p: (lib.hasPrefix "resume=" p) || (lib.hasPrefix "resume_offset=" p))
+      config.boot.kernelParams)
+      "containment: a hibernation resume point is configured (P-20/P4)."
+    ++ lib.optional (builtins.any
+      (fs: (fs.fsType or "") == "debugfs")
+      (builtins.attrValues config.fileSystems))
+      "containment: debugfs is configured as a filesystem (P-20/P10) — keep it off tenant-reachable paths.";
 
     system.vpsadminos = {
       # These defaults are set here rather than up there so that
@@ -269,6 +291,17 @@ in
         containment = {
           swapDeviceCount = builtins.length config.swapDevices;
           kernelParams = config.boot.kernelParams;
+          # Node-preflight (P-20) record: the enforceable node-side facts the
+          # containment checklist asks the fleet record to carry, so a node
+          # failing P3/P4/P10 (or one that is a test build) is visible without
+          # reading the generated configuration by hand.
+          debugfsConfigured = builtins.any
+            (fs: (fs.fsType or "") == "debugfs")
+            (builtins.attrValues config.fileSystems);
+          resumeConfigured = builtins.any
+            (p: (lib.hasPrefix "resume=" p) || (lib.hasPrefix "resume_offset=" p))
+            config.boot.kernelParams;
+          authGuardTestBuild = credGuardTest;
         };
       };
     };
@@ -277,6 +310,19 @@ in
       mkdir -p /var/log/crash-reports
       chmod 0700 /var/log/crash-reports
       echo "vpsAdminOS ${cfg.version} with kernel ${config.boot.kernelVersion}" > /dev/kmsg
+    '' + ''
+      # Containment preflight (P-20, node side, no kernel code): record the
+      # enforceable facts at boot under a stable prefix so the responder and
+      # the fleet record can key on them.  Observation only — nothing here
+      # changes enforcement or fails the boot.
+      containment_swap=$(awk 'END { print (NR > 1) ? NR - 1 : 0 }' /proc/swaps 2>/dev/null || echo unknown)
+      containment_resume=$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | grep -cE '^(resume|resume_offset)=' || true)
+      containment_auth_test=$(zcat /proc/config.gz 2>/dev/null | grep -m1 '^CONFIG_AUTH_GUARD_TEST=' | cut -d= -f2 || echo unknown)
+      containment_sig_force=$(zcat /proc/config.gz 2>/dev/null | grep -m1 '^CONFIG_MODULE_SIG_FORCE=' | cut -d= -f2 || echo unknown)
+      echo "containment-preflight: swap_devices=$containment_swap resume_params=$containment_resume auth_guard_test=$containment_auth_test module_sig_force=$containment_sig_force" > /dev/kmsg
+      printf '{"schemaVersion":1,"swapDevices":%s,"resumeParams":%s,"authGuardTest":%s,"moduleSigForce":%s}\n' \
+        "$containment_swap" "$containment_resume" "$containment_auth_test" "$containment_sig_force" \
+        > /run/containment-preflight.json 2>/dev/null || true
     '';
 
   };
