@@ -3,6 +3,7 @@
 require 'osctld/utils/switch_user'
 require 'osctld/console'
 require 'osctld/console/tty'
+require 'socket'
 
 RSpec.describe OsCtld::Console::TTY do
   before do
@@ -67,6 +68,19 @@ RSpec.describe OsCtld::Console::TTY do
     expect(thread).to have_received(:join)
   end
 
+  it 'closes both wake descriptors when its worker stops' do
+    tty = described_class.new(build_ct, 1)
+    reader = tty.instance_variable_get(:@wake_r)
+    writer = tty.instance_variable_get(:@wake_w)
+    tty.start
+
+    tty.close
+
+    expect(reader).to be_closed
+    expect(writer).to be_closed
+    expect { tty.close }.not_to raise_error
+  end
+
   it 'clears tty state and invokes on_close when tty reads fail' do
     klass = Class.new(described_class) do
       attr_reader :closed
@@ -76,10 +90,10 @@ RSpec.describe OsCtld::Console::TTY do
       end
     end
     tty = klass.new(build_ct, 1)
-    io = instance_double(IO)
+    io = instance_double(IO, closed?: false, close: nil)
     tty.instance_variable_set(:@opened, true)
     tty.send(:tty_pid=, 100)
-    tty.send(:tty_in_io=, instance_double(IO))
+    tty.send(:tty_in_io=, instance_double(IO, closed?: false, close: nil))
     tty.send(:tty_out_io=, io)
     allow(io).to receive(:read_nonblock).and_raise(IOError)
 
@@ -89,5 +103,64 @@ RSpec.describe OsCtld::Console::TTY do
     expect(tty.send(:tty_in_io)).to be_nil
     expect(tty.send(:tty_out_io)).to be_nil
     expect(tty.closed).to be(true)
+  end
+
+  it 'closes an aliased console backend once on peer EOF' do
+    tty = described_class.new(build_ct, 0)
+    backend, peer = UNIXSocket.pair
+    tty.send(:tty_in_io=, backend)
+    tty.send(:tty_out_io=, backend)
+    allow(tty).to receive(:on_close)
+    allow(backend).to receive(:close).and_call_original
+    peer.close
+
+    expect(tty.send(:tty_read, backend)).to be_nil
+    expect(backend).to be_closed
+    expect(backend).to have_received(:close).once
+    expect(tty).to have_received(:on_close).once
+  ensure
+    backend&.close unless backend&.closed?
+    peer&.close unless peer&.closed?
+    tty&.close
+  end
+
+  it 'closes both distinct backend pipes on output EOF' do
+    tty = described_class.new(build_ct, 1)
+    input_reader, input_writer = IO.pipe
+    output_reader, output_writer = IO.pipe
+    tty.send(:tty_in_io=, input_writer)
+    tty.send(:tty_out_io=, output_reader)
+    allow(tty).to receive(:on_close)
+    output_writer.close
+
+    expect(tty.send(:tty_read, output_reader)).to be_nil
+    expect(input_writer).to be_closed
+    expect(output_reader).to be_closed
+    expect(input_reader).not_to be_closed
+    expect(tty).to have_received(:on_close).once
+  ensure
+    [input_reader, input_writer, output_reader, output_writer].compact.each do |io|
+      io.close unless io.closed?
+    end
+    tty&.close
+  end
+
+  it 'keeps a live console backend open while forwarding data' do
+    tty = described_class.new(build_ct, 0)
+    backend, peer = UNIXSocket.pair
+    tty.send(:tty_in_io=, backend)
+    tty.send(:tty_out_io=, backend)
+    allow(tty).to receive(:on_close)
+    peer.write('console data')
+
+    expect(tty.send(:tty_read, backend)).to eq('console data')
+    expect(backend).not_to be_closed
+    expect(tty.send(:tty_in_io)).to eq(backend)
+    expect(tty.send(:tty_out_io)).to eq(backend)
+    expect(tty).not_to have_received(:on_close)
+  ensure
+    backend&.close unless backend&.closed?
+    peer&.close unless peer&.closed?
+    tty&.close
   end
 end
