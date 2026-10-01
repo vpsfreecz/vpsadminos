@@ -77,6 +77,7 @@ RSpec.describe OsCtld::Generic::ClientHandler do
 
       client_sock.close
       join_thread!(thread)
+      expect(server_sock).to be_closed
     end
   end
 
@@ -194,6 +195,7 @@ RSpec.describe OsCtld::Generic::ClientHandler do
 
       join_thread!(thread)
       expect(thread).not_to be_alive
+      expect(server_sock).not_to be_closed
       expect { read_json_line(client_sock, timeout: 0.1) }.to raise_error(/socket read timed out/)
     end
   end
