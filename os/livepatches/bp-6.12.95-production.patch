@@ -4641,15 +4641,21 @@ index 0000000000000..53553063e5011
 +#endif /* _LINUX_VPSADMINOS_CANCEL_H */
 diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
 new file mode 100644
-index 0000000000000..78acddd4fb648
+index 0000000000000..e00b2748d6a8c
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch.h
-@@ -0,0 +1,155 @@
+@@ -0,0 +1,161 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
 +#define _LINUX_VPSADMINOS_LIVEPATCH_H
 +
 +#ifdef CONFIG_LIVEPATCH
++struct klp_object;
++
++int vpsadminos_klp_transition_pre_patch(struct klp_object *obj);
++void vpsadminos_klp_transition_post_patch(void);
++void vpsadminos_klp_transition_post_unpatch(void);
++
 +#define VPSADMINOS_NFS_FREE_STATEID_CONTROL_SHADOW_ID	0xbbddece21d1ee29bUL
 +#define VPSADMINOS_NFS_FREE_STATEID_DATA_SHADOW_ID	0x32127145199df290UL
 +#define VPSADMINOS_NFS_FREE_STATEID_STATE_ID		0x95e5fe7fc76a656bUL
@@ -5198,7 +5204,7 @@ index 5d39b0e8dd909..5a2963ea8b18f 100644
  int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len);
  int tcp_connect(struct sock *sk);
 diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
-index 517710c89fa50..d75b2f84ee24a 100644
+index 517710c89fa50..f75fb2fe6ccc0 100644
 --- a/kernel/bpf/core.c
 +++ b/kernel/bpf/core.c
 @@ -38,10 +38,18 @@
@@ -5220,7 +5226,7 @@ index 517710c89fa50..d75b2f84ee24a 100644
  /* Registers */
  #define BPF_R0	regs[BPF_REG_0]
  #define BPF_R1	regs[BPF_REG_1]
-@@ -892,6 +900,232 @@ void bpf_jit_fill_hole_with_zero(void *area, unsigned int size)
+@@ -892,6 +900,238 @@ void bpf_jit_fill_hole_with_zero(void *area, unsigned int size)
  	memset(area, 0, size);
  }
  
@@ -5339,7 +5345,6 @@ index 517710c89fa50..d75b2f84ee24a 100644
 +{
 +	int ret;
 +
-+	(void)obj;
 +	ret = vpsadminos_saferet_livepatch_pre_patch();
 +	if (ret)
 +		return ret;
@@ -5364,8 +5369,13 @@ index 517710c89fa50..d75b2f84ee24a 100644
 +	if (ret)
 +		goto restore_rpc_cancel;
 +
++	ret = vpsadminos_klp_transition_pre_patch(obj);
++	if (ret)
++		goto restore_nfs_cancel;
 +	return 0;
 +
++restore_nfs_cancel:
++	vpsadminos_nfs_cancel_post_unpatch();
 +restore_rpc_cancel:
 +	vpsadminos_rpc_cancel_post_unpatch();
 +restore_sunrpc:
@@ -5387,6 +5397,7 @@ index 517710c89fa50..d75b2f84ee24a 100644
 +	vpsadminos_sunrpc_livepatch_post_patch();
 +	vpsadminos_nfs_cancel_post_patch();
 +	vpsadminos_nfs_free_stateid_livepatch_post_patch();
++	vpsadminos_klp_transition_post_patch();
 +	vpsadminos_xfrm_livepatch_post_patch();
 +	vpsadminos_bpf_jit_ibpb();
 +	vpsadminos_livepatch_flush_tlb_all();
@@ -5408,6 +5419,7 @@ index 517710c89fa50..d75b2f84ee24a 100644
 +	vpsadminos_nfs_free_stateid_livepatch_post_unpatch();
 +	vpsadminos_sunrpc_livepatch_post_unpatch();
 +	vpsadminos_nfqueue_livepatch_post_unpatch();
++	vpsadminos_klp_transition_post_unpatch();
 +	vpsadminos_pipapo_livepatch_post_unpatch();
 +	vpsadminos_rhashtable_livepatch_post_unpatch();
 +	vpsadminos_saferet_livepatch_post_unpatch();
@@ -5453,7 +5465,7 @@ index 517710c89fa50..d75b2f84ee24a 100644
  #define BPF_PROG_SIZE_TO_NBITS(size)	(round_up(size, BPF_PROG_CHUNK_SIZE) / BPF_PROG_CHUNK_SIZE)
  
  static DEFINE_MUTEX(pack_mutex);
-@@ -981,6 +1215,7 @@ void *bpf_prog_pack_alloc(u32 size, bpf_jit_fill_hole_t bpf_fill_ill_insns)
+@@ -981,6 +1221,7 @@ void *bpf_prog_pack_alloc(u32 size, bpf_jit_fill_hole_t bpf_fill_ill_insns)
  	pos = 0;
  
  found_free_area:
@@ -5959,6 +5971,748 @@ index cf03d4bdfc663..0eedad5e9dcc4 100644
  
  livepatch-objs := core.o patch.o shadow.o state.o transition.o
 +livepatch-$(CONFIG_X86_64) += vpsadminos_rhashtable.o
+diff --git a/kernel/livepatch/core.c b/kernel/livepatch/core.c
+index 077e078032e05..7a3b49250f14c 100644
+--- a/kernel/livepatch/core.c
++++ b/kernel/livepatch/core.c
+@@ -387,12 +387,19 @@ static ssize_t enabled_store(struct kobject *kobj, struct kobj_attribute *attr,
+ 	 *
+ 	 * Do not allow to re-enable a disabled patch.
+ 	 */
+-	if (patch == klp_transition_patch)
++	if (patch == klp_transition_patch) {
+ 		klp_reverse_transition();
+-	else if (!enabled)
+-		ret = __klp_disable_patch(patch);
+-	else
++	} else if (!enabled) {
++		/* Preparation must fail before any patch-state change. */
++		ret = vpsadminos_klp_prepare_unpatch(patch);
++		if (!ret) {
++			ret = __klp_disable_patch(patch);
++			if (ret)
++				vpsadminos_klp_abort_unpatch(patch);
++		}
++	} else {
+ 		ret = -EINVAL;
++	}
+ 
+ out:
+ 	mutex_unlock(&klp_mutex);
+diff --git a/kernel/livepatch/transition-vpsadminos.h b/kernel/livepatch/transition-vpsadminos.h
+new file mode 100644
+index 0000000000000..105f8709e4ec2
+--- /dev/null
++++ b/kernel/livepatch/transition-vpsadminos.h
+@@ -0,0 +1,686 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef _LIVEPATCH_VPSADMINOS_TRANSITION_H
++#define _LIVEPATCH_VPSADMINOS_TRANSITION_H
++
++/*
++ * Private cumulative-livepatch adaptation, included by transition.c to use the
++ * frozen core's transition state and worker. Payload selection and reliable
++ * stack checks retain their normal semantics. klp_mutex serializes the temporary
++ * redirect; a task's patch state does not select its transition-control code.
++ */
++#include <linux/cpu.h>
++#include <linux/ftrace.h>
++#include <linux/kthread.h>
++#include <linux/module.h>
++#include <linux/overflow.h>
++#include <linux/sched/task.h>
++#include <linux/slab.h>
++#include <linux/smp.h>
++#include <linux/sort.h>
++#include <linux/vpsadminos-livepatch.h>
++
++#define VPSADMINOS_KLP_TASK_BATCH_SIZE 256
++
++static struct {
++	struct klp_patch *patch;
++	struct module *owner;
++	struct task_struct *reaper;
++	struct ftrace_ops *ops;
++	bool registered;
++	bool entered;
++	bool cancel_reaper;
++	bool release;
++} vpsadminos_klp_engine;
++
++static DECLARE_WAIT_QUEUE_HEAD(vpsadminos_klp_release_wait);
++
++static int vpsadminos_klp_compare_stack_entries(const void *a, const void *b)
++{
++	unsigned long first = *(const unsigned long *)a;
++	unsigned long second = *(const unsigned long *)b;
++
++	return (first > second) - (first < second);
++}
++
++/* Check a forbidden function against the sorted, reliable stack addresses. */
++static int vpsadminos_klp_check_stack_func(struct klp_func *func,
++					   unsigned long *entries,
++					   unsigned int nr_entries, bool stable_funcs)
++{
++	unsigned long func_addr, func_size, func_end;
++	unsigned int low = 0, high = nr_entries, mid;
++
++	if (klp_target_state == KLP_TRANSITION_UNPATCHED) {
++		 /*
++		  * Check for the to-be-unpatched function
++		  * (the func itself).
++		  */
++		func_addr = (unsigned long)func->new_func;
++		func_size = func->new_size;
++	} else {
++		/*
++		 * Check for the to-be-patched function
++		 * (the previous func).
++		 */
++		bool original;
++
++		if (stable_funcs) {
++			/*
++			 * The bulk caller holds klp_mutex, also while waiting for
++			 * its idle callbacks.  This transition is at func_stack's
++			 * head: equal neighbours mean there is no predecessor.
++			 */
++			original = READ_ONCE(func->stack_node.next) ==
++				   READ_ONCE(func->stack_node.prev);
++		} else {
++			struct klp_ops *ops = klp_find_ops(func->old_func);
++
++			/* Preserve the scheduler reader's existing lookup. */
++			if (WARN_ON_ONCE(!ops))
++				return -EINVAL;
++			original = list_is_singular(&ops->func_stack);
++		}
++		if (original) {
++			/* original function */
++			func_addr = (unsigned long)func->old_func;
++			func_size = func->old_size;
++		} else {
++			/* previously patched function */
++			struct klp_func *prev;
++
++			prev = list_next_entry(func, stack_node);
++			func_addr = (unsigned long)prev->new_func;
++			func_size = prev->new_size;
++		}
++	}
++
++	if (check_add_overflow(func_addr, func_size, &func_end))
++		return -EOVERFLOW;
++
++	/* Find the first saved address at or above the function start. */
++	while (low < high) {
++		mid = low + (high - low) / 2;
++		if (entries[mid] < func_addr)
++			low = mid + 1;
++		else
++			high = mid;
++	}
++	if (low < nr_entries && entries[low] < func_end)
++		return -EAGAIN;
++
++	return 0;
++}
++
++/*
++ * Determine whether it's safe to transition the task to the target patch state
++ * by looking for any to-be-patched or to-be-unpatched functions on its stack.
++ */
++static noinline_for_stack int
++vpsadminos_klp_check_stack(struct task_struct *task, const char **oldname, bool stable_funcs)
++{
++	unsigned long entries[MAX_STACK_ENTRIES];
++	struct klp_object *obj;
++	struct klp_func *func;
++	int ret, nr_entries;
++
++	/* Stabilize current and exclude interrupt-side transition checks. */
++	lockdep_assert_irqs_disabled();
++
++	ret = stack_trace_save_tsk_reliable(task, entries, MAX_STACK_ENTRIES);
++	if (ret < 0)
++		return -EINVAL;
++	nr_entries = ret;
++
++	/*
++	 * Index only this bounded stack, not the changing set of live objects.
++	 * Private scratch also cannot alias an older checker's per-CPU buffer
++	 * during live delivery.  No cross-task cache lifetime is needed.  Each
++	 * function costs O(log(MAX_STACK_ENTRIES)) address comparisons,
++	 * and its predecessor is read from the current function stack.
++	 */
++	sort(entries, nr_entries, sizeof(*entries), vpsadminos_klp_compare_stack_entries, NULL);
++
++	klp_for_each_object(klp_transition_patch, obj) {
++		if (!obj->patched)
++			continue;
++		klp_for_each_func(obj, func) {
++			ret = vpsadminos_klp_check_stack_func(func, entries,
++							      nr_entries, stable_funcs);
++			if (ret && ret != -EAGAIN)
++				return ret;
++			if (ret) {
++				*oldname = func->old_name;
++				return -EADDRINUSE;
++			}
++		}
++	}
++
++	return 0;
++}
++
++static int vpsadminos_klp_check_and_switch_task(struct task_struct *task,
++						const char **oldname,
++						bool stable_funcs)
++{
++	int ret;
++
++	if (task_curr(task) && task != current)
++		return -EBUSY;
++
++	ret = vpsadminos_klp_check_stack(task, oldname, stable_funcs);
++	if (ret)
++		return ret;
++
++	clear_tsk_thread_flag(task, TIF_PATCH_PENDING);
++	task->patch_state = klp_target_state;
++	return 0;
++}
++
++/*
++ * Try to safely switch a task to the target patch state.  If it's currently
++ * running, or it's sleeping on a to-be-patched or to-be-unpatched function, or
++ * if the stack is unreliable, return false.
++ */
++static bool vpsadminos_klp_try_switch_task(struct task_struct *task, bool stable_funcs)
++{
++	const char *old_name;
++	unsigned long flags;
++	unsigned int state;
++	int ret;
++
++	/* check if this task has already switched over */
++	if (task->patch_state == klp_target_state)
++		return true;
++
++	/*
++	 * For arches which don't have reliable stack traces, we have to rely
++	 * on other methods (e.g., switching tasks at kernel exit).
++	 */
++	if (!klp_have_reliable_stack())
++		return false;
++
++	/*
++	 * Now try to check the stack for any to-be-patched or to-be-unpatched
++	 * functions.  If all goes well, switch the task to the target patch
++	 * state.
++	 */
++	if (task == current) {
++		/*
++		 * Pin current and serialize its state update with the idle-task
++		 * IPI callback on this CPU.  Each check has private stack scratch.
++		 */
++		local_irq_save(flags);
++		ret = vpsadminos_klp_check_and_switch_task(current, &old_name, stable_funcs);
++		local_irq_restore(flags);
++	} else {
++		/*
++		 * task_call_func() can hold the task's rq lock while invoking its
++		 * callback.  A cumulative livepatch stack check is not a lightweight
++		 * callback: it compares every saved frame against every transition
++		 * function.  Pin sleeping tasks with pi_lock instead and leave any
++		 * active task for one of the normal self-transition paths.
++		 */
++		raw_spin_lock_irqsave(&task->pi_lock, flags);
++
++		state = READ_ONCE(task->__state);
++		if (state == TASK_RUNNING || state == TASK_WAKING) {
++			ret = -EBUSY;
++			goto unlock;
++		}
++
++		/* Pair the scheduler state and on_rq observations. */
++		smp_rmb();
++		if (READ_ONCE(task->on_rq)) {
++			ret = -EBUSY;
++			goto unlock;
++		}
++
++#ifdef CONFIG_SMP
++		/*
++		 * A sleeping task can still be finishing __schedule().  Acquire
++		 * from finish_task() before inspecting its stack, but never wait
++		 * for it while holding scheduler state locks.
++		 */
++		smp_rmb();
++		/* Pairs with finish_task()'s smp_store_release(). */
++		if (smp_load_acquire(&task->on_cpu)) {
++			ret = -EBUSY;
++			goto unlock;
++		}
++#endif
++
++		ret = vpsadminos_klp_check_and_switch_task(task, &old_name, stable_funcs);
++unlock:
++		raw_spin_unlock_irqrestore(&task->pi_lock, flags);
++	}
++
++	switch (ret) {
++	case 0:		/* success */
++		break;
++
++	case -EBUSY:	/* vpsadminos_klp_check_and_switch_task() */
++		pr_debug("%s: %s:%d is running\n",
++			 __func__, task->comm, task->pid);
++		break;
++	case -EINVAL:	/* vpsadminos_klp_check_and_switch_task() */
++		pr_debug("%s: %s:%d has an unreliable stack\n",
++			 __func__, task->comm, task->pid);
++		break;
++	case -EADDRINUSE: /* vpsadminos_klp_check_and_switch_task() */
++		pr_debug("%s: %s:%d is sleeping on function %s\n",
++			 __func__, task->comm, task->pid, old_name);
++		break;
++	case -EOVERFLOW:
++		pr_debug("%s: invalid transition function range\n", __func__);
++		break;
++
++	default:
++		pr_debug("%s: Unknown error code (%d) when trying to switch %s:%d\n",
++			 __func__, ret, task->comm, task->pid);
++		break;
++	}
++
++	return !ret;
++}
++
++/*
++ * Try to switch this CPU's idle task while execution on the target CPU makes
++ * its stack stable.  Idle tasks always have TASK_RUNNING state, even when
++ * they are not current, so the ordinary sleeping-task path cannot handle
++ * them.  If the idle task is current, this callback runs on its stack.  If a
++ * different task is current, local IRQ disablement prevents the idle task
++ * from becoming runnable until its inactive stack walk has finished.
++ */
++static void vpsadminos_klp_try_switch_idle_task(void *unused)
++{
++	struct task_struct *task = idle_task(smp_processor_id());
++	const char *old_name;
++	int ret;
++
++	if (task->patch_state == klp_target_state ||
++	    !klp_have_reliable_stack())
++		return;
++
++	ret = vpsadminos_klp_check_and_switch_task(task, &old_name, true);
++	switch (ret) {
++	case 0:
++		break;
++	case -EINVAL:
++		pr_debug("%s: idle task %d has an unreliable stack\n",
++			 __func__, smp_processor_id());
++		break;
++	case -EADDRINUSE:
++		pr_debug("%s: idle task %d is sleeping on function %s\n",
++			 __func__, smp_processor_id(), old_name);
++		break;
++	default:
++		pr_debug("%s: error %d when trying to switch idle task %d\n",
++			 __func__, ret, smp_processor_id());
++		break;
++	}
++}
++
++static void vpsadminos_klp_try_complete_transition(void)
++{
++	unsigned int cpu;
++	struct task_struct *g, *task;
++	struct task_struct **tasks = NULL;
++	struct klp_patch *patch;
++	size_t capacity = 0, nr_tasks = 0, slack, i;
++	bool complete = true;
++
++	lockdep_assert_held(&klp_mutex);
++	WRITE_ONCE(vpsadminos_klp_engine.entered, true);
++
++	WARN_ON_ONCE(klp_target_state == KLP_TRANSITION_IDLE);
++
++	/*
++	 * Try to switch the tasks to the target patch state by walking their
++	 * stacks and looking for any to-be-patched or to-be-unpatched
++	 * functions.  If such functions are found on a stack, or if the stack
++	 * is deemed unreliable, the task can't be switched yet.
++	 *
++	 * Usually this will transition most (or all) of the tasks on a system
++	 * unless the patch includes changes to a very common function.
++	 */
++	/*
++	 * Keep tasklist_lock coverage to pointer collection.  Stack walking and
++	 * cumulative function comparison can be expensive on large systems and
++	 * must remain preemptible and outside this global lock.
++	 */
++	read_lock(&tasklist_lock);
++	for_each_process_thread(g, task) {
++		if (capacity == SIZE_MAX) {
++			complete = false;
++			goto count_done;
++		}
++		capacity++;
++	}
++count_done:
++	read_unlock(&tasklist_lock);
++	if (!complete)
++		goto idle_tasks;
++
++	if (capacity) {
++		/*
++		 * Leave room for forks between the count and fill passes.  Requiring
++		 * an exact task count here can starve completion under continuous
++		 * process churn, especially if this worker is preempted after dropping
++		 * tasklist_lock.  The bound remains conservative: an unexpectedly
++		 * larger burst still overflows the snapshot and forces a later retry.
++		 */
++		slack = max_t(size_t, VPSADMINOS_KLP_TASK_BATCH_SIZE, capacity / 8);
++		if (check_add_overflow(capacity, slack, &capacity)) {
++			complete = false;
++			goto idle_tasks;
++		}
++
++		tasks = kvmalloc_array(capacity, sizeof(*tasks), GFP_KERNEL);
++		if (!tasks) {
++			complete = false;
++			goto idle_tasks;
++		}
++
++		read_lock(&tasklist_lock);
++		for_each_process_thread(g, task) {
++			/* A larger-than-anticipated fork burst forces a later retry. */
++			if (nr_tasks == capacity) {
++				complete = false;
++				goto snapshot_full;
++			}
++			get_task_struct(task);
++			tasks[nr_tasks++] = task;
++		}
++snapshot_full:
++		read_unlock(&tasklist_lock);
++
++		for (i = 0; i < nr_tasks; i++) {
++			if (!vpsadminos_klp_try_switch_task(tasks[i], true))
++				complete = false;
++			put_task_struct(tasks[i]);
++
++			if ((i + 1) % VPSADMINOS_KLP_TASK_BATCH_SIZE == 0)
++				cond_resched();
++		}
++		kvfree(tasks);
++	}
++
++	/*
++	 * Ditto for the idle "swapper" tasks.
++	 */
++idle_tasks:
++	cpus_read_lock();
++	for_each_online_cpu(cpu) {
++		/*
++		 * Execute on the idle task's own CPU so it is either current or
++		 * cannot become current while the callback walks its stack.  The
++		 * callback is synchronous and does not acquire any runqueue lock.
++		 */
++		if (idle_task(cpu)->patch_state != klp_target_state &&
++		    smp_call_function_single(cpu, vpsadminos_klp_try_switch_idle_task,
++					     NULL, 1))
++			complete = false;
++	}
++
++	/* Verify every idle task after all target-CPU callbacks have returned. */
++	for_each_possible_cpu(cpu) {
++		task = idle_task(cpu);
++		if (!cpu_online(cpu) && task->patch_state != klp_target_state) {
++			/* offline idle tasks can be switched immediately */
++			clear_tsk_thread_flag(task, TIF_PATCH_PENDING);
++			task->patch_state = klp_target_state;
++		}
++		if (task->patch_state != klp_target_state)
++			complete = false;
++	}
++	cpus_read_unlock();
++
++	/*
++	 * A child can inherit the old state after snapshot collection but before
++	 * its parent is checked.  Verify the live set under the same lock used
++	 * by klp_copy_process(), without collecting stacks or taking pi_lock.
++	 * Once every parent is in the target state, later children inherit it.
++	 */
++	if (complete) {
++		read_lock(&tasklist_lock);
++		for_each_process_thread(g, task) {
++			if (READ_ONCE(task->patch_state) != klp_target_state) {
++				complete = false;
++				goto tasks_checked;
++			}
++		}
++tasks_checked:
++		read_unlock(&tasklist_lock);
++	}
++
++	if (!complete) {
++		if (klp_signals_cnt && !(klp_signals_cnt % SIGNALS_TIMEOUT))
++			klp_send_signals();
++		klp_signals_cnt++;
++
++		/*
++		 * Some tasks weren't able to be switched over.  Try again
++		 * later and/or wait for other methods like kernel exit
++		 * switching.
++		 */
++		schedule_delayed_work(&klp_transition_work,
++				      round_jiffies_relative(HZ));
++		return;
++	}
++
++	/* Done!  Now cleanup the data structures. */
++	klp_cond_resched_disable();
++	patch = klp_transition_patch;
++	klp_complete_transition();
++
++	/*
++	 * It would make more sense to free the unused patches in
++	 * klp_complete_transition() but it is called also
++	 * from klp_cancel_transition().
++	 */
++	if (!patch->enabled)
++		klp_free_patch_async(patch);
++	else if (patch->replace)
++		klp_free_replaced_patches_async(patch);
++}
++
++static void notrace
++vpsadminos_klp_transition_ftrace(unsigned long ip, unsigned long parent_ip,
++				 struct ftrace_ops *ops, struct ftrace_regs *fregs)
++{
++	unsigned long target = (unsigned long)vpsadminos_klp_try_complete_transition;
++
++	/* All three core callers hold klp_mutex across the redirected call. */
++	if (READ_ONCE(klp_transition_patch) !=
++	    READ_ONCE(vpsadminos_klp_engine.patch))
++		return;
++
++	ftrace_regs_set_instruction_pointer(fregs, target);
++}
++
++static int vpsadminos_klp_release_thread(void *data)
++{
++	struct module *owner = data;
++
++	/*
++	 * There is no work until the owner retires the transition hook.  A
++	 * legitimate transition can outlast the hung-task interval, so park as
++	 * an idle waiter.  The mutex handoff below remains ordinary blocked
++	 * work and retains the normal hung-task diagnostics.
++	 */
++	wait_event_idle(vpsadminos_klp_release_wait,
++			/* Pairs with stop_engine() publishing cancel_reaper. */
++			smp_load_acquire(&vpsadminos_klp_engine.release));
++	if (READ_ONCE(vpsadminos_klp_engine.cancel_reaper))
++		return 0;
++
++	/*
++	 * The hook was unregistered while the retiring caller held klp_mutex.
++	 * Acquiring it proves that caller returned from our redirected frame.
++	 * Drop the final helper reference only from non-returning kernel code.
++	 */
++	mutex_lock(&klp_mutex);
++	mutex_unlock(&klp_mutex);
++	vpsadminos_klp_engine.reaper = NULL;
++	put_task_struct(current);
++	__module_put_and_kthread_exit(owner, 0);
++}
++
++static void vpsadminos_klp_stop_engine(bool wait)
++{
++	struct task_struct *reaper = vpsadminos_klp_engine.reaper;
++	struct ftrace_ops *ops = vpsadminos_klp_engine.ops;
++	int ret;
++
++	lockdep_assert_held(&klp_mutex);
++	if (!reaper)
++		return;
++
++	if (vpsadminos_klp_engine.registered) {
++		ret = unregister_ftrace_function(ops);
++		WARN_ON_ONCE(ret);
++		vpsadminos_klp_engine.registered = false;
++	}
++	ftrace_free_filter(ops);
++	kfree(ops);
++	vpsadminos_klp_engine.ops = NULL;
++
++	WRITE_ONCE(vpsadminos_klp_engine.cancel_reaper, wait);
++	/* Pairs with the release thread: publish cancel_reaper before waking. */
++	smp_store_release(&vpsadminos_klp_engine.release, true);
++	wake_up(&vpsadminos_klp_release_wait);
++	if (wait) {
++		/*
++		 * No mutex handoff here: failed module initialization must join
++		 * its helper before returning. The caller's loader/enabled-patch
++		 * reference protects this code through the remaining control call.
++		 */
++		kthread_stop(reaper);
++		vpsadminos_klp_engine.reaper = NULL;
++		put_task_struct(reaper);
++		module_put(vpsadminos_klp_engine.owner);
++	}
++}
++
++static int vpsadminos_klp_start_engine(void)
++{
++	struct task_struct *reaper;
++	struct ftrace_ops *ops;
++	unsigned long ip;
++	int ret;
++
++	lockdep_assert_held(&klp_mutex);
++	if (vpsadminos_klp_engine.registered)
++		return 0;
++	if (WARN_ON_ONCE(vpsadminos_klp_engine.reaper || vpsadminos_klp_engine.ops))
++		return -EBUSY;
++
++	/* ftrace_free_filter() does not reset hashes: use a fresh descriptor. */
++	ops = kzalloc(sizeof(*ops), GFP_KERNEL);
++	if (!ops)
++		return -ENOMEM;
++	ops->func = vpsadminos_klp_transition_ftrace;
++	ops->flags = FTRACE_OPS_FL_DYNAMIC | FTRACE_OPS_FL_SAVE_REGS |
++		     FTRACE_OPS_FL_RECURSION | FTRACE_OPS_FL_IPMODIFY |
++		     FTRACE_OPS_FL_PERMANENT;
++	vpsadminos_klp_engine.ops = ops;
++
++	ip = ftrace_location((unsigned long)klp_try_complete_transition);
++	if (!ip) {
++		ret = -EINVAL;
++		goto free_ops;
++	}
++	ret = ftrace_set_filter_ip(ops, ip, 0, 0);
++	if (ret)
++		goto free_filter;
++	if (!try_module_get(vpsadminos_klp_engine.owner)) {
++		ret = -ENODEV;
++		goto free_filter;
++	}
++
++	WRITE_ONCE(vpsadminos_klp_engine.entered, false);
++	WRITE_ONCE(vpsadminos_klp_engine.cancel_reaper, false);
++	WRITE_ONCE(vpsadminos_klp_engine.release, false);
++	reaper = kthread_run(vpsadminos_klp_release_thread,
++			     vpsadminos_klp_engine.owner, "klp-core-put");
++	if (IS_ERR(reaper)) {
++		ret = PTR_ERR(reaper);
++		module_put(vpsadminos_klp_engine.owner);
++		goto free_filter;
++	}
++	/* Pin the task before release can let it exit ahead of kthread_stop(). */
++	get_task_struct(reaper);
++	vpsadminos_klp_engine.reaper = reaper;
++
++	ret = register_ftrace_function(ops);
++	if (ret) {
++		vpsadminos_klp_stop_engine(true);
++		return ret;
++	}
++	vpsadminos_klp_engine.registered = true;
++	return 0;
++
++free_filter:
++	ftrace_free_filter(ops);
++free_ops:
++	kfree(ops);
++	vpsadminos_klp_engine.ops = NULL;
++	return ret;
++}
++
++int vpsadminos_klp_transition_pre_patch(struct klp_object *obj)
++{
++	struct klp_patch *patch = klp_transition_patch;
++
++	lockdep_assert_held(&klp_mutex);
++	if (!patch || obj->name || obj->kobj.parent != &patch->kobj)
++		return -EINVAL;
++	if (vpsadminos_klp_engine.patch && vpsadminos_klp_engine.patch != patch)
++		return -EINVAL;
++
++	vpsadminos_klp_engine.patch = patch;
++	vpsadminos_klp_engine.owner = patch->mod;
++	return vpsadminos_klp_start_engine();
++}
++
++void vpsadminos_klp_transition_post_patch(void)
++{
++	/*
++	 * klp_mutex and the enabled-patch reference protect the remaining
++	 * redirected frame. Leave no hook or helper reference for a future
++	 * replacement, which deliberately skips replaced unpatch callbacks.
++	 */
++	vpsadminos_klp_stop_engine(true);
++}
++
++void vpsadminos_klp_transition_post_unpatch(void)
++{
++	/* Before the first control call, cancellation must join synchronously. */
++	vpsadminos_klp_stop_engine(!READ_ONCE(vpsadminos_klp_engine.entered));
++}
++
++int vpsadminos_klp_prepare_unpatch(struct klp_patch *patch)
++{
++	lockdep_assert_held(&klp_mutex);
++	if (patch != vpsadminos_klp_engine.patch)
++		return 0;
++	if (klp_transition_patch)
++		return -EBUSY;
++	return vpsadminos_klp_start_engine();
++}
++
++void vpsadminos_klp_abort_unpatch(struct klp_patch *patch)
++{
++	if (patch == vpsadminos_klp_engine.patch)
++		vpsadminos_klp_stop_engine(true);
++}
++
++/*
++ * Keep the frozen dispatch entry out of the livepatch function table. New
++ * helper references can change compiler inlining, but not its source logic.
++ * This is the producer's ordinary KPATCH_IGNORE_FUNCTION section contract.
++ */
++void *__kpatch_ignore_func_klp_try_complete_transition
++__section(".kpatch.ignore.functions") = klp_try_complete_transition;
++
++#endif /* _LIVEPATCH_VPSADMINOS_TRANSITION_H */
+diff --git a/kernel/livepatch/transition.c b/kernel/livepatch/transition.c
+index ba069459c1017..ead5d3924de54 100644
+--- a/kernel/livepatch/transition.c
++++ b/kernel/livepatch/transition.c
+@@ -750,3 +750,5 @@ void klp_force_transition(void)
+ 		}
+ 	}
+ }
++
++#include "transition-vpsadminos.h"
+diff --git a/kernel/livepatch/transition.h b/kernel/livepatch/transition.h
+index 322db16233de1..9f1f182ecc88e 100644
+--- a/kernel/livepatch/transition.h
++++ b/kernel/livepatch/transition.h
+@@ -13,4 +13,7 @@ void klp_try_complete_transition(void);
+ void klp_reverse_transition(void);
+ void klp_force_transition(void);
+ 
++int vpsadminos_klp_prepare_unpatch(struct klp_patch *patch);
++void vpsadminos_klp_abort_unpatch(struct klp_patch *patch);
++
+ #endif /* _LIVEPATCH_TRANSITION_H */
 diff --git a/kernel/livepatch/vpsadminos_rhashtable.c b/kernel/livepatch/vpsadminos_rhashtable.c
 new file mode 100644
 index 0000000000000..18c3041b860c2
