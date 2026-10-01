@@ -47,11 +47,16 @@ module OsCtld
         error!("container #{pool.name}:#{ctid} already exists")
       end
 
+      created_user = false
       if opts[:as_user]
         user = DB::Users.find(opts[:as_user], pool)
         error!('user not found') unless user
 
       else
+        # An imported image may name a different user than the container.
+        # Never remove an existing user when rolling back a failed import.
+        user_name = importer.user_name || ctid
+        created_user = DB::Users.find(user_name, pool).nil?
         user = importer.get_or_create_user
       end
 
@@ -148,6 +153,11 @@ module OsCtld
           raise
         end
       end
+    rescue StandardError
+      if created_user && user && !user.has_containers?
+        call_cmd!(Commands::User::Delete, pool: pool.name, name: user.name)
+      end
+      raise
     end
   end
 end
