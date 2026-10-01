@@ -40,6 +40,11 @@ on:
         required: false
         type: string
         default: functional
+      zfs_test_body:
+        description: 'Optional single ZTS body for native diagnosis (e.g. cli_root/zpool_reopen/zpool_reopen_003_pos); empty runs full ZTS'
+        required: false
+        type: string
+        default: ''
       stop_on_failure:
         description: Stop scheduling after the first unexpected result
         required: true
@@ -160,6 +165,7 @@ jobs:
           TEST_PATTERN: ${{ inputs.test_pattern }}
           TEST_TAG: ${{ inputs.test_tag || 'ci' }}
           VPSADMINOS_ZFS_FULL_TAGS: ${{ inputs.zfs_tags || 'functional' }}
+          VPSADMINOS_ZFS_FULL_TEST_BODY: ${{ inputs.zfs_test_body }}
           VPSADMINOS_PROXY_LOCK_FULL_MATRIX: ${{ inputs.proxy_lock_full_matrix && '1' || '0' }}
         run: |
           set -o pipefail
@@ -207,9 +213,20 @@ jobs:
                 echo "::error::Full ZTS does not accept a native test pattern"
                 exit 1
               fi
-              # Complete ZTS in the native VM, not a focused body or debug stage.
+              # Keep the default complete ZTS on the native VM; the optional
+              # single-body selector uses that same supported fixture for RCA.
               unset VPSADMINOS_LOCAL_ZFS_STAGE VPSADMINOS_ZFS_FULL_USER_SOURCE
               unset VPSADMINOS_ZFS_FULL_TEST
+              if [[ -n "$VPSADMINOS_ZFS_FULL_TEST_BODY" ]]; then
+                if [[ ! "$VPSADMINOS_ZFS_FULL_TEST_BODY" =~ ^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)+$ ]]; then
+                  echo "::error::Expected a ZTS group/body path without .ksh or traversal"
+                  exit 1
+                fi
+                export VPSADMINOS_ZFS_FULL_TEST="$VPSADMINOS_ZFS_FULL_TEST_BODY"
+                printf 'ZTS body (focused native diagnostic, not full ZTS): %s\n' "$VPSADMINOS_ZFS_FULL_TEST"
+              else
+                echo 'ZTS body: <whole suite>'
+              fi
               export VPSADMINOS_ZFS_FULL_PROFILE=full
               export VPSADMINOS_ZFS_FULL_USE_BUILTIN=1
               export VPSADMINOS_ZFS_FULL_RUNFILES=common.run,linux.run
