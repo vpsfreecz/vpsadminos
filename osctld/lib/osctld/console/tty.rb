@@ -182,8 +182,11 @@ module OsCtld
     end
 
     def close
-      wake(:stop)
+      wake(:stop) unless @wake_w.closed?
       @thread.join if @thread
+    ensure
+      @wake_r.close unless @wake_r.closed?
+      @wake_w.close unless @wake_w.closed?
     end
 
     protected
