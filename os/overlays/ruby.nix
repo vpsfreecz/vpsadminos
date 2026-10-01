@@ -24,6 +24,16 @@ in
     lib.mergeAttrs super.defaultGemConfig {
       osctld = attrs: {
         buildInputs = [ apparmor-parser ];
+
+        # The OS runs the pinned osctld gem, not the repository checkout.
+        # liblxc freeze/unfreeze act from the host; entering the guest's
+        # syslog/tracing namespace can be rejected before either call runs.
+        postPatch = ''
+          for command in freeze unfreeze; do
+            substituteInPlace "lib/osctld/container_control/commands/$command.rb" \
+              --replace-fail 'ret = exec_runner' 'ret = fork_runner'
+          done
+        '';
       };
     }
   ) { };
