@@ -181,6 +181,23 @@ import ../../make-test.nix (
               # Run these bodies under the existing native runner deadlines,
               # preserving their assertions and reporting any real failure.
               functional=$out/share/zfs/zfs-tests/tests/functional
+              # Native 6.18 ZTS recorded scrub completion in txg 47 before
+              # resilver setup in txg 48, so the reopen case never exercised
+              # its required scrub-to-resilver restart. Suspend scrub progress
+              # across the asynchronous reopen, demand the actual restart in
+              # pool history, then release the scan for the original resilver,
+              # checksum and final history checks. Restore the tunable even on
+              # failure; never classify a missed restart as expected success.
+              substituteInPlace "$functional/cli_root/zpool_reopen/zpool_reopen_003_pos.ksh" \
+                --replace-fail $'function cleanup\n{\n\tlog_must zinject -c all' \
+                  $'function cleanup\n{\n\tlog_must zinject -c all\n\tlog_must set_tunable32 SCAN_SUSPEND_PROGRESS $scan_suspend_progress' \
+                --replace-fail 'log_onexit cleanup' \
+                  $'scan_suspend_progress=$(get_tunable SCAN_SUSPEND_PROGRESS)\nlog_onexit cleanup' \
+                --replace-fail 'log_must zpool scrub $TESTPOOL' \
+                  $'log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1\nlog_must zpool scrub $TESTPOOL' \
+                --replace-fail '# remove delay from disk' \
+                  $'log_must wait_for_action $TESTPOOL $MAXTIMEOUT is_scan_restarted\nlog_must set_tunable32 SCAN_SUSPEND_PROGRESS $scan_suspend_progress\n# remove delay from disk'
+
               # Keep the original online-removal callback and mandatory
               # final zdb checks. A historical online-zdb failure is evidence
               # to diagnose, not an accepted platform exclusion.
