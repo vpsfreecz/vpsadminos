@@ -5,9 +5,9 @@
   },
 }:
 let
-  # Independently checked normal package from OS ac3b0ced9 (perf-cgroup repair).
+  # Independently checked normal package from OS 0f3f1da4 (idle-wait repair).
   # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "c297ff71d92bab33ff44d9b5060b29d9448ed65fc670a8d7e793b24d0a3f8ddc";
+  correctedSha256 = "a2b649e64218e1b879964f5449be9fcfed7b63ac0561970f95d24525fb5914c7";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
