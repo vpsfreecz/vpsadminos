@@ -90,7 +90,7 @@ def qualification_move_population(pid, group)
   )
   machine.succeeds("echo #{pid} > #{group}/cgroup.procs", timeout: 180)
   # Preserve failed-migration tracing until VM teardown. On success, retain
-  # the bounded trace and restore the original policy before ageing/activation.
+  # the bounded trace and restore the original policy before subsequent checks.
   machine.all_succeed(
     "echo 0 > #{QUAL_CGROUP_TRACE}/tracing_on",
     "cat #{QUAL_CGROUP_TRACE}/trace",
@@ -375,15 +375,18 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
       "cat #{group}/cpuset.mems #{group}/cpuset.mems.effective; fi"
     )
   end
+  # Establish the aging cgroup before creating the population. The exact old
+  # predecessor can softlock while migrating a large runnable thread group;
+  # the full active migration is tested after the correcting replacement.
   machine.succeeds(
-    "( sh -c 'echo $$ > #{groups.first}/cgroup.procs; " \
+    "( sh -ec 'echo $$ > #{groups.last}/cgroup.procs; " \
     "exec #{QUAL_POPULATION} #{QUALIFICATION_TASKS} #{QUALIFICATION_CPUS} 21600 #{QUAL_STATE} 1'; " \
     "echo $? > #{QUAL_STATE}/exit ) > #{QUAL_STATE}/population.log 2>&1 &"
   )
   qualification_wait_for_population
   population = qualification_population
   pid = Integer(population.fetch('pid'))
-  qualification_move_population(pid, groups.last)
+  machine.succeeds("grep -qx '#{pid}' #{groups.last}/cgroup.procs")
   machine.succeeds("grep -F '/livepatch_qualification_b' /proc/#{pid}/cgroup")
   age_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
   network_counts = stress_counts(machine)
@@ -431,6 +434,23 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
   machine.succeeds("test \"$(cat /proc/#{pid}/patch_state)\" = -1")
   machine.succeeds("test \"$(cat #{NFS_STATE}/mnt/qualification-data)\" = #{nfs_value}")
   expect(Integer(machine.succeeds("wc -l < #{QUAL_STATE}/tun.ok")[1].strip)).to be > tun_count
+
+  # The full population aged in B under the exact predecessor. Exercise both
+  # active migrations only after v7 supplies the perf fix, keeping the helper's
+  # original 180-second bound, watchdog policy and failure evidence.
+  groups.each do |group|
+    qualification_move_population(pid, group)
+    machine.succeeds("grep -qx '#{pid}' #{group}/cgroup.procs")
+    # Start the freshness wait after the move: a report published during a slow
+    # migration is not evidence that counters keep advancing after it returns.
+    before = qualification_population
+    machine.wait_until_succeeds(
+      "awk -F= '$1 == \"elapsed\" { elapsed=$2 } " \
+      "END { exit !(elapsed > #{before.fetch('elapsed')}) }' #{QUAL_STATE}/population", timeout: 60
+    )
+    qualification_progress(before, qualification_population)
+    assert_kernel_healthy(machine, @example_dmesg_start)
+  end
 
   qualification_transition("echo 0 > #{patch_dir(CORRECTED_NAME)}/enabled", CORRECTED_NAME, 0)
   qualification_trace_counts(disabled: true)
