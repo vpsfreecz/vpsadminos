@@ -22,6 +22,21 @@ let
           version = vpsadminosVersion;
           extraConfig = attrs: {
             buildInputs = (attrs.buildInputs or [ ]) ++ [ super.apparmor-parser ];
+
+            # osctld is built through this source-gem config, not the later
+            # ruby overlay's defaultGemConfig. Match the host-side freeze
+            # helpers in the packaged gem without changing its pinned version.
+            postPatch = (attrs.postPatch or "") + ''
+              for command in freeze unfreeze; do
+                file="lib/osctld/container_control/commands/$command.rb"
+                if grep -Fq 'ret = exec_runner' "$file"; then
+                  substituteInPlace "$file" \
+                    --replace-fail 'ret = exec_runner' 'ret = fork_runner'
+                else
+                  grep -Fq 'ret = fork_runner' "$file"
+                fi
+              done
+            '';
           };
         };
         osup.version = vpsadminosVersion;
