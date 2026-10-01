@@ -5476,7 +5476,7 @@ index 5b6934e23c21d..fc6552d065cc1 100644
  
  	/* Do seccomp after ptrace, to catch any tracer changes. */
 diff --git a/kernel/events/core.c b/kernel/events/core.c
-index 9099c0cc933be..8fd1e9c20943e 100644
+index 9099c0cc933be..b0f8aff60bb6f 100644
 --- a/kernel/events/core.c
 +++ b/kernel/events/core.c
 @@ -2206,6 +2206,37 @@ static inline struct list_head *get_event_list(struct perf_event *event)
@@ -5853,6 +5853,46 @@ index 9099c0cc933be..8fd1e9c20943e 100644
  }
  
  void perf_event_delayed_put(struct task_struct *task)
+@@ -14374,13 +14394,38 @@ static int __perf_cgroup_move(void *info)
+ 	return 0;
+ }
+ 
++static void perf_cgroup_move_cpu(void *unused)
++{
++	perf_cgroup_switch(current);
++}
++
+ static void perf_cgroup_attach(struct cgroup_taskset *tset)
+ {
+ 	struct task_struct *task;
+ 	struct cgroup_subsys_state *css;
++	unsigned int nr_cpus = num_online_cpus();
++	unsigned int nr_tasks = 0;
+ 
+-	cgroup_taskset_for_each(task, css, tset)
++	/* Keep small migrations from interrupting every online CPU. */
++	cgroup_taskset_for_each(task, css, tset) {
++		if (++nr_tasks > nr_cpus) {
++			/*
++			 * The cgroup core commits every task's css_set before
++			 * calling ->attach(). Only currently running tasks need
++			 * an explicit perf switch; other tasks pick up their new
++			 * cgroup when scheduled in. Updating each CPU's current
++			 * task therefore also covers tasks migrating between CPUs,
++			 * without sending a synchronous IPI for every task.
++			 */
++			on_each_cpu(perf_cgroup_move_cpu, NULL, 1);
++			return;
++		}
++	}
++
++	cgroup_taskset_for_each(task, css, tset) {
+ 		task_function_call(task, __perf_cgroup_move, task);
++		cond_resched();
++	}
+ }
+ 
+ struct cgroup_subsys perf_event_cgrp_subsys = {
 diff --git a/kernel/exit.c b/kernel/exit.c
 index 4f5abcf777a7c..e9048e5731dad 100644
 --- a/kernel/exit.c
