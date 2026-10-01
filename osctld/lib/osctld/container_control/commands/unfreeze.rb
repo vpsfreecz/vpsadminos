@@ -7,7 +7,9 @@ module OsCtld
     class Frontend < ContainerControl::Frontend
       # @return [true]
       def execute
-        ret = exec_runner
+        # Match freeze: liblxc controls the guest from the host-side context,
+        # without an unnecessary running-container namespace transition.
+        ret = fork_runner
         ret.ok? || ret
       end
     end
