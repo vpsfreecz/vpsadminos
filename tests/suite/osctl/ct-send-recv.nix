@@ -460,6 +460,107 @@ import ../../make-test.nix (
         '';
       };
 
+      "inflight-cancel-rootfs" = {
+        description = ''
+          Cancellation requested during an active rootfs receive completes and leaves both sides retryable
+        '';
+
+        script = ''
+          ctid = get_container_id
+          prefix = "/tmp/send-cancel-#{ctid}"
+
+          ${commonScript}
+
+          before(:suite) do
+            ensure_cluster_ready
+            refresh_send_keys
+
+            node1.all_succeed(
+              "osctl ct new --distribution alpine #{ctid}",
+              "osctl ct unset start-menu #{ctid}",
+              "osctl ct start #{ctid}"
+            )
+            wait_ct_running(node1, ctid)
+          end
+
+          after(:suite) do
+            node1.execute("timeout -k 2 30 osctl ct send cancel #{ctid} >/dev/null 2>&1 || true")
+            cleanup_container_everywhere(ctid)
+          end
+
+          describe 'cancellation requested while rootfs is receiving' do
+            it 'finishes in bounded time, removes transfer state, and permits another send' do
+              # Incompressible data keeps the receiver running long enough to
+              # identify and pause the exact receive process inside this VM.
+              ct_exec(
+                node1,
+                ctid,
+                'dd if=/dev/urandom of=/root/send-cancel.bin bs=1M count=128 2>/dev/null'
+              )
+              node1.succeeds("osctl ct send config #{ctid} node2")
+
+              node1.succeeds(<<~SH)
+                rm -f #{prefix}.rootfs.rc #{prefix}.rootfs.log #{prefix}.cancel.rc #{prefix}.cancel.log #{prefix}.cancel.started
+                nohup sh -c 'timeout -k 2 150 osctl ct send rootfs #{ctid} >#{prefix}.rootfs.log 2>&1; echo $? >#{prefix}.rootfs.rc' </dev/null >/dev/null 2>&1 &
+              SH
+
+              recv_pid = wait_for_block(name: 'rootfs zfs recv starts', timeout: 90) do
+                _, output = node2.execute("pgrep -a -f 'zfs recv -F -u' || true")
+                line = output.lines.find do |candidate|
+                  candidate.match?(/\A\d+\s+zfs recv -F -u .*#{Regexp.escape(ctid.to_s)}/)
+                end
+                line&.split&.first
+              end
+
+              node2.succeeds("kill -STOP #{recv_pid}")
+              begin
+                node2.wait_until_succeeds(
+                  "ps -o stat= -p #{recv_pid} | grep -q '^T'",
+                  timeout: 15
+                )
+                expect(node1.execute("test ! -e #{prefix}.rootfs.rc")[0]).to eq(0)
+
+                node1.succeeds(<<~SH)
+                  nohup sh -c 'touch #{prefix}.cancel.started; timeout -k 2 150 osctl ct send cancel #{ctid} >#{prefix}.cancel.log 2>&1; echo $? >#{prefix}.cancel.rc' </dev/null >/dev/null 2>&1 &
+                SH
+                node1.wait_until_succeeds("test -e #{prefix}.cancel.started", timeout: 20)
+                # The request must reach its SSH receive-cancel phase while
+                # the receiver is still stopped, not merely start a shell.
+                node1.wait_until_succeeds(
+                  "pgrep -f '[s]sh .*receive .*cancel' >/dev/null",
+                  timeout: 20
+                )
+              ensure
+                node2.execute("kill -CONT #{recv_pid} >/dev/null 2>&1 || true")
+              end
+
+              node1.wait_until_succeeds("test -e #{prefix}.cancel.rc", timeout: 170)
+              node1.wait_until_succeeds("test -e #{prefix}.rootfs.rc", timeout: 170)
+              _, cancel_rc = node1.succeeds("cat #{prefix}.cancel.rc")
+              _, rootfs_rc = node1.succeeds("cat #{prefix}.rootfs.rc")
+              _, rootfs_log = node1.succeeds("cat #{prefix}.rootfs.log")
+
+              expect(cancel_rc.strip).to eq('0')
+              expect(rootfs_rc.strip).not_to eq('124')
+              expect(rootfs_log).not_to match(/NoMethodError|undefined method/i)
+              expect(send_log_present?(node1, ctid)).to be(false)
+              expect_ct_absent(node2, ctid)
+              wait_ct_running(node1, ctid)
+
+              ct_exec(node1, ctid, 'rm -f /root/send-cancel.bin')
+              node1.all_succeed(
+                "osctl ct send config #{ctid} node2",
+                "osctl ct send rootfs #{ctid}",
+                "osctl ct send cancel #{ctid}"
+              )
+              expect(send_log_present?(node1, ctid)).to be(false)
+              expect_ct_absent(node2, ctid)
+              wait_ct_running(node1, ctid)
+            end
+          end
+        '';
+      };
+
       "authorization" = {
         description = ''
           Container send authorization respects passphrases, single-use keys, and source restrictions
