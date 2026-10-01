@@ -207,6 +207,76 @@ import ../../make-test.nix (
           expect_osctld_operational
         end
       end
+      describe 'bounded repeated container cleanup', order: :defined do
+        it 'reclaims distinct container resources without restarting osctld' do
+          sibling = get_container_id('cleanup-sibling')
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{sibling}",
+            "osctl ct unset start-menu #{sibling}",
+            "osctl ct start #{sibling}",
+            "osctl ct exec #{sibling} sh -c 'echo retained > /root/cleanup-marker'"
+          )
+          sibling_init = ct_info(sibling).fetch('init_pid')
+
+          supervisor = output_of('sv status osctld').match(/\(pid (\d+)\)/).captures.first
+          daemon_pids = output_of("pgrep -P #{supervisor} -f '^osctld: main$'").split
+          expect(daemon_pids.length).to eq(1)
+          daemon_pid = daemon_pids.first
+          daemon_started = output_of("awk '{print $22}' /proc/#{daemon_pid}/stat")
+          fd_counts = []
+
+          # Twelve different root datasets, mounts, cgroups, BPF mounts and
+          # init PIDs expose accumulation that a recycled identity would not.
+          # A live sibling must stay healthy; no throughput target is set.
+          12.times do |index|
+            current = get_container_id(format('cleanup-%02d', index))
+            machine.all_succeed(
+              "osctl ct new --distribution alpine #{current}",
+              "osctl ct unset start-menu #{current}",
+              "osctl ct start #{current}",
+              "osctl ct exec #{current} sh -c 'echo round-#{index} > /root/churn-marker'"
+            )
+            info = ct_info(current)
+            dataset = ct_dataset(current)
+            init_pid = info.fetch('init_pid')
+            init_started = output_of("awk '{print $22}' /proc/#{init_pid}/stat")
+            cgroup = "/run/osctl/cgroup/#{info.fetch('group_path')}"
+            bpffs = "/run/osctl/ct-bpf/tank/#{current}"
+            machine.all_succeed(
+              "test -d #{Shellwords.escape(cgroup)}",
+              "test -d #{Shellwords.escape(bpffs)}",
+              "osctl ct stop #{current}",
+              "osctl ct start #{current}",
+              "osctl ct exec #{current} grep -Fx round-#{index} /root/churn-marker",
+              "osctl ct stop #{current}",
+              "osctl ct del --prune #{current}"
+            )
+            machine.wait_until_succeeds(
+              "test ! -e #{Shellwords.escape(cgroup)} && " \
+              "test ! -e #{Shellwords.escape(bpffs)} && " \
+              "test ! -e #{Shellwords.escape(shared_dir_path(current))} && " \
+              "! zfs list -H #{Shellwords.escape(dataset)} >/dev/null 2>&1",
+              timeout: 60
+            )
+            expect(machine.execute("osctl ct show #{current} >/dev/null 2>&1")[0]).not_to eq(0)
+            old_init = machine.execute("awk '{print $22}' /proc/#{init_pid}/stat 2>/dev/null")[1].strip
+            expect(old_init).not_to eq(init_started)
+            expect(ct_info(sibling).fetch('init_pid')).to eq(sibling_init)
+            machine.succeeds("osctl ct exec #{sibling} grep -Fx retained /root/cleanup-marker")
+            expect(output_of("awk '{print $22}' /proc/#{daemon_pid}/stat")).to eq(daemon_started)
+            fd_counts << Integer(output_of("ls -U /proc/#{daemon_pid}/fd | wc -l"))
+          end
+
+          # The first cycle warms lazy descriptors; later cycles must return
+          # to that count instead of retaining one per container identity.
+          expect(fd_counts.drop(1).max).to be <= fd_counts.first
+          machine.all_succeed(
+            "osctl ct exec #{sibling} grep -Fx retained /root/cleanup-marker",
+            "osctl ct stop #{sibling}",
+            "osctl ct del --prune #{sibling}"
+          )
+        end
+      end
     '';
   }
 )
