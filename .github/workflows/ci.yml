@@ -143,7 +143,9 @@ jobs:
     runs-on: self-hosted
     # Full ZTS takes about ten hours, plus closure construction. Leave time
     # for artifact upload before the job's 24-hour GITHUB_TOKEN lifetime.
-    timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || 240 }}
+    # An unfiltered ci-unstable run can still be making progress after 3.5 hours;
+    # leave the four-hour limit unchanged for focused and ordinary CI selectors.
+    timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || (inputs.test_suite == 'ci-unstable' && !inputs.test_pattern) && 420 || 240 }}
 
     steps:
       - uses: actions/checkout@v7
