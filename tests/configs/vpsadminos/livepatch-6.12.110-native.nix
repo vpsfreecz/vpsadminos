@@ -14,8 +14,8 @@ let
     zfsBuiltinPkg:
     pkgs.callPackage ../../../os/packages/linux {
       kernelVersion = "6.12.110";
-      url = "https://github.com/vpsfreecz/linux/archive/248f8375a5f7b30670828d2e1d8c88beeab76a20.tar.gz";
-      sha256 = "sha256-ZzFMjaK+KBPorrjhcmulzrEJV6lCSVRsRo2JJbvLKnw=";
+      url = "https://github.com/vpsfreecz/linux/archive/1e8231622eee447c960f75840340702a12675322.tar.gz";
+      sha256 = "sha256-aKj3F7leLjraNREhxE85CBb6pSsVHkFmXFeg47+LtNc=";
       inherit zfsBuiltinPkg;
       # Preserve the original package declaration, including its unevaluated
       # merge marker. Normalizing it would change the historical ZFS config.
