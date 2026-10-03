@@ -265,7 +265,8 @@ in
           assert_unpatched_baseline
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
           machine.succeeds("test \"$(readlink /proc/#{init_pid}/ns/user)\" != \"$(readlink /proc/1/ns/user)\"")
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+          # The outer driver shell's errexit does not apply inside this shell.
+          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
           machine.succeeds(
             "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
               "test -d /sys/fs/nfs/net/nfs_client; " \
@@ -502,14 +503,14 @@ in
               stop_nfs_client
               expect(machine.succeeds("osctl ct show -H -o state nfs1")[1].strip).to eq('stopped')
               state = machine.succeeds(
-                "nsenter --net=#{held_net} unshare --mount sh -c " \
+                "nsenter --net=#{held_net} unshare --mount sh -ec " \
                   "'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
                   "cat /sys/fs/nfs/net/nfs_client/shutdown'",
               )[1].strip
               expect(state).to eq('1')
               # The child network namespace shares the root owner's
               # barrier without ever being discovered by a process scan.
-              owner = "nsenter --net=#{held_net} unshare --mount sh -c"
+              owner = "nsenter --net=#{held_net} unshare --mount sh -ec"
               machine.succeeds(
                 "#{owner} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
                   "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown_tree)\" = 1'",
@@ -531,7 +532,7 @@ in
           machine.fails(
             "osctl ct exec nfs1 sh -c 'echo 1 > /sys/fs/nfs/net/nfs_client/shutdown_tree'",
           )
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
           machine.succeeds(
             "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
               "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown_tree)\" = 0; " \
@@ -568,7 +569,7 @@ in
               "/proc/#{init_pid}/root/proc/#{child_pid}/ns/net",
             ].each do |netns|
               state = machine.succeeds(
-                "nsenter --net=#{netns} unshare --mount sh -c " \
+                "nsenter --net=#{netns} unshare --mount sh -ec " \
                   "'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
                   "cat /sys/fs/nfs/net/nfs_client/shutdown " \
                   "/sys/fs/nfs/net/nfs_client/shutdown_tree'",
@@ -660,7 +661,8 @@ in
 
         it "host cancellation controls are root-only with exact modes" do
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+          # Fail on setup and intermediate assertions, not just the last command.
+          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
 
           modes = machine.succeeds(
             "osctl ct exec nfs1 stat -c '%a' " \
@@ -740,7 +742,7 @@ in
         it "rejects or safely joins a mount racing terminal cancellation" do
           machine.succeeds("osctl ct exec nfs1 umount /mnt/nfs")
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
           rules = [
             "FORWARD -s 192.168.1.21 -d 10.0.0.10 -p tcp --dport 2049 -j DROP",
             "FORWARD -s 10.0.0.10 -d 192.168.1.21 -p tcp --sport 2049 -j DROP",
@@ -789,7 +791,7 @@ in
 
         it "repeated terminal cancellation is idempotent" do
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
           machine.succeeds(
             "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
               "echo 1 > /sys/fs/nfs/net/nfs_client/shutdown_tree'",
@@ -817,7 +819,7 @@ in
           mount_nfs('nfs1', version)
           # A fresh incarnation starts from a zero cancellation state.
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
           machine.succeeds(
             "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
               "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown)\" = 0; " \
@@ -839,7 +841,7 @@ in
           machine.succeeds("osctl ct start nfs1", timeout: 60)
           mount_nfs('nfs1', version)
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
           machine.succeeds(
             "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
               "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown)\" = 0; " \
@@ -868,7 +870,7 @@ in
             machine.succeeds("osctl ct start nfs1", timeout: 60)
             mount_nfs('nfs1', version)
             init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-            control = "nsenter -t #{init_pid} --net unshare --mount sh -c"
+            control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
             machine.succeeds(
               "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
                 "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown)\" = 0; " \
