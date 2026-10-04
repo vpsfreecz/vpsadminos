@@ -36,6 +36,86 @@ import ../../make-test.nix (
         )
       end
 
+      # R86's Ubuntu DHCP client failed installing its seccomp sandbox. Observe
+      # startup before it happens: teardown diagnostics cannot reconstruct the
+      # failed syscall. Do not change guest policy or retry a failed boot.
+      def start_container_startup_trace
+        root = machine.succeeds('mktemp -d /run/podman-startup.XXXXXX')[1].strip
+        unless root.match?(%r{\A/run/podman-startup\.[A-Za-z0-9]{6}\z})
+          raise "Unexpected Podman startup trace directory: #{root.inspect}"
+        end
+        machine.instance_variable_set(:@podman_startup_trace_root, root)
+        status, output = machine.execute("bash -c #{<<~'TRACE'.shellescape} -- #{root.shellescape}", timeout: 30)
+          set -eu
+          root=$1
+          group=$(basename "$root" | tr '.-' '__')
+          mount -t tracefs none "$root"
+          instance=$root/instances/$group
+          mkdir "$instance"
+          echo 0 > "$instance/tracing_on"
+          echo 1024 > "$instance/buffer_size_kb"
+          echo mono > "$instance/trace_clock"
+          client='common_comm ~ "*dhcp*" || common_comm == "ifup"'
+          for name in sys_enter_seccomp sys_exit_seccomp sys_enter_prctl sys_exit_prctl; do
+            event=$instance/events/syscalls/$name
+            echo "$client" > "$event/filter"
+            echo 1 > "$event/enable"
+          done
+          functions='seccomp_set_mode_filter seccomp_prepare_user_filter security_capable auth_guard_task_begin_transition_try_where auth_guard_task_transition_open_where auth_guard_task_check_status_where auth_guard_task_expect_seccomp_in_transition_where'
+          helpers=$(awk '$2 ~ /^[tT]$/ && $3 ~ /^auth_guard_task_check_(result|reserved|owned_transition)([.](isra|constprop)[.][0-9]+)*$/ { print $3 }' /proc/kallsyms)
+          for function in $functions $helpers; do
+            name=$(echo "$function" | tr '.' '_')
+            if ! echo "r64:$group/$name $function result=\$retval:s64" >> "$root/kprobe_events"; then
+              echo "Podman startup return probe unavailable: $function"
+              continue
+            fi
+            event=$instance/events/$group/$name
+            echo "$client" > "$event/filter"
+            if test "$function" = seccomp_set_mode_filter; then
+              # Freeze this private instance at the first sandbox failure so
+              # later diagnostic commands cannot overwrite causal history.
+              echo 'traceoff:1 if result < 0' > "$event/trigger"
+            fi
+            echo 1 > "$event/enable"
+          done
+          echo 1 > "$instance/tracing_on"
+        TRACE
+        warn "Podman startup trace setup (#{status}): #{output}"
+      rescue StandardError => e
+        warn "Unable to start Podman startup trace: #{e.class}: #{e.message}"
+      end
+
+      def capture_container_startup_trace
+        root = machine.instance_variable_get(:@podman_startup_trace_root)
+        return unless root
+
+        machine.instance_variable_set(:@podman_startup_trace_root, nil)
+        status, output = machine.execute("bash -c #{<<~'TRACE'.shellescape} -- #{root.shellescape}", timeout: 30)
+          set +e
+          root=$1
+          group=$(basename "$root" | tr '.-' '__')
+          instance=$root/instances/$group
+          echo 0 > "$instance/tracing_on"
+          date -Ins
+          uname -a
+          cat "$root/kprobe_profile"
+          for stats in "$instance"/per_cpu/cpu*/stats; do
+            echo "===== $stats ====="
+            cat "$stats"
+          done
+          cat "$instance/trace" | tail -c 131072
+          echo 0 > "$instance/events/enable"
+          rmdir "$instance"
+          awk -v group="$group/" 'index($1, group) { sub(/^[^:]*:/, "", $1); print $1 }' "$root/kprobe_events" |
+            while read -r event; do echo "-:$event" >> "$root/kprobe_events"; done
+          umount "$root"
+          rmdir "$root"
+        TRACE
+        warn "Podman startup trace (#{status}):\n#{output}"
+      rescue StandardError => e
+        warn "Unable to capture Podman startup trace: #{e.class}: #{e.message}"
+      end
+
       def collect_container_diagnostics(ct)
         return unless machine.running?
 
@@ -64,8 +144,8 @@ import ../../make-test.nix (
             cat /etc/resolv.conf
             cat /etc/network/interfaces /etc/network/interfaces.d/* /etc/systemd/network/*
             systemctl --failed --plain --no-legend --no-pager
-            systemctl --no-pager --full status networking systemd-networkd systemd-resolved NetworkManager
-            journalctl -b --no-pager -n 100 -u networking -u systemd-networkd -u systemd-resolved -u NetworkManager
+            systemctl --no-pager --full status networking ifup@eth0 systemd-networkd systemd-resolved NetworkManager
+            journalctl -b --no-pager -n 150 -u networking -u ifup@eth0 -u systemd-networkd -u systemd-resolved -u NetworkManager
           GUEST
         ]
 
@@ -355,11 +435,13 @@ import ../../make-test.nix (
 
             begin
               ensure_machine
+              start_container_startup_trace if '${distribution}' == 'ubuntu'
               create_podman_container(ct, '${distribution}', '${test.version}')
               ${test.setup}
               check_podman(ct)
             ensure
               primary_error = $!
+              capture_container_startup_trace
               collect_container_diagnostics(ct) if primary_error
 
               begin
