@@ -1,0 +1,27 @@
+From: Pavel Snajdr <snajpa@snajpa.net>
+Subject: [PATCH] NFS: tolerate a cold NLM client during sysfs shutdown
+
+An NFSv3 mount allocates an nlm_host before its first remote lock, but
+nlm_host.h_rpcclnt is still NULL until then. The legacy server shutdown
+attribute passes that pointer to shutdown_client(), which unconditionally
+dereferences it. A privileged cancellation write can therefore crash the
+host even when the mount has never used NLM.
+
+There are no RPC tasks to cancel when the client has not been allocated.
+Leave the server's terminal state handling unchanged and skip only the
+absent RPC client. The native .110 and cumulative .95 candidates already
+handle this through their serialized NLM shutdown helper; this compatibility
+fix is for the selected .109 kernel only.
+
+--- a/fs/nfs/sysfs.c
++++ b/fs/nfs/sysfs.c
+@@ -228,4 +228,7 @@ static void shutdown_client(struct rpc_clnt *clnt)
+ {
+-	clnt->cl_shutdown = 1;
+-	rpc_cancel_tasks(clnt, -EIO, shutdown_match_client, NULL);
++	/* There is nothing to cancel if the client is absent. */
++	if (!clnt)
++		return;
++	clnt->cl_shutdown = 1;
++	rpc_cancel_tasks(clnt, -EIO, shutdown_match_client, NULL);
+ }

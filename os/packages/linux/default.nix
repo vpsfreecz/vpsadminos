@@ -34,7 +34,13 @@ callPackage ./generic.nix (rec {
     inherit sha256;
   };
 
-  kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];
+  kernelPatches = [
+    pkgs.kernelPatches.bridge_stp_helper
+  ]
+  ++ optional (kernelVersion == "6.12.109") {
+    name = "nfs-sysfs-null-rpc-client";
+    patch = ./nfs-sysfs-null-rpc-client-6.12.109.patch;
+  };
 
   inherit structuredExtraConfig;
 
