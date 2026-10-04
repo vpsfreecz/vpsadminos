@@ -13,6 +13,16 @@ RSpec.describe VpsadminosFailureLogs do
     expect(script).to include('timeout 2 cat "/proc/$pid/stack" 2>&1')
   end
 
+  it 'captures bounded host route and link state before teardown' do
+    script = described_class.diagnostics_script
+
+    expect(script).to include('timeout 10 ip -o link show')
+    expect(script).to include('timeout 10 ip -4 addr show')
+    expect(script).to include('timeout 10 ip -4 rule show')
+    expect(script).to include('timeout 10 ip -4 route show table all')
+    expect(script.index('timeout 10 ip -o link show')).to be < script.index('run dmesg -T')
+  end
+
   it 'retains collected output in the normal failure artifact' do
     machine = instance_double(OsVm::Machine, name: 'machine')
     output = "===== /proc/123/stack (D zfs) =====\n[<0>] zio_wait\n"
