@@ -1,5 +1,5 @@
 name: evaluate-test-results
-description: Parse test-runner output, publish a summary, and fail on unexpected outcomes
+description: Parse test-runner output, publish a summary, and fail on empty or unexpected outcomes
 
 inputs:
   log-file:
@@ -60,6 +60,17 @@ runs:
           echo "| ❌ Successful (unexpected) | ${UNEXPECTED_SUCCESSFUL:-0} |"
           echo ""
         } >>"$GITHUB_STEP_SUMMARY"
+
+        COMPLETED_TESTS=$((
+          ${EXPECTED_SUCCESSFUL:-0} +
+          ${EXPECTED_FAILED:-0} +
+          ${UNEXPECTED_FAILED:-0} +
+          ${UNEXPECTED_SUCCESSFUL:-0}
+        ))
+        if [ "$COMPLETED_TESTS" -eq 0 ]; then
+          echo "::error::No completed test results; check the native test glob/tag and runner log"
+          exit 1
+        fi
 
         if [ "${UNEXPECTED_FAILED:-0}" -gt 0 ] || [ "${UNEXPECTED_SUCCESSFUL:-0}" -gt 0 ]; then
           echo "::error::${UNEXPECTED_FAILED:-0} tests unexpectedly failed, ${UNEXPECTED_SUCCESSFUL:-0} tests unexpectedly succeeded"
