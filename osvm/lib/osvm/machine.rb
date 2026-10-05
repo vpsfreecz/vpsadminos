@@ -708,11 +708,11 @@ module OsVm
     end
 
     def wait_for_reaper(reaper, timeout:)
-      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout if timeout
 
       loop do
         raise_if_kernel_failed!
-        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        remaining = deadline ? deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC) : 1
         return false if remaining <= 0
 
         if reaper.join([remaining, 1].min)

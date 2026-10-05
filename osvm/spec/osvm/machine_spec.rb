@@ -470,22 +470,36 @@ RSpec.describe OsVm::Machine do
     end
   end
 
-  it 'interrupts a join when the console reports a kernel failure' do
+  it 'waits without a deadline when join timeout is nil' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)
       reaper = instance_double(Thread)
-      waits = []
-      allow(reaper).to receive(:join) do |timeout|
-        waits << timeout
-        machine.send(:append_console_output, "[    1.000] Oops: join failure\n")
-        nil
-      end
+      allow(reaper).to receive(:join).with(1).and_return(nil, reaper)
       allow(machine).to receive(:qemu_state).and_return([123, reaper, true])
 
-      expect { machine.join(timeout: 10) }
-        .to raise_error(OsVm::KernelFailure, /join failure/)
-      expect(waits.length).to eq(1)
-      expect(waits.first).to be <= 1
+      expect(machine.join(timeout: nil)).to be_nil
+      expect(reaper).to have_received(:join).with(1).twice
+    end
+  end
+
+  [10, nil].each do |join_timeout|
+    it "interrupts a join with timeout #{join_timeout.inspect} when the console reports a kernel failure" do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        reaper = instance_double(Thread)
+        waits = []
+        allow(reaper).to receive(:join) do |timeout|
+          waits << timeout
+          machine.send(:append_console_output, "[    1.000] Oops: join failure\n")
+          nil
+        end
+        allow(machine).to receive(:qemu_state).and_return([123, reaper, true])
+
+        expect { machine.join(timeout: join_timeout) }
+          .to raise_error(OsVm::KernelFailure, /join failure/)
+        expect(waits.length).to eq(1)
+        expect(waits.first).to be <= 1
+      end
     end
   end
 
