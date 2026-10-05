@@ -13,6 +13,16 @@ RSpec.describe VpsadminosFailureLogs do
     expect(script).to include('timeout 2 cat "/proc/$pid/stack" 2>&1')
   end
 
+  it 'captures bounded host route and link state before teardown' do
+    script = described_class.diagnostics_script
+
+    expect(script).to include('timeout 10 ip -o link show')
+    expect(script).to include('timeout 10 ip -4 addr show')
+    expect(script).to include('timeout 10 ip -4 rule show')
+    expect(script).to include('timeout 10 ip -4 route show table all')
+    expect(script.index('timeout 10 ip -o link show')).to be < script.index('run dmesg -T')
+  end
+
   it 'retains collected output in the normal failure artifact' do
     machine = instance_double(OsVm::Machine, name: 'machine')
     output = "===== /proc/123/stack (D zfs) =====\n[<0>] zio_wait\n"
@@ -29,5 +39,18 @@ RSpec.describe VpsadminosFailureLogs do
       include('timeout 2 cat "/proc/$pid/stack"'),
       timeout: 300
     )
+  end
+
+  it 'bounds read-only guest network and root-aware resolver snapshots' do
+    script = described_class.diagnostics_script
+
+    expect(script).to include('timeout 10 osctl ct ls -H -o pool,id,state,init-pid |')
+    expect(script).to include('$3 == "running" && $4 ~ /^[1-9][0-9]*$/')
+    expect(script).to include('timeout 5 nsenter -t "$pid" -n -- sh -c')
+    expect(script).to include('ip -4 addr show; ip -6 addr show')
+    expect(script).to include('ip -4 route show table all; ip -6 route show table all')
+    expect(script).to include('timeout 2 nsenter -t "$pid" -m -r -- /bin/sh -c')
+    expect(script).to include('PATH=/run/current-system/sw/bin:/usr/bin:/bin; cat /etc/resolv.conf')
+    expect(script).not_to include('osctl ct exec')
   end
 end
