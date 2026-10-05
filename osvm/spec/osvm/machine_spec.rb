@@ -353,7 +353,7 @@ RSpec.describe OsVm::Machine do
         true
       end
       allow(io).to receive(:read_nonblock).and_return(
-        ":osvm-online-test:begin\n#{Base64.strict_encode64('online')}\n:osvm-online-test:0\n"
+        ":osvm-online-test:begin\n#{Base64.strict_encode64('online:osvm-online-test-completed:0')}\n:osvm-online-test:0\n"
       )
       machine.instance_variable_set(:@running, true)
       shell.instance_variable_set(:@up, true)

@@ -58,6 +58,15 @@ RSpec.describe OsVm::Shell do
     end
   end
 
+  it 'preserves timeout statuses from commands which complete within the shell deadline' do
+    with_command_shell do |shell, _io|
+      expect(shell.execute('printf completed; exit 124')).to eq([124, 'completed'])
+      expect(shell.execute('printf completed; exit 137')).to eq([137, 'completed'])
+      expect(shell.execute('timeout 0.1 sleep 2')).to eq([124, ''])
+      expect(shell.execute('printf after; exit 125')).to eq([125, 'after'])
+    end
+  end
+
   it 'reads a framed response larger than an IO read buffer' do
     with_command_shell do |shell, _io|
       payload = '0123456789' * 2000
@@ -212,7 +221,7 @@ RSpec.describe OsVm::Shell do
       allow(SecureRandom).to receive(:hex).with(16).and_return('test-marker')
       allow(shell).to receive_messages(
         monotonic_now: 100.0,
-        read_output: ":osvm-test-marker:begin\n#{Base64.strict_encode64("ok\n")}\n:osvm-test-marker:0\n"
+        read_output: ":osvm-test-marker:begin\n#{Base64.strict_encode64("ok\n:osvm-test-marker-completed:0")}\n:osvm-test-marker:0\n"
       )
       shell.instance_variable_set(:@io, io)
 
@@ -278,7 +287,7 @@ RSpec.describe OsVm::Shell do
         reads += 1
         raise OsVm::UnrecoverableTimeoutError, 'original status deadline' if reads > 1
 
-        ":osvm-test-marker:begin\n#{Base64.strict_encode64("ok\n")}\n"
+        ":osvm-test-marker:begin\n#{Base64.strict_encode64("ok\n:osvm-test-marker-completed:0")}\n"
       end
 
       expect do
@@ -302,7 +311,7 @@ RSpec.describe OsVm::Shell do
       shell.instance_variable_set(:@io, io)
       shell.instance_variable_set(:@up, true)
       allow(shell).to receive(:read_nonblock).and_return(
-        ":osvm-test-marker:begin\n#{Base64.strict_encode64("ok\n")}\n:osvm-test-marker:0\n"
+        ":osvm-test-marker:begin\n#{Base64.strict_encode64("ok\n:osvm-test-marker-completed:0")}\n:osvm-test-marker:0\n"
       )
 
       expect(shell.execute('true', timeout: 1)).to eq([0, "ok\n"])

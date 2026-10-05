@@ -353,6 +353,12 @@ module OsVm
       timeout_command = "timeout --kill-after=#{format_timeout(kill_after)} #{format_timeout(guest_timeout)}"
 
       marker = "osvm-#{SecureRandom.hex(16)}"
+      completion_marker = "#{marker}-completed"
+      # The command may legitimately exit 124 (including its own timeout).
+      # Reserve the outer timeout's status for the driver deadline, and carry
+      # the completed command's status in its command-specific payload.
+      completed_command = "bash -c #{Shellwords.escape(vm_command)}; " \
+                          "printf ':#{completion_marker}:%s' \"$?\""
 
       # Prefix commands to tolerate the guest console dropping initial bytes.
       workaround = ' ' * 10
@@ -366,7 +372,7 @@ module OsVm
       trace[:phase] = 'command_write' if trace
       io.write(
         "#{workaround}printf '\\n:#{marker}:begin\\n'; " \
-        "#{timeout_command} bash -c #{Shellwords.escape(vm_command)} 2>&1 | base64 -w 76; " \
+        "#{timeout_command} bash -c #{Shellwords.escape(completed_command)} 2>&1 | base64 -w 76; " \
         "printf '\\n:#{marker}:%s\\n' \"${PIPESTATUS[0]}\"\n"
       )
 
@@ -390,6 +396,14 @@ module OsVm
       if [124, 137].include?(status)
         log.execute_end(-1, output, log_started_at)
         raise TimeoutError, "#{timeout_message}, output: #{output.inspect}"
+      end
+
+      if status == 0
+        completion = /:#{Regexp.escape(completion_marker)}:(\d+)\z/.match(output)
+        raise Error, 'Missing command completion status' unless completion
+
+        status = completion[1].to_i
+        output = output.byteslice(0, completion.begin(0))
       end
 
       log.execute_end(status, output, log_started_at)
