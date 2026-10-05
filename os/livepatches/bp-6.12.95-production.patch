@@ -11739,7 +11739,7 @@ index f12d0d229aaa5..7961a391ab849 100644
  		return netlink_ack(skb, nlh, -EINVAL, NULL);
  replay:
 diff --git a/net/netfilter/nfnetlink_queue.c b/net/netfilter/nfnetlink_queue.c
-index 1b517cd2bb58c..e03cbc7738ec9 100644
+index 1b517cd2bb58c..cec6664518660 100644
 --- a/net/netfilter/nfnetlink_queue.c
 +++ b/net/netfilter/nfnetlink_queue.c
 @@ -32,7 +32,12 @@
@@ -11781,7 +11781,7 @@ index 1b517cd2bb58c..e03cbc7738ec9 100644
  #endif
  	if (entry->skb_dev && entry->skb_dev->ifindex == ifindex)
  		return 1;
-@@ -1757,6 +1775,145 @@ static const struct nfnetlink_subsystem nfqnl_subsys = {
+@@ -1757,6 +1775,171 @@ static const struct nfnetlink_subsystem nfqnl_subsys = {
  	.cb		= nfqnl_cb,
  };
  
@@ -11808,6 +11808,19 @@ index 1b517cd2bb58c..e03cbc7738ec9 100644
 +
 +static bool vpsadminos_nfqueue_transition_quiesced;
 +
++/* The version-1 queue/bridge-shadow contract in nf_queue.c. */
++#define VPSADMINOS_NFQUEUE_STATE_ID	0x0f02b3341af9ad9aUL
++#define VPSADMINOS_NFQUEUE_STATE_ACTIVE	((void *)1UL)
++
++static bool vpsadminos_nfqueue_previous_abi_compatible(void)
++{
++	struct klp_state *prev_state;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_NFQUEUE_STATE_ID);
++	return prev_state && prev_state->version == 1 &&
++		READ_ONCE(prev_state->data) == VPSADMINOS_NFQUEUE_STATE_ACTIVE;
++}
++
 +static void vpsadminos_nfqueue_drain_all(void)
 +{
 +	struct net *net;
@@ -11821,6 +11834,7 @@ index 1b517cd2bb58c..e03cbc7738ec9 100644
 +static int
 +vpsadminos_nfqueue_livepatch_quiesce(struct klp_object *obj)
 +{
++	bool rtnl_held;
 +	int ret = -EBUSY;
 +
 +	if (!obj->mod || obj->mod->state != MODULE_STATE_LIVE)
@@ -11830,7 +11844,17 @@ index 1b517cd2bb58c..e03cbc7738ec9 100644
 +
 +	if (!down_write_trylock(&pernet_ops_rwsem))
 +		return -EBUSY;
-+	if (!rtnl_trylock())
++	rtnl_held = rtnl_trylock();
++	/*
++	 * An aware predecessor already owns the same queue and bridge-shadow
++	 * ABI. Its NETDEV notifier can race the drain under the existing queue
++	 * locks and RCU rules; it does not observe a representation change.
++	 * Keep the pernet and nfnetlink exclusion, stop packet admission and
++	 * drain callbacks below, but do not reject this handover merely because
++	 * an unrelated NETDEV operation holds RTNL. A cold/unknown predecessor
++	 * still needs the original RTNL exclusion.
++	 */
++	if (!rtnl_held && !vpsadminos_nfqueue_previous_abi_compatible())
 +		goto out_unlock_pernet;
 +
 +	ret = vpsadminos_nfnl_try_unregister(&nfqnl_subsys);
@@ -11844,12 +11868,14 @@ index 1b517cd2bb58c..e03cbc7738ec9 100644
 +	flush_workqueue(nfq_cleanup_wq);
 +
 +	WRITE_ONCE(vpsadminos_nfqueue_transition_quiesced, true);
-+	rtnl_unlock();
++	if (rtnl_held)
++		rtnl_unlock();
 +	up_write(&pernet_ops_rwsem);
 +	return 0;
 +
 +out_unlock_rtnl:
-+	rtnl_unlock();
++	if (rtnl_held)
++		rtnl_unlock();
 +out_unlock_pernet:
 +	up_write(&pernet_ops_rwsem);
 +	return ret;
