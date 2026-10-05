@@ -13,6 +13,16 @@ RSpec.describe VpsadminosFailureLogs do
     expect(script).to include('timeout 2 cat "/proc/$pid/stack" 2>&1')
   end
 
+  it 'captures bounded host route and link state before teardown' do
+    script = described_class.diagnostics_script
+
+    expect(script).to include('timeout 10 ip -o link show')
+    expect(script).to include('timeout 10 ip -4 addr show')
+    expect(script).to include('timeout 10 ip -4 rule show')
+    expect(script).to include('timeout 10 ip -4 route show table all')
+    expect(script.index('timeout 10 ip -o link show')).to be < script.index('run dmesg -T')
+  end
+
   it 'captures bounded public daemon-thread stacks before container queries' do
     script = described_class.diagnostics_script
 
@@ -40,5 +50,31 @@ RSpec.describe VpsadminosFailureLogs do
       include('timeout 2 cat "/proc/$pid/stack"', 'timeout 10 osctl debug threads ls'),
       timeout: 300
     )
+  end
+
+  it 'bounds read-only guest network and root-aware resolver snapshots' do
+    script = described_class.diagnostics_script
+
+    expect(script).to include('timeout 10 osctl ct ls -H -o pool,id,state,init-pid |')
+    expect(script).to include('$3 == "running" && $4 ~ /^[1-9][0-9]*$/')
+    expect(script).to include('timeout 5 nsenter -t "$pid" -n -- sh -c')
+    expect(script).to include('ip -4 addr show; ip -6 addr show')
+    expect(script).to include('ip -4 route show table all; ip -6 route show table all')
+    expect(script).to include('timeout 2 nsenter -t "$pid" -m -r -- /bin/sh -c')
+    expect(script).to include('PATH=/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin')
+    expect(script).not_to include('osctl ct exec')
+  end
+
+  it 'retains guest resolver configuration and DHCP client/package identity without changing them' do
+    script = described_class.diagnostics_script
+
+    expect(script).to include('guest resolver/network/package identity (init $pid)')
+    expect(script).to include('/etc/os-release /etc/resolv.conf /etc/nsswitch.conf')
+    expect(script).to include('/etc/network/interfaces /etc/network/interfaces.d/*')
+    expect(script).to include('for client in dhcpcd dhclient udhcpc; do command -v "$client"; done')
+    expect(script).to include('if command -v dpkg-query >/dev/null 2>&1; then')
+    expect(script).to include('dpkg-query -s ifupdown dhcpcd-base isc-dhcp-client udhcpc systemd-resolved')
+    expect(script).to include("printf 'guest resolver/network/package snapshot status=%s\\n' \"$?\"")
+    expect(script).not_to include('apt-get', 'ifup eth', 'dhclient eth', 'dhcpcd eth')
   end
 end
