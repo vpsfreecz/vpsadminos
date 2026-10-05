@@ -279,12 +279,13 @@ import ../../make-test.nix (
                 sleep 5
               end
 
-              # The artifact under test must replace the scan function.
-              targets = machine.succeeds(
-                "sh -c 'readelf -SW #{MODULE_FILE} | grep -oE \"text[.][A-Za-z0-9_.]+\" | sort -u'"
-              )[1]
-              puts "patched text sections: #{targets.split.length} total"
-              expect(targets).to include('sctp_assoc_update_retran_path')
+              # Section names are a linker representation and may be coalesced.
+              # Resolve the replacement body in this loaded module; the probe
+              # below requires every hostile cycle to execute that exact body.
+              replacement_address =
+                symbol_address(machine, 'sctp_assoc_update_retran_path', MODULE_NAME)
+              puts "SCTP replacement body address: #{replacement_address}"
+              expect(Integer(replacement_address)).to be > 0
 
               # ADD-IP is disabled by default (net.sctp.addip_enable=0 and
               # addip_noauth_enable=0), and sctp_send_asconf_add_ip() returns
