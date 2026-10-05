@@ -61,6 +61,12 @@ module VpsadminosFailureLogs
       run uptime
       run free -m
       run df -h
+      # A routed guest can remain running while its host route is unusable.
+      # Snapshot route selection and link state before teardown removes the veth.
+      run_sh 'timeout 10 ip -o link show'
+      run_sh 'timeout 10 ip -4 addr show'
+      run_sh 'timeout 10 ip -4 rule show'
+      run_sh 'timeout 10 ip -4 route show table all'
       run dmesg -T
       run ps -eo pid,ppid,stat,comm,args
 
