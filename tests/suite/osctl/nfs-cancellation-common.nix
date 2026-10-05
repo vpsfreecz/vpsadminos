@@ -301,6 +301,41 @@ in
       ''
     else
       ''
+        if version == '3'
+          it "shuts down a legacy server before the first NLM lock" do
+            # The v3 mount constructor binds its NLM RPC client eagerly.
+            # Exercise the old per-server ABI with that idle client before
+            # any remote-lock example, and prove the other client survives.
+            init_pid = machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip
+            mount_id = machine.succeeds(
+              "osctl ct exec nfs1 awk '$5 == \"/mnt/nfs\" { print $3 }' /proc/self/mountinfo",
+            )[1].strip
+            expect(mount_id).to match(/\A\d+:\d+\z/)
+            control = "nsenter -t #{init_pid} --net unshare --mount sh -exc"
+            begin
+              machine.succeeds('echo legacy-data > /srv/nfs-cancellation/legacy-shutdown')
+              machine.succeeds(
+                "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+                  "server=/sys/fs/nfs/#{mount_id}; set -- \"$server/shutdown\"; " \
+                  "test -f \"$1\"; " \
+                  "test -L \"$server/lockd_client\"; " \
+                  "test \"$(cat \"$1\")\" = 0; " \
+                  "echo 1 > \"$1\"; test \"$(cat \"$1\")\" = 1'",
+              )
+              machine.fails("osctl ct exec nfs1 cat /mnt/nfs/legacy-shutdown")
+              machine.succeeds(
+                "osctl ct exec nfs2 sh -c 'echo legacy-survived > /mnt/nfs/other-client'",
+              )
+              expect(machine.succeeds('cat /srv/nfs-cancellation/other-client')[1].strip)
+                .to eq('legacy-survived')
+            ensure
+              stop_nfs_client
+              machine.succeeds("osctl ct start nfs1", timeout: 60)
+              mount_nfs('nfs1', version)
+            end
+          end
+        end
+
         it "retries an outage beyond soft timeout and preserves the payload" do
           isolate_client('I', reset: true)
           begin
