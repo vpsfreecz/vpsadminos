@@ -50,6 +50,14 @@ RSpec.describe OsVm::Shell do
     end
   end
 
+  it 'preserves timeout statuses from commands which complete within the shell deadline' do
+    with_command_shell do |shell, _io|
+      expect(shell.execute('printf completed; exit 124')).to eq([124, 'completed'])
+      expect(shell.execute('timeout 0.1 sleep 2')).to eq([124, ''])
+      expect(shell.execute('printf after; exit 125')).to eq([125, 'after'])
+    end
+  end
+
   it 'reads a framed response larger than an IO read buffer' do
     with_command_shell do |shell, _io|
       payload = '0123456789' * 2000
