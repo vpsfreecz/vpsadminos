@@ -18,7 +18,7 @@ on:
           - ci-unstable
           - zfs-full
       test_pattern:
-        description: 'Optional native test/script pattern; empty runs the whole suite'
+        description: 'Optional native test/script glob (not regex); empty runs the whole suite'
         required: false
         type: string
         default: ''
@@ -246,7 +246,7 @@ jobs:
           fi
 
           if [[ -n "$TEST_PATTERN" ]]; then
-            # One quoted positional pattern, never shell words or CLI options.
+            # One quoted positional glob, never shell words or CLI options.
             args+=(-- "$TEST_PATTERN")
           fi
 
