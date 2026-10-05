@@ -304,6 +304,12 @@ module OsVm
       vm_command = "set -euo pipefail; #{cmd}"
       timeout_command = "timeout #{real_timeout}"
       marker = "osvm-#{SecureRandom.hex(16)}"
+      completion_marker = "#{marker}-completed"
+      # The command may legitimately exit 124 (including its own timeout).
+      # Reserve the outer timeout's status for the driver deadline, and carry
+      # the completed command's status in its command-specific payload.
+      completed_command = "bash -c #{Shellwords.escape(vm_command)}; " \
+                          "printf ':#{completion_marker}:%s' \"$?\""
 
       # For unknown reason, the first character written to the shell is cut. Sometimes
       # more characters are lost. We therefore prefix the executed command with whitespace
@@ -313,7 +319,7 @@ module OsVm
       # Return the output and its status in one command-specific record. After an
       # unrecoverable read timeout, older responses may still arrive on this IO.
       io.write(
-        "#{workaround}#{timeout_command} bash -c #{Shellwords.escape(vm_command)} 2>&1 | base64 -w 0; " \
+        "#{workaround}#{timeout_command} bash -c #{Shellwords.escape(completed_command)} 2>&1 | base64 -w 0; " \
         "printf ':#{marker}:%s\\n' \"${PIPESTATUS[0]}\"\n"
       )
       log_started_at = log.execute_begin(cmd)
@@ -332,6 +338,14 @@ module OsVm
         log.execute_end(-1, output, log_started_at)
         raise TimeoutError, "Timeout occurred while running command '#{cmd}', " \
                             "output: #{output.inspect}"
+      end
+
+      if status == 0
+        completion = /:#{Regexp.escape(completion_marker)}:(\d+)\z/.match(output)
+        raise Error, 'Missing command completion status' unless completion
+
+        status = completion[1].to_i
+        output = output.byteslice(0, completion.begin(0))
       end
 
       log.execute_end(status, output, log_started_at)
