@@ -1,0 +1,46 @@
+From: Pavel Snajdr <snajpa@snajpa.net>
+Date: Mon, 5 Oct 2026 12:00:00 +0000
+Subject: [PATCH] kpatch-build: coalesce livepatch function text before conversion
+
+Function sections are needed to identify changed functions, but retaining
+them in the final livepatch module also creates one late relocation section
+per function and target object. On x86 each such section causes a separate
+text_poke_sync() all-CPU rendezvous when the target object is already loaded.
+
+Coalesce ordinary function text during the existing module link, after diff
+generation and before create-klp-module. The linker updates symbol values
+and destination relocations, which create-klp-module already uses to derive
+section-relative relocation offsets. Keep the saferet island separate, as
+well as init, noinstr and all data sections. Leave the legacy kpatch backend
+and non-x86 builds unchanged.
+
+This reduces redundant rendezvous, not their safety requirements: the kernel
+still validates and writes every relocation and synchronizes each resulting
+object/section through its unchanged architecture implementation.
+
+Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
+---
+ kmod/patch/kpatch.lds.S | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/kmod/patch/kpatch.lds.S b/kmod/patch/kpatch.lds.S
+--- a/kmod/patch/kpatch.lds.S
++++ b/kmod/patch/kpatch.lds.S
+@@ -10,6 +10,17 @@
+ SECTIONS
+ {
++#if defined(__x86_64__) && !defined(__KPATCH_MODULE__)
++  /* Preserve the independently aligned hardening island. */
++  .text.vpsadminos.saferet : {
++    *(.text.vpsadminos.saferet)
++  }
++  /* Diff generation is complete; share late relocation destinations. */
++  .text : {
++    *(.text .text.*)
++  }
++#endif
++
+   .kpatch.system_states : SUBALIGN(__SIZEOF_POINTER__) {
+     __kpatch_system_states = . ;
+     KEEP(*(.kpatch.system_states))
+     KEEP(*(.kpatch.system_states.sentinel))
