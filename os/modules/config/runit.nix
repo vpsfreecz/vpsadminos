@@ -179,7 +179,7 @@ in
 
   runit.stage3 = ''
     hwclock -w
-    osctl shutdown --force
+    ${optionalString config.osctld.enable "osctl shutdown --force"}
     hwclock -w
     echo and down we go
   '';

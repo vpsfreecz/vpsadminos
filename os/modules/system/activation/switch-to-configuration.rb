@@ -145,6 +145,8 @@ class Configuration
   end
 
   def activate_osctl(services)
+    return unless services.selected?('osctld')
+
     # If osctld is restarted, it will regenerate system files by itself
     return if services.restart.detect { |s| s.name == 'osctld' && !s.skip? }
 
@@ -251,6 +253,11 @@ class Services
 
     @old_services = get_services(@old_cfg, @old_runlevel, '/etc')
     @new_services = get_services(@new_cfg, @new_runlevel, Configuration::ETC)
+  end
+
+  # Membership in the parsed destination runlevel, independent of restart/skip.
+  def selected?(name)
+    new_services.has_key?(name)
   end
 
   # Services that are new and should be started

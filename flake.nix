@@ -762,6 +762,10 @@
           };
         in
         {
+          osctld-disabled-eval = import ./tests/osctld-disabled-eval.nix {
+            pkgs = import nixpkgs { inherit system; };
+            makeSystem = args: vpsadminosSystem (args // { inherit system; });
+          };
           qemu-disk-lifecycle = import ./tests/qemu-disk-lifecycle-check.nix {
             pkgs = import nixpkgs { inherit system; };
             makeSystem = args: vpsadminosSystem (args // { inherit system; });

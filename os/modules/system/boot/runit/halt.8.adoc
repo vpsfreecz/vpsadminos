@@ -22,15 +22,28 @@ halt, poweroff, reboot - Halt, power-off or reboot the machine
 *halt*, *poweroff*, *reboot* may be used to halt, power-off, or reboot the machine.
 All three commands take the same options.
 
-Care is taken to first stop all containers using *osctl shutdown*. As long as
-*osctl shutdown* is running, it is possible to abort the operation using *Ctrl+C*,
-i.e. sending *SIGINT* signal. See osctl(8) for more information.
+When the installed generation has *osctld.enable = true* (the default), the
+commands first stop all containers using *osctl shutdown*. While that command
+is running, you can abort it using *Ctrl+C* (*SIGINT*).
+See osctl(8) for more information.
+
+With *osctld.enable = false*, the commands skip container listing and
+osctl shutdown/abort. Runit's final shutdown stage also omits its osctl shutdown
+command and retains both hardware-clock writes. Commands without *--force*
+still collect a reason, confirm the hostname and count down. Logging, halt hooks,
+kexec handling and final runit dispatch are unchanged. This option does not stop
+a manually started daemon or constrain arbitrary hooks, and does not prove
+that storage writers are excluded.
+
+Use the selected generation's ordinary commands. If you invoke an older store
+script directly, it uses that generation's shutdown policy.
 
 == Halt reason
 
 Unless option *-m*, *--message* is provided, *$EDITOR* is opened for the user
-to write one. The reason is then written to syslog and sent to logged-in container
-users as a wall message.
+to write one. The reason is then written to syslog. When osctld is enabled in
+the installed generation and wall delivery is enabled, it is also sent to
+logged-in container users as a wall message.
 
 The default reason opened in *$EDITOR* can be extended by templates placed
 in directory */etc/runit/halt.reason.d*. Non-executable text files are read
@@ -85,10 +98,12 @@ The following options are understood:
   Power-off the machine, regardless of which one of the three commands is invoked.
 
 *-w*, *--[no-]wall*::
-  Send message to logged-in container users. Enabled by default.
+  Send message to logged-in container users when osctld is enabled in the
+  installed generation. Wall delivery is enabled by default.
 
 *-m*, *--message* _MSG_::
-  Message sent to logged-in container users.
+  Reason written to syslog and, when wall delivery and osctld are enabled,
+  sent to logged-in container users.
 
 == Bugs
 

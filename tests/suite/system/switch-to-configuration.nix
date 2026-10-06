@@ -69,6 +69,19 @@ import ../../make-test.nix (
       networking.firewall.logRefusedConnections = true;
     };
 
+    osctldDisabledSystem = switchedSystem (
+      { lib, ... }: {
+        osctld.enable = false;
+        boot.zfs.pools.tank.install = lib.mkForce false;
+        boot.kernelModules = [
+          addedModule
+          keptModule
+          failedModule
+        ];
+        boot.kernel.loadNewModules = false;
+      }
+    );
+
     nextFirewallSystem =
       (import ../../../os (
         {
@@ -110,6 +123,7 @@ import ../../make-test.nix (
           loadDisabledSystem
           moduleAndFirewallSystem
           nextFirewallSystem
+          osctldDisabledSystem
         ];
       };
     };
@@ -304,6 +318,84 @@ import ../../make-test.nix (
             '${keptModule}' => 'loaded',
             '${failedModule}' => 'absent',
           )
+        end
+
+        it 'preserves a retained pool when switching and booting without osctld' do
+          machine.wait_for_service('osctld')
+          machine.wait_for_service('pool-tank')
+          machine.wait_for_osctl_pool('tank')
+          _, normal_system = machine.succeeds('readlink -f /run/current-system')
+          _, original_boot = machine.succeeds('readlink -f /run/booted-system')
+          _, original_boot_id = machine.succeeds('cat /proc/sys/kernel/random/boot_id')
+          machine.succeeds(<<~CMD)
+            set -e
+            zfs create -o mountpoint=/mnt/osctld-disabled-proof tank/osctld-disabled-proof
+            printf 'retained payload before osctld-disabled activation\\n' > /mnt/osctld-disabled-proof/payload
+            sync -f /mnt/osctld-disabled-proof
+          CMD
+
+          retained_identity = lambda do
+            machine.succeeds(<<~CMD)[1]
+              set -e
+              zpool get -H -o value guid tank
+              zfs get -H -o value guid tank/osctld-disabled-proof
+              zfs get -H -o value org.vpsadminos.osctl:active tank
+              sha256sum /mnt/osctld-disabled-proof/payload
+            CMD
+          end
+          baseline = retained_identity.call
+          disabled_services = lambda do
+            machine.succeeds(<<~CMD)
+              set -e
+              test ! -e /service/osctld || { echo 'disabled: service-entry-absent'; exit 1; }
+              test ! -L /service/osctld || { echo 'disabled: service-link-absent'; exit 1; }
+              test ! -e /etc/runit/runsvdir/default/osctld || { echo 'disabled: runlevel-entry-absent'; exit 1; }
+              test ! -L /etc/runit/runsvdir/default/osctld || { echo 'disabled: runlevel-link-absent'; exit 1; }
+              test ! -S /run/osctl/osctld.sock || { echo 'disabled: socket-absent'; exit 1; }
+              test ! -e /run/osctl/shutdown || { echo 'disabled: shutdown-marker-absent'; exit 1; }
+              poweroff_command=$(command -v poweroff) || { echo 'disabled: poweroff-command'; exit 1; }
+              poweroff_script=$(readlink -f "$poweroff_command") || { echo 'disabled: poweroff-script'; exit 1; }
+              disabled_script=$(readlink -f ${osctldDisabledSystem}/sw/bin/poweroff) || { echo 'disabled: selected-poweroff-script'; exit 1; }
+              test "$poweroff_script" = "$disabled_script" || { echo 'disabled: poweroff-selection'; exit 1; }
+              test -f "$poweroff_script" || { echo 'disabled: poweroff-script-file'; exit 1; }
+              test -x /run/current-system/sw/bin/osctl || { echo 'disabled: osctl-tool'; exit 1; }
+              test -x /run/current-system/sw/bin/osup || { echo 'disabled: osup-tool'; exit 1; }
+              test -x /run/current-system/sw/bin/svctl || { echo 'disabled: svctl-tool'; exit 1; }
+              test -f /run/service/pool-tank/done || { echo 'disabled: pool-service-done'; exit 1; }
+            CMD
+            # Keep the process check out of argv containing literal osctld paths.
+            status, = machine.execute("pgrep -f '(^|/)[o]sctld([ :]|$)|/[.]osctld-wrapped( |$)' > /dev/null")
+            expect(status).to eq(1), 'disabled: osctld-process-absent'
+          end
+
+          _, output = machine.succeeds('${osctldDisabledSystem}/bin/switch-to-configuration switch')
+          expect(output).to include('> sv stop osctld')
+          expect(output).not_to include('> osctl activate')
+          machine.wait_for_service('pool-tank')
+          machine.wait_until_succeeds('test ! -S /run/osctl/osctld.sock')
+          disabled_services.call
+          expect(machine.succeeds('readlink -f /run/current-system')[1].strip).to eq('${osctldDisabledSystem}')
+          expect(machine.succeeds('readlink -f /run/booted-system')[1]).to eq(original_boot)
+          expect(retained_identity.call).to eq(baseline)
+
+          # Same framework instance and preserved disks; the final init argument
+          # selects the disabled closure from the original image's dependencies.
+          machine.stop
+          machine.start(kernel_params: ['init=${osctldDisabledSystem}/init'], wait_for_boot: true)
+          machine.wait_for_service('pool-tank')
+          machine.wait_for_service('restart-trigger-test')
+          expect(machine.succeeds('readlink -f /run/booted-system')[1].strip).to eq('${osctldDisabledSystem}')
+          expect(machine.succeeds('readlink -f /run/current-system')[1].strip).to eq('${osctldDisabledSystem}')
+          expect(machine.succeeds('cat /proc/sys/kernel/random/boot_id')[1]).not_to eq(original_boot_id)
+          disabled_services.call
+          expect(retained_identity.call).to eq(baseline)
+
+          machine.succeeds("#{Shellwords.escape(normal_system.strip)}/bin/switch-to-configuration switch")
+          machine.wait_for_service('osctld')
+          machine.wait_for_service('pool-tank')
+          machine.wait_for_osctl_pool('tank')
+          expect(machine.succeeds('readlink -f /run/current-system')[1]).to eq(normal_system)
+          expect(retained_identity.call).to eq(baseline)
         end
       end
     '';
