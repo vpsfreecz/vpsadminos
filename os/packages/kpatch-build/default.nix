@@ -19,6 +19,7 @@ pkgs.stdenv.mkDerivation rec {
     ./0003-kpatch-build-sort-diff-objects.patch
     ./0004-kpatch-build-skip-unreconcilable-objects.patch
     ./0005-kpatch-build-coalesce-livepatch-text.patch
+    ./0006-kpatch-build-order-callback-objects.patch
   ];
   postPatch = ''
     substituteInPlace ./kpatch-build/kpatch-build --replace /bin/bash "${pkgs.bashInteractive}/bin/bash"

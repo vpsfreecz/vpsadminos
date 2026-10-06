@@ -1,0 +1,60 @@
+Subject: [PATCH] kpatch: admit callback objects before unguarded ftrace updates
+
+Large task populations make failed-enable ftrace teardown costly. Keep all
+callback-bearing targets in their existing relative order, but place them
+before callback-free targets so a transient pre-patch rejection does not
+unwind otherwise unrelated ftrace registrations. The callbacks, their guards
+and the livepatch core's failure cleanup are unchanged.
+
+--- a/kmod/patch/livepatch-patch-hook.c
++++ b/kmod/patch/livepatch-patch-hook.c
+@@ -419,6 +419,29 @@
+ 
+ 	return 0;
+ }
++
++/*
++ * A failed pre-patch callback makes livepatch undo functions registered for
++ * earlier objects. Unregistering a new ftrace ops waits for Tasks RCU, which
++ * is expensive on large task populations. Do not register unrelated,
++ * callback-free objects before the callbacks have had a chance to reject.
++ *
++ * Keep the relative order of all callback objects, including post-only
++ * callbacks, and leave the livepatch core responsible for normal unwind.
++ */
++static void __init patch_order_callback_objects(void)
++{
++	struct patch_object *object, *next;
++	LIST_HEAD(callback_objects);
++
++	list_for_each_entry_safe(object, next, &patch_objects, list) {
++		if (object->callbacks.pre_patch || object->callbacks.post_patch ||
++		    object->callbacks.pre_unpatch || object->callbacks.post_unpatch)
++			list_move_tail(&object->list, &callback_objects);
++	}
++	list_splice_init(&callback_objects, &patch_objects);
++}
++
+ #else /* HAVE_CALLBACKS */
+ static inline int add_callbacks_to_patch_objects(void)
+ {
+@@ -436,6 +459,10 @@
+ 
+ 	return 0;
+ }
++
++static inline void patch_order_callback_objects(void)
++{
++}
+ #endif /* HAVE_CALLBACKS */
+ 
+ /* Defined by kpatch.lds.S */
+@@ -486,6 +513,8 @@
+ 	ret = add_callbacks_to_patch_objects();
+ 	if (ret)
+ 		goto out;
++
++	patch_order_callback_objects();
+ 
+ 	/* past this point, only possible return code is -ENOMEM */
+ 	ret = -ENOMEM;

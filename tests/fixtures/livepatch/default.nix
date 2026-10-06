@@ -5,10 +5,10 @@
   },
 }:
 let
-  # Independently built normal package after final-link ordinary-text coalescing.
-  # All 707 import CRCs match the boot kernel; late relocation offsets are reviewed.
+  # Independently built normal package with callback-first object admission.
+  # All 707 import CRCs match the boot kernel; 3564 late relocations are unchanged.
   # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "13bcc3d785263946376c3439d10f8e44db564f960260f957512cb1a3f8e44e52";
+  correctedSha256 = "89f46aff1a8a6cdc0f88f2a01e6828c7382ee02400115ba09233fc7f30ca1285";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
