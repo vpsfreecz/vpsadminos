@@ -519,6 +519,7 @@ let
     isExecutable = true;
     replacements = {
       ruby = pkgs.ruby;
+      osctldEnabled = if config.osctld.enable then "true" else "false";
     };
   };
 

@@ -114,3 +114,62 @@ runlevel. So when you've booted in a single user mode, i.e. runlevel `single`,
 ```bash
 svctl enable sshd
 ```
+
+## Building without automatic osctld startup
+
+`osctld.enable` defaults to `true`. Set it to `false` to omit osctld from all
+runlevels while retaining its service definition, generated configuration and
+ordinary tools, including `osctl`, `osup` and `svctl`:
+
+```nix
+{
+  osctld.enable = false;
+  osctl.pools = { };
+  osctl.exportfs.enable = false;
+  boot.zfs.pools.tank.install = false;
+}
+```
+
+Every configured ZFS pool must have `install = false`. Configuration evaluation
+fails if `osctl.pools` is nonempty, `osctl.exportfs` is enabled, pool installation
+is enabled or osctld is forced into a runlevel. These checks prevent the
+configured consumers from waiting for a daemon that will not start.
+
+The ZFS pool service still imports pools, mounts datasets and applies configured
+properties. With osctld disabled, it skips the osctl active-property lookup,
+daemon wait, pool installation/import and parallel-start/stop settings. It
+preserves retained osctl state and `org.vpsadminos.osctl:active`. Existing ZFS
+startup configuration can write to storage; this option does not make ZFS
+read-only.
+
+Configuration activation skips `osctl activate` when osctld is absent from the
+destination runlevel. Activation keeps its existing restart handling when
+osctld is selected. A successful activation does not prove that a removed
+service and all its children have stopped. Neither an absent socket nor a
+successful activation exit proves that storage writers are excluded.
+
+The installed `halt`, `poweroff` and `reboot` commands use the generation's
+`osctld.enable` value. When it is `false`, they skip container listing and
+osctl shutdown/abort. Runit's final shutdown stage also skips its osctl shutdown
+command and retains both hardware-clock writes. Commands without `--force`
+still collect a reason, confirm the hostname and count down. Logging, halt hooks,
+kexec handling and final runit dispatch are unchanged. The commands record the
+reason in syslog without sending container wall messages.
+
+Use the selected generation's ordinary commands. If you invoke an older store
+script directly, it uses that generation's shutdown policy. This option does not
+stop a manually started daemon or constrain arbitrary halt hooks; it does not
+prove that storage writers are excluded.
+
+Use the ordinary generation selection described in [Updates](updates.md).
+`switch` selects the boot configuration and activates it; `boot` selects it
+without runtime activation. `test` changes the running configuration only.
+Transient `svctl` changes do not establish the generation used on the next boot.
+A fresh boot into the disabled generation continues to omit automatic osctld
+startup, but invalidates evidence tied to the previous boot or process identity.
+
+This option changes no on-disk format and requires no coordinated fleet update.
+Older sources that lack the option refuse its declaration. Booting an older
+ordinary generation can restart storage writers; it is not a safe rollback
+while another component owns storage maintenance. The option does not provide
+that ownership, authorize storage actions or exclude other producers.

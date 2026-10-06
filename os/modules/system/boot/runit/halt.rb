@@ -5,6 +5,8 @@ require 'syslog/logger'
 require 'tempfile'
 
 class Halt
+  OSCTLD_ENABLED = '@osctldEnabled@' == 'true'
+
   REASON_TEMPLATE_DIR = '/etc/runit/halt.reason.d'.freeze
 
   HOOK_DIR = '/etc/runit/halt.hook.d'.freeze
@@ -92,7 +94,7 @@ class Halt
       # abort #{@action}.
     END
 
-    if @wall
+    if OSCTLD_ENABLED && @wall
       file.puts('# The reason will be sent to logged-in container users.')
     else
       file.puts('# The reason will be written to system log.')
@@ -163,18 +165,20 @@ class Halt
   end
 
   def confirm
-    puts 'The following containers will be stopped:'
-    puts
+    if OSCTLD_ENABLED
+      puts 'The following containers will be stopped:'
+      puts
 
-    st = Kernel.system('osctl', 'ct', 'ls', '-S', 'running')
-    raise 'Unable to list containers' unless st
+      st = Kernel.system('osctl', 'ct', 'ls', '-S', 'running')
+      raise 'Unable to list containers' unless st
+    end
 
     puts
     puts "Reason for #{@action}:"
     puts(@message.empty? ? '[not given]' : @message)
     puts
 
-    if @wall
+    if OSCTLD_ENABLED && @wall
       puts 'The reason will be sent to logged-in container users.'
     else
       puts 'The reason will be written to system log.'
@@ -206,31 +210,35 @@ class Halt
   end
 
   def halt
-    puts 'Shutting down containers, this operation can still be interrupted'
-    puts
+    if OSCTLD_ENABLED
+      puts 'Shutting down containers, this operation can still be interrupted'
+      puts
+    end
 
     @logger.info("System #{@action}, reason: #{@message}, wall #{@wall ? 'yes' : 'no'}")
 
-    begin
-      shutdown_pid = Process.fork do
-        cmd = %w[osctl shutdown --force]
+    if OSCTLD_ENABLED
+      begin
+        shutdown_pid = Process.fork do
+          cmd = %w[osctl shutdown --force]
 
-        if @wall
-          cmd << '--wall'
-          cmd << '--message' << @message if @message && !@message.empty?
-        else
-          cmd << '--no-wall'
+          if @wall
+            cmd << '--wall'
+            cmd << '--message' << @message if @message && !@message.empty?
+          else
+            cmd << '--no-wall'
+          end
+
+          Kernel.exec(*cmd, pgroup: true)
         end
-
-        Kernel.exec(*cmd, pgroup: true)
+        Process.wait(shutdown_pid)
+      rescue Interrupt
+        handle_abort(shutdown_pid)
+        return
       end
-      Process.wait(shutdown_pid)
-    rescue Interrupt
-      handle_abort(shutdown_pid)
-      return
-    end
 
-    raise 'Unable to shutdown osctld' if $?.exitstatus != 0
+      raise 'Unable to shutdown osctld' if $?.exitstatus != 0
+    end
 
     run_hook('pre-system')
 

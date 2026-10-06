@@ -23,6 +23,16 @@ in
 
   options = {
     osctld = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Start osctld automatically in the default runlevel. Disabling it
+          retains its service definition, configuration and tools, but requires
+          empty osctl.pools, disabled osctl.exportfs and no ZFS pool installation.
+        '';
+      };
+
       waitForNetworkOnline = mkOption {
         type = types.bool;
         default = true;
@@ -54,6 +64,25 @@ in
   ###### implementation
 
   config = {
+    assertions = [
+      {
+        assertion = cfg.enable || config.runit.services.osctld.runlevels == [ ];
+        message = "osctld.enable = false requires empty runit.services.osctld.runlevels";
+      }
+      {
+        assertion = cfg.enable || config.osctl.pools == { };
+        message = "osctld.enable = false requires empty osctl.pools";
+      }
+      {
+        assertion = cfg.enable || !config.osctl.exportfs.enable;
+        message = "osctld.enable = false requires osctl.exportfs.enable = false";
+      }
+      {
+        assertion = cfg.enable || all (pool: !pool.install) (attrValues config.boot.zfs.pools);
+        message = "osctld.enable = false requires boot.zfs.pools.<name>.install = false";
+      }
+    ];
+
     osctld.settings = {
       apparmor_paths = optionals config.security.apparmor.enable (
         map (s: "${s}/etc/apparmor.d") apparmorPaths
@@ -64,6 +93,8 @@ in
     };
 
     runit.services.osctld = {
+      runlevels = mkIf (!cfg.enable) [ ];
+
       path = with pkgs; [
         config.security.wrapperDir
         apparmor-parser
