@@ -500,10 +500,17 @@ assert selectedExample == null || exampleFilter == "";
       ];
 
   machines = {
-    machine = import ../../machines/vpsadminos/with-empty.nix {
-      inherit pkgs;
-      config = machineConfig;
-    };
+    machine =
+      (import ../../machines/vpsadminos/with-empty.nix {
+        inherit pkgs;
+        config = machineConfig;
+      })
+      // lib.optionalAttrs qualifying {
+        # An insertion can leave its worker shell waiting in the kernel. Keep
+        # the existing failure collector on a separate, already supported
+        # named shell; it must not queue behind that same blocked command.
+        shells = [ "diagnostics" ];
+      };
   };
 
   testScript = ''

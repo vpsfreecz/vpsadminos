@@ -6,7 +6,11 @@ module VpsadminosFailureLogs
   def collect(machine, path)
     FileUtils.mkdir_p(File.dirname(path))
 
-    status, output = machine.execute(diagnostics_script, timeout: 300)
+    # A timed-out guest command can still occupy its worker shell. Reuse the
+    # existing reserved channel when the test provides one; ordinary machines
+    # without it retain their current command path and collection timeout.
+    shell = machine.shells.include?(:diagnostics) ? :diagnostics : nil
+    status, output = machine.execute(diagnostics_script, timeout: 300, shell:)
 
     File.open(path, 'w') do |f|
       f.puts("machine: #{machine.name}")
