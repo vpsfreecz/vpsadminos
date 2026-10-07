@@ -762,6 +762,10 @@
           };
         in
         {
+          runit-cgroup-entry-eval = import ./tests/runit-cgroup-entry-eval.nix {
+            pkgs = import nixpkgs { inherit system; };
+            makeSystem = args: vpsadminosSystem (args // { inherit system; });
+          };
           osctld-disabled-eval = import ./tests/osctld-disabled-eval.nix {
             pkgs = import nixpkgs { inherit system; };
             makeSystem = args: vpsadminosSystem (args // { inherit system; });

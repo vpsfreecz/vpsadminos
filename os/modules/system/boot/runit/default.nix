@@ -283,8 +283,14 @@ let
   mkServiceRun =
     name: service:
     mkService name "run" ''
-      mkdir -p "${serviceCGroup name}"
-      echo $$ >> "${serviceCGroup name}/cgroup.procs"
+      if ! mkdir -p "${serviceCGroup name}"; then
+        echo "runit: cgroup creation failed" >&2
+        exit 1
+      fi
+      if ! echo $$ >> "${serviceCGroup name}/cgroup.procs"; then
+        echo "runit: cgroup attachment failed" >&2
+        exit 1
+      fi
       ${optionalString (service.log.enable && service.log.logStandardError) "exec 2>&1"}
       ${optionalString service.includeHelpers "source ./helpers"}
       ${setPath service}

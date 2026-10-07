@@ -115,6 +115,39 @@ runlevel. So when you've booted in a single user mode, i.e. runlevel `single`,
 svctl enable sshd
 ```
 
+## Service cgroup entry
+
+Each generated service `run` script creates its cgroup and writes its own PID
+to `cgroup.procs` before sourcing helpers, setting PATH and environment, or
+running the configured body. If creation fails, the script prints
+`runit: cgroup creation failed` to stderr and exits with status 1. If the PID
+write fails, including failure to open the destination, it prints
+`runit: cgroup attachment failed` to stderr and exits with status 1. Both
+failures stop before the run body and its one-shot success marker. Successful
+entry preserves the body's shell behavior.
+
+This entry assumes the hierarchy prepared by stage 1: the named systemd
+hierarchy at `/sys/fs/cgroup/systemd/runit` for v1, or
+`/sys/fs/cgroup/system/service` for v2, linked through
+`/run/runit/cgroup.service`. Successful commands on a substituted ordinary
+filesystem do not prove kernel membership. Entry supplies no service
+incarnation, recursive descendant coverage, wait acknowledgement or storage
+exclusion proof.
+
+The refusal affects only `run`. Check, control, finish and log scripts keep
+their existing behavior. Runit may invoke a finish handler after failed entry
+and retry the service. Interrupted entry can leave a directory; the script does
+not remove it or signal its existing members. Use ordinary service diagnostics
+to inspect a failure.
+
+The generated run paths participate in ordinary configuration activation and
+can cause service restarts under the existing change and protection rules.
+No coordinated fleet update or on-disk migration is required, but older
+generations retain their entry behavior. Rolling back restores that behavior
+and may restart services; it does not release another component's maintenance
+ownership. Entry refusal does not account for earlier starts, escaped children,
+independent producers or exceptional physical effects.
+
 ## Building without automatic osctld startup
 
 `osctld.enable` defaults to `true`. Set it to `false` to omit osctld from all
