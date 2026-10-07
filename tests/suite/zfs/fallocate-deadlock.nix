@@ -614,6 +614,8 @@ import ../../make-test.nix (
 
       status = nil
       output = ""
+      shared_log = File.join(machine.send(:shared_dir).host_path, 'fallocate-reproducer.log')
+      captured_log = File.join(machine.send(:tmpdir), 'fallocate-reproducer.log')
 
       begin
         command = [
@@ -623,12 +625,19 @@ import ../../make-test.nix (
           'ZFS_FALLOCATE_DEADLOCK_RELEASE_DELAYS_MS=0,1,2,5,10,20,50,100,250,500,1000,2000',
           'ZFS_FALLOCATE_DEADLOCK_ATTEMPT_TIMEOUT=75',
           'ZFS_FALLOCATE_DEADLOCK_STABLE_SECONDS=5',
-          '/scripts/reproducer.py'
+          '/scripts/reproducer.py > /run/osvm/shared-dir/fallocate-reproducer.log 2>&1'
         ].join(' ')
 
         status, output = machine.execute(command, timeout: 40 * 60)
+        output = File.read(shared_log)
       ensure
-        machine.kill if machine.running?
+        # The shell cannot return output after an unrecoverable timeout. Keep
+        # its existing transcript in the normal log artifact before VM cleanup.
+        begin
+          FileUtils.cp(shared_log, captured_log) if File.file?(shared_log)
+        ensure
+          machine.kill if machine.running?
+        end
       end
 
       if ${expectReproduceRuby}
