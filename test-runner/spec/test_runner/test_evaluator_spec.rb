@@ -436,13 +436,27 @@ RSpec.describe TestRunner::TestEvaluator do
     expect(result).to eq([0, 'installed'])
     expect(machine).to have_received(:succeeds).twice.with(
       'osctl ct exec ct\\ name env DEBIAN_FRONTEND\\=noninteractive ' \
-      'apt-get -o Acquire::Retries\\=3 install --yes curl',
+      'apt-get -o Acquire::Retries\\=3 -o Acquire::Languages\\=none install --yes curl',
       timeout: 1200
     )
     expect(evaluator).to have_received(:sleep).with(30)
     expect(evaluator).to have_received(:log).with(
       'Retrying APT package installation after OsVm::CommandFailed: ' \
       'APT mirror synchronization race; attempt 2/3 in 30s'
+    )
+  end
+
+  it 'does not acquire unused package-description translations during apt updates' do
+    evaluator = build_evaluator
+    machine = instance_double(OsVm::VpsadminosMachine)
+    allow(machine).to receive(:succeeds).and_return([0, 'updated'])
+
+    expect(
+      evaluator.container_apt_get(machine, 'ct', 'update', '--yes', name: 'APT update', timeout: 300)
+    ).to eq([0, 'updated'])
+    expect(machine).to have_received(:succeeds).with(
+      'osctl ct exec ct apt-get -o Acquire::Retries\\=3 -o Acquire::Languages\\=none update --yes',
+      timeout: 300
     )
   end
 
