@@ -386,7 +386,9 @@ module TestRunner
 
       command = ['osctl', 'ct', 'exec', container.to_s]
       command.push('env', *environment.map { |key, value| "#{key}=#{value}" }) unless environment.empty?
-      command.push('apt-get', '-o', 'Acquire::Retries=3', *arguments.map(&:to_s))
+      # Integration tests need package indexes, not translated descriptions.
+      # Avoid optional Translation indexes racing an otherwise usable mirror.
+      command.push('apt-get', '-o', 'Acquire::Retries=3', '-o', 'Acquire::Languages=none', *arguments.map(&:to_s))
 
       retry_apt_operation(name:) do
         machine.succeeds(Shellwords.join(command), timeout:)
