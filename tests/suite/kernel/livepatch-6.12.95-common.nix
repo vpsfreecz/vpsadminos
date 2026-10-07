@@ -716,21 +716,25 @@ assert selectedExample == null || exampleFilter == "";
           timeout: timeout
         )
       rescue StandardError
+        # patch_state belongs to each task, not its thread group. A patched
+        # leader can still have non-leader threads blocking the transition.
         machine.execute(
           "printf 'livepatch transition diagnostic: '; " \
           "for attribute in enabled transition; do " \
           "printf '%s=' \"$attribute\"; " \
           "cat #{dir}/$attribute 2>/dev/null || printf 'missing\\n'; " \
           "done; " \
-          "for state_file in /proc/[0-9]*/patch_state; do " \
+          "for state_file in /proc/[0-9]*/task/[0-9]*/patch_state; do " \
           "test -r \"$state_file\" || continue; " \
           "read state < \"$state_file\" || continue; " \
           "test \"$state\" = #{enabled} && continue; " \
-          "pid=''${state_file#/proc/}; pid=''${pid%/patch_state}; " \
-          "read comm < /proc/$pid/comm 2>/dev/null || comm=gone; " \
-          "printf 'pending pid=%s comm=%s patch_state=%s\\n' " \
-          "\"$pid\" \"$comm\" \"$state\"; " \
-          "cat /proc/$pid/stack 2>&1 || true; " \
+          "task_dir=''${state_file%/patch_state}; " \
+          "pid=''${task_dir#/proc/}; pid=''${pid%%/task/*}; " \
+          "tid=''${task_dir##*/}; " \
+          "read comm < \"$task_dir/comm\" 2>/dev/null || comm=gone; " \
+          "printf 'pending pid=%s tid=%s comm=%s patch_state=%s\\n' " \
+          "\"$pid\" \"$tid\" \"$comm\" \"$state\"; " \
+          "cat \"$task_dir/stack\" 2>&1 || true; " \
           "done; " \
           "printf '%s\\n' '--- livepatch dmesg tail ---'; " \
           "dmesg | tail -n 300"
