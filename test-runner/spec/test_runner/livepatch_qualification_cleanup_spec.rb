@@ -3,6 +3,7 @@
 require 'spec_helper'
 require 'fileutils'
 require 'open3'
+require 'shellwords'
 require 'tmpdir'
 
 RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
@@ -114,7 +115,7 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
   end
 
   context 'when capturing a failed livepatch transition' do
-    let(:machine) { instance_spy(OsVm::Machine, execute: [0, '']) }
+    let(:machine) { instance_spy(OsVm::Machine, execute: [0, ''], shells: [:diagnostics]) }
     let(:primary_error) { OsVm::TimeoutError.new('original transition deadline') }
 
     def transition_helper
@@ -133,7 +134,7 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
     def capture_command(target)
       command = nil
       allow(machine).to receive(:wait_until_succeeds).and_raise(primary_error)
-      allow(machine).to receive(:execute) do |value|
+      allow(machine).to receive(:execute) do |value, **_options|
         command = value
         [0, '']
       end
@@ -167,13 +168,15 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
 
         # Every proc/sysfs access is redirected into the temporary fixture. No VM,
         # host task inspection or actual kernel state change is involved.
-        fixture = command.gsub('/proc/', "#{dir}/proc/")
-                         .gsub('/sys/kernel/livepatch/', "#{dir}/sys/kernel/livepatch/")
+        argv = Shellwords.split(command)
+        fixture = argv.last.gsub('/proc/', "#{dir}/proc/")
+                      .gsub('/sys/kernel/livepatch/', "#{dir}/sys/kernel/livepatch/")
         stubs = <<~'SH'
           ps() { printf '300 300 D wait_rcu_gp kworker/1:1\n301 301 R 0 kworker/2:1\n400 400 D futex_wait user\n'; }
           dmesg() { :; }
         SH
-        output, error, status = Open3.capture3('sh', '-c', stubs + fixture)
+        argv[-1] = stubs + fixture
+        output, error, status = Open3.capture3(*argv)
         expect(status).to be_success, error
         output
       end
@@ -198,6 +201,7 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
         expect(output).not_to include('transition worker candidate pid=400')
         expect(output.index('transition worker candidate')).to be < output.index('pending pid=')
         expect(output).to include('--- transition after task scan ---')
+        expect(output).to include('coverage_complete=1 sampled=1')
       end
     end
 
@@ -218,6 +222,45 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
 
       expect(output).to include('coverage target=0 seen=1024 read=1023')
       expect(output).to include('coverage target=0 seen=1025 read=1025')
+      expect(output).to include('coverage_complete=0 sampled=0')
+      expect(output).to include('coverage_complete=1 sampled=0')
+    end
+
+    it 'bounds pending stack samples while counting every observed thread' do
+      states = (1..40).to_h { |tid| [tid, "0\n"] }
+      output = run_capture(capture_command(1), 1, states)
+
+      expect(output.scan(/^pending /).length).to eq(32)
+      expect(output.scan(/^fixture task stack$/).length).to eq(32)
+      expect(output).to include('seen=40 read=40 unreadable=0 errors=0 undefined=0 invalid=0 pending=40')
+      expect(output).to include('coverage_complete=1 sampled=32')
+    end
+
+    it 'bounds the diagnostic child and uses the reserved channel before re-raising the deadline' do
+      command = capture_command(1)
+
+      expect(command).to start_with('timeout -k 1 290 sh -c ')
+      expect(machine).to have_received(:execute).with(command, timeout: 300, shell: :diagnostics)
+      expect(machine).to have_received(:wait_until_succeeds).with(anything, timeout: 1800)
+      _output, error, status = Open3.capture3('sh', '-n', stdin_data: command)
+      expect(status).to be_success, error
+    end
+
+    it 'reports an incomplete child capture without replacing the original deadline' do
+      allow(machine).to receive(:wait_until_succeeds).and_raise(primary_error)
+      allow(machine).to receive(:execute).and_return([124, 'partial coverage'])
+
+      expect do
+        expect { transition_helper.wait_for_patch(machine, 'livepatch_7', 1, timeout: 1800) }
+          .to(raise_error { |error| expect(error).to equal(primary_error) })
+      end.to output(/livepatch transition diagnostic incomplete: status=124/).to_stderr
+    end
+
+    it 'keeps the original channel for machines without a reserved shell' do
+      allow(machine).to receive(:shells).and_return([])
+      command = capture_command(0)
+
+      expect(machine).to have_received(:execute).with(command, timeout: 300, shell: nil)
     end
 
     it 'preserves the original deadline when diagnostic execution fails' do
