@@ -69,7 +69,7 @@ RSpec.describe TestRunner::Cli::Command do
 
     expect(TestRunner::Executor).to have_received(:new).with(
       scripts,
-      state_dir: '/tmp/os-test-runner',
+      state_dir: File.join(ENV['TMPDIR'] || '/tmp', 'os-test-runner'),
       jobs: 2,
       jobs_auto: false,
       max_memory_mib: nil,
@@ -143,6 +143,7 @@ RSpec.describe TestRunner::Cli::Command do
       allow(TestRunner::TestEvaluator).to receive(:new).and_return(evaluator)
 
       described_class.new({}, opts.merge('fresh' => fresh), ['suite/example']).debug
+      state_root = File.join(ENV['TMPDIR'] || '/tmp', 'os-test-runner')
 
       expect(TestRunner::TestEvaluator).to have_received(:new).with(
         test,
@@ -150,8 +151,8 @@ RSpec.describe TestRunner::Cli::Command do
         system: 'x86_64-linux',
         test_config_path: nil,
         repo_root: REPO_ROOT,
-        state_dir: TestRunner::TestState.directory('/tmp/os-test-runner', test),
-        sock_dir: '/tmp/os-test-runner/socks',
+        state_dir: TestRunner::TestState.directory(state_root, test),
+        sock_dir: File.join(state_root, 'socks'),
         default_timeout: 60,
         destructive: false,
         recreate_disks: fresh
@@ -279,8 +280,18 @@ RSpec.describe TestRunner::Cli::Command do
     expect(custom.send(:state_dir)).to eq('/var/tmp/run')
   end
 
-  it 'defaults the state dir under /tmp when not provided' do
+  it 'defaults the state dir under /tmp when neither state-dir nor TMPDIR is provided' do
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with('TMPDIR').and_return(nil)
+
     expect(command.send(:state_dir)).to eq('/tmp/os-test-runner')
+  end
+
+  it 'defaults the state dir under the configured TMPDIR when state-dir is not provided' do
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with('TMPDIR').and_return('/var/tmp/unit-test-state')
+
+    expect(command.send(:state_dir)).to eq('/var/tmp/unit-test-state/os-test-runner')
   end
 
   it 'loads extension files only once when the extension directory exists' do
