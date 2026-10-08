@@ -715,31 +715,64 @@ assert selectedExample == null || exampleFilter == "";
           condition,
           timeout: timeout
         )
-      rescue StandardError
+      rescue StandardError => failure
         # patch_state belongs to each task, not its thread group. A patched
         # leader can still have non-leader threads blocking the transition.
-        machine.execute(
-          "printf 'livepatch transition diagnostic: '; " \
-          "for attribute in enabled transition; do " \
-          "printf '%s=' \"$attribute\"; " \
-          "cat #{dir}/$attribute 2>/dev/null || printf 'missing\\n'; " \
-          "done; " \
-          "for state_file in /proc/[0-9]*/task/[0-9]*/patch_state; do " \
-          "test -r \"$state_file\" || continue; " \
-          "read state < \"$state_file\" || continue; " \
-          "test \"$state\" = #{enabled} && continue; " \
-          "task_dir=''${state_file%/patch_state}; " \
-          "pid=''${task_dir#/proc/}; pid=''${pid%%/task/*}; " \
-          "tid=''${task_dir##*/}; " \
-          "read comm < \"$task_dir/comm\" 2>/dev/null || comm=gone; " \
-          "printf 'pending pid=%s tid=%s comm=%s patch_state=%s\\n' " \
-          "\"$pid\" \"$tid\" \"$comm\" \"$state\"; " \
-          "cat \"$task_dir/stack\" 2>&1 || true; " \
-          "done; " \
-          "printf '%s\\n' '--- livepatch dmesg tail ---'; " \
-          "dmesg | tail -n 300"
-        )
-        raise
+        # A transition can also be finalizing after visible tasks have switched.
+        # Capture worker candidates before cleanup; no rows alone is not proof
+        # of convergence, and proc task coverage does not include idle tasks.
+        begin
+          machine.execute(
+            "printf 'livepatch transition diagnostic: '; " \
+            "for attribute in enabled transition; do " \
+            "printf '%s=' \"$attribute\"; " \
+            "cat #{dir}/$attribute 2>/dev/null || printf 'missing\\n'; " \
+            "done; " \
+            "printf '%s\\n' '--- transition worker candidates before cleanup (at most 32) ---'; " \
+            "ps -eLo pid=,tid=,stat=,wchan:32=,comm= | " \
+            "awk '$5 ~ /^(kworker|rcu)/ && ($3 ~ /^[DR]/ || $4 ~ /rcu/) " \
+            "{ print $1, $2, $3, $4, $5 }' | head -n 32 | " \
+            "while read -r worker_pid worker_tid worker_state worker_wchan worker_comm; do " \
+            "printf 'transition worker candidate pid=%s tid=%s stat=%s wchan=%s comm=%s\\n' " \
+            "\"$worker_pid\" \"$worker_tid\" \"$worker_state\" \"$worker_wchan\" \"$worker_comm\"; " \
+            "timeout 2 cat /proc/$worker_pid/task/$worker_tid/wchan " \
+            "/proc/$worker_pid/task/$worker_tid/stack 2>&1 || true; done; " \
+            "seen=0; read_ok=0; unreadable=0; read_errors=0; undefined=0; invalid=0; pending=0; " \
+            "scan_progress() { " \
+            "printf 'patch_state coverage target=#{enabled} seen=%s read=%s unreadable=%s errors=%s " \
+            "undefined=%s invalid=%s pending=%s\\n' " \
+            "\"$seen\" \"$read_ok\" \"$unreadable\" \"$read_errors\" " \
+            "\"$undefined\" \"$invalid\" \"$pending\"; }; " \
+            "for state_file in /proc/[0-9]*/task/[0-9]*/patch_state; do " \
+            "case \"$state_file\" in *'*'*) continue ;; esac; " \
+            "seen=$((seen + 1)); " \
+            "test $((seen % 1024)) = 0 && scan_progress; " \
+            "test -r \"$state_file\" || { unreadable=$((unreadable + 1)); continue; }; " \
+            "read state < \"$state_file\" || { read_errors=$((read_errors + 1)); continue; }; " \
+            "read_ok=$((read_ok + 1)); " \
+            "case \"$state\" in " \
+            "-1) undefined=$((undefined + 1)); continue ;; " \
+            "0|1) ;; *) invalid=$((invalid + 1)); continue ;; esac; " \
+            "test \"$state\" = #{enabled} && continue; " \
+            "pending=$((pending + 1)); " \
+            "task_dir=''${state_file%/patch_state}; " \
+            "pid=''${task_dir#/proc/}; pid=''${pid%%/task/*}; " \
+            "tid=''${task_dir##*/}; " \
+            "read comm < \"$task_dir/comm\" 2>/dev/null || comm=gone; " \
+            "printf 'pending pid=%s tid=%s comm=%s patch_state=%s\\n' " \
+            "\"$pid\" \"$tid\" \"$comm\" \"$state\"; " \
+            "cat \"$task_dir/stack\" 2>&1 || true; " \
+            "done; scan_progress; " \
+            "printf '%s\\n' '--- transition after task scan ---'; " \
+            "for attribute in enabled transition; do " \
+            "printf '%s=' \"$attribute\"; " \
+            "cat #{dir}/$attribute 2>/dev/null || printf 'missing\\n'; done; " \
+            "printf '%s\\n' '--- livepatch dmesg tail ---'; dmesg | tail -n 300"
+          )
+        rescue StandardError => diagnostic_failure
+          warn "livepatch transition diagnostic unavailable: #{diagnostic_failure.class}: #{diagnostic_failure.message}"
+        end
+        raise failure
       end
     end
 
