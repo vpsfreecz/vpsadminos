@@ -84,6 +84,35 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
     expect(machine).to have_received(:execute).exactly(5).times
   end
 
+  it 'captures qualification state on the reserved channel when the primary shell is occupied' do
+    add_failed_example
+    primary_shell_error = OsVm::UnrecoverableTimeoutError.new('primary shell still occupied')
+    commands = []
+    allow(machine).to receive(:execute) do |command, **options|
+      raise primary_shell_error unless options[:shell] == :diagnostics
+
+      commands << command
+      [0, 'reserved snapshot']
+    end
+
+    results = nil
+    expect { results = group.evaluate }.to output(/primary shell still occupied/).to_stderr
+    expect(results.first.exception).to equal(primary_error)
+    expect(machine).to have_received(:execute).with(
+      a_string_including('/trace', '*/enabled', '*/transition'),
+      timeout: 30, shell: :diagnostics
+    )
+    expect(machine).to have_received(:execute).with(a_string_including('output.log', 'ipset'), timeout: 30, shell: :diagnostics)
+    expect(machine).to have_received(:execute).with(a_string_including('dmesg'), timeout: 30, shell: :diagnostics)
+    expect(machine).to have_received(:execute).with(a_string_starting_with('touch '))
+    expect(commands.length).to eq(3)
+    commands.each do |command|
+      expect(command).to start_with('timeout -k 1 25 sh -c ')
+      _stdout, stderr, status = Open3.capture3('sh', '-n', stdin_data: command)
+      expect(status).to be_success, stderr
+    end
+  end
+
   context 'when capturing a failed livepatch transition' do
     let(:machine) { instance_spy(OsVm::Machine, execute: [0, '']) }
     let(:primary_error) { OsVm::TimeoutError.new('original transition deadline') }

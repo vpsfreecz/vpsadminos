@@ -1,5 +1,7 @@
 # Included inside the ordinary main suite's example group. Its boot, exact
 # fixture checks, target modules, helpers and kernel-health checks are shared.
+require 'shellwords'
+
 QUAL_STATE = '/run/livepatch-qualification'.freeze
 QUAL_TRACE = '/sys/kernel/tracing/instances/livepatch_qualification'.freeze
 QUAL_CGROUP_TRACE = '/sys/kernel/tracing/instances/livepatch_qualification_cgroup'.freeze
@@ -283,9 +285,19 @@ end
 after(:example) do
   if machine.running?
     unless @qualification_completed
-      machine.execute("cat #{QUAL_STATE}/population #{QUAL_TRACE}/trace; ls -R /sys/kernel/livepatch", timeout: 30)
-      machine.execute("tail -n 200 #{STRESS_STATE}/output.log; wc -l #{STRESS_STATE}/*.ok; ipset list -name", timeout: 30)
-      machine.execute("dmesg | tail -n +#{@example_dmesg_start}", timeout: 30)
+      # A timed-out insmod can still occupy the primary shell. Preserve the
+      # qualification trace and state on the already reserved channel first.
+      commands = [
+        "cat #{QUAL_STATE}/population #{QUAL_TRACE}/trace; ls -R /sys/kernel/livepatch; " \
+        'for state_file in /sys/kernel/livepatch/*/enabled /sys/kernel/livepatch/*/transition; do ' \
+        'test -f "$state_file" || continue; printf "%s=" "$state_file"; cat "$state_file" 2>&1 || true; done',
+        "tail -n 200 #{STRESS_STATE}/output.log; wc -l #{STRESS_STATE}/*.ok; ipset list -name",
+        "dmesg | tail -n +#{@example_dmesg_start}"
+      ]
+      commands.each do |command|
+        # Keep a stuck diagnostic child from occupying the reserved shell too.
+        machine.execute("timeout -k 1 25 sh -c #{Shellwords.escape(command)}", timeout: 30, shell: :diagnostics)
+      end
     end
     machine.execute("touch #{QUAL_STATE}/stop #{QUAL_STATE}/sctp.release #{QUAL_STATE}/tun.stop")
     machine.execute("echo 1 > /sys/devices/system/cpu/cpu#{QUALIFICATION_CPUS - 1}/online")
