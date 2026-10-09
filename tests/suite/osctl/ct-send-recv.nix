@@ -45,13 +45,19 @@ let
         [
           'osctl debug threads ls',
           'osctl debug locks ls',
+          # Pipe writers can belong to forked helpers or sshd sessions, not
+          # just the named transfer processes. Keep their ownership visible.
           "ps -eLo pid,tid,ppid,stat,wchan:32,comm,args; " \
-            "for p in $(pgrep -x 'osctld|mbuffer|zfs|ssh'); do " \
-            "echo PROCESS:$p; ls -l /proc/$p/fd; done",
+            "ls -l /proc/[0-9]*/fd",
           'tail -n 200 /var/log/osctld',
         ].each do |diagnostic|
           begin
-            node.execute(diagnostic, timeout: 15)
+            shell = node.shells.include?(:diagnostics) ? :diagnostics : nil
+            status, = node.execute(
+              "timeout -k 1 12 sh -c #{Shellwords.escape(diagnostic)}",
+              timeout: 15, shell:
+            )
+            warn("Transfer diagnostic incomplete: status=#{status}") unless status.zero?
           rescue StandardError => e
             warn("Transfer diagnostic failed: #{e.class}: #{e.message}")
           end

@@ -40,6 +40,78 @@ RSpec.describe VpsadminosFailureLogs do
     stdout.lines
   end
 
+  def transfer_context
+    filename = File.join(REPO_ROOT, 'tests/suite/osctl/ct-send-recv.nix')
+    script = File.read(filename)[/commonScript = ''\n(.*?)^    def self.ensure_cluster_ready/m, 1]
+    raise 'missing actual transfer diagnostic helper' unless script
+
+    guest = machine
+    context = Object.new
+    context.define_singleton_method(:machines) { { machine: guest } }
+    context.instance_eval(script, filename)
+    context
+  end
+
+  it 'does not collect transfer diagnostics on the healthy path or change its options' do
+    allow(machine).to receive(:succeeds).with('send sync', timeout: 900).and_return('sent')
+
+    expect(transfer_context.send_succeeds(machine, 'send sync', timeout: 900)).to eq('sent')
+    expect(machine).not_to have_received(:execute)
+  end
+
+  it 'captures all guest pipe owners on the reserved channel before preserving the transfer error' do
+    error = RuntimeError.new('transfer stalled')
+    allow(machine).to receive(:succeeds).with('send sync', timeout: 900).and_raise(error)
+    allow(machine).to receive(:shells)
+      .and_return(OsVm::ShellCollection.new(machine, diagnostics: instance_double(OsVm::Shell)))
+    commands = []
+    allow(machine).to receive(:execute) do |command, **options|
+      expect(options).to eq(timeout: 15, shell: :diagnostics)
+      commands << command
+      [0, 'snapshot']
+    end
+
+    expect { transfer_context.send_succeeds(machine, 'send sync', timeout: 900) }.to raise_error(error)
+    expect(commands.length).to eq(4)
+    expect(commands.join).to include('/proc/\\[0-9\\]\\*/fd')
+    expect(commands.join).not_to include('pgrep')
+    commands.each do |command|
+      expect(command).to start_with('timeout -k 1 12 sh -c ')
+      _stdout, stderr, status = Open3.capture3('sh', '-n', stdin_data: command)
+      expect(status).to be_success, stderr
+    end
+  end
+
+  it 'reports incomplete transfer snapshots without replacing the original error' do
+    error = RuntimeError.new('transfer stalled')
+    allow(machine).to receive(:succeeds).and_raise(error)
+    allow(machine).to receive(:execute).and_return([124, 'partial snapshot'])
+
+    expect do
+      expect { transfer_context.send_succeeds(machine, 'send sync') }.to raise_error(error)
+    end.to output(/Transfer diagnostic incomplete: status=124/).to_stderr
+    expect(machine).to have_received(:execute).exactly(4).times
+  end
+
+  it 'uses the ordinary transfer channel when no reserved shell is available' do
+    error = RuntimeError.new('transfer stalled')
+    allow(machine).to receive(:succeeds).and_raise(error)
+    allow(machine).to receive(:execute).and_return([0, 'snapshot'])
+
+    expect { transfer_context.send_succeeds(machine, 'send sync') }.to raise_error(error)
+    expect(machine).to have_received(:execute)
+      .with(a_string_starting_with('timeout -k 1 12 sh -c '), timeout: 15, shell: nil).exactly(4).times
+  end
+
+  it 'does not collect transfer diagnostics from a stopped guest' do
+    error = RuntimeError.new('transfer stalled')
+    allow(machine).to receive(:succeeds).and_raise(error)
+    allow(machine).to receive(:running?).and_return(false)
+
+    expect { transfer_context.send_succeeds(machine, 'send sync') }.to raise_error(error)
+    expect(machine).not_to have_received(:execute)
+  end
+
   it 'captures guest diagnostics through the existing failure hook' do
     allow(machine).to receive(:execute)
       .with(described_class.diagnostics_script, timeout: 300, shell: nil)
