@@ -254,7 +254,14 @@ def qualification_activate(previous_name)
     raise 'qualification activation deadline expired' unless remaining > 0
 
     attempts += 1
-    status, output = machine.execute("LC_ALL=C insmod #{CORRECTED_MODULE} 2>&1", timeout: remaining)
+    begin
+      status, output = machine.execute("LC_ALL=C insmod #{CORRECTED_MODULE} 2>&1", timeout: remaining)
+    rescue StandardError => e
+      # Activation can time out before wait_for_patch is reached. Use its
+      # existing bounded reporter before the after-hook releases the workload.
+      capture_failed_patch_transition(machine, CORRECTED_NAME, 1)
+      raise e
+    end
     if status == 0
       remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
       expect(remaining).to be > 0
@@ -299,11 +306,28 @@ after(:example) do
         machine.execute("timeout -k 1 25 sh -c #{Shellwords.escape(command)}", timeout: 30, shell: :diagnostics)
       end
     end
-    machine.execute("touch #{QUAL_STATE}/stop #{QUAL_STATE}/sctp.release #{QUAL_STATE}/tun.stop")
-    machine.execute("echo 1 > /sys/devices/system/cpu/cpu#{QUALIFICATION_CPUS - 1}/online")
+    cleanup = [
+      "touch #{QUAL_STATE}/stop #{QUAL_STATE}/sctp.release #{QUAL_STATE}/tun.stop",
+      "echo 1 > /sys/devices/system/cpu/cpu#{QUALIFICATION_CPUS - 1}/online"
+    ]
     (@qualification_events || []).reverse_each do |event|
-      machine.execute("echo 0 > #{QUAL_TRACE}/events/lp95_qualification/#{event}/enable")
-      machine.execute("echo '-:lp95_qualification/#{event}' >> /sys/kernel/tracing/kprobe_events")
+      cleanup << "echo 0 > #{QUAL_TRACE}/events/lp95_qualification/#{event}/enable"
+      cleanup << "echo '-:lp95_qualification/#{event}' >> /sys/kernel/tracing/kprobe_events"
+    end
+    if @qualification_completed
+      cleanup.each { |command| machine.execute(command) }
+    else
+      # Preserve the pre-cleanup snapshot above, then release the failed
+      # workload without queuing behind its still-running primary command.
+      # One bound covers the whole batch, not 30 seconds per trace event.
+      command = ['set +e; cleanup_status=0'] +
+                cleanup.map { |step| "#{step} || cleanup_status=$?" } +
+                ['exit "$cleanup_status"']
+      status, output = machine.execute(
+        "timeout -k 1 25 sh -c #{Shellwords.escape(command.join("\n"))}",
+        timeout: 30, shell: :diagnostics
+      )
+      warn "qualification failure cleanup unsuccessful: status=#{status}: #{output}" unless status == 0
     end
   end
 rescue StandardError => e

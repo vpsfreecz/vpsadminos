@@ -54,7 +54,9 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
 
   it 'retains the original exception when later cleanup times out' do
     add_failed_example
-    allow(machine).to receive(:execute).with(a_string_starting_with('touch ')).and_raise(cleanup_error)
+    allow(machine).to receive(:execute).with(
+      a_string_including('cleanup_status'), timeout: 30, shell: :diagnostics
+    ).and_raise(cleanup_error)
 
     results = nil
     expect { results = group.evaluate }.to output(/diagnostic shell unavailable/).to_stderr
@@ -82,7 +84,7 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
     add_failed_example
 
     expect(group.evaluate.first.exception).to equal(primary_error)
-    expect(machine).to have_received(:execute).exactly(5).times
+    expect(machine).to have_received(:execute).exactly(4).times
   end
 
   it 'captures qualification state on the reserved channel when the primary shell is occupied' do
@@ -97,7 +99,7 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
     end
 
     results = nil
-    expect { results = group.evaluate }.to output(/primary shell still occupied/).to_stderr
+    expect { results = group.evaluate }.not_to output.to_stderr
     expect(results.first.exception).to equal(primary_error)
     expect(machine).to have_received(:execute).with(
       a_string_including('/trace', '*/enabled', '*/transition'),
@@ -105,8 +107,11 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
     )
     expect(machine).to have_received(:execute).with(a_string_including('output.log', 'ipset'), timeout: 30, shell: :diagnostics)
     expect(machine).to have_received(:execute).with(a_string_including('dmesg'), timeout: 30, shell: :diagnostics)
-    expect(machine).to have_received(:execute).with(a_string_starting_with('touch '))
-    expect(commands.length).to eq(3)
+    expect(machine).to have_received(:execute).with(
+      a_string_including('cleanup_status', '/stop', '/sctp.release', '/tun.stop', '/cpu3/online'),
+      timeout: 30, shell: :diagnostics
+    )
+    expect(commands.length).to eq(4)
     commands.each do |command|
       expect(command).to start_with('timeout -k 1 25 sh -c ')
       _stdout, stderr, status = Open3.capture3('sh', '-n', stdin_data: command)
@@ -114,15 +119,106 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
     end
   end
 
+  it 'cleans trace events in reverse order inside the same failure-only bound' do
+    add_failed_example
+    context.instance_variable_set(:@qualification_events, %w[first second])
+    commands = []
+    allow(machine).to receive(:execute) do |command, **options|
+      expect(options).to eq(timeout: 30, shell: :diagnostics)
+      commands << Shellwords.split(command).last
+      [0, '']
+    end
+
+    expect(group.evaluate.first.exception).to equal(primary_error)
+    expect(commands.length).to eq(4)
+    cleanup = commands.last
+    expect(cleanup.index('/stop')).to be < cleanup.index('/cpu3/online')
+    expect(cleanup.index('/second/enable')).to be < cleanup.index('/first/enable')
+    expect(cleanup).to include("echo '-:lp95_qualification/second'", "echo '-:lp95_qualification/first'")
+    expect(cleanup).to end_with('exit "$cleanup_status"')
+  end
+
+  it 'reports a bounded cleanup failure without replacing the original exception' do
+    add_failed_example
+    allow(machine).to receive(:execute).with(
+      a_string_including('cleanup_status'), timeout: 30, shell: :diagnostics
+    ).and_return([124, 'fixture cleanup deadline'])
+
+    results = nil
+    expect { results = group.evaluate }
+      .to output(/qualification failure cleanup unsuccessful: status=124: fixture cleanup deadline/).to_stderr
+    expect(results.first.exception).to equal(primary_error)
+  end
+
+  it 'executes the actual failure cleanup only against a disk-backed fixture' do
+    add_failed_example
+    context.instance_variable_set(:@qualification_events, %w[first second])
+    command = nil
+    allow(machine).to receive(:execute) do |value, **_options|
+      command = value if value.include?('cleanup_status')
+      [0, '']
+    end
+    expect(group.evaluate.first.exception).to equal(primary_error)
+
+    Dir.mktmpdir('qualification-cleanup') do |dir|
+      argv = Shellwords.split(command)
+      expect(argv.first(6)).to eq(%w[timeout -k 1 25 sh -c])
+      argv[-1] = argv.last.gsub('/run/livepatch-qualification', "#{dir}/population")
+                     .gsub('/sys/', "#{dir}/sys/")
+      online = File.join(dir, 'sys/devices/system/cpu/cpu3/online')
+      trace = File.join(dir, 'sys/kernel/tracing/instances/livepatch_qualification/events/lp95_qualification')
+      FileUtils.mkdir_p([File.join(dir, 'population'), File.dirname(online), File.join(dir, 'sys/kernel/tracing')])
+      %w[first second].each do |event|
+        FileUtils.mkdir_p(File.join(trace, event))
+        File.write(File.join(trace, event, 'enable'), "1\n")
+      end
+      File.write(online, "0\n")
+
+      _output, error, status = Open3.capture3(*argv)
+      expect(status).to be_success, error
+      expect(%w[stop sctp.release tun.stop].all? { |file| File.exist?(File.join(dir, 'population', file)) }).to be(true)
+      expect(File.read(online)).to eq("1\n")
+      %w[first second].each { |event| expect(File.read(File.join(trace, event, 'enable'))).to eq("0\n") }
+      expect(File.read(File.join(dir, 'sys/kernel/tracing/kprobe_events')))
+        .to eq("-:lp95_qualification/second\n-:lp95_qualification/first\n")
+    end
+  end
+
+  it 'captures an activation exception before failure cleanup without replacing it' do
+    guest = machine
+    calls = []
+    instance = context.new
+    instance.define_singleton_method(:machine) { guest }
+    instance.define_singleton_method(:capture_failed_patch_transition) { |*| nil }
+    context.const_set(:CORRECTED_MODULE, '/fixture/corrected.ko')
+    context.const_set(:CORRECTED_NAME, 'livepatch_7')
+    context.const_set(:QUALIFICATION_TRANSITION_SECONDS, 1800)
+    allow(guest).to receive(:execute).with(
+      'LC_ALL=C insmod /fixture/corrected.ko 2>&1', timeout: a_value_within(1).of(1800)
+    ).and_raise(primary_error)
+    allow(instance).to receive(:capture_failed_patch_transition) { |*args| calls << [:capture, *args] }
+    allow(guest).to receive(:execute).with(
+      a_string_including('cleanup_status'), timeout: 30, shell: :diagnostics
+    ) do
+      calls << :cleanup
+      [0, '']
+    end
+
+    group.add_example(TestRunner::Example.new(group, 'activation') { instance.qualification_activate('livepatch_6') })
+    expect(group.evaluate.first.exception).to equal(primary_error)
+    expect(instance).to have_received(:capture_failed_patch_transition).with(guest, 'livepatch_7', 1)
+    expect(calls).to eq([[:capture, guest, 'livepatch_7', 1], :cleanup])
+  end
+
   context 'when capturing a failed livepatch transition' do
-    let(:machine) { instance_spy(OsVm::Machine, execute: [0, ''], shells: [:diagnostics]) }
+    let(:machine) { instance_spy(OsVm::Machine, running?: true, execute: [0, ''], shells: [:diagnostics]) }
     let(:primary_error) { OsVm::TimeoutError.new('original transition deadline') }
 
     def transition_helper
       path = File.join(REPO_ROOT, 'tests/suite/kernel/livepatch-6.12.95-common.nix')
       source = File.read(path)
       Module.new.tap do |mod|
-        %w[patch_dir wait_for_patch].each do |name|
+        %w[patch_dir capture_failed_patch_transition wait_for_patch].each do |name|
           method = source[/^    def self\.#{name}\b.*?^    end\n/m]
           raise "missing livepatch helper #{name}" unless method
 
@@ -161,6 +257,10 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
         FileUtils.mkdir_p(running_worker)
         File.write(File.join(running_worker, 'wchan'), "0\n")
         File.write(File.join(running_worker, 'stack'), "fixture sched_dynamic_klp_disable\n")
+        loader = File.join(dir, 'proc/350/task/350')
+        FileUtils.mkdir_p(loader)
+        File.write(File.join(loader, 'wchan'), "0\n")
+        File.write(File.join(loader, 'stack'), "fixture module loader kernel stack\n")
         control = File.join(dir, 'sys/kernel/livepatch/livepatch_7')
         FileUtils.mkdir_p(control)
         File.write(File.join(control, 'enabled'), "#{target}\n")
@@ -172,7 +272,7 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
         fixture = argv.last.gsub('/proc/', "#{dir}/proc/")
                       .gsub('/sys/kernel/livepatch/', "#{dir}/sys/kernel/livepatch/")
         stubs = <<~'SH'
-          ps() { printf '300 300 D wait_rcu_gp kworker/1:1\n301 301 R 0 kworker/2:1\n400 400 D futex_wait user\n'; }
+          ps() { printf '300 300 D wait_rcu_gp kworker/1:1\n301 301 R 0 kworker/2:1\n400 400 D futex_wait user\n350 350 R 0 insmod\n'; }
           dmesg() { :; }
         SH
         argv[-1] = stubs + fixture
@@ -207,6 +307,25 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
 
     it_behaves_like 'defined opposite-state capture', 1, 100, 0
     it_behaves_like 'defined opposite-state capture', 0, 101, 1
+
+    it 'captures the running module loader before worker candidates' do
+      output = run_capture(capture_command(1), 1, {})
+
+      expect(output).to include('module loader candidate pid=350 tid=350 stat=R wchan=0 comm=insmod')
+      expect(output).to include('fixture module loader kernel stack')
+      expect(output.index('module loader candidate pid=')).to be < output.index('transition worker candidate pid=')
+    end
+
+    it 'does not restart a stopped VM to collect a failed transition' do
+      allow(machine).to receive(:running?).and_return(false)
+      allow(machine).to receive(:wait_until_succeeds).and_raise(primary_error)
+
+      expect do
+        expect { transition_helper.wait_for_patch(machine, 'livepatch_7', 1, timeout: 1800) }
+          .to(raise_error { |error| expect(error).to equal(primary_error) })
+      end.to output(/machine stopped/).to_stderr
+      expect(machine).not_to have_received(:execute)
+    end
 
     it 'reports zero coverage rather than counting an unmatched glob' do
       output = run_capture(capture_command(0), 0, {})
