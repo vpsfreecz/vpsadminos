@@ -210,6 +210,95 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
     expect(calls).to eq([[:capture, guest, 'livepatch_7', 1], :cleanup])
   end
 
+  context 'when waiting for population progress' do
+    def instance
+      guest = machine
+      context.new.tap { |value| value.define_singleton_method(:machine) { guest } }
+    end
+
+    def population
+      { 'elapsed' => '88.087', 'wakeups' => '52864', 'fork_exec' => '826' }.tap do |values|
+        4.times do |cpu|
+          values["cpu_#{cpu}_progress"] = '100'
+          values["cpu_#{cpu}_perf"] = '1000'
+          values["cpu_#{cpu}_actual"] = cpu.to_s
+        end
+      end
+    end
+
+    def advanced
+      population.to_h { |key, value| [key, key == 'elapsed' ? value : (Integer(value) + 1).to_s] }.merge(
+        'elapsed' => '88.199', 'wakeups' => '52865', 'fork_exec' => '827',
+        'cpu_0_actual' => '0', 'cpu_1_actual' => '1', 'cpu_2_actual' => '2', 'cpu_3_actual' => '3'
+      )
+    end
+
+    def progress_command(cpu: nil)
+      command = nil
+      allow(machine).to receive(:wait_until_succeeds) do |value, **options|
+        expect(options).to eq(timeout: 60)
+        command = value
+      end
+      instance.qualification_wait_for_progress(population, cpu: cpu)
+      command
+    end
+
+    def progress_status(command, values)
+      Dir.mktmpdir('qualification-progress') do |dir|
+        path = File.join(dir, 'population')
+        File.write(path, values.map { |key, value| "#{key}=#{value}\n" }.join)
+        actual = command.gsub('/run/livepatch-qualification/population', Shellwords.escape(path))
+        _output, error, status = Open3.capture3('sh', '-c', actual)
+        expect(error).to be_empty
+        status.exitstatus
+      end
+    end
+
+    it 'rejects the observed newer report with unchanged wakeups, then accepts full progress' do
+      command = progress_command
+      expect(progress_status(command, advanced.merge('wakeups' => '52864'))).to eq(1)
+      expect(progress_status(command, advanced)).to eq(0)
+    end
+
+    it 'requires every already-asserted wake, fork, CPU and perf counter to advance' do
+      command = progress_command
+      instance.qualification_progress_keys(population).each do |key|
+        expect(progress_status(command, advanced.merge(key => population.fetch(key)))).to eq(1), key
+      end
+    end
+
+    it 'rejects a stale timestamp or a missing required counter' do
+      command = progress_command
+      expect(progress_status(command, advanced.merge('elapsed' => population.fetch('elapsed')))).to eq(1)
+      expect(progress_status(command, advanced.except('wakeups'))).to eq(1)
+    end
+
+    it 'retains the loaded CPU identity requirement for hotplug within the same bound' do
+      target = instance
+      allow(target).to receive(:qualification_population).and_return(population)
+      command = nil
+      allow(machine).to receive(:wait_until_succeeds) do |value, **options|
+        expect(options).to eq(timeout: 60)
+        command = value
+      end
+      target.qualification_hotplug
+      expect(machine).to have_received(:all_succeed).with(
+        'echo 0 > /sys/devices/system/cpu/cpu3/online',
+        'test "$(cat /sys/devices/system/cpu/cpu3/online)" = 0',
+        'echo 1 > /sys/devices/system/cpu/cpu3/online',
+        'test "$(getconf _NPROCESSORS_ONLN)" = 4'
+      )
+      expect(progress_status(command, advanced.merge('cpu_3_actual' => '0'))).to eq(1)
+      expect(progress_status(command, advanced)).to eq(0)
+    end
+
+    it 'propagates the original bounded-wait failure rather than accepting a stalled population' do
+      allow(machine).to receive(:wait_until_succeeds).with(anything, timeout: 60).and_raise(primary_error)
+      expect { instance.qualification_wait_for_progress(population) }
+        .to(raise_error { |error| expect(error).to equal(primary_error) })
+    end
+  end
+
   context 'when capturing a failed livepatch transition' do
     let(:machine) { instance_spy(OsVm::Machine, running?: true, execute: [0, ''], shells: [:diagnostics]) }
     let(:primary_error) { OsVm::TimeoutError.new('original transition deadline') }

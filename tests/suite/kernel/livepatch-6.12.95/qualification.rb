@@ -66,11 +66,34 @@ def qualification_wait_for_population
   end
 end
 
+def qualification_progress_keys(population)
+  %w[wakeups fork_exec] + population.keys.grep(/\Acpu_\d+_(?:progress|perf)\z/)
+end
+
 def qualification_progress(before, after)
-  keys = %w[wakeups fork_exec] + before.keys.grep(/\Acpu_\d+_(?:progress|perf)\z/)
-  keys.each do |key|
+  qualification_progress_keys(before).each do |key|
     expect(Integer(after.fetch(key))).to be > Integer(before.fetch(key)), key
   end
+end
+
+def qualification_wait_for_progress(before, cpu: nil)
+  # Publishing follows the wake syscall, not the awakened threads running.
+  # A newer elapsed value alone can therefore precede wakeup progress. Keep
+  # the original bound, but wait for every counter the hard assertion needs.
+  keys = ['elapsed'] + qualification_progress_keys(before)
+  reads = keys.map { |key| "$1 == \"#{key}\" { #{key}=$2 }" }
+  conditions = keys.map do |key|
+    value = key == 'elapsed' ? Float(before.fetch(key)) : Integer(before.fetch(key))
+    "#{key} > #{value}"
+  end
+  unless cpu.nil?
+    reads << "$1 == \"cpu_#{cpu}_actual\" { actual_cpu=$2 }"
+    conditions << "actual_cpu == #{cpu}"
+  end
+  machine.wait_until_succeeds(
+    "awk -F= '#{reads.join(' ')} END { exit !(#{conditions.join(' && ')}) }' #{QUAL_STATE}/population",
+    timeout: 60
+  )
 end
 
 def qualification_move_population(pid, group)
@@ -214,12 +237,7 @@ def qualification_hotplug
     "echo 1 > /sys/devices/system/cpu/cpu#{cpu}/online",
     "test \"$(getconf _NPROCESSORS_ONLN)\" = #{QUALIFICATION_CPUS}"
   )
-  machine.wait_until_succeeds(
-    "awk -F= '$1 == \"cpu_#{cpu}_actual\" { cpu=$2 } " \
-    "$1 == \"cpu_#{cpu}_progress\" { progress=$2 } $1 == \"elapsed\" { elapsed=$2 } " \
-    "END { exit !(cpu == #{cpu} && progress > #{before.fetch("cpu_#{cpu}_progress")} && " \
-    "elapsed > #{before.fetch('elapsed')}) }' #{QUAL_STATE}/population", timeout: 60
-  )
+  qualification_wait_for_progress(before, cpu: cpu)
 end
 
 def qualification_failed_activation(previous_name)
@@ -480,10 +498,7 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
     # Start the freshness wait after the move: a report published during a slow
     # migration is not evidence that counters keep advancing after it returns.
     before = qualification_population
-    machine.wait_until_succeeds(
-      "awk -F= '$1 == \"elapsed\" { elapsed=$2 } " \
-      "END { exit !(elapsed > #{before.fetch('elapsed')}) }' #{QUAL_STATE}/population", timeout: 60
-    )
+    qualification_wait_for_progress(before)
     qualification_progress(before, qualification_population)
     assert_kernel_healthy(machine, @example_dmesg_start)
   end
