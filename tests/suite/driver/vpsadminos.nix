@@ -312,7 +312,10 @@ import ../../make-test.nix (
         fail "pulled file not found at '#{pulled}'"
       end
 
-      machine.wait_for_console_text(/vpsadminos login:/, timeout: 30)
+      # Other boot services can write between agetty's hostname and login
+      # prompt. Match the prompt itself and check the hostname separately.
+      machine.wait_for_console_text(/login: root \(automatic login\)/, timeout: 30)
+      run_expect("hostname", [0, "vpsadminos\n"]) { machine.succeeds("hostname") }
 
       begin
         machine.wait_for_console_text(/something completely made up/, timeout: 10)
