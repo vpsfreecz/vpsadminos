@@ -329,7 +329,7 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
       command
     end
 
-    def run_capture(command, target, states, loader_state: 'R', sysrq_available: true, sysrq_status: 0)
+    def run_capture(command, target, states, loader_state: 'R', sysrq_available: true, sysrq_status: 0, ps_status: 0)
       Dir.mktmpdir('livepatch-capture') do |dir|
         states.each do |tid, state|
           task = File.join(dir, 'proc/100/task', tid.to_s)
@@ -373,7 +373,12 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
           ps() { printf '300 300 D wait_rcu_gp kworker/1:1\n301 301 R 0 kworker/2:1\n400 400 D futex_wait user\n#{loaders}'; }
           dmesg() { :; }
           timeout() {
-            if test "$3" = 10 && test #{sysrq_status} != 0; then return #{sysrq_status}; fi
+            if test "$4" = ps; then
+              shift 3
+              "$@"
+              return #{ps_status}
+            fi
+            if test "$4" = sh && test "$3" = 10 && test #{sysrq_status} != 0; then return #{sysrq_status}; fi
             command timeout "$@"
           }
         SH
@@ -417,6 +422,21 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
       expect(output).to include('module loader candidate pid=350 tid=350 stat=R wchan=0 comm=insmod')
       expect(output).to include('fixture module loader kernel stack')
       expect(output.index('module loader candidate pid=')).to be < output.index('transition worker candidate pid=')
+    end
+
+    it 'bounds process-leader discovery without enumerating every population thread' do
+      command = capture_command(0)
+      expect(Shellwords.split(command).last).to include('timeout -k 1 10 ps -eo pid=,pid=,stat=,wchan:32=,comm=')
+      expect(Shellwords.split(command).last).not_to include('ps -eLo')
+      expect(run_capture(command, 0, {})).to include('worker listing status=0 scope=process-leaders')
+    end
+
+    it 'reports a failed process listing and still scans individual patch states' do
+      output = run_capture(capture_command(0), 0, { 100 => "1\n" }, ps_status: 124)
+
+      expect(output).to include('worker listing status=124 scope=process-leaders')
+      expect(output).to include('pending pid=100 tid=100 comm=fixture100 patch_state=1')
+      expect(output).to include('coverage_complete=1 sampled=1')
     end
 
     it 'requests one bounded CPU backtrace before scanning candidates or tasks' do

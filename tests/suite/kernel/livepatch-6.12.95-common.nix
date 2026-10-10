@@ -716,6 +716,9 @@ assert selectedExample == null || exampleFilter == "";
       # Finalization can outlive the loader, and running tasks can have empty
       # proc stacks. Request CPU backtraces once after failure, before scanning
       # candidates or tasks, without extending the transition deadline.
+      # Discover process leaders, not every population thread. An all-thread
+      # ps can consume the entire reporting bound before awk emits candidates.
+      # The subsequent patch_state scan still checks individual threads.
       begin
         diagnostic =
           "printf 'livepatch transition diagnostic: '; " \
@@ -729,7 +732,10 @@ assert selectedExample == null || exampleFilter == "";
           "printf 'CPU backtrace request status=%s\\n' \"$cpu_backtrace_status\"; " \
           "else printf '%s\\n' 'CPU backtrace request unavailable'; fi; " \
           "printf '%s\\n' '--- transition worker candidates before cleanup (at most 32) ---'; " \
-          "ps -eLo pid=,tid=,stat=,wchan:32=,comm= | " \
+          "worker_listing_status=0; " \
+          "worker_listing=$(timeout -k 1 10 ps -eo pid=,pid=,stat=,wchan:32=,comm= 2>&1) || worker_listing_status=$?; " \
+          "printf 'worker listing status=%s scope=process-leaders\\n' \"$worker_listing_status\"; " \
+          "printf '%s\\n' \"$worker_listing\" | " \
           "awk '$5 ~ /^(insmod|modprobe)$/ { if (nl < 32) loaders[++nl]=$0; next } " \
           "$5 ~ /^(kworker|rcu)/ && ($3 ~ /^[DR]/ || $4 ~ /rcu/) " \
           "{ if (nw < 32) workers[++nw]=$0 } " \
