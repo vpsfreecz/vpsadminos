@@ -318,6 +318,7 @@ import ../../make-test.nix (
       # the hostname from "login:". Test console capture with our own marker.
       machine.succeeds('echo osvm-console-ready > /dev/console')
       machine.wait_for_console_text(/osvm-console-ready/, timeout: 30)
+      run_expect("hostname", [0, "vpsadminos\n"]) { machine.succeeds("hostname") }
 
       begin
         machine.wait_for_console_text(/something completely made up/, timeout: 10)
