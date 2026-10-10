@@ -713,8 +713,9 @@ assert selectedExample == null || exampleFilter == "";
       # A transition can also be finalizing after visible tasks have switched.
       # Capture worker candidates before cleanup; no rows alone is not proof
       # of convergence, and proc task coverage does not include idle tasks.
-      # A running loader can have an empty proc stack. Request CPU backtraces
-      # only after failure, once, without extending the transition deadline.
+      # Finalization can outlive the loader, and running tasks can have empty
+      # proc stacks. Request CPU backtraces once after failure, before scanning
+      # candidates or tasks, without extending the transition deadline.
       begin
         diagnostic =
           "printf 'livepatch transition diagnostic: '; " \
@@ -722,8 +723,12 @@ assert selectedExample == null || exampleFilter == "";
           "printf '%s=' \"$attribute\"; " \
           "timeout -k 1 2 cat #{dir}/$attribute 2>/dev/null || printf 'unavailable\\n'; " \
           "done; " \
+          "printf '%s\\n' '--- failed transition CPU backtrace ---'; " \
+          "if test -w /proc/sysrq-trigger; then cpu_backtrace_status=0; " \
+          "timeout -k 1 10 sh -c 'echo l > /proc/sysrq-trigger' 2>&1 || cpu_backtrace_status=$?; " \
+          "printf 'CPU backtrace request status=%s\\n' \"$cpu_backtrace_status\"; " \
+          "else printf '%s\\n' 'CPU backtrace request unavailable'; fi; " \
           "printf '%s\\n' '--- transition worker candidates before cleanup (at most 32) ---'; " \
-          "cpu_backtrace_requested=0; " \
           "ps -eLo pid=,tid=,stat=,wchan:32=,comm= | " \
           "awk '$5 ~ /^(insmod|modprobe)$/ { if (nl < 32) loaders[++nl]=$0; next } " \
           "$5 ~ /^(kworker|rcu)/ && ($3 ~ /^[DR]/ || $4 ~ /rcu/) " \
@@ -733,13 +738,6 @@ assert selectedExample == null || exampleFilter == "";
           "case \"$worker_comm\" in insmod|modprobe) kind='module loader' ;; *) kind='transition worker' ;; esac; " \
           "printf '%s candidate pid=%s tid=%s stat=%s wchan=%s comm=%s\\n' \"$kind\" " \
           "\"$worker_pid\" \"$worker_tid\" \"$worker_state\" \"$worker_wchan\" \"$worker_comm\"; " \
-          "case \"$worker_comm:$worker_state\" in insmod:R*|modprobe:R*) " \
-          "if test \"$cpu_backtrace_requested\" = 0; then cpu_backtrace_requested=1; " \
-          "printf '%s\\n' '--- running module loader CPU backtrace ---'; " \
-          "if test -w /proc/sysrq-trigger; then cpu_backtrace_status=0; " \
-          "timeout -k 1 10 sh -c 'echo l > /proc/sysrq-trigger' 2>&1 || cpu_backtrace_status=$?; " \
-          "printf 'CPU backtrace request status=%s\\n' \"$cpu_backtrace_status\"; " \
-          "else printf '%s\\n' 'CPU backtrace request unavailable'; fi; fi ;; esac; " \
           "timeout -k 1 2 cat /proc/$worker_pid/task/$worker_tid/wchan " \
           "/proc/$worker_pid/task/$worker_tid/stack 2>&1 || true; done; " \
           "seen=0; read_ok=0; unreadable=0; read_errors=0; undefined=0; invalid=0; pending=0; sampled=0; " \

@@ -364,8 +364,13 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
         argv = Shellwords.split(command)
         fixture = argv.last.gsub('/proc/', "#{dir}/proc/")
                       .gsub('/sys/kernel/livepatch/', "#{dir}/sys/kernel/livepatch/")
+        loaders = if loader_state
+                    "350 350 #{loader_state} 0 insmod\n351 351 #{loader_state} 0 modprobe\n"
+                  else
+                    ''
+                  end
         stubs = <<~SH
-          ps() { printf '300 300 D wait_rcu_gp kworker/1:1\n301 301 R 0 kworker/2:1\n400 400 D futex_wait user\n350 350 #{loader_state} 0 insmod\n351 351 #{loader_state} 0 modprobe\n'; }
+          ps() { printf '300 300 D wait_rcu_gp kworker/1:1\n301 301 R 0 kworker/2:1\n400 400 D futex_wait user\n#{loaders}'; }
           dmesg() { :; }
           timeout() {
             if test "$3" = 10 && test #{sysrq_status} != 0; then return #{sysrq_status}; fi
@@ -414,22 +419,34 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
       expect(output.index('module loader candidate pid=')).to be < output.index('transition worker candidate pid=')
     end
 
-    it 'requests one bounded CPU backtrace for running module loaders before scanning tasks' do
+    it 'requests one bounded CPU backtrace before scanning candidates or tasks' do
       command = capture_command(1)
       expect(Shellwords.split(command).last).to include("timeout -k 1 10 sh -c 'echo l > /proc/sysrq-trigger'")
       run_capture(command, 1, { 100 => "0\n" }) do |output, payload|
         expect(payload).to eq("l\n")
-        expect(output.scan(/^--- running module loader CPU backtrace ---$/).length).to eq(1)
+        expect(output.scan(/^--- failed transition CPU backtrace ---$/).length).to eq(1)
         expect(output).to include('CPU backtrace request status=0')
+        expect(output.index('CPU backtrace request')).to be < output.index('module loader candidate pid=')
         expect(output.index('CPU backtrace request')).to be < output.index('pending pid=')
       end
     end
 
-    it 'does not request a CPU backtrace for sleeping loaders or unrelated running workers' do
+    it 'requests a CPU backtrace for a failed rollback without a running loader' do
       run_capture(capture_command(0), 0, {}, loader_state: 'S') do |output, payload|
-        expect(payload).to eq('')
-        expect(output).not_to include('CPU backtrace request')
+        expect(payload).to eq("l\n")
+        expect(output.scan(/^--- failed transition CPU backtrace ---$/).length).to eq(1)
+        expect(output).to include('CPU backtrace request status=0')
         expect(output).to include('coverage_complete=1')
+      end
+    end
+
+    it 'requests a CPU backtrace after the loader exited even when all visible tasks switched' do
+      run_capture(capture_command(0), 0, { 100 => "0\n" }, loader_state: nil) do |output, payload|
+        expect(payload).to eq("l\n")
+        expect(output).not_to include('module loader candidate pid=')
+        expect(output).to include('CPU backtrace request status=0')
+        expect(output).to include('pending=0 coverage_complete=1 sampled=0')
+        expect(output.index('CPU backtrace request')).to be < output.index('transition worker candidate pid=')
       end
     end
 
