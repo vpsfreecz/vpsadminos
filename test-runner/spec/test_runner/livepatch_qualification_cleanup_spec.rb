@@ -329,7 +329,7 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
       command
     end
 
-    def run_capture(command, target, states)
+    def run_capture(command, target, states, loader_state: 'R', sysrq_available: true, sysrq_status: 0)
       Dir.mktmpdir('livepatch-capture') do |dir|
         states.each do |tid, state|
           task = File.join(dir, 'proc/100/task', tid.to_s)
@@ -346,10 +346,14 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
         FileUtils.mkdir_p(running_worker)
         File.write(File.join(running_worker, 'wchan'), "0\n")
         File.write(File.join(running_worker, 'stack'), "fixture sched_dynamic_klp_disable\n")
-        loader = File.join(dir, 'proc/350/task/350')
-        FileUtils.mkdir_p(loader)
-        File.write(File.join(loader, 'wchan'), "0\n")
-        File.write(File.join(loader, 'stack'), "fixture module loader kernel stack\n")
+        [350, 351].each do |tid|
+          loader = File.join(dir, 'proc', tid.to_s, 'task', tid.to_s)
+          FileUtils.mkdir_p(loader)
+          File.write(File.join(loader, 'wchan'), "0\n")
+          File.write(File.join(loader, 'stack'), "fixture module loader kernel stack\n")
+        end
+        sysrq_trigger = File.join(dir, 'proc/sysrq-trigger')
+        File.write(sysrq_trigger, '') if sysrq_available
         control = File.join(dir, 'sys/kernel/livepatch/livepatch_7')
         FileUtils.mkdir_p(control)
         File.write(File.join(control, 'enabled'), "#{target}\n")
@@ -360,13 +364,18 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
         argv = Shellwords.split(command)
         fixture = argv.last.gsub('/proc/', "#{dir}/proc/")
                       .gsub('/sys/kernel/livepatch/', "#{dir}/sys/kernel/livepatch/")
-        stubs = <<~'SH'
-          ps() { printf '300 300 D wait_rcu_gp kworker/1:1\n301 301 R 0 kworker/2:1\n400 400 D futex_wait user\n350 350 R 0 insmod\n'; }
+        stubs = <<~SH
+          ps() { printf '300 300 D wait_rcu_gp kworker/1:1\n301 301 R 0 kworker/2:1\n400 400 D futex_wait user\n350 350 #{loader_state} 0 insmod\n351 351 #{loader_state} 0 modprobe\n'; }
           dmesg() { :; }
+          timeout() {
+            if test "$3" = 10 && test #{sysrq_status} != 0; then return #{sysrq_status}; fi
+            command timeout "$@"
+          }
         SH
         argv[-1] = stubs + fixture
         output, error, status = Open3.capture3(*argv)
         expect(status).to be_success, error
+        yield output, File.exist?(sysrq_trigger) ? File.read(sysrq_trigger) : nil if block_given?
         output
       end
     end
@@ -403,6 +412,48 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
       expect(output).to include('module loader candidate pid=350 tid=350 stat=R wchan=0 comm=insmod')
       expect(output).to include('fixture module loader kernel stack')
       expect(output.index('module loader candidate pid=')).to be < output.index('transition worker candidate pid=')
+    end
+
+    it 'requests one bounded CPU backtrace for running module loaders before scanning tasks' do
+      command = capture_command(1)
+      expect(Shellwords.split(command).last).to include("timeout -k 1 10 sh -c 'echo l > /proc/sysrq-trigger'")
+      run_capture(command, 1, { 100 => "0\n" }) do |output, payload|
+        expect(payload).to eq("l\n")
+        expect(output.scan(/^--- running module loader CPU backtrace ---$/).length).to eq(1)
+        expect(output).to include('CPU backtrace request status=0')
+        expect(output.index('CPU backtrace request')).to be < output.index('pending pid=')
+      end
+    end
+
+    it 'does not request a CPU backtrace for sleeping loaders or unrelated running workers' do
+      run_capture(capture_command(0), 0, {}, loader_state: 'S') do |output, payload|
+        expect(payload).to eq('')
+        expect(output).not_to include('CPU backtrace request')
+        expect(output).to include('coverage_complete=1')
+      end
+    end
+
+    it 'reports unavailable SysRq without abandoning the existing failed-transition capture' do
+      run_capture(capture_command(1), 1, {}, sysrq_available: false) do |output, payload|
+        expect(payload).to be_nil
+        expect(output).to include('CPU backtrace request unavailable')
+        expect(output).to include('coverage_complete=1')
+      end
+    end
+
+    it 'does not run failure diagnostics after a successful transition wait' do
+      transition_helper.wait_for_patch(machine, 'livepatch_7', 1, timeout: 1800)
+
+      expect(machine).to have_received(:wait_until_succeeds)
+      expect(machine).not_to have_received(:execute)
+    end
+
+    it 'retains a failed CPU-backtrace request status and continues the task scan' do
+      run_capture(capture_command(1), 1, {}, sysrq_status: 124) do |output, payload|
+        expect(payload).to eq('')
+        expect(output).to include('CPU backtrace request status=124')
+        expect(output).to include('coverage_complete=1')
+      end
     end
 
     it 'does not restart a stopped VM to collect a failed transition' do
