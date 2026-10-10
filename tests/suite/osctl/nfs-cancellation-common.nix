@@ -57,6 +57,11 @@ in
       machine.start
       machine.wait_for_osctl_pool("tank")
       machine.wait_until_online
+      # The suite name is not runtime proof of the configured kernel target.
+      # Retain the actual release in the normal shell transcript as well.
+      machine.succeeds('test "$(uname -r)" = ${
+        if name == "osctl-nfs-cancellation-native110" then "6.12.110" else "6.12.95"
+      } && uname -r')
       # A port-selected gateway MAC makes stopping one container disrupt the
       # other client's TCP connection, independently of NFS cancellation.
       @nfs_bridge_mac = machine.succeeds(
