@@ -5,11 +5,11 @@
   },
 }:
 let
-  # Independently built normal package with NMI-safe stack diagnostics.
-  # All 707 import CRCs match the frozen boot kernel; the added path-printing
-  # late target resolves in its symbol map.
+  # Independently built normal package with NMI-safe stack diagnostics and
+  # bounded scheduler override restoration. All 710 import CRCs match the
+  # frozen boot kernel; the added late targets resolve in its symbol map.
   # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "9a33b807ab1a65ab4c9b48c75d700cb84cb01307995df3ca8c6d330a651730ce";
+  correctedSha256 = "5a4a38671f04c290a5adbfe80afe5e5c81720559c5a7326ae33ae4f377d82476";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;

@@ -1,3 +1,25 @@
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 36f6f5df387b2..5053bc5fc7d8c 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -7526,7 +7526,16 @@ void sched_dynamic_klp_disable(void)
+ 	mutex_lock(&sched_dynamic_mutex);
+ 
+ 	klp_override = false;
+-	__sched_dynamic_update(preempt_dynamic_mode);
++	/*
++	 * Only cond_resched was overridden.  The other calls already match
++	 * preempt_dynamic_mode, including updates made while the override was
++	 * active.  Reapplying the whole mode would needlessly enable and then
++	 * disable thousands of unrelated preemption call sites.
++	 */
++	if (preempt_dynamic_mode == preempt_dynamic_full)
++		preempt_dynamic_disable(cond_resched);
++	else
++		preempt_dynamic_enable(cond_resched);
+ 
+ 	mutex_unlock(&sched_dynamic_mutex);
+ }
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
 index fb50872514670..f4756ebed9b6b 100644
 --- a/mm/memcontrol.c
