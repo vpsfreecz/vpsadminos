@@ -42,5 +42,9 @@ in
   boot.kernelVersion = lib.mkForce "6.12.110";
   boot.kernelForBuiltinsConfig = lib.mkForce plainKernel;
   boot.zfsBuiltinPkg = lib.mkForce zfsBuiltin;
-  boot.kernelPackage = lib.mkForce (mkKernel (if config.boot.zfsBuiltin then zfsBuiltin else null));
+  boot.kernelPackage = lib.mkForce (
+    (mkKernel (if config.boot.zfsBuiltin then zfsBuiltin else null)).override {
+      postConfigPatches = [ ../../../os/packages/linux/native-nmi-sched.patch ];
+    }
+  );
 }

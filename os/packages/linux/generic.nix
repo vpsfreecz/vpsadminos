@@ -48,6 +48,8 @@
   # symbolic name and `patch' is the actual patch.  The patch may
   # optionally be compressed with gzip or bzip2.
   kernelPatches ? [ ],
+  # C-only patches applied after the kernel configuration has been prepared.
+  postConfigPatches ? [ ],
   ignoreConfigErrors ?
     stdenv.hostPlatform.linux-kernel.name != "pc" || stdenv.hostPlatform != stdenv.buildPlatform,
   extraMeta ? { },
@@ -156,15 +158,15 @@ let
     # e.g. "bzImage"
     kernelTarget = stdenv.hostPlatform.linux-kernel.target;
 
-    prePatch = kernel.prePatch + ''
+    prePatch = configuredKernel.prePatch + ''
       # Patch kconfig to print "###" after every question so that
       # generate-config.pl from the generic builder can answer them.
       sed -e '/fflush(stdout);/i\printf("###");' -i scripts/kconfig/conf.c
     '';
 
-    preUnpack = kernel.preUnpack or "";
+    preUnpack = configuredKernel.preUnpack or "";
 
-    inherit (kernel) src patches;
+    inherit (configuredKernel) src patches;
 
     buildPhase = ''
       export buildRoot="''${buildRoot:-build}"
@@ -217,7 +219,7 @@ let
     };
   }; # end of configfile derivation
 
-  kernel = (callPackage ./manual-config.nix { }) {
+  configuredKernel = (callPackage ./manual-config.nix { }) {
     inherit
       version
       modDirVersion
@@ -237,6 +239,16 @@ let
       CONFIG_FW_LOADER = "m";
     };
   };
+
+  # Apply these before extending the package interface. A caller-side
+  # overrideAttrs would discard features and other extended attributes.
+  kernel =
+    if postConfigPatches == [ ] then
+      configuredKernel
+    else
+      configuredKernel.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ postConfigPatches;
+      });
 
   passthru = {
     features = kernelFeatures;

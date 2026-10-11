@@ -1,0 +1,27 @@
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index fb50872514670..f4756ebed9b6b 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -48,6 +48,7 @@
+ #include <linux/slab.h>
+ #include <linux/swapops.h>
+ #include <linux/spinlock.h>
++#include <linux/preempt.h>
+ #include <linux/fs.h>
+ #include <linux/seq_file.h>
+ #include <linux/parser.h>
+@@ -1538,6 +1539,14 @@ void mem_cgroup_print_dump_stack_context(const char *log_lvl,
+ {
+ 	struct mem_cgroup *memcg;
+ 
++	/*
++	 * NMI stack dumps must not enter kernfs path printing. Its locks can
++	 * be held by the interrupted context or another CPU waiting for the
++	 * serialized NMI backtrace to finish.
++	 */
++	if (in_nmi())
++		return;
++
+ 	rcu_read_lock();
+ 	memcg = mem_cgroup_from_task(p);
+ 

@@ -7763,6 +7763,33 @@ index e60c21b924644..0c4ec01b074fc 100644
  }
  
  static struct shrinker *huge_zero_page_shrinker;
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index 3e7ec62441db1..6523429c55feb 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -48,6 +48,7 @@
+ #include <linux/slab.h>
+ #include <linux/swapops.h>
+ #include <linux/spinlock.h>
++#include <linux/preempt.h>
+ #include <linux/fs.h>
+ #include <linux/seq_file.h>
+ #include <linux/parser.h>
+@@ -1538,6 +1539,14 @@ void mem_cgroup_print_dump_stack_context(const char *log_lvl,
+ {
+ 	struct mem_cgroup *memcg;
+ 
++	/*
++	 * NMI stack dumps must not enter kernfs path printing. Its locks can
++	 * be held by the interrupted context or another CPU waiting for the
++	 * serialized NMI backtrace to finish.
++	 */
++	if (in_nmi())
++		return;
++
+ 	rcu_read_lock();
+ 	memcg = mem_cgroup_from_task(p);
+ 
 diff --git a/mm/vmalloc.c b/mm/vmalloc.c
 index 1d2262fb54185..d4a42980b4d02 100644
 --- a/mm/vmalloc.c

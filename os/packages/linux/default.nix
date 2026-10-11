@@ -12,6 +12,7 @@
   sha256,
   features,
   structuredExtraConfig ? { },
+  postConfigPatches ? [ ],
   zfsBuiltinPkg ? null,
   ...
 }:
@@ -42,7 +43,7 @@ callPackage ./generic.nix (rec {
     patch = ./nfs-sysfs-null-rpc-client-6.12.109.patch;
   };
 
-  inherit structuredExtraConfig;
+  inherit structuredExtraConfig postConfigPatches;
 
   inherit features;
   enableBuildId = (features.livepatch or null) != null;
