@@ -92,7 +92,7 @@ module VpsadminosFailureLogs
 
         run_sh 'timeout 10 osctl pool ls'
         run_sh 'timeout 10 osctl ct ls'
-        run_sh 'timeout 10 osctl ct ls -H -o pool,id,state,init-pid,log-file 2>/dev/null || true'
+        run_sh 'timeout 10 osctl ct ls -H -o pool,id,state,init_pid 2>/dev/null || true'
 
         # DNS readiness failures need the guest's state, not only host routes.
         # Avoid the attach helper under investigation; never change networking.
