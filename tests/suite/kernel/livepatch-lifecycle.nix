@@ -119,7 +119,7 @@ import ../../make-template.nix (
               )
             }
             KERNEL_FAULT_PATTERN =
-              /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol/
+              /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol|blocked for more than|soft lockup|hard LOCKUP|(?:rcu|RCU).*stall/
 
             def patch_dir(name)
               "/sys/kernel/livepatch/#{name}"
@@ -279,7 +279,7 @@ import ../../make-template.nix (
             REQUIRED_FLAGS = ${builtins.toJSON requiredFlags}
             NFS_CONTROLS = "/sys/fs/nfs/net/nfs_client"
             KERNEL_FAULT_PATTERN =
-              /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol/
+              /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol|blocked for more than|soft lockup|hard LOCKUP|(?:rcu|RCU).*stall/
 
             machine.start
             machine.wait_until_online

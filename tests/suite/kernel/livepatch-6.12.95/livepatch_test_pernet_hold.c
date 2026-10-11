@@ -66,8 +66,11 @@ static int livepatch_test_pernet_holder(void *unused)
 	for (;;) {
 		int ret;
 
-		wait_event(control_waitq,
-			   kthread_should_stop() || READ_ONCE(hold_requested));
+		/* Idle control waits hold no lock and must not look like hung I/O. */
+		ret = wait_event_interruptible(control_waitq,
+				kthread_should_stop() || READ_ONCE(hold_requested));
+		if (ret)
+			return ret;
 		if (kthread_should_stop())
 			break;
 
