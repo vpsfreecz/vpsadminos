@@ -4641,10 +4641,10 @@ index 0000000000000..53553063e5011
 +#endif /* _LINUX_VPSADMINOS_CANCEL_H */
 diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
 new file mode 100644
-index 0000000000000..e00b2748d6a8c
+index 0000000000000..b9368a12794a6
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch.h
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,162 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
 +#define _LINUX_VPSADMINOS_LIVEPATCH_H
@@ -4655,6 +4655,7 @@ index 0000000000000..e00b2748d6a8c
 +int vpsadminos_klp_transition_pre_patch(struct klp_object *obj);
 +void vpsadminos_klp_transition_post_patch(void);
 +void vpsadminos_klp_transition_post_unpatch(void);
++void vpsadminos_sched_dynamic_klp_disable(void);
 +
 +#define VPSADMINOS_NFS_FREE_STATEID_CONTROL_SHADOW_ID	0xbbddece21d1ee29bUL
 +#define VPSADMINOS_NFS_FREE_STATEID_DATA_SHADOW_ID	0x32127145199df290UL
@@ -6001,10 +6002,10 @@ index 077e078032e05..7a3b49250f14c 100644
  	mutex_unlock(&klp_mutex);
 diff --git a/kernel/livepatch/transition-vpsadminos.h b/kernel/livepatch/transition-vpsadminos.h
 new file mode 100644
-index 0000000000000..105f8709e4ec2
+index 0000000000000..2862f71eb8d1e
 --- /dev/null
 +++ b/kernel/livepatch/transition-vpsadminos.h
-@@ -0,0 +1,686 @@
+@@ -0,0 +1,690 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef _LIVEPATCH_VPSADMINOS_TRANSITION_H
 +#define _LIVEPATCH_VPSADMINOS_TRANSITION_H
@@ -6476,7 +6477,11 @@ index 0000000000000..105f8709e4ec2
 +	}
 +
 +	/* Done!  Now cleanup the data structures. */
++#if defined(CONFIG_PREEMPT_DYNAMIC) && defined(CONFIG_HAVE_PREEMPT_DYNAMIC_CALL)
++	vpsadminos_sched_dynamic_klp_disable();
++#else
 +	klp_cond_resched_disable();
++#endif
 +	patch = klp_transition_patch;
 +	klp_complete_transition();
 +
@@ -6934,6 +6939,47 @@ index 0000000000000..18c3041b860c2
 +	vpsadminos_rhashtable_predecessor = NULL;
 +	WRITE_ONCE(vpsadminos_rhashtable_state.data, NULL);
 +}
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 1515562168900..3b36e191babc5 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -17,6 +17,7 @@
+ #include <linux/capability.h>
+ #include <linux/pgtable_api.h>
+ #include <linux/wait_bit.h>
++#include <linux/vpsadminos-livepatch.h>
+ #include <linux/jiffies.h>
+ #include <linux/spinlock_api.h>
+ #include <linux/cpumask_api.h>
+@@ -7530,6 +7531,28 @@ void sched_dynamic_klp_disable(void)
+ 	mutex_unlock(&sched_dynamic_mutex);
+ }
+ 
++#ifdef CONFIG_LIVEPATCH
++/* Called directly by the private engine in both transition directions. */
++void vpsadminos_sched_dynamic_klp_disable(void)
++{
++	mutex_lock(&sched_dynamic_mutex);
++
++	klp_override = false;
++	/*
++	 * Only cond_resched was overridden.  The other calls already match
++	 * preempt_dynamic_mode, including updates made while the override was
++	 * active.  Reapplying the whole mode would needlessly enable and then
++	 * disable thousands of unrelated preemption call sites.
++	 */
++	if (preempt_dynamic_mode == preempt_dynamic_full)
++		preempt_dynamic_disable(cond_resched);
++	else
++		preempt_dynamic_enable(cond_resched);
++
++	mutex_unlock(&sched_dynamic_mutex);
++}
++#endif
++
+ #endif /* CONFIG_HAVE_PREEMPT_DYNAMIC_CALL */
+ 
+ static int __init setup_preempt_mode(char *str)
 diff --git a/kernel/signal.c b/kernel/signal.c
 index b832158a9c460..e6e812f8b80ff 100644
 --- a/kernel/signal.c
