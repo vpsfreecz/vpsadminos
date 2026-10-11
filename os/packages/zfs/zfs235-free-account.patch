@@ -1,0 +1,96 @@
+diff --git a/module/zfs/dnode_sync.c b/module/zfs/dnode_sync.c
+index 713c62417a..508794ba92 100644
+--- a/module/zfs/dnode_sync.c
++++ b/module/zfs/dnode_sync.c
+@@ -133,12 +133,19 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
+ 	rw_exit(&dn->dn_struct_rwlock);
+ }
+ 
+-static void
+-free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
++/*
++ * Syncing context owns these BPs until it starts their writes. Inspecting
++ * them does not require a dbuf lock, but publishing holes does. Do not hold
++ * dbuf locks here: deadlist updates can look up another dbuf and acquire a
++ * hash mutex, which dbuf_find() holds while waiting for db_mtx.
++ */
++static uint64_t
++free_blocks_account(dnode_t *dn, const blkptr_t *bp, int num, dmu_tx_t *tx)
+ {
+ 	dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
+ 	uint64_t bytesfreed = 0;
+ 
++	ASSERT(dmu_tx_is_syncing(tx));
+ 	dprintf("ds=%p obj=%llx num=%d\n", ds, (u_longlong_t)dn->dn_object,
+ 	    num);
+ 
+@@ -148,6 +155,16 @@ free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
+ 
+ 		bytesfreed += dsl_dataset_block_kill(ds, bp, tx, B_FALSE);
+ 		ASSERT3U(bytesfreed, <=, DN_USED_BYTES(dn->dn_phys));
++	}
++	return (bytesfreed);
++}
++
++static void
++free_blocks_set_holes(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
++{
++	for (int i = 0; i < num; i++, bp++) {
++		if (BP_IS_HOLE(bp))
++			continue;
+ 
+ 		/*
+ 		 * Save some useful information on the holes being
+@@ -171,6 +188,14 @@ free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
+ 			BP_SET_BIRTH(bp, dmu_tx_get_txg(tx), 0);
+ 		}
+ 	}
++}
++
++static void
++free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
++{
++	uint64_t bytesfreed = free_blocks_account(dn, bp, num, tx);
++
++	free_blocks_set_holes(dn, bp, num, tx);
+ 	dnode_diduse_space(dn, -bytesfreed);
+ }
+ 
+@@ -349,10 +374,12 @@ free_children_assert_holes_and_zero(dmu_buf_impl_t *db)
+ static void
+ free_children_free_indirect(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx)
+ {
++	uint64_t bytesfreed = free_blocks_account(dn, db->db_blkptr, 1, tx);
+ 	db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_WRITER, FTAG);
+ 
+-	free_blocks(dn, db->db_blkptr, 1, tx);
++	free_blocks_set_holes(dn, db->db_blkptr, 1, tx);
+ 	dmu_buf_unlock_parent(db, dblt, FTAG);
++	dnode_diduse_space(dn, -bytesfreed);
+ }
+ 
+ static void
+@@ -405,15 +432,20 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
+ 
+ 	if (db->db_level == 1) {
+ 		blkptr_t *bp;
++		uint64_t bytesfreed;
+ 
+ 		FREE_VERIFY(db, range.fcr_start, range.fcr_end, tx);
+-		mutex_enter(&db->db_mtx);
+-		rw_enter(&db->db_rwlock, RW_WRITER);
++		/* The hold and syncing ownership keep this indirect cached. */
+ 		VERIFY3P(db->db.db_data, !=, NULL);
+ 		bp = &((blkptr_t *)db->db.db_data)[range.fcr_first];
+-		free_blocks(dn, bp, range.fcr_count, tx);
++		bytesfreed = free_blocks_account(dn, bp, range.fcr_count, tx);
++
++		mutex_enter(&db->db_mtx);
++		rw_enter(&db->db_rwlock, RW_WRITER);
++		free_blocks_set_holes(dn, bp, range.fcr_count, tx);
+ 		rw_exit(&db->db_rwlock);
+ 		mutex_exit(&db->db_mtx);
++		dnode_diduse_space(dn, -bytesfreed);
+ 	} else {
+ 		child_ids = kmem_alloc(range.fcr_count * sizeof (*child_ids),
+ 		    KM_SLEEP);
