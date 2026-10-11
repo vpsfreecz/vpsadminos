@@ -58,7 +58,6 @@ let
     builtins.getEnv "VPSADMINOS_ENABLE_SCHED_PROXY_EXEC_LOCK_BADNEIGHBOR_TEST" == "1";
   schedProxyExecLockBadneighborOnly =
     builtins.getEnv "VPSADMINOS_ONLY_SCHED_PROXY_EXEC_LOCK_BADNEIGHBOR_TEST" == "1";
-  credGuardSelectors = import ../os/packages/linux/cred-guard-test-selectors.nix;
 
   proactiveSwapTests =
     if proactiveSwapEnabled || proactiveSwapOnly then
@@ -76,20 +75,14 @@ let
     else
       [ ];
   livepatchTests = if livepatchTestEnabled then [ "kernel/livepatch-6.12.95" ] else [ ];
-  credGuardTests = if credGuardSelectors.requested then [ "kernel/cred-guard" ] else [ ];
   localOnlyTests = lib.unique (
-    proactiveSwapTests ++ schedProxyExecTests ++ schedProxyExecLockBadneighborTests ++ credGuardTests
+    proactiveSwapTests ++ schedProxyExecTests ++ schedProxyExecLockBadneighborTests
   );
 
   selectedTests =
     if livepatchOnly then
       livepatchTests
-    else if
-      proactiveSwapOnly
-      || schedProxyExecOnly
-      || schedProxyExecLockBadneighborOnly
-      || credGuardSelectors.only
-    then
+    else if proactiveSwapOnly || schedProxyExecOnly || schedProxyExecLockBadneighborOnly then
       localOnlyTests
     else
       lib.unique (
