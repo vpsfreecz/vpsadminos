@@ -142,14 +142,30 @@ RSpec.describe VpsadminosFailureLogs do
 
   it 'captures guest diagnostics through the existing failure hook' do
     allow(machine).to receive(:execute)
-      .with(described_class.diagnostics_script, timeout: 300)
+      .with(described_class.diagnostics_script, timeout: 300, shell: nil)
       .and_return([0, "guest snapshot\n"])
 
     with_tmpdir do |directory|
       collect_failure(directory)
-      expect(machine).to have_received(:execute).with(described_class.diagnostics_script, timeout: 300)
+      expect(machine).to have_received(:execute).with(described_class.diagnostics_script, timeout: 300, shell: nil)
       expect(File.read(File.join(directory, 'machine-failure-diagnostics.log')))
         .to include("machine: machine\nstatus: 0", 'guest snapshot')
+    end
+  end
+
+  it 'uses the reserved diagnostics channel when the machine provides it' do
+    allow(machine).to receive(:shells)
+      .and_return(OsVm::ShellCollection.new(machine, diagnostics: instance_double(OsVm::Shell)))
+    allow(machine).to receive(:execute)
+      .with(described_class.diagnostics_script, timeout: 300, shell: :diagnostics)
+      .and_return([0, "reserved snapshot\n"])
+
+    with_tmpdir do |directory|
+      collect_failure(directory)
+      expect(machine).to have_received(:execute)
+        .with(described_class.diagnostics_script, timeout: 300, shell: :diagnostics)
+      expect(File.read(File.join(directory, 'machine-failure-diagnostics.log')))
+        .to include("machine: machine\nstatus: 0", 'reserved snapshot')
     end
   end
 
@@ -249,7 +265,6 @@ RSpec.describe VpsadminosFailureLogs do
   end
 
   it 'retains collected output in the normal failure artifact' do
-    machine = instance_double(OsVm::Machine, name: 'machine')
     output = "===== /proc/123/stack (D zfs) =====\n[<0>] zio_wait\n"
     output += "===== osctld Ruby thread backtraces =====\nfrontend.rb:321:in `readline'\n"
     output += "osctl debug threads ls status=0\n"
@@ -264,7 +279,8 @@ RSpec.describe VpsadminosFailureLogs do
 
     expect(machine).to have_received(:execute).with(
       include('timeout 2 cat "/proc/$pid/stack"', 'timeout 10 osctl debug threads ls'),
-      timeout: 300
+      timeout: 300,
+      shell: nil
     )
   end
 
