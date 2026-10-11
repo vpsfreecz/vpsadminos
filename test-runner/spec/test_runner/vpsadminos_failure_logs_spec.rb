@@ -68,7 +68,9 @@ RSpec.describe VpsadminosFailureLogs do
   it 'uses supported container listing columns and retains the PID query status' do
     script = described_class.diagnostics_script
 
+    expect(script).to include('timeout 10 osctl ct ls -H -o pool,id,state,init_pid 2>/dev/null || true')
     expect(script).to include("printf 'guest PID listing status=%s\\n' \"$?\" >&2")
+    expect(script).not_to include('init-pid', 'log-file')
   end
 
   it 'retains guest resolver configuration and DHCP client/package identity without changing them' do
