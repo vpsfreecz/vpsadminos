@@ -38,12 +38,6 @@ let
 
   zfsBuiltin = if builtins.hasAttr "zfsBuiltin" features then features.zfsBuiltin else false;
 
-  credGuardTest = (import ./cred-guard-test-selectors.nix).requested;
-  authorityGuardOption = {
-    optional = true;
-    tristate = whenAtLeast "6.18" "y";
-  };
-
   whenPlatformHasEBPFJit = mkIf (
     stdenv.hostPlatform.isAarch32
     || stdenv.hostPlatform.isAarch64
@@ -456,9 +450,6 @@ let
       FORTIFY_SOURCE = yes;
       INIT_ON_ALLOC_DEFAULT_ON = no;
       INIT_ON_FREE_DEFAULT_ON = no;
-      CRED_GUARD = authorityGuardOption;
-      SELINUX_CRED_GUARD = authorityGuardOption;
-      AUTH_GUARD = authorityGuardOption;
       # Detect writes to read-only module pages
       DEBUG_SET_MODULE_RONX = {
         optional = true;
@@ -478,10 +469,6 @@ let
 
       SECURITY_LANDLOCK = yes;
       SECURITY_LOCKDOWN_LSM = whenAtLeast "5.4" yes;
-    }
-    // optionalAttrs credGuardTest {
-      DEBUG_FS = whenAtLeast "6.18" yes;
-      AUTH_GUARD_TEST = authorityGuardOption;
     }
     // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
 

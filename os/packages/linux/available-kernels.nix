@@ -6,9 +6,9 @@ with lib.kernel;
 
   kernels = {
     "6.18.49" = {
-      rev = "108c524f775e9a1745ef03d6059de4dccc33a047";
+      rev = "118810d8eb22633124b9236c390e31bcff3dee5c";
       # Linux uses fetchurl: hash archive bytes, not the unpacked source tree.
-      sha256 = "sha256-h6GNuFkVMKXiads3LbLgllndQ5vLDjivjN6NYf78Zoc=";
+      sha256 = "sha256-3jxTXttJKqP69hlMugedYjpTHEp0xbsxrhVl4Y9bgBA=";
       structuredExtraConfig = {
         DAMON = yes;
         DAMON_VADDR = yes;
