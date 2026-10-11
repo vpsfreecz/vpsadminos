@@ -440,6 +440,9 @@ import ../../make-test.nix (
               sys.stdout.write(proc_stack(pid))
               sys.stdout.flush()
 
+          if remaining:
+              raise RuntimeError("unreaped children after SIGKILL; refusing another dataset operation")
+
           return remaining
 
 
