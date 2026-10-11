@@ -113,13 +113,20 @@ in
       type = types.package;
       description = "vpsAdminOS Linux kernel package";
       default =
-        if zfsBuiltin then
-          (kernelPackages.genKernelPackageWithZfsBuiltin {
-            kernelVersion = config.boot.kernelVersion;
-            zfsBuiltinPkg = config.boot.zfsBuiltinPkg;
-          })
-        else
-          kernelPackages.genKernelPackage config.boot.kernelVersion;
+        let
+          kernel =
+            if zfsBuiltin then
+              (kernelPackages.genKernelPackageWithZfsBuiltin {
+                kernelVersion = config.boot.kernelVersion;
+                zfsBuiltinPkg = config.boot.zfsBuiltinPkg;
+              })
+            else
+              kernelPackages.genKernelPackage config.boot.kernelVersion;
+          # C-only repairs that do not change configuration or generated ABI
+          # inputs need not rebuild the kernel used to configure builtins.
+          patches = kernelPackages.kernels.${config.boot.kernelVersion}.postConfigPatches or [ ];
+        in
+        if patches == [ ] then kernel else kernel.override { postConfigPatches = patches; };
     };
 
     boot.zfsUserPackage = mkOption {

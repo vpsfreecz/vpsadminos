@@ -52,6 +52,7 @@ with lib.kernel;
       rev = "1e8231622eee447c960f75840340702a12675322";
       sha256 = "sha256-aKj3F7leLjraNREhxE85CBb6pSsVHkFmXFeg47+LtNc=";
       features.livepatch = true;
+      postConfigPatches = [ ./native-nmi-sched.patch ];
       zfs = {
         rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
         sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";
