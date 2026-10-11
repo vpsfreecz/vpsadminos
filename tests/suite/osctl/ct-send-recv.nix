@@ -36,6 +36,39 @@ let
   commonScript = ''
     require 'shellwords'
 
+    def self.send_succeeds(machine, command, **options)
+      machine.succeeds(command, **options)
+    rescue StandardError
+      # Capture the first stalled transfer before later examples or teardown
+      # restart a daemon and erase its threads and pipe ownership. Never retry
+      # the transfer, change its timeout, or replace its original exception.
+      machines.each_value do |node|
+        next unless node.running?
+
+        [
+          'osctl debug threads ls',
+          'osctl debug locks ls',
+          # Pipe writers can belong to forked helpers or sshd sessions, not
+          # just the named transfer processes. Keep their ownership visible.
+          "ps -eLo pid,tid,ppid,stat,wchan:32,comm,args; " \
+            "ls -l /proc/[0-9]*/fd",
+          'tail -n 200 /var/log/osctld',
+        ].each do |diagnostic|
+          begin
+            shell = node.shells.include?(:diagnostics) ? :diagnostics : nil
+            status, = node.execute(
+              "timeout -k 1 12 sh -c #{Shellwords.escape(diagnostic)}",
+              timeout: 15, shell:
+            )
+            warn("Transfer diagnostic incomplete: status=#{status}") unless status.zero?
+          rescue StandardError => e
+            warn("Transfer diagnostic failed: #{e.class}: #{e.message}")
+          end
+        end
+      end
+      raise
+    end
+
     def self.ensure_cluster_ready
       machines.each_value do |machine|
         machine.start unless machine.running?
@@ -335,7 +368,7 @@ import ../../make-test.nix (
               )
 
               write_ct_file(node1, ctid, 'tmp/send-transfer/after-rootfs', 'after-rootfs')
-              node1.succeeds("osctl ct send sync #{ctid}")
+              send_succeeds(node1,"osctl ct send sync #{ctid}")
 
               write_ct_file(node1, ctid, 'tmp/send-transfer/after-sync', 'after-sync')
               node1.all_succeed(
@@ -352,7 +385,7 @@ import ../../make-test.nix (
 
               write_ct_file(node2, ctid, 'tmp/send-transfer/before-return', 'before-return')
 
-              node2.succeeds("osctl ct send #{ctid} node1")
+              send_succeeds(node2,"osctl ct send #{ctid} node1")
 
               wait_ct_running(node1, ctid)
               expect_ct_absent(node2, ctid)
@@ -412,13 +445,13 @@ import ../../make-test.nix (
                 'restart-base'
               )
 
-              node1.succeeds("osctl ct send config #{ctid} node2")
+              send_succeeds(node1,"osctl ct send config #{ctid} node2")
               restart_transfer_daemons
 
               expect(send_log_present?(node1, ctid)).to be(true)
               expect(ct_state(node2, ctid)).to eq('staged')
 
-              node1.succeeds("osctl ct send rootfs #{ctid}")
+              send_succeeds(node1,"osctl ct send rootfs #{ctid}")
               restart_transfer_daemons
 
               expect(send_log_present?(node1, ctid)).to be(true)
@@ -430,7 +463,7 @@ import ../../make-test.nix (
                 'tmp/send-transfer/restart-sync',
                 'restart-sync'
               )
-              node1.succeeds("osctl ct send sync #{ctid}")
+              send_succeeds(node1,"osctl ct send sync #{ctid}")
               restart_transfer_daemons
 
               expect(send_log_present?(node1, ctid)).to be(true)
@@ -442,13 +475,13 @@ import ../../make-test.nix (
                 'tmp/send-transfer/restart-state',
                 'restart-state'
               )
-              node1.succeeds("osctl ct send state #{ctid}")
+              send_succeeds(node1,"osctl ct send state #{ctid}")
               restart_transfer_daemons
 
               expect(send_log_present?(node1, ctid)).to be(true)
               wait_ct_running(node2, ctid)
 
-              node1.succeeds("osctl ct send cleanup #{ctid}")
+              send_succeeds(node1,"osctl ct send cleanup #{ctid}")
 
               expect_ct_absent(node1, ctid)
               expect(ct_state(node2, ctid)).to eq('running')
@@ -695,7 +728,7 @@ import ../../make-test.nix (
           end
 
           def self.send_clone_with_diagnostics(command)
-            node1.succeeds(command)
+            send_succeeds(node1, command)
           rescue StandardError
             begin
               collect_authorization_diagnostics
@@ -739,10 +772,10 @@ import ../../make-test.nix (
               expect_authorized_key(node2, 'node1-repeat')
 
               node2.succeeds("osctl ct del -f --prune #{ctid}")
-              node1.succeeds("osctl ct send config --passphrase repeat #{ctid} node2")
+              send_succeeds(node1,"osctl ct send config --passphrase repeat #{ctid} node2")
               expect_authorized_key(node2, 'node1-repeat')
 
-              node1.succeeds("osctl ct send cancel #{ctid}")
+              send_succeeds(node1,"osctl ct send cancel #{ctid}")
               expect_ct_absent(node2, ctid)
             end
 
@@ -796,8 +829,8 @@ import ../../make-test.nix (
                 passphrase: 'from-ok'
               )
 
-              node1.succeeds("osctl ct send config --passphrase from-ok #{ctid} node2")
-              node1.succeeds("osctl ct send cancel #{ctid}")
+              send_succeeds(node1,"osctl ct send config --passphrase from-ok #{ctid} node2")
+              send_succeeds(node1,"osctl ct send cancel #{ctid}")
               expect_ct_absent(node2, ctid)
 
               authorize_send_key(
@@ -867,8 +900,8 @@ import ../../make-test.nix (
             it 'can complete the migration with another send state attempt' do
               remove_hook(node1, ctid, 'pre-stop')
 
-              node1.succeeds("osctl ct send state #{ctid}")
-              node1.succeeds("osctl ct send cleanup #{ctid}")
+              send_succeeds(node1,"osctl ct send state #{ctid}")
+              send_succeeds(node1,"osctl ct send cleanup #{ctid}")
 
               wait_ct_running(node2, ctid)
               expect_ct_absent(node1, ctid)
@@ -927,8 +960,8 @@ import ../../make-test.nix (
             it 'can finish with another send state attempt' do
               remove_hook(node1, ctid, 'pre-start')
 
-              node1.succeeds("osctl ct send state --clone #{ctid}")
-              node1.succeeds("osctl ct send cleanup #{ctid}")
+              send_succeeds(node1,"osctl ct send state --clone #{ctid}")
+              send_succeeds(node1,"osctl ct send cleanup #{ctid}")
 
               wait_ct_running(node1, ctid)
               wait_ct_running(node2, ctid)
@@ -991,9 +1024,9 @@ import ../../make-test.nix (
             it 'can finish with another send state attempt' do
               remove_hook(node2, ctid, 'pre-start')
 
-              node1.succeeds("osctl ct send state #{ctid}")
+              send_succeeds(node1,"osctl ct send state #{ctid}")
               wait_ct_running(node2, ctid)
-              node1.succeeds("osctl ct send cleanup #{ctid}")
+              send_succeeds(node1,"osctl ct send cleanup #{ctid}")
 
               expect_ct_absent(node1, ctid)
               expect(send_log_present?(node2, ctid)).to be(false)
@@ -1055,8 +1088,8 @@ import ../../make-test.nix (
               delete_authorized_key(node2, 'node1')
               authorize_send_key(node2, 'node1', send_public_key(node1))
 
-              node1.succeeds("osctl ct send state #{ctid}")
-              node1.succeeds("osctl ct send cleanup #{ctid}")
+              send_succeeds(node1,"osctl ct send state #{ctid}")
+              send_succeeds(node1,"osctl ct send cleanup #{ctid}")
 
               wait_ct_running(node2, ctid)
               expect_ct_absent(node1, ctid)
