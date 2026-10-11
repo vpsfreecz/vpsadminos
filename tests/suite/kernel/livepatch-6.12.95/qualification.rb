@@ -272,7 +272,14 @@ def qualification_activate(previous_name)
     raise 'qualification activation deadline expired' unless remaining > 0
 
     attempts += 1
-    status, output = machine.execute("LC_ALL=C insmod #{CORRECTED_MODULE} 2>&1", timeout: remaining)
+    begin
+      status, output = machine.execute("LC_ALL=C insmod #{CORRECTED_MODULE} 2>&1", timeout: remaining)
+    rescue StandardError => e
+      # Activation can time out before wait_for_patch is reached. Use its
+      # existing bounded reporter before the after-hook releases the workload.
+      capture_failed_patch_transition(machine, CORRECTED_NAME, 1)
+      raise e
+    end
     if status == 0
       remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
       expect(remaining).to be > 0
