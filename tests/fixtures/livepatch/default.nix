@@ -5,10 +5,11 @@
   },
 }:
 let
-  # Independently built normal package with callback-first object admission.
-  # All 707 import CRCs match the boot kernel; 3564 late relocations are unchanged.
+  # Independently built normal package with NMI-safe stack diagnostics.
+  # All 707 import CRCs match the frozen boot kernel; the added path-printing
+  # late target resolves in its symbol map.
   # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "89f46aff1a8a6cdc0f88f2a01e6828c7382ee02400115ba09233fc7f30ca1285";
+  correctedSha256 = "9a33b807ab1a65ab4c9b48c75d700cb84cb01307995df3ca8c6d330a651730ce";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
