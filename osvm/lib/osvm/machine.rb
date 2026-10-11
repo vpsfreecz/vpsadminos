@@ -179,6 +179,7 @@ module OsVm
       }.merge(config.shared_filesystems)
       @virtiofsd_pids = []
       @mutex = Mutex.new
+      @console_cv = ConditionVariable.new
       @start_mutex = Mutex.new
       @shared_dir_mutex = Mutex.new
       @shared_dir_mounted = false
@@ -187,6 +188,8 @@ module OsVm
       @allowed_kernel_failure_patterns = []
       @console_output = ''
       @console_scan_buffer = ''
+      @console_last_output_at = nil
+      @console_eof = false
 
       FileUtils.mkdir_p(tmpdir)
       FileUtils.mkdir_p(sockdir)
@@ -618,12 +621,29 @@ module OsVm
       )
     end
 
-    def kill_after_kernel_failure(drain_timeout: 1)
-      detected_at = @mutex.synchronize { @kernel_failure_detected_at }
+    # A panic can pause before dumping per-CPU traces, then stream for minutes
+    # over the serial console. Keep collecting without delaying fatal detection
+    # or allowing a continuously noisy guest to prevent teardown indefinitely.
+    # @param drain_timeout [Numeric] maximum seconds from failure detection
+    # @param quiet_timeout [Numeric] seconds without new console bytes
+    # @return [Machine]
+    def kill_after_kernel_failure(drain_timeout: 600, quiet_timeout: 30)
+      @mutex.synchronize do
+        detected_at = @kernel_failure_detected_at
 
-      if detected_at
-        remaining = drain_timeout - (Process.clock_gettime(Process::CLOCK_MONOTONIC) - detected_at)
-        sleep(remaining) if remaining > 0
+        if detected_at
+          deadline = detected_at + drain_timeout
+
+          loop do
+            break if @console_eof
+
+            quiet_deadline = (@console_last_output_at || detected_at) + quiet_timeout
+            remaining = [deadline, quiet_deadline].min - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            break unless remaining > 0
+
+            @console_cv.wait(@mutex, remaining)
+          end
+        end
       end
 
       kill(signal: 'KILL')
@@ -1028,6 +1048,8 @@ module OsVm
         @kernel_failure_detected_at = nil
         @console_output = ''
         @console_scan_buffer = ''
+        @console_last_output_at = nil
+        @console_eof = false
       end
     end
 
@@ -1035,6 +1057,9 @@ module OsVm
       events = @mutex.synchronize do
         @console_output << data
         @console_scan_buffer << data
+        @console_last_output_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) unless data.empty?
+        @console_eof = true if flush
+        @console_cv.broadcast if flush || !data.empty?
 
         lines = @console_scan_buffer.split("\n", -1)
         @console_scan_buffer = lines.pop || ''
