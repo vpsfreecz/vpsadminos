@@ -71,7 +71,10 @@ let
       rev = kernels.${kernel.version}.zfs.rev;
       sha256 = kernels.${kernel.version}.zfs.sha256;
     }).zfsStable
-      { enableDebug = config.system.vpsadminos.zfsDebug; };
+      {
+        enableDebug = config.system.vpsadminos.zfsDebug;
+        extraPatches = kernels.${kernel.version}.zfs.patches or [ ];
+      };
 
   genZfsUserPackage =
     kernelVersion:

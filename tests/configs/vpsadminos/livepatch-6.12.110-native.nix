@@ -36,7 +36,10 @@ let
       rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
       sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";
     }).zfsStable
-      { enableDebug = config.system.vpsadminos.zfsDebug; };
+      {
+        enableDebug = config.system.vpsadminos.zfsDebug;
+        extraPatches = [ ../../../os/packages/zfs/zfs235-free-account.patch ];
+      };
 in
 {
   boot.kernelVersion = lib.mkForce "6.12.110";

@@ -288,9 +288,10 @@ in
   zfsStable =
     {
       enableDebug ? false,
+      extraPatches ? [ ],
     }:
     common {
-      inherit enableDebug;
+      inherit enableDebug extraPatches;
       version = "2.3-vpsadminos";
       inherit rev;
       inherit sha256;
