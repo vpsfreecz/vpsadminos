@@ -34,6 +34,7 @@ class Command
 end
 
 class RestrictDirs
+  KERNFS_FILTER_ACTIVE = '/proc/vpsadminos/kernfs_filter/active'.freeze
   KERNFS_FILTER_REPLACE = '/proc/vpsadminos/kernfs_filter/replace'.freeze
 
   def initialize(config_path)
@@ -145,11 +146,26 @@ class RestrictDirs
   end
 
   def install_kernfs_filter_policy(policy)
+    # Replacing even identical rules advances the kernel's visibility generation.
+    # Avoid needless invalidation, especially while an older kernel with inherited
+    # proc/sysfs submounts is still running across a userspace activation.
+    if kernfs_filter_policy_installed?(policy)
+      puts 'kernfs_filter policy is already active'
+      return true
+    end
+
     File.write(KERNFS_FILTER_REPLACE, policy)
     puts "installed kernfs_filter policy with #{policy.lines.count - 2} rules"
     true
   rescue SystemCallError, IOError => e
     warn "failed to install kernfs_filter policy: #{e.message}"
+    false
+  end
+
+  def kernfs_filter_policy_installed?(policy)
+    File.read(KERNFS_FILTER_ACTIVE) == policy
+  rescue SystemCallError, IOError => e
+    warn "failed to read active kernfs_filter policy, reinstalling: #{e.message}"
     false
   end
 
