@@ -5,9 +5,10 @@
   },
 }:
 let
-  # Independently checked normal package from OS 0f3f1da4 (idle-wait repair).
+  # Independently built normal package with compatible busy-RTNL NFQUEUE handover.
+  # All 707 import CRCs match the boot kernel; both focused NFQUEUE cases pass.
   # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "a2b649e64218e1b879964f5449be9fcfed7b63ac0561970f95d24525fb5914c7";
+  correctedSha256 = "1f34bd489e5596431f1413084829621d25a35f2b59ffe7deeec28e3dc50825f3";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
