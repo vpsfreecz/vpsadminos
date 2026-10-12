@@ -2856,6 +2856,9 @@ import ../../make-test.nix (
             ../../../os/configs/tracing-tools-qemu.nix
           ];
 
+          # Container tracing namespaces and their ABI belong to the 6.18 line.
+          system.vpsadminos.enableUnstable = true;
+
           boot.qemu = {
             memory = lib.mkForce 4096;
             cpus = lib.mkForce 2;

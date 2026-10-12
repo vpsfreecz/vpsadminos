@@ -6320,6 +6320,8 @@ import ../../make-test.nix (
           hostKernel = config.boot.kernelPackage;
         in
         {
+          # Exercise the 6.18 container-BPF policy, not an older kernel without it.
+          system.vpsadminos.enableUnstable = true;
           boot.qemu = {
             memory = lib.mkForce 4096;
             cpus = lib.mkForce 2;

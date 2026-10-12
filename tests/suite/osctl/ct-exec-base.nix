@@ -11,7 +11,12 @@ import ../../make-test.nix (
     tags = [ "ci" ];
 
     machine = import ../../machines/vpsadminos/with-tank.nix {
-      inherit pkgs config;
+      inherit pkgs;
+      config = {
+        imports = [ config ];
+        # The inherited-mount probes cover the 6.18 kernfs-filter implementation.
+        system.vpsadminos.enableUnstable = true;
+      };
     };
 
     testScript = ''

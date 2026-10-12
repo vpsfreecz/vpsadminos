@@ -4,6 +4,9 @@
   revision,
   kernelPrefix,
   configuration ? null,
+  # Additional configuration for the current userspace activation target only.
+  # It never changes the pinned kernel which the predecessor machine boots.
+  targetConfiguration ? { },
   activated ? null,
   # Whether the kernel the fixture boots preserves inherited proc subdirectory
   # mounts across a container mount namespace entry. The fixture machine boots
@@ -117,6 +120,7 @@ let
       inherit system;
       configuration = args.configuration or null;
       modules = [
+        targetConfiguration
         ../../configs/vpsadminos/base.nix
         ../../configs/vpsadminos/pool-tank.nix
         { osctl.test-shell.shells = 1; }

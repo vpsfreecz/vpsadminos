@@ -12,7 +12,11 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
-    machine = import ../../machines/vpsadminos/tank.nix pkgs;
+    machine = import ../../machines/vpsadminos/with-tank.nix {
+      inherit pkgs;
+      # Exercise the current mapping semantics with their coherent kernel/ZFS pair.
+      config.system.vpsadminos.enableUnstable = true;
+    };
 
     testScript = ''
       machine.start

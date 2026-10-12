@@ -36,7 +36,11 @@ import ../../make-test.nix (
 
     machine = import ../../machines/vpsadminos/with-tank.nix {
       inherit pkgs;
-      config = {
+      config = { lib, ... }: {
+        # The cancellable hard-mount implementation belongs to this retained
+        # kernel variant; newer stable defaults need not include it.
+        system.vpsadminos.enableUnstable = lib.mkForce false;
+        boot.kernelVersion = lib.mkForce "6.12.95";
         services.nfs.server.enable = true;
         osctl.exportfs.enable = true;
       };

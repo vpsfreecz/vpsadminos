@@ -244,7 +244,11 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
-    machine = import ../../machines/vpsadminos/tank.nix pkgs;
+    machine = import ../../machines/vpsadminos/with-tank.nix {
+      inherit pkgs;
+      # The mapped file-capability contract requires the selected kernel/ZFS pair.
+      config.system.vpsadminos.enableUnstable = true;
+    };
 
     testScripts = {
       native = {

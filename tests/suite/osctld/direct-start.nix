@@ -25,6 +25,8 @@ import ../../make-test.nix (
     tags = [ "ci" ];
     machine = import ../../machines/vpsadminos/with-tank.nix {
       inherit pkgs;
+      # Include the 6.18 syslog-namespace identity contract exercised below.
+      config.system.vpsadminos.enableUnstable = true;
       config.environment.etc."ct-user-netns-probe.rb".source = netnsProbe;
     };
     testScript = ''

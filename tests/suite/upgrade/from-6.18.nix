@@ -4,6 +4,9 @@ import ./common.nix {
   revision = "3cb830e596a7fed900bec49f50c9b6cf51e76bb5";
   kernelPrefix = "6.18.49";
   configuration = "os/configs/unstable.nix";
+  # Qualify the selected 6.18 userspace over this unchanged predecessor, not an
+  # implicit activation of the older stable profile chosen by an empty CI config.
+  targetConfiguration.system.vpsadminos.enableUnstable = true;
   # This predecessor pins kernel revision
   # fbda79346b89b2d2486edd22e4bbbca0154d96b7, which predates the downstream
   # kernfs-filter preservation fix. The machine boots that kernel, so entering a

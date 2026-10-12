@@ -10,6 +10,10 @@ import ../../make-test.nix (
       config =
         { lib, ... }:
         {
+          # This fixture checks the retained livepatch ABI, not the default
+          # kernel, which may not have a matching livepatch package.
+          system.vpsadminos.enableUnstable = lib.mkForce false;
+          boot.kernelVersion = lib.mkForce "6.12.95";
           services.live-patches.enable = true;
           runit.services.live-patches.run = lib.mkForce "sleep inf";
         };

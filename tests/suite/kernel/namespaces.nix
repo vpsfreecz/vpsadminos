@@ -44,6 +44,7 @@ import ../../make-test.nix (
       config =
         { lib, ... }:
         lib.mkMerge [
+          { system.vpsadminos.enableUnstable = true; }
           (mkNamespacePool "plain-ns")
           (qemuConfig lib)
         ];

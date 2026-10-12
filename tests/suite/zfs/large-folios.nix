@@ -342,7 +342,11 @@ import ../../make-test.nix (
       "regression"
     ];
 
-    machine = import ../../machines/vpsadminos/tank.nix pkgs;
+    machine = import ../../machines/vpsadminos/with-tank.nix {
+      inherit pkgs;
+      # Large-folio support is part of the selected 6.18 kernel/ZFS pair.
+      config.system.vpsadminos.enableUnstable = true;
+    };
 
     testScript = ''
       machine.start

@@ -143,6 +143,8 @@ import ../../make-test.nix (
             };
           in
           {
+            # The selected 6.18 source owns these downstream selftests.
+            system.vpsadminos.enableUnstable = true;
             boot.qemu = {
               memory = lib.mkForce 4096;
               cpus = lib.mkForce 1;

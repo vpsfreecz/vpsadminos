@@ -96,6 +96,10 @@ let
         {
           imports = [ extraConfig ];
 
+          # These contracts exercise the selected 6.18 downstream interfaces,
+          # which are not provided by the older stable kernel line.
+          system.vpsadminos.enableUnstable = true;
+
           boot.qemu = {
             cpus = vmCpuCount;
             cpu.sockets = 2;
