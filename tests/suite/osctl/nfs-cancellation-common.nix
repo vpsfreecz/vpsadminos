@@ -718,9 +718,11 @@ in
           expect(modes).to eq(%w[600 600])
 
           # Tenant access is a permission failure, never a missing control.
+          # Join streams inside the container so transport scheduling cannot
+          # move cat's diagnostic after the status marker.
           tenant = machine.succeeds(
             "osctl ct exec nfs1 sh -c " \
-              "'cat /sys/fs/nfs/net/nfs_client/shutdown >/dev/null; echo rc=$?'",
+              "'exec 2>&1; cat /sys/fs/nfs/net/nfs_client/shutdown >/dev/null; echo rc=$?'",
           )[1].strip
           expect(tenant).to end_with('rc=1')
           machine.fails(
