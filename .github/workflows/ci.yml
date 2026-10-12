@@ -193,11 +193,33 @@ jobs:
 
       - name: Run livepatch lifecycle tests
         id: run-tests
-        # Native setup and the first cold .95 build consumed 226 minutes.
-        # Allow all three cases, with ten minutes left for logs and cleanup.
+        # Include main/security checks on AMD and perf on both vendors, using
+        # the existing tag selectors. Keep ten minutes for logs and cleanup.
         timeout-minutes: 350
+        env:
+          VPSADMINOS_ENABLE_LIVEPATCH_TEST: "1"
         run: |
-          set -o pipefail
+          set -euo pipefail
+
+          # Prepare normal repository fixtures, preserving every main/perf
+          # identity assertion. The expected hash is a reviewed source pin,
+          # not a checksum computed from the module being tested.
+          nix eval --impure --raw --expr \
+            '(import ./tests/fixtures/livepatch {}).correctedSha256' \
+            > "$TEST_RUNNER_STATE_DIR/livepatch-corrected-sha256.txt"
+          export VPSADMINOS_LIVEPATCH_CORRECTED_SHA256="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-corrected-sha256.txt")"
+          nix-build tests/fixtures/livepatch -A corrected \
+            --out-link "$TEST_RUNNER_STATE_DIR/livepatch-corrected" \
+            > "$TEST_RUNNER_STATE_DIR/livepatch-corrected-path.txt"
+          nix-build tests/fixtures/livepatch -A releasedV5 \
+            --out-link "$TEST_RUNNER_STATE_DIR/livepatch-released-v5" \
+            > "$TEST_RUNNER_STATE_DIR/livepatch-released-v5-path.txt"
+          nix-build tests/fixtures/livepatch -A shippedV6 \
+            --out-link "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6" \
+            > "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6-path.txt"
+          export VPSADMINOS_LIVEPATCH_CORRECTED_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-corrected-path.txt")"
+          export VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-released-v5-path.txt")"
+          export VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6-path.txt")"
 
           ./test-runner.sh test \
             --state-dir "$TEST_RUNNER_STATE_DIR" \
