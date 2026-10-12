@@ -1,7 +1,10 @@
 import ../../make-test.nix (
   { pkgs }:
   let
-    # vpsAdminOS provides by-id links for these AHCI disks, but no by-path links.
+    # ATA serials identify the fixture's AHCI ports independently of the PCI
+    # address assigned to the controller. NixOS uses port 0 for its root disk.
+    nixosDataDevice = "/dev/disk/by-id/ata-QEMU_HARDDISK_QM00007";
+    nixosScratchDevice = "/dev/disk/by-id/ata-QEMU_HARDDISK_QM00009";
     tankDevice = "/dev/disk/by-id/ata-QEMU_HARDDISK_QM00005";
     scratchDevice = "/dev/disk/by-id/ata-QEMU_HARDDISK_QM00007";
     tank = import ../../machines/vpsadminos/with-tank.nix {
@@ -53,18 +56,18 @@ import ../../make-test.nix (
           nixos.start
           nixos.wait_for_boot
           nixos.all_succeed(
-            "test -b /dev/disk/by-path/pci-0000:00:03.0-ata-2",
-            "test -b /dev/disk/by-path/pci-0000:00:03.0-ata-3",
+            "test -b ${nixosDataDevice}",
+            "test -b ${nixosScratchDevice}",
             "echo root-marker > /root/preservation-marker",
-            "printf data-marker | dd of=/dev/disk/by-path/pci-0000:00:03.0-ata-2 conv=fsync",
-            "printf scratch-marker | dd of=/dev/disk/by-path/pci-0000:00:03.0-ata-3 conv=fsync"
+            "printf data-marker | dd of=${nixosDataDevice} conv=fsync",
+            "printf scratch-marker | dd of=${nixosScratchDevice} conv=fsync"
           )
           nixos.stop
           nixos.start
           nixos.wait_for_boot
           expect(nixos.succeeds("cat /root/preservation-marker")[1].strip).to eq('root-marker')
-          expect(nixos.succeeds("head -c 11 /dev/disk/by-path/pci-0000:00:03.0-ata-2")[1]).to eq('data-marker')
-          nixos.succeeds("cmp -n 14 /dev/disk/by-path/pci-0000:00:03.0-ata-3 /dev/zero")
+          expect(nixos.succeeds("head -c 11 ${nixosDataDevice}")[1]).to eq('data-marker')
+          nixos.succeeds("cmp -n 14 ${nixosScratchDevice} /dev/zero")
           nixos.stop
         end
 
@@ -97,7 +100,7 @@ import ../../make-test.nix (
           nixos.start
           nixos.wait_for_boot
           nixos.fails("test -e /root/preservation-marker")
-          nixos.succeeds("cmp -n 11 /dev/disk/by-path/pci-0000:00:03.0-ata-2 /dev/zero")
+          nixos.succeeds("cmp -n 11 ${nixosDataDevice} /dev/zero")
           nixos.stop
 
           vpsadminos.destroy_disks
