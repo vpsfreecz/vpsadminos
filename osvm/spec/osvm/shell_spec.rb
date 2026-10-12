@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'io/wait'
 
 RSpec.describe OsVm::Shell do
   def build_shell(
@@ -14,6 +15,77 @@ RSpec.describe OsVm::Shell do
       File.join(dir, 'shell.log'),
       default_timeout: 10
     )
+  end
+
+  def with_command_shell
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+
+      IO.popen(%w[bash --noprofile --norc], 'r+') do |io|
+        io.sync = true
+        shell.instance_variable_set(:@io, io)
+        shell.instance_variable_set(:@up, true)
+        yield shell, io
+      end
+    ensure
+      shell&.finalize
+    end
+  end
+
+  it 'does not attribute a late response from a timed-out command to the next command' do
+    with_command_shell do |shell, io|
+      io.write("printf '#{Base64.strict_encode64('late reply')}\\n0\\n'\n")
+
+      expect(shell.execute('printf current')).to eq([0, 'current'])
+      expect(shell.execute('printf next; exit 37')).to eq([37, 'next'])
+    end
+  end
+
+  it 'preserves binary output and empty output with the matching exit status' do
+    with_command_shell do |shell, _io|
+      expect(shell.execute("printf 'line\\n\\000\\377tail'; exit 17")).to eq(
+        [17, "line\n\x00\xfftail".b]
+      )
+      expect(shell.execute('true')).to eq([0, ''])
+    end
+  end
+
+  it 'reads a framed response larger than an IO read buffer' do
+    with_command_shell do |shell, _io|
+      payload = '0123456789' * 2000
+
+      expect(shell.execute("printf '#{payload}'")).to eq([0, payload])
+    end
+  end
+
+  it 'ignores stale framed records without renewing the response deadline' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      started_at = Time.at(100)
+      allow(Time).to receive(:now).and_return(started_at, started_at + 1, started_at + 3)
+      allow(shell).to receive(:read_output).and_return(
+        "bGF0ZQ==:old-marker:0\n",
+        "c3RhbGU=:other-marker:0\nY3VycmVudA==:current-marker:27\n"
+      )
+
+      expect(shell.send(:read_command_result, 'current-marker', timeout: 5, command: 'test')).to eq(
+        [27, 'current']
+      )
+      expect(shell).to have_received(:read_output).with(timeout: 4, command: 'test')
+      expect(shell).to have_received(:read_output).with(timeout: 2, command: 'test')
+    ensure
+      shell&.finalize
+    end
+  end
+
+  it 'keeps ordinary command timeouts and can execute the following command' do
+    with_command_shell do |shell, _io|
+      expect do
+        shell.execute('printf partial; sleep 10', timeout: 5)
+      end.to raise_error(OsVm::TimeoutError, /output: "partial"/)
+
+      expect(shell.execute('printf after')).to eq([0, 'after'])
+    end
   end
 
   it 'builds qemu options from its index and socket path' do
