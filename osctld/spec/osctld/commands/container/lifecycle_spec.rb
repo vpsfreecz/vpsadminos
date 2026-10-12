@@ -241,6 +241,75 @@ RSpec.describe 'container lifecycle commands' do
       expect(queue.calls).to eq(1)
     end
 
+    context 'when shutdown starts during an event wait' do
+      let(:event_queue) { instance_double(OsCtl::Lib::Queue) }
+      let(:daemon) { double(stopping?: false) }
+
+      before do
+        daemon_class = stub_const('OsCtld::Daemon', Class.new do
+          def self.get; end
+        end)
+        allow(daemon_class).to receive(:get).and_return(daemon)
+      end
+
+      it 'accepts a running event during the shutdown grace period' do
+        now = Time.now
+        allow(Time).to receive(:now) { now }
+        allow(event_queue).to receive(:pop) do |timeout:|
+          if daemon.stopping?
+            now += 1
+            Event.new(type: :state, opts: { pool: 'tank', id: 'ct1', state: :running })
+          else
+            now += timeout
+            allow(daemon).to receive(:stopping?).and_return(true)
+            nil
+          end
+        end
+        command = described_class.new({ wait: 'infinity' }, {})
+        allow(command).to receive(:log)
+
+        expect(command.send(:wait_for_ct, event_queue, ct)).to eq(%i[running])
+        expect(event_queue).to have_received(:pop).with(timeout: 15).twice
+      end
+
+      it 'bounds idle shutdown waiting from when shutdown is observed' do
+        now = Time.now
+        timeouts = []
+        allow(Time).to receive(:now) { now }
+        allow(event_queue).to receive(:pop) do |timeout:|
+          timeouts << timeout
+          now += timeout
+          allow(daemon).to receive(:stopping?).and_return(true)
+          nil
+        end
+        command = described_class.new({ wait: 'infinity' }, {})
+        allow(command).to receive(:log)
+
+        expect(command.send(:wait_for_ct, event_queue, ct)).to eq(
+          [:error, 'osctld is shutting down']
+        )
+        expect(timeouts).to eq([15, 15])
+      end
+
+      it 'keeps the caller timeout when it expires before the shutdown grace period' do
+        now = Time.now
+        timeouts = []
+        allow(Time).to receive(:now) { now }
+        allow(event_queue).to receive(:pop) do |timeout:|
+          timeouts << timeout
+          now += timeout + 0.001
+          allow(daemon).to receive(:stopping?).and_return(true)
+          nil
+        end
+        command = described_class.new({ wait: 20 }, {})
+        allow(command).to receive(:log)
+
+        expect(command.send(:wait_for_ct, event_queue, ct)).to eq(%i[timeout])
+        expect(timeouts.length).to eq(2)
+        expect(timeouts.last).to be_within(0.01).of(5)
+      end
+    end
+
     it 'tolerates tty socket races and console reconnect failures' do
       with_tmpdir do |tmpdir|
         console_dir = File.join(tmpdir, 'console')

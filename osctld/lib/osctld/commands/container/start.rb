@@ -261,14 +261,9 @@ module OsCtld
 
         event = event_queue.pop(timeout:)
 
-        if event.nil?
-          if Daemon.get.stopping?
-            log(:info, ct, 'osctld is shutting down, giving up waiting')
-            return [:error, 'osctld is shutting down']
-          end
-
-          next
-        end
+        # This poll may have started before shutdown. Recheck both deadlines
+        # above rather than cancelling before the shutdown grace period starts.
+        next if event.nil?
 
         if event.type == :osctld_shutdown
           log(:info, ct, 'osctld is shutting down, giving up waiting')
