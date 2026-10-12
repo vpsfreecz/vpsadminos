@@ -314,7 +314,10 @@ import ../../make-test.nix (
         fail "pulled file not found at '#{pulled}'"
       end
 
-      machine.wait_for_console_text(/vpsadminos login:/, timeout: 30)
+      # Getty writes its prompt in pieces, so concurrent boot output can split
+      # the hostname from "login:". Test console capture with our own marker.
+      machine.succeeds('echo osvm-console-ready > /dev/console')
+      machine.wait_for_console_text(/osvm-console-ready/, timeout: 30)
 
       begin
         machine.wait_for_console_text(/something completely made up/, timeout: 10)
