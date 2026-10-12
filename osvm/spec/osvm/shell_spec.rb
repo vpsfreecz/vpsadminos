@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'io/wait'
 
 RSpec.describe OsVm::Shell do
   def build_shell(
@@ -14,6 +15,106 @@ RSpec.describe OsVm::Shell do
       File.join(dir, 'shell.log'),
       default_timeout: 10
     )
+  end
+
+  def with_command_shell
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+
+      IO.popen(%w[bash --noprofile --norc], 'r+') do |io|
+        io.sync = true
+        shell.instance_variable_set(:@io, io)
+        shell.instance_variable_set(:@up, true)
+        yield shell, io
+      end
+    ensure
+      shell&.finalize
+    end
+  end
+
+  it 'does not attribute a late response from a timed-out command to the next command' do
+    with_command_shell do |shell, io|
+      io.write("printf '#{Base64.strict_encode64('late reply')}\\n0\\n'\n")
+
+      expect(shell.execute('printf current')).to eq([0, 'current'])
+      expect(shell.execute('printf next; exit 37')).to eq([37, 'next'])
+    end
+  end
+
+  it 'preserves binary output and empty output with the matching exit status' do
+    with_command_shell do |shell, _io|
+      expect(shell.execute("printf 'line\\n\\000\\377tail'; exit 17")).to eq(
+        [17, "line\n\x00\xfftail".b]
+      )
+      expect(shell.execute('true')).to eq([0, ''])
+    end
+  end
+
+  it 'does not prepend an unfinished stale payload to the current wrapped reply' do
+    with_command_shell do |shell, io|
+      io.write("printf '#{Base64.strict_encode64('unfinished stale reply')}'\n")
+
+      expect(shell.execute('printf current; exit 23')).to eq([23, 'current'])
+    end
+  end
+
+  it 'reads a framed response larger than an IO read buffer' do
+    with_command_shell do |shell, _io|
+      payload = '0123456789' * 2000
+
+      expect(shell.execute("printf '#{payload}'")).to eq([0, payload])
+    end
+  end
+
+  it 'ignores stale framed records without renewing the response deadline' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      allow(shell).to receive(:monotonic_now).and_return(100, 101, 103)
+      allow(shell).to receive(:read_output).and_return(
+        "bGF0ZQ==:old-marker:0\n",
+        ":other-marker:begin\nc3RhbGU=\n:other-marker:0\n" \
+        ":current-marker:begin\nY3VycmVudA==\n:current-marker:27\n"
+      )
+
+      expect(shell.send(:read_command_result, 'current-marker', timeout: 5, command: 'test')).to eq(
+        [27, 'current']
+      )
+      expect(shell).to have_received(:read_output).with(
+        timeout: 4, deadline: 105, timeout_message: "Timeout occurred while running command 'test'",
+        command: 'test', trace: nil
+      )
+      expect(shell).to have_received(:read_output).with(
+        timeout: 2, deadline: 105, timeout_message: "Timeout occurred while running command 'test'",
+        command: 'test', trace: nil
+      )
+    ensure
+      shell&.finalize
+    end
+  end
+
+  it 'rejects malformed matching payloads and resets the stream' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      allow(shell).to receive(:read_output).and_return(":current:begin\nA===\n:current:0\n")
+      allow(shell).to receive(:reset).and_call_original
+
+      expect do
+        shell.send(:read_command_result, 'current', timeout: 5, command: 'test')
+      end.to raise_error(ArgumentError)
+      expect(shell).to have_received(:reset)
+    ensure
+      shell&.finalize
+    end
+  end
+
+  it 'keeps ordinary command timeouts and can execute the following command' do
+    with_command_shell do |shell, _io|
+      expect do
+        shell.execute('printf partial; sleep 10', timeout: 5)
+      end.to raise_error(OsVm::TimeoutError, /output: "partial"/)
+
+      expect(shell.execute('printf after')).to eq([0, 'after'])
+    end
   end
 
   it 'builds qemu options from its index and socket path' do
@@ -100,17 +201,17 @@ RSpec.describe OsVm::Shell do
       writes = []
       io = instance_double(IO)
       allow(io).to receive(:write) { |data| writes << data }
-      allow(shell).to receive(:monotonic_now).and_return(100.0)
-      allow(shell).to receive(:read_output).and_return(
-        "#{Base64.strict_encode64("ok\n")}\n",
-        "0\n"
+      allow(SecureRandom).to receive(:hex).with(16).and_return('test-marker')
+      allow(shell).to receive_messages(
+        monotonic_now: 100.0,
+        read_output: ":osvm-test-marker:begin\n#{Base64.strict_encode64("ok\n")}\n:osvm-test-marker:0\n"
       )
       shell.instance_variable_set(:@io, io)
 
       expect(shell.send(:execute_command, 'true', timeout: 10)).to eq([0, "ok\n"])
       expect(writes.first).to include('timeout --kill-after=1 7 bash')
       expect(writes.first).to include(
-        "base64 -w 76; echo #{described_class::OUTPUT_END_MARKER}"
+        'base64 -w 76;', ':osvm-test-marker:begin', ':osvm-test-marker:%s'
       )
     end
   end
@@ -157,10 +258,11 @@ RSpec.describe OsVm::Shell do
     end
   end
 
-  it 'retains the status-read phase without changing an unrecoverable timeout' do
+  it 'retains the framed-result read phase without changing an unrecoverable timeout' do
     with_tmpdir do |dir|
       shell = build_shell(dir:)
       io = instance_double(IO, write: 1, wait_readable: true, closed?: false, close: nil)
+      allow(SecureRandom).to receive(:hex).with(16).and_return('test-marker')
       shell.instance_variable_set(:@io, io)
       shell.instance_variable_set(:@up, true)
       reads = 0
@@ -168,7 +270,7 @@ RSpec.describe OsVm::Shell do
         reads += 1
         raise OsVm::UnrecoverableTimeoutError, 'original status deadline' if reads > 1
 
-        "#{Base64.strict_encode64("ok\n")}\n#{described_class::OUTPUT_END_MARKER}\n"
+        ":osvm-test-marker:begin\n#{Base64.strict_encode64("ok\n")}\n"
       end
 
       expect do
@@ -176,7 +278,7 @@ RSpec.describe OsVm::Shell do
       end.to raise_error(OsVm::UnrecoverableTimeoutError, 'original status deadline')
 
       log = File.read(File.join(dir, 'shell.log'))
-      expect(log).to include('PHASE: status_read')
+      expect(log).to include('PHASE: output_read')
       expect(log).to include('ERROR: OsVm::UnrecoverableTimeoutError: original status deadline')
       expect(log).to include('REPLY_BUFFER_BYTES: 0')
       expect(shell.instance_variable_get(:@io)).to be_nil
@@ -188,15 +290,15 @@ RSpec.describe OsVm::Shell do
     with_tmpdir do |dir|
       shell = build_shell(dir:)
       io = instance_double(IO, write: 1, wait_readable: true)
+      allow(SecureRandom).to receive(:hex).with(16).and_return('test-marker')
       shell.instance_variable_set(:@io, io)
       shell.instance_variable_set(:@up, true)
       allow(shell).to receive(:read_nonblock).and_return(
-        "#{Base64.strict_encode64("ok\n")}\n#{described_class::OUTPUT_END_MARKER}\n",
-        "0\n"
+        ":osvm-test-marker:begin\n#{Base64.strict_encode64("ok\n")}\n:osvm-test-marker:0\n"
       )
 
       expect(shell.execute('true', timeout: 1)).to eq([0, "ok\n"])
-      expect(io).to have_received(:write).twice
+      expect(io).to have_received(:write).once
       log = File.read(File.join(dir, 'shell.log'))
       expect(log).to include('STATUS: 0')
       expect(log).not_to include('ACTION: protocol-timeout')

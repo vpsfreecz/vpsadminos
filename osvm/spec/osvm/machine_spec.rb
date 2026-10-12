@@ -346,15 +346,14 @@ RSpec.describe OsVm::Machine do
       writes = []
       wait_timeouts = []
       io = instance_double(IO, closed?: false, close: nil)
+      allow(SecureRandom).to receive(:hex).with(16).and_return('online-test')
       allow(io).to receive(:write) { |data| writes << data }
       allow(io).to receive(:wait_readable) do |timeout|
         wait_timeouts << timeout
         true
       end
       allow(io).to receive(:read_nonblock).and_return(
-        "#{Base64.strict_encode64('online')}\n",
-        "#{OsVm::Shell::OUTPUT_END_MARKER}\n",
-        "0\n"
+        ":osvm-online-test:begin\n#{Base64.strict_encode64('online')}\n:osvm-online-test:0\n"
       )
       machine.instance_variable_set(:@running, true)
       shell.instance_variable_set(:@up, true)

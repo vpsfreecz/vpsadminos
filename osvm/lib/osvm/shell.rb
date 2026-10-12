@@ -1,4 +1,5 @@
 require 'base64'
+require 'securerandom'
 require 'shellwords'
 require 'socket'
 require 'timeout'
@@ -345,54 +346,38 @@ module OsVm
       vm_command = "set -euo pipefail; #{cmd}"
       timeout_command = "timeout --kill-after=#{format_timeout(kill_after)} #{format_timeout(guest_timeout)}"
 
-      # For unknown reason, the first character written to the shell is cut. Sometimes
-      # more characters are lost. We therefore prefix the executed command with whitespace
-      # which can be lost.
+      marker = "osvm-#{SecureRandom.hex(16)}"
+
+      # Prefix commands to tolerate the guest console dropping initial bytes.
       workaround = ' ' * 10
       log_started_at = log.execute_begin(cmd)
       protocol_started = true
       replies_consumed = false
       output = nil
 
+      # Keep wrapped output for old console transports. A matching begin marker
+      # separates this payload from incomplete or late replies on the stream.
       trace[:phase] = 'command_write' if trace
       io.write(
-        "#{workaround}#{timeout_command} bash -c #{Shellwords.escape(vm_command)} " \
-        "2>&1 | (base64 -w 76; echo #{OUTPUT_END_MARKER})\n"
+        "#{workaround}printf '\\n:#{marker}:begin\\n'; " \
+        "#{timeout_command} bash -c #{Shellwords.escape(vm_command)} 2>&1 | base64 -w 76; " \
+        "printf '\\n:#{marker}:%s\\n' \"${PIPESTATUS[0]}\"\n"
       )
 
       begin
         trace[:phase] = 'output_read' if trace
-        raw_output = read_output(
+        status, output = read_command_result(
+          marker,
           timeout: remaining_time!(deadline, timeout_message),
           deadline:,
           timeout_message:,
           command: vm_command,
-          terminator: "#{OUTPUT_END_MARKER}\n",
           trace:
         )
-      rescue MachineShellClosed
-        log.execute_end(-1, '[machine shell closed]', log_started_at)
-        raise
-      end
-
-      output = Base64.decode64(raw_output.delete_suffix("#{OUTPUT_END_MARKER}\n"))
-
-      trace[:phase] = 'status_write' if trace
-      io.write("#{workaround}echo ${PIPESTATUS[0]}\n")
-
-      begin
-        trace[:phase] = 'status_read' if trace
-        status = read_output(
-          timeout: remaining_time!(deadline, timeout_message),
-          deadline:,
-          timeout_message:,
-          command: 'echo ${PIPESTATUS[0]}',
-          trace:
-        ).strip.to_i
         replies_consumed = true
         trace[:phase] = 'replies_consumed' if trace
       rescue MachineShellClosed
-        log.execute_end(-1, output, log_started_at)
+        log.execute_end(-1, '[machine shell closed]', log_started_at)
         raise
       end
 
@@ -410,7 +395,7 @@ module OsVm
       end
       # A command and its output/status replies form one stream protocol
       # transaction. Once any part of the command may have reached the guest,
-      # a deadline before both replies are consumed leaves that stream
+      # a deadline before its matching result is consumed leaves that stream
       # desynchronized. Close it and make the timeout unrecoverable so polling
       # callers cannot send a second command over ambiguous bytes.
       if protocol_started && !replies_consumed
@@ -421,6 +406,44 @@ module OsVm
         raise UnrecoverableTimeoutError, e.message
       end
 
+      raise
+    end
+
+    def read_command_result(marker, timeout:, command:, deadline: nil, timeout_message: nil, trace: nil)
+      timeout_message ||= "Timeout occurred while running command '#{command}'"
+      deadline = effective_deadline(timeout, deadline)
+      start_marker = ":#{marker}:begin"
+      pattern = /\A:#{Regexp.escape(marker)}:(\d+)\z/
+      encoded = nil
+
+      loop do
+        # Discard stale records without renewing the absolute command deadline.
+        raw_output = read_output(
+          timeout: remaining_time!(deadline, timeout_message),
+          deadline:,
+          timeout_message:,
+          command:,
+          trace:
+        )
+
+        raw_output.each_line do |line|
+          line = line.chomp
+          if line == start_marker
+            encoded = +''
+          elsif encoded
+            match = pattern.match(line)
+            return [match[1].to_i, Base64.strict_decode64(encoded)] if match
+
+            if %r{\A[A-Za-z0-9+/=]*\z}.match?(line)
+              encoded << line
+            else
+              encoded = nil
+            end
+          end
+        end
+      end
+    rescue ArgumentError
+      reset
       raise
     end
 
