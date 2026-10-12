@@ -2026,7 +2026,9 @@ import (previous.outPath + "/tests/make-test.nix")
                           HOOK
                           chmod 700 #{Shellwords.escape(mount_hook)}
                         SH
-                        machine.succeeds('(status=0; osctl ct start mounttransition || status=$?; echo "$status" > /overlap-pre-mount.status) > /overlap-pre-mount.log 2>&1 < /dev/null & echo $! > /overlap-pre-mount.pid')
+                        # Keep the LXC hook sequence in the normal failure logs:
+                        # a cancelled client alone does not explain a stopped CT.
+                        machine.succeeds('(status=0; osctl ct start --debug mounttransition || status=$?; echo "$status" > /overlap-pre-mount.status) > /overlap-pre-mount.log 2>&1 < /dev/null & echo $! > /overlap-pre-mount.pid')
                         machine.wait_until_succeeds('test -e /overlap-pre-mount.started', timeout: 90)
                         machine.succeeds('test ! -e /overlap-pre-mount.status')
                         activate_generation.call(
