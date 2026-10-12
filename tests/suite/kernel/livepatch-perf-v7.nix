@@ -33,7 +33,11 @@ import ../../make-test.nix (
       Livepatch v7 perf witness rows: real group-leader remove-on-exec ENODEV,
       observational FD_NO_GROUP / FD_NO_GROUP|FD_OUTPUT, bounded exec/open race
     '';
-    tags = [ "ci" ];
+    tags = [
+      "ci"
+      "livepatch-amd"
+      "livepatch-intel"
+    ];
 
     machine = import ../../machines/vpsadminos/with-empty.nix {
       inherit pkgs;
