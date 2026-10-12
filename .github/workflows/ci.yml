@@ -144,8 +144,9 @@ jobs:
     # Full ZTS takes about ten hours, plus closure construction. Leave time
     # for artifact upload before the job's 24-hour GITHUB_TOKEN lifetime.
     # An unfiltered ci-unstable run can still be making progress after 3.5 hours;
-    # leave the four-hour limit unchanged for focused and ordinary CI selectors.
-    timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || (inputs.test_suite == 'ci-unstable' && !inputs.test_pattern) && 420 || 240 }}
+    # ordinary full CI also needs cold livepatch builds and the NFS guests.
+    # Keep focused selectors at their original four-hour limit.
+    timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || (inputs.test_suite == 'ci-unstable' && !inputs.test_pattern) && 420 || ((inputs.test_suite || 'ci') == 'ci' && !inputs.test_pattern) && 360 || 240 }}
 
     steps:
       - uses: actions/checkout@v7
@@ -161,6 +162,9 @@ jobs:
 
       - name: Run tests
         id: run-tests
+        # Keep upload time for ordinary full CI without capping ZTS/native runs
+        # at the shorter livepatch/NFS budget.
+        timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || (inputs.test_suite == 'ci-unstable' && !inputs.test_pattern) && 420 || ((inputs.test_suite || 'ci') == 'ci' && !inputs.test_pattern) && 350 || 240 }}
         env:
           STOP_ON_FAILURE: ${{ github.event.inputs.stop_on_failure || 'false' }}
           TEST_SUITE: ${{ inputs.test_suite || 'ci' }}
