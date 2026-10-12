@@ -21,30 +21,15 @@ let
 
   buildEnable = (patchVersion > 0) && cfg.enable;
 
-  # Boot-line toolchain lock (build #3 gcc-check failure; agent0 :324/:328): kpatch-build
-  # resolves gcc/ld/readelf/objcopy via PATH (CROSS_COMPILE-prefixed plain names) and its
-  # version check compiles a test object with that gcc, comparing `.comment` with the
-  # kernel's recorded "gcc (GCC) 15.2.0, GNU ld (GNU Binutils) 2.46" (boot dev). The boot
-  # line's gcc-wrapper-15.2.0 (builtins.storePath, A8b-style) is therefore placed first on
-  # PATH in the buildPhase instead of skipping the check.
-  bootToolchain = builtins.storePath "/nix/store/hbsz2ngi9ixbhd9na1xagh2yc8qnmj7y-gcc-wrapper-15.2.0";
-
-  # -------------------------------------------------------------------------
-  # Boot ABI lock (plan §5.3 / Step 09; §21 decision, 2026-09-22):
-  # The livepatch build must target the exact boot kernel ABI, not the kernel
-  # build the frozen base evaluates with its newer toolchain.
-  #   boot kernel drv : /nix/store/rwffs5wf4jvigna0ykv85v93q1zkn8s5-linux-6.12.95.drv
-  #   boot dev output : /nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev
-  #                     (vmlinux build ID 7801779436291880089e3407e50e5813f80d76f1)
-  #   boot config     : /nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95
-  #                     (sha256 c10922b492fdf39ed3027b9c8f7ce2846a5d3799d57d417a161595fa81a64969)
-  # src (a2384967 archive), modDirVersion, bzImage out path and nativeBuildInputs
-  # stay as evaluated by the frozen base.
-  # -------------------------------------------------------------------------
+  # Boot ABI and compiler inputs retain their producing derivations, so a
+  # fresh builder can obtain the exact reviewed outputs without local paths.
+  # The helper asserts their identities; it does not select a new boot line.
+  bootInputs = import ../../../packages/linux/boot-6.12.95.nix;
+  bootToolchain = bootInputs.toolchain;
   kernel = config.boot.kernelPackage // {
-    dev = builtins.storePath "/nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev";
+    dev = bootInputs.kernel.dev.outPath;
     configfile = {
-      outPath = builtins.storePath "/nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95";
+      outPath = bootInputs.kernel.configfile.outPath;
     };
   };
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) { };
