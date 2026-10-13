@@ -8,8 +8,10 @@ let
   # Independently built normal package with NMI-safe stack diagnostics and
   # bounded scheduler override restoration. All 710 import CRCs match the
   # frozen boot kernel; the added late targets resolve in its symbol map.
+  # The independently inspected staging build changes only compiler-seed
+  # DWARF and the build ID, not qualified code/data or runtime relocations.
   # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "5a4a38671f04c290a5adbfe80afe5e5c81720559c5a7326ae33ae4f377d82476";
+  correctedSha256 = "57213079758efd2a808875611491174f9f9b37d55c384196603286542c3a0a16";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
