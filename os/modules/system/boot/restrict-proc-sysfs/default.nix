@@ -50,6 +50,9 @@ in
 
           The rules above will restrict access to the contents of /sys/class,
           except for directory /sys/class/net.
+
+          The boot-time policy is reapplied on a userspace switch when this
+          configuration changes, not merely when the helper is rebuilt.
         '';
       };
     };
@@ -62,6 +65,12 @@ in
         ${restrictProcSysfs} ${configFile}
       '';
       oneShot = true;
+      # Keep the already applied boot policy on implementation-only updates.
+      # Runtime glob expansion can otherwise add late-loaded devices/modules
+      # and replace the policy despite an unchanged requested configuration.
+      # Older running kernels invalidate inherited submounts on replacement.
+      onChange = "ignore";
+      restartTriggers = [ "config-sha256:${builtins.hashString "sha256" cfg.config}" ];
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };

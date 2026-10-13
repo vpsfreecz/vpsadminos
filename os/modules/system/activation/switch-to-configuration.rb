@@ -1,4 +1,5 @@
 #!@ruby@/bin/ruby
+require 'digest'
 require 'fileutils'
 require 'json'
 
@@ -191,6 +192,7 @@ class Services
       @on_change = cfg['onChange'].to_sym
       @reload_method = cfg['reloadMethod']
       @restart_triggers = cfg.fetch('restartTriggers', [])
+      @restart_triggers = legacy_boot_policy_triggers if @restart_triggers.empty?
     end
 
     def ==(other)
@@ -235,6 +237,29 @@ class Services
 
     def skip?
       opts[:skip]
+    end
+
+    protected
+
+    # Older generations embedded the configuration as the helper's argument,
+    # without declaring a restart trigger. Recover that exact input for the
+    # first upgrade too; its store path can change while its bytes do not.
+    def legacy_boot_policy_triggers
+      return [] unless name == 'restrict-proc-sysfs'
+
+      paths = File.read(run_path).scan(
+        %r{
+          ^[ \t]*/nix/store/[a-z0-9]{32}-restrict-dirs\.rb[ \t]+
+          (/nix/store/[a-z0-9]{32}-restrict-proc-sysfs-config\.txt)[ \t]*$
+        }x
+      ).flatten.uniq
+      return [] unless paths.length == 1
+
+      ["config-sha256:#{Digest::SHA256.hexdigest(File.read(paths.first))}"]
+    rescue SystemCallError, IOError
+      # Unknown inputs must retain the normal lifecycle decision, not be
+      # treated as proof that the requested configuration is unchanged.
+      []
     end
   end
 
@@ -544,16 +569,18 @@ class Pools
   end
 end
 
-case ARGV[0]
-when 'boot'
-  Configuration.boot
-when 'switch'
-  Configuration.switch
-when 'test'
-  Configuration.test
-when 'dry-activate'
-  Configuration.dry_run
-else
-  warn "Usage: #{$0} switch|boot|test|dry-activate"
-  exit(false)
+if $0 == __FILE__
+  case ARGV[0]
+  when 'boot'
+    Configuration.boot
+  when 'switch'
+    Configuration.switch
+  when 'test'
+    Configuration.test
+  when 'dry-activate'
+    Configuration.dry_run
+  else
+    warn "Usage: #{$0} switch|boot|test|dry-activate"
+    exit(false)
+  end
 end

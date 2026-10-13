@@ -10,6 +10,8 @@ on:
       - flake.lock
       - os/overlays/osctl.nix
       - os/overlays/ruby.nix
+      - os/modules/system/activation/**
+      - os/modules/system/boot/restrict-proc-sysfs/**
       - converter/**
       - libosctl/**
       - osctl/**
@@ -32,6 +34,8 @@ on:
       - flake.lock
       - os/overlays/osctl.nix
       - os/overlays/ruby.nix
+      - os/modules/system/activation/**
+      - os/modules/system/boot/restrict-proc-sysfs/**
       - converter/**
       - libosctl/**
       - osctl/**

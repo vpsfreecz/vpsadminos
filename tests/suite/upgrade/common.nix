@@ -403,7 +403,12 @@ import (previous.outPath + "/tests/make-test.nix")
                   # Retain the failing readiness state even if diagnostics fail.
                   details = [
                     'systemctl --failed --no-pager',
-                    'journalctl -b -p err -n 80 --no-pager',
+                    # A lost /proc boot-id bind mount changes the visible boot
+                    # ID without rebooting the guest. Filtering with -b then
+                    # hides the journal that explains the original failure.
+                    'cat /proc/sys/kernel/random/boot_id',
+                    'journalctl --list-boots --no-pager',
+                    'journalctl -p err -n 80 --no-pager',
                     # Record access failures without changing the guest or its units.
                     "sh -c #{<<~'ACCESS'.shellescape}",
                       {
@@ -441,8 +446,8 @@ import (previous.outPath + "/tests/make-test.nix")
                           printf '\n%s\n' "$properties"
                           # All priorities retain the startup stage preceding an error.
                           # Read only: do not retry, restart or clear the failed unit.
-                          printf '\n--- failed unit journal: %s ---\n' "$unit"
-                          journalctl -b -u "$unit" -n 80 --no-pager -o short-monotonic
+                          printf '\n--- latest failed unit journal, without boot filter: %s ---\n' "$unit"
+                          journalctl -u "$unit" -n 80 --no-pager -o short-monotonic
                           cg=$(printf '%s\n' "$properties" | sed -n 's/^ControlGroup=//p')
                           # A failed unit may already have lost its cgroup. Keep
                           # that fact and label the slice-derived path explicitly.

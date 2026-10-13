@@ -101,7 +101,9 @@ run_suite() {
         -I test-runner/spec \
         --format progress \
         --profile 10 \
-        test-runner/spec
+        test-runner/spec \
+        os/modules/system/activation/switch_to_configuration_spec.rb \
+        os/modules/system/boot/restrict-proc-sysfs/restrict_dirs_spec.rb
       exit
     fi
 
