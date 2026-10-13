@@ -19,7 +19,7 @@ module OsCtl::Cli
 
       @pb.finish if @pb
     rescue OsCtl::Client::Error
-      @pb.cancel if @pb
+      @pb.stop if @pb
       raise
     ensure
       @progress_title = nil

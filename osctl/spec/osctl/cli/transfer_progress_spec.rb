@@ -9,14 +9,14 @@ RSpec.describe OsCtl::Cli::TransferProgress do
 
   it 'renders terminal and json progress updates' do
     command = cmd(gopts: { json: false })
-    progress_bar = double(
-      'progress_bar',
+    progress_bar = instance_double(
+      ProgressBar::Base,
       total: 10,
       'total=': nil,
       'format=': nil,
       'progress=': nil,
       finish: nil,
-      cancel: nil
+      stop: nil
     )
     allow(ProgressBar).to receive(:create).and_return(progress_bar)
 
@@ -42,8 +42,8 @@ RSpec.describe OsCtl::Cli::TransferProgress do
     )
   end
 
-  it 'finishes or cancels the progress bar around with_progress' do
-    progress_bar = double('progress_bar', finish: nil, cancel: nil)
+  it 'finishes or stops the progress bar around with_progress' do
+    progress_bar = instance_double(ProgressBar::Base, finish: nil, stop: nil)
     command = cmd
     command.instance_variable_set(:@pb, progress_bar)
 
@@ -56,6 +56,29 @@ RSpec.describe OsCtl::Cli::TransferProgress do
     expect do
       command.send(:with_progress, :ct_send_sync, id: 'ct1')
     end.to raise_error(OsCtl::Client::Error, 'boom')
-    expect(progress_bar).to have_received(:cancel)
+    expect(progress_bar).to have_received(:stop)
+  end
+
+  it 'stops a real progress bar without finishing it or hiding the transfer error' do
+    command = cmd
+    error = OsCtl::Client::Error.new('transfer cancelled')
+
+    allow(command).to receive(:osctld_call) do |&block|
+      block.call(type: :progress, data: { size: 10, transfered: 3 })
+      raise error
+    end
+
+    capture_output do
+      expect do
+        command.send(:with_progress, :ct_send_rootfs, id: 'ct1')
+      end.to raise_error(OsCtl::Client::Error) { |raised| expect(raised).to equal(error) }
+    end
+
+    progress_bar = command.instance_variable_get(:@pb)
+    expect(progress_bar).to be_a(ProgressBar::Base)
+    expect(progress_bar).to be_stopped
+    expect(progress_bar).not_to be_finished
+    expect(progress_bar.progress).to eq(3)
+    expect(command.instance_variable_get(:@progress_title)).to be_nil
   end
 end
