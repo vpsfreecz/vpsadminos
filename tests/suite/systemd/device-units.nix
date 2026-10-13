@@ -16,12 +16,15 @@ import ../../make-test.nix (
     testScripts = builtins.listToAttrs (
       map (
         { distribution, version }:
+        let
+          expectFailure = distribution == "opensuse" && version == "latest";
+        in
         {
           name = "${distribution}-${version}";
           value = {
             # These distributions do have the device unit, but it is inactive (dead) and so
             # systemctl status returns non-zero exit status.
-            expectFailure = (distribution == "opensuse" && version == "latest");
+            inherit expectFailure;
 
             script = ''
               machine.wait_for_osctl_pool("tank")
@@ -36,7 +39,10 @@ import ../../make-test.nix (
                 "osctl ct start #{testct}",
               )
 
-              machine.wait_until_succeeds(
+              # Do not poll the known inactive openSUSE unit until the shell's
+              # protocol budget expires. Preserve its expected command failure
+              # and leave the worker shell usable by subsequent test scripts.
+              machine.${if expectFailure then "succeeds" else "wait_until_succeeds"}(
                 "osctl ct exec #{testct} systemctl status sys-devices-virtual-net-eth0.device",
                 timeout: 60
               )
