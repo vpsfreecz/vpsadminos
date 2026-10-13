@@ -24,14 +24,19 @@ let
   # Boot ABI and compiler inputs retain their producing derivations, so a
   # fresh builder can obtain the exact reviewed outputs without local paths.
   # The helper asserts their identities; it does not select a new boot line.
+  # This lock belongs only to .95. Other supported kernels must retain their
+  # own development/configuration outputs and ordinary build toolchain.
+  useFrozenBootInputs = config.boot.kernelVersion == "6.12.95";
   bootInputs = import ../../../packages/linux/boot-6.12.95.nix;
   bootToolchain = bootInputs.toolchain;
-  kernel = config.boot.kernelPackage // {
-    dev = bootInputs.kernel.dev.outPath;
-    configfile = {
-      outPath = bootInputs.kernel.configfile.outPath;
+  kernel =
+    config.boot.kernelPackage
+    // optionalAttrs useFrozenBootInputs {
+      dev = bootInputs.kernel.dev.outPath;
+      configfile = {
+        outPath = bootInputs.kernel.configfile.outPath;
+      };
     };
-  };
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) { };
 
   patchName = "${toString patchVersion}";
@@ -168,7 +173,7 @@ let
         ; # we dont get a newline between this and the next line; wtf
                 # actual command
                 #export ARCH_KCFLAGS="-gz=none"
-                if ! PATH="${bootToolchain}/bin:$PATH" $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
+                if ! ${optionalString useFrozenBootInputs ''PATH="${bootToolchain}/bin:$PATH" ''}$kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
       + concatMapStrings (target: "-t ${escapeShellArg target} ") availablePatchTargets
       + concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList
       + ''
