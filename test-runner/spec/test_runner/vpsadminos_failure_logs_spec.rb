@@ -317,4 +317,17 @@ RSpec.describe VpsadminosFailureLogs do
     expect(script).to include("printf 'guest resolver/network/package snapshot status=%s\\n' \"$?\"")
     expect(script).not_to include('apt-get', 'ifup eth', 'dhclient eth', 'dhcpcd eth')
   end
+
+  it 'retains bounded recent networking journals without filtering by a possibly lost boot ID' do
+    script = described_class.diagnostics_script
+
+    expect(script).to include('guest networking journal (init $pid)')
+    expect(script).to include('timeout -k 1 5 nsenter -t "$pid" -m -r -- /bin/sh -c')
+    expect(script).to include('if command -v journalctl >/dev/null 2>&1; then')
+    expect(script).to include('journalctl --no-pager -n 80 -o short-iso-precise')
+    expect(script).to include('-u networking.service -u systemd-networkd.service')
+    expect(script).to include('-u NetworkManager.service -u "dhcpcd*" -u "ifup*"')
+    expect(script).to include("printf 'guest networking journal snapshot status=%s\\n' \"$?\"")
+    expect(script).not_to include('journalctl -b', 'systemctl restart', 'systemctl reset-failed')
+  end
 end

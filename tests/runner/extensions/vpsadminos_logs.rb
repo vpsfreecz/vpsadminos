@@ -150,6 +150,20 @@ module VpsadminosFailureLogs
                  dpkg-query -s ifupdown dhcpcd-base isc-dhcp-client udhcpc systemd-resolved
                fi' 2>&1
             printf 'guest resolver/network/package snapshot status=%s\n' "$?"
+            # Correct DHCP configuration and an installed client do not explain
+            # a missing lease. Keep the service's original startup error too.
+            # Do not filter by boot ID: an invalidated proc bind can change it.
+            section "$pool:$id guest networking journal (init $pid)"
+            timeout -k 1 5 nsenter -t "$pid" -m -r -- /bin/sh -c \
+              'PATH=/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin
+               if command -v journalctl >/dev/null 2>&1; then
+                 journalctl --no-pager -n 80 -o short-iso-precise \
+                   -u networking.service -u systemd-networkd.service \
+                   -u NetworkManager.service -u "dhcpcd*" -u "ifup*"
+               else
+                 printf "guest journalctl is unavailable\n"
+               fi' 2>&1
+            printf 'guest networking journal snapshot status=%s\n' "$?"
           done
       fi
 
