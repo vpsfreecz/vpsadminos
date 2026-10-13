@@ -150,6 +150,7 @@ RSpec.describe OsVm::VpsadminosMachine do
       wait_timeouts = []
       readable_calls = 0
       io = instance_double(IO, closed?: false, close: nil, write: nil)
+      allow(SecureRandom).to receive(:hex).with(16).and_return('pool-probe')
       allow(io).to receive(:wait_readable) do |timeout|
         wait_timeouts << timeout
         readable_calls += 1
@@ -159,9 +160,9 @@ RSpec.describe OsVm::VpsadminosMachine do
         false
       end
       allow(io).to receive(:read_nonblock).and_return(
-        "#{Base64.strict_encode64("importing\n")}\n",
-        "#{OsVm::Shell::OUTPUT_END_MARKER}\n",
-        "0\n"
+        ":osvm-pool-probe:begin\n",
+        "#{Base64.strict_encode64("importing\n:osvm-pool-probe-completed:0")}\n",
+        ":osvm-pool-probe:0\n"
       )
       allow(machine).to receive(:sleep_with_deadline)
       machine.instance_variable_set(:@running, true)
@@ -209,8 +210,8 @@ RSpec.describe OsVm::VpsadminosMachine do
 
       pool_commands = writes.grep(/osctl/)
       expect(pool_commands.length).to eq(1)
-      expect(pool_commands.first).to include(
-        'osctl\\ pool\\ show\\ -H\\ -o\\ state\\ tank'
+      expect(Shellwords.split(pool_commands.first)).to include(
+        a_string_including('osctl\\ pool\\ show\\ -H\\ -o\\ state\\ tank')
       )
       expect(io).to have_received(:close).once
       expect(shell_log).to have_received(:execute_end).once
