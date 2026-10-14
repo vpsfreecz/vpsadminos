@@ -107,6 +107,9 @@ jobs:
       - name: Check NixOS guest compatibility modules and generated flakes
         run: bash tests/nixos-container-eval.sh
 
+      - name: Check NixOS persistent activation
+        run: nix build .#checks.x86_64-linux.nixos-container-persistence --no-link
+
       - name: Check NixOS disk image reuse
         run: nix build .#checks.x86_64-linux.nixos-disk-image-reuse --no-link
 

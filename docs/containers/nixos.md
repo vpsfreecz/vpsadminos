@@ -69,8 +69,8 @@ reliably identify unstable.
 
 ## Existing imports and generated configurations
 
-Existing underscore exports such as `nixosModules.container_24_11` keep their
-exact release-specific behavior. The legacy exports
+Existing underscore exports such as `nixosModules.container_24_11` continue to
+import the named release module. The legacy exports
 `nixosConfigurations.container` and `nixosConfigurations.containerStable` keep
 using the raw latest-stable module, independently of the guest release.
 `nixosConfigurations.containerUnstable` remains the explicit unstable module.
@@ -117,3 +117,63 @@ imports. To restore former latest-stable behavior for a modern generic import,
 restore the prior vpsAdminOS pin or choose an appropriate explicit module.
 The import change introduces no persisted state or data conversion. A separate
 NixOS release upgrade retains that release's normal rollback constraints.
+
+## Persistent allocation state
+
+The 25.11, 26.05, latest stable and unstable compatibility modules establish
+early mounts covering `/var/lib/nixos` or `/var/log` before legacy user
+allocation. This includes persistence of `/var` or `/var/lib` and mounts
+declared through `fileSystems`, as well as impermanence directory binds. The
+effective `boot.specialFileSystems` declarations determine which mounts run.
+Root `/` is already available when activation starts and does not by itself
+enable this adapter.
+
+LXC mounts `/proc` before starting init, which causes NixOS to skip its early
+mount path. User allocation must see the saved maps before it runs; mounting
+them later leaves newly allocated IDs in `/etc/passwd` and `/etc/group` while
+exposing the original maps and file ownership on persistent storage.
+
+The compatibility module uses NixOS's global early-mount order. For selected
+directory binds, it creates only absent source directories and parents, with
+root ownership and mode 0755. Existing content, ownership and modes remain
+untouched. Pre-provision sources that need another owner or mode. Impermanence
+uses existing source metadata; it does not later apply the configured owner or
+mode to a source that this adapter has already created.
+
+Sources can reside on persistent `/` or on a separate backing mount. The supplied
+images use the host-mounted `/persistent` dataset; guests need no block device
+or storage-layout change. For backing mounts declared in NixOS's early mount
+set, activation checks that the covering mountpoints are present before
+creating source directories. Declared directory binds must also match their
+configured source directory. A failed selected mount, or a mount it depends
+on, stops activation before legacy allocation, including a failed remount whose
+target remains mounted. A directory bind destination mounted from a different
+source also stops activation. Matching live binds retain their source and
+configured remount options.
+
+Selected filesystems of other types and their prerequisites retain their
+configured mount/remount operations and require a successful operation and a
+mounted destination. Their device, UUID or
+network source is not treated as a directory. These checks do not establish
+arbitrary device identity or durability; for example, an explicitly configured
+tmpfs at `/var` still provides temporary storage.
+
+Host-supplied storage that has no guest early-mount declaration must already be
+available. The guest cannot distinguish an intentionally root-backed directory
+from stale directories exposed when an undeclared host mount is missing. Mount
+presence and directory identity do not prove that storage will survive a host
+failure.
+
+A healthy guest can adopt by updating its vpsAdminOS input or downloaded module
+and rebuilding with its existing nixpkgs pin, stateVersion and storage layout.
+Guests adopt independently without host coordination. Sysusers and userborn
+keep their existing activation paths. An explicit guest replacement of the
+specialfs activation script remains responsible for its own mount behavior.
+
+This preserves identities in healthy guests. It does not recover a guest whose
+UIDs or GIDs have already changed.
+Before rebuilding such a guest, compare and save its account IDs, allocation
+maps and persistent dataset. A rebuild can replace the saved maps with the
+current drifted IDs. Account or file ownership repair requires a separate
+recovery decision. Earlier generations still read the same map format, but a
+rollback restart can reintroduce the ordering defect.

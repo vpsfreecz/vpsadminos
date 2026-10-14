@@ -28,8 +28,12 @@ let
   moduleArgs = {
     inherit lib;
     config = {
+      boot.specialFileSystems = { };
       fileSystems = { };
+      system.build.earlyMountScript = "/mock-early-mounts.sh";
       systemd.mounts = [ ];
+      systemd.sysusers.enable = false;
+      services.userborn.enable = false;
     };
     options.boot.specialFileSystems.type.getSubOptions = _: { };
     utils = {

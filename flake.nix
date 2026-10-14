@@ -797,6 +797,16 @@
           nixos-disk-image-reuse = import ./tests/nixos-disk-image-reuse-check.nix {
             inherit nixpkgs system testFramework;
           };
+          nixos-container-persistence = import ./tests/nixos-container-persistence-check.nix {
+            pkgs = import nixpkgs { inherit system; };
+            source = self.outPath;
+            inherit
+              system
+              nixpkgs
+              nixpkgsUnstable
+              impermanence
+              ;
+          };
           os-eval = sys.config.system.build.toplevel;
           vpsadminos-disk-image-reuse = import ./tests/vpsadminos-disk-image-reuse-check.nix {
             inherit nixpkgs system testFramework;

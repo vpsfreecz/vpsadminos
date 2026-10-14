@@ -215,6 +215,7 @@ let
           "defaults"
           "dist-config/netif-bridge"
           "dist-config/nixos-resolvers"
+          "dist-config/nixos-persistence-upgrade"
           {
             test = "dist-config/netif-routed";
             args = {
