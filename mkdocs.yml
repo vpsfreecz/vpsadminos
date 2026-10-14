@@ -12,6 +12,7 @@ nav:
     - Resources: 'user-guide/resources.md'
     - Mounts: 'user-guide/mounts.md'
 - Containers:
+    - NixOS guests: 'containers/nixos.md'
     - User namespaces: 'containers/user-namespaces.md'
     - Administration: 'containers/administration.md'
     - Datasets: 'containers/datasets.md'

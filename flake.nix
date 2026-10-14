@@ -52,14 +52,33 @@
       nixpkgsRevisionFor =
         pkgs: if toString pkgs.path == toString nixpkgs.outPath then nixpkgsRevision else null;
       containerStableModule = import ./os/lib/nixos-container/stable/vpsadminos.nix;
-      containerStable2211Module = import ./os/lib/nixos-container/stable/vpsadminos-22.11.nix;
-      containerStable2305Module = import ./os/lib/nixos-container/stable/vpsadminos-23.05.nix;
-      containerStable2311Module = import ./os/lib/nixos-container/stable/vpsadminos-23.11.nix;
-      containerStable2405Module = import ./os/lib/nixos-container/stable/vpsadminos-24.05.nix;
-      containerStable2411Module = import ./os/lib/nixos-container/stable/vpsadminos-24.11.nix;
-      containerStable2505Module = import ./os/lib/nixos-container/stable/vpsadminos-25.05.nix;
-      containerStable2511Module = import ./os/lib/nixos-container/stable/vpsadminos-25.11.nix;
-      containerStable2605Module = import ./os/lib/nixos-container/stable/vpsadminos-26.05.nix;
+      containerReleaseModules = {
+        "22.11" = import ./os/lib/nixos-container/stable/vpsadminos-22.11.nix;
+        "23.05" = import ./os/lib/nixos-container/stable/vpsadminos-23.05.nix;
+        "23.11" = import ./os/lib/nixos-container/stable/vpsadminos-23.11.nix;
+        "24.05" = import ./os/lib/nixos-container/stable/vpsadminos-24.05.nix;
+        "24.11" = import ./os/lib/nixos-container/stable/vpsadminos-24.11.nix;
+        "25.05" = import ./os/lib/nixos-container/stable/vpsadminos-25.05.nix;
+        "25.11" = import ./os/lib/nixos-container/stable/vpsadminos-25.11.nix;
+        "26.05" = import ./os/lib/nixos-container/stable/vpsadminos-26.05.nix;
+      };
+      containerReleaseAliases = nixpkgs.lib.mapAttrs' (release: module: {
+        name = "container_${nixpkgs.lib.replaceStrings [ "." ] [ "_" ] release}";
+        value = module;
+      }) containerReleaseModules;
+      containerStableSelector =
+        { lib, ... }:
+        {
+          # Imports must use the guest evaluator's lib, before config is available.
+          imports = [
+            (containerReleaseModules.${lib.trivial.release} or (throw (
+              "vpsAdminOS: unsupported stable NixOS release '${lib.trivial.release}'. "
+              + "Known stable releases: ${nixpkgs.lib.concatStringsSep ", " (builtins.attrNames containerReleaseModules)}. "
+              + "Update the vpsadminos input, or explicitly select nixosModules.containerUnstable when using unstable."
+            ))
+            )
+          ];
+        };
       containerUnstableModule = import ./os/lib/nixos-container/unstable/vpsadminos.nix;
       testFramework =
         let
@@ -242,18 +261,12 @@
             };
           };
 
-        container = containerStableModule;
-        containerStable = containerStableModule;
-        container_22_11 = containerStable2211Module;
-        container_23_05 = containerStable2305Module;
-        container_23_11 = containerStable2311Module;
-        container_24_05 = containerStable2405Module;
-        container_24_11 = containerStable2411Module;
-        container_25_05 = containerStable2505Module;
-        container_25_11 = containerStable2511Module;
-        container_26_05 = containerStable2605Module;
+        containers = containerReleaseModules;
+        container = containerStableSelector;
+        containerStable = containerStableSelector;
         containerUnstable = containerUnstableModule;
-      };
+      }
+      // containerReleaseAliases;
 
       nixosConfigurations = {
         container = containerStableModule;

@@ -13,14 +13,13 @@
   ...
 }:
 let
-  containerModule = "container_${lib.replaceStrings [ "." ] [ "_" ] lib.trivial.release}";
   flakeClone = import ../template-flake.nix {
     inherit
       lib
       nixpkgsNode
       pkgs
       ;
-    inherit containerModule;
+    containerModule = "containerStable";
   };
   flakeLockClone = import ../template-flake-lock.nix {
     inherit

@@ -8,11 +8,13 @@ let
       standalone = builtins.toFile "vpsadminos-${channel}.nix" (
         builtins.readFile (../os/lib/nixos-container + "/${channel}/vpsadminos.nix")
       );
-      evaluated = import (vpsadminos.nixpkgsPath + "/nixos/lib/eval-config.nix") {
+      nixpkgs =
+        if channel == "stable" then vpsadminos.inputs.nixpkgs else vpsadminos.inputs.nixpkgsUnstable;
+      evaluated = import (nixpkgs + "/nixos/lib/eval-config.nix") {
         system = builtins.currentSystem;
         modules = [
           (toString standalone)
-          { system.stateVersion = "26.05"; }
+          { system.stateVersion = nixpkgs.lib.trivial.release; }
         ];
       };
     in

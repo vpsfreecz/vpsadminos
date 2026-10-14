@@ -14,7 +14,6 @@
   ...
 }:
 let
-  containerModule = "container_${lib.replaceStrings [ "." ] [ "_" ] lib.trivial.release}";
   impermanenceModule = impermanence;
   flakeClone = import ../template-flake.nix {
     inherit
@@ -23,7 +22,7 @@ let
       nixpkgsNode
       pkgs
       ;
-    inherit containerModule;
+    containerModule = "containerStable";
     includeImpermanence = true;
   };
   flakeLockClone = import ../template-flake-lock.nix {

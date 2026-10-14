@@ -104,6 +104,9 @@ jobs:
       - name: Check NixOS container image repository module
         run: nix eval --impure --raw --file tests/nixos-container-image-repository-eval.nix
 
+      - name: Check NixOS guest compatibility modules and generated flakes
+        run: bash tests/nixos-container-eval.sh
+
       - name: Check NixOS disk image reuse
         run: nix build .#checks.x86_64-linux.nixos-disk-image-reuse --no-link
 
