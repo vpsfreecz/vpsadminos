@@ -4641,21 +4641,25 @@ index 0000000000000..53553063e5011
 +#endif /* _LINUX_VPSADMINOS_CANCEL_H */
 diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
 new file mode 100644
-index 0000000000000..b9368a12794a6
+index 0000000000000..5aeb92fcbff2c
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch.h
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,166 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
 +#define _LINUX_VPSADMINOS_LIVEPATCH_H
 +
 +#ifdef CONFIG_LIVEPATCH
 +struct klp_object;
++struct klp_patch;
++struct ftrace_ops;
 +
 +int vpsadminos_klp_transition_pre_patch(struct klp_object *obj);
 +void vpsadminos_klp_transition_post_patch(void);
 +void vpsadminos_klp_transition_post_unpatch(void);
 +void vpsadminos_sched_dynamic_klp_disable(void);
++size_t vpsadminos_ftrace_unregister_batch(struct ftrace_ops **ops, size_t nr);
++void vpsadminos_klp_unpatch_batch(struct klp_patch *patch);
 +
 +#define VPSADMINOS_NFS_FREE_STATEID_CONTROL_SHADOW_ID	0xbbddece21d1ee29bUL
 +#define VPSADMINOS_NFS_FREE_STATEID_DATA_SHADOW_ID	0x32127145199df290UL
@@ -6000,12 +6004,110 @@ index 077e078032e05..7a3b49250f14c 100644
  
  out:
  	mutex_unlock(&klp_mutex);
+diff --git a/kernel/livepatch/patch.c b/kernel/livepatch/patch.c
+index 90408500e5a38..fae10e0181cc9 100644
+--- a/kernel/livepatch/patch.c
++++ b/kernel/livepatch/patch.c
+@@ -16,6 +16,7 @@
+ #include <linux/slab.h>
+ #include <linux/bug.h>
+ #include <linux/printk.h>
++#include <linux/vpsadminos-livepatch.h>
+ #include "core.h"
+ #include "patch.h"
+ #include "transition.h"
+@@ -157,6 +158,85 @@ static void klp_unpatch_func(struct klp_func *func)
+ 	func->patched = false;
+ }
+ 
++/*
++ * Called only after the owned transition bridge has switched every task to
++ * UNPATCHED, with klp_mutex held.  Keep func_stack, filter and ops storage alive
++ * until the ftrace helper has withdrawn the whole successful prefix and
++ * completed BOTH Tasks RCU barriers.  The normal completion path still owns
++ * object flags, klp_synchronize_transition(), callbacks and module release.
++ *
++ * Restrict this optimization to singular stacks.  Allocation failure, shared
++ * stacks or an unexpected operation leave the ordinary serial path intact.
++ */
++void vpsadminos_klp_unpatch_batch(struct klp_patch *patch)
++{
++	struct ftrace_ops **fops;
++	struct klp_object *obj;
++	struct klp_func *func;
++	struct klp_ops *ops;
++	size_t nr = 0, i = 0, done;
++
++	lockdep_assert_held(&klp_mutex);
++	if (WARN_ON_ONCE(patch != klp_transition_patch || patch->enabled))
++		return;
++
++	klp_for_each_object(patch, obj) {
++		klp_for_each_func(obj, func) {
++			if (!func->patched)
++				continue;
++			if (nr == SIZE_MAX)
++				return;
++			nr++;
++		}
++	}
++	if (!nr)
++		return;
++
++	fops = kcalloc(nr, sizeof(*fops), GFP_KERNEL);
++	if (!fops)
++		return;
++
++	/* Validate the entire selection before changing any operation or list. */
++	klp_for_each_object(patch, obj) {
++		klp_for_each_func(obj, func) {
++			if (!func->patched)
++				continue;
++			if (!func->old_func)
++				goto out;
++			ops = klp_find_ops(func->old_func);
++			if (!ops || !list_is_singular(&ops->func_stack) ||
++			    ops->func_stack.next != &func->stack_node ||
++			    ops->fops.func != klp_ftrace_handler ||
++			    !(ops->fops.flags & FTRACE_OPS_FL_DYNAMIC) ||
++			    !ftrace_location((unsigned long)func->old_func))
++				goto out;
++			fops[i++] = &ops->fops;
++		}
++	}
++
++	done = vpsadminos_ftrace_unregister_batch(fops, nr);
++	for (i = 0; i < done; i++) {
++		unsigned long ftrace_loc;
++
++		ops = container_of(fops[i], struct klp_ops, fops);
++		func = list_first_entry(&ops->func_stack, struct klp_func,
++				       stack_node);
++		/* klp_mutex keeps the object and its ftrace location alive. */
++		ftrace_loc = ftrace_location((unsigned long)func->old_func);
++		WARN_ON(ftrace_set_filter_ip(&ops->fops, ftrace_loc, 1, 0));
++		list_del_rcu(&func->stack_node);
++		list_del(&ops->node);
++		kfree(ops);
++		func->patched = false;
++	}
++
++	/* Any unretired suffix is handled by the original completion path. */
++	pr_info("batched rollback teardown retired %zu of %zu ftrace operations\n",
++		done, nr);
++out:
++	kfree(fops);
++}
++
+ static int klp_patch_func(struct klp_func *func)
+ {
+ 	struct klp_ops *ops;
 diff --git a/kernel/livepatch/transition-vpsadminos.h b/kernel/livepatch/transition-vpsadminos.h
 new file mode 100644
-index 0000000000000..2862f71eb8d1e
+index 0000000000000..53dac16bd8d9c
 --- /dev/null
 +++ b/kernel/livepatch/transition-vpsadminos.h
-@@ -0,0 +1,690 @@
+@@ -0,0 +1,692 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef _LIVEPATCH_VPSADMINOS_TRANSITION_H
 +#define _LIVEPATCH_VPSADMINOS_TRANSITION_H
@@ -6483,6 +6585,8 @@ index 0000000000000..2862f71eb8d1e
 +	klp_cond_resched_disable();
 +#endif
 +	patch = klp_transition_patch;
++	if (klp_target_state == KLP_TRANSITION_UNPATCHED)
++		vpsadminos_klp_unpatch_batch(patch);
 +	klp_complete_transition();
 +
 +	/*
@@ -7259,6 +7363,210 @@ index d44641108ba81..0c65b15813437 100644
  }
  
  /**
+diff --git a/kernel/trace/ftrace.c b/kernel/trace/ftrace.c
+index 4a486f7457e2b..b4952e68ed51a 100644
+--- a/kernel/trace/ftrace.c
++++ b/kernel/trace/ftrace.c
+@@ -27,6 +27,7 @@
+ #include <linux/bsearch.h>
+ #include <linux/module.h>
+ #include <linux/ftrace.h>
++#include <linux/vpsadminos-livepatch.h>
+ #include <linux/sysctl.h>
+ #include <linux/slab.h>
+ #include <linux/ctype.h>
+@@ -3204,6 +3205,94 @@ int ftrace_shutdown(struct ftrace_ops *ops, int command)
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_LIVEPATCH
++/*
++ * Frozen-6.12.95 withdrawal half of ftrace_shutdown(), used only by the owned
++ * livepatch completion adapter below.  The caller holds ftrace_lock and keeps
++ * every ops, hash and trampoline alive until the batch's rude AND classic
++ * Tasks RCU waits finish.  No dynamic flag, text-update guard or barrier is
++ * disabled; only reclamation is deferred across sequential withdrawals.
++ *
++ * Keep the boot kernel's ftrace_shutdown() unchanged: the adapter must work
++ * after all tasks have switched back to UNPATCHED during its own removal.
++ */
++static int vpsadminos_ftrace_shutdown_deferred(struct ftrace_ops *ops,
++					     int command)
++{
++	int ret;
++
++	if (unlikely(ftrace_disabled))
++		return -ENODEV;
++
++	ret = __unregister_ftrace_function(ops);
++	if (ret)
++		return ret;
++
++	ftrace_start_up--;
++	/*
++	 * Just warn in case of unbalance, no need to kill ftrace, it's not
++	 * critical but the ftrace_call callers may be never nopped again after
++	 * further ftrace uses.
++	 */
++	WARN_ON_ONCE(ftrace_start_up < 0);
++
++	/* Disabling ipmodify never fails */
++	ftrace_hash_ipmodify_disable(ops);
++
++	if (ftrace_hash_rec_disable(ops))
++		command |= FTRACE_UPDATE_CALLS;
++
++	ops->flags &= ~FTRACE_OPS_FL_ENABLED;
++
++	if (saved_ftrace_func != ftrace_trace_function) {
++		saved_ftrace_func = ftrace_trace_function;
++		command |= FTRACE_UPDATE_TRACE_FUNC;
++	}
++
++	if (!command || !ftrace_enabled)
++		goto out;
++
++	/*
++	 * If the ops uses a trampoline, then it needs to be
++	 * tested first on update.
++	 */
++	ops->flags |= FTRACE_OPS_FL_REMOVING;
++	removed_ops = ops;
++
++	/* The trampoline logic checks the old hashes */
++	ops->old_hash.filter_hash = ops->func_hash->filter_hash;
++	ops->old_hash.notrace_hash = ops->func_hash->notrace_hash;
++
++	ftrace_run_update_code(command);
++
++	/*
++	 * If there's no more ops registered with ftrace, run a
++	 * sanity check to make sure all rec flags are cleared.
++	 */
++	if (rcu_dereference_protected(ftrace_ops_list,
++			lockdep_is_held(&ftrace_lock)) == &ftrace_list_end) {
++		struct ftrace_page *pg;
++		struct dyn_ftrace *rec;
++
++		do_for_each_ftrace_rec(pg, rec) {
++			if (FTRACE_WARN_ON_ONCE(rec->flags & ~FTRACE_NOCLEAR_FLAGS))
++				pr_warn("  %pS flags:%lx\n",
++					(void *)rec->ip, rec->flags);
++		} while_for_each_ftrace_rec();
++	}
++
++	ops->old_hash.filter_hash = NULL;
++	ops->old_hash.notrace_hash = NULL;
++
++	removed_ops = NULL;
++	ops->flags &= ~FTRACE_OPS_FL_REMOVING;
++
++out:
++	/* Reclamation belongs to vpsadminos_ftrace_unregister_batch(). */
++	return 0;
++}
++#endif
++
+ /* Simply make a copy of @src and return it */
+ static struct ftrace_hash *copy_hash(struct ftrace_hash *src)
+ {
+@@ -8709,6 +8798,96 @@ int unregister_ftrace_function(struct ftrace_ops *ops)
+ }
+ EXPORT_SYMBOL_GPL(unregister_ftrace_function);
+ 
++#ifdef CONFIG_LIVEPATCH
++/*
++ * Keep the frozen callers of cleanup_direct_functions_after_ipmodify() out
++ * of this helper's call graph.  Adding another call to the shared helper
++ * changes GCC's inlining decisions in untraceable ftrace entry points.  The
++ * private, always-inlined copy preserves their code while retaining exactly
++ * the ordinary API's direct/IPMODIFY peer cleanup and locking.
++ */
++static __always_inline void
++vpsadminos_ftrace_cleanup_direct(struct ftrace_ops *ops)
++{
++#ifdef CONFIG_DYNAMIC_FTRACE_WITH_DIRECT_CALLS
++	struct ftrace_func_entry *entry;
++	struct ftrace_hash *hash;
++	struct ftrace_ops *op;
++	int size, i;
++
++	if (!(ops->flags & FTRACE_OPS_FL_IPMODIFY))
++		return;
++
++	mutex_lock(&direct_mutex);
++
++	hash = ops->func_hash->filter_hash;
++	size = 1 << hash->size_bits;
++	for (i = 0; i < size; i++) {
++		hlist_for_each_entry(entry, &hash->buckets[i], hlist) {
++			unsigned long ip = entry->ip;
++			bool found_op = false;
++
++			mutex_lock(&ftrace_lock);
++			do_for_each_ftrace_op(op, ftrace_ops_list) {
++				if (!(op->flags & FTRACE_OPS_FL_DIRECT))
++					continue;
++				if (ops_references_ip(op, ip)) {
++					found_op = true;
++					break;
++				}
++			} while_for_each_ftrace_op(op);
++			mutex_unlock(&ftrace_lock);
++
++			/* The cleanup is optional, ignore any errors */
++			if (found_op && op->ops_func)
++				op->ops_func(op, FTRACE_OPS_CMD_DISABLE_SHARE_IPMODIFY_PEER);
++		}
++	}
++	mutex_unlock(&direct_mutex);
++#endif
++}
++
++/*
++ * Withdraw a dynamic-ops prefix under the same mutex used by the ordinary
++ * API.  Nothing in that prefix may be reclaimed until BOTH lifetime barriers
++ * have completed after its last withdrawal.  Preserve the original order,
++ * including trampoline release under ftrace_lock and direct-peer cleanup
++ * outside it.  Return the completed prefix so a caller can safely fall back
++ * to the ordinary API for an unretired suffix.
++ *
++ * Caller owns stable ops/filter storage throughout and must not free either
++ * until this function returns.  The livepatch caller additionally holds
++ * klp_mutex and keeps every last func_stack entry until after this return.
++ */
++size_t vpsadminos_ftrace_unregister_batch(struct ftrace_ops **ops, size_t nr)
++{
++	size_t done = 0, i;
++
++	mutex_lock(&ftrace_lock);
++	for (i = 0; i < nr; i++) {
++		if (WARN_ON_ONCE(!(ops[i]->flags & FTRACE_OPS_FL_DYNAMIC)))
++			goto unlock;
++	}
++	while (done < nr) {
++		if (vpsadminos_ftrace_shutdown_deferred(ops[done], 0))
++			break;
++		done++;
++	}
++	if (done) {
++		/* Include every successful withdrawal before either grace period. */
++		synchronize_rcu_tasks_rude();
++		synchronize_rcu_tasks();
++		for (i = 0; i < done; i++)
++			ftrace_trampoline_free(ops[i]);
++	}
++unlock:
++	mutex_unlock(&ftrace_lock);
++	for (i = 0; i < done; i++)
++		vpsadminos_ftrace_cleanup_direct(ops[i]);
++	return done;
++}
++#endif
++
+ static int symbols_cmp(const void *a, const void *b)
+ {
+ 	const char **str_a = (const char **) a;
 diff --git a/kernel/trace/ring_buffer.c b/kernel/trace/ring_buffer.c
 index 4deeb613c556a..141b8e304e661 100644
 --- a/kernel/trace/ring_buffer.c
