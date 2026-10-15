@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <linux/futex.h>
 #include <linux/perf_event.h>
+#include <poll.h>
 #include <pthread.h>
 #include <sched.h>
 #include <signal.h>
@@ -13,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/pidfd.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -231,6 +233,17 @@ static int publish(int dir, struct worker *workers, unsigned int cpus,
 	return renameat(dir, "population.tmp", dir, "population");
 }
 
+static double begin_draining(unsigned int created, unsigned long forks,
+			     double started)
+{
+	double draining_started = now();
+
+	printf("population drain begin monotonic=%.3f elapsed=%.3f workers=%u forks=%lu\n",
+	       draining_started, draining_started - started, created, forks);
+	atomic_store(&phase, 2);
+	return draining_started;
+}
+
 int main(int argc, char **argv)
 {
 	unsigned int tasks, cpus, created = 0, i, found = 0;
@@ -240,7 +253,7 @@ int main(int argc, char **argv)
 	atomic_int *wake_sequences;
 	pthread_attr_t attr;
 	cpu_set_t allowed;
-	double started, deadline, draining_deadline;
+	double started, deadline, draining_started = 0, draining_deadline;
 	int dir, ret = 0;
 	const struct timespec pause = { .tv_sec = 0, .tv_nsec = 100000000 };
 	struct sigaction action = { .sa_handler = stop_signal };
@@ -352,6 +365,7 @@ int main(int argc, char **argv)
 	wake_groups(wake_sequences, (created + WAKE_BATCH - 1) / WAKE_BATCH);
 	while (!interrupted && faccessat(dir, "stop", F_OK, 0)) {
 		pid_t child;
+		struct pollfd child_fd;
 		int status;
 		if (now() >= deadline || atomic_load(&worker_error)) {
 			ret = ETIMEDOUT;
@@ -366,6 +380,37 @@ int main(int argc, char **argv)
 			ret = errno;
 			break;
 		}
+		/* A large-mm exec can outlast the stop request. Release CPU workers
+		 * while the child finishes, but still reap it and require success.
+		 * A pidfd wakes immediately on exit, unlike waitpid polling sleeps.
+		 */
+		child_fd = (struct pollfd) { .fd = pidfd_open(child, 0), .events = POLLIN };
+		if (child_fd.fd < 0)
+			ret = errno;
+		while (!ret) {
+			int polled;
+			bool stop_requested = interrupted || !faccessat(dir, "stop", F_OK, 0);
+
+			if (now() >= deadline || atomic_load(&worker_error)) {
+				ret = ETIMEDOUT;
+				stop_requested = true;
+			}
+			if (stop_requested && !draining_started)
+				draining_started = begin_draining(created, forks, started);
+			if (ret)
+				break;
+			polled = poll(&child_fd, 1, 100);
+			if (polled < 0 && errno != EINTR)
+				ret = errno;
+			if (polled > 0) {
+				if (!(child_fd.revents & POLLIN))
+					ret = EIO;
+				break;
+			}
+		}
+		if (child_fd.fd >= 0)
+			close(child_fd.fd);
+		/* Even a pidfd/poll failure must not leave an unreaped child. */
 		while (waitpid(child, &status, 0) < 0) {
 			if (errno == EINTR)
 				continue;
@@ -377,6 +422,8 @@ int main(int argc, char **argv)
 			break;
 		}
 		forks++;
+		if (draining_started)
+			break;
 		atomic_fetch_add(&wake_sequences[wake_group], 1);
 		wake(&wake_sequences[wake_group], WAKE_BATCH);
 		if (++wake_group == groups)
@@ -390,30 +437,48 @@ int main(int argc, char **argv)
 	if (interrupted)
 		ret = EINTR;
 stop:
-	draining_deadline = now() + 180;
+	if (!draining_started)
+		draining_started = begin_draining(created, forks, started);
+	draining_deadline = draining_started + 180;
 	if (draining_deadline > deadline)
 		draining_deadline = deadline;
-	atomic_store(&phase, 2);
-	wake_groups(wake_sequences, (created + WAKE_BATCH - 1) / WAKE_BATCH);
 	for (i = 0; i < created; i++) {
-		int joined = pthread_join(workers[i].thread, NULL);
+		int joined;
+
+		/* Only teardown is batched: keep the full population alive during
+		 * the workload, then avoid making every sleeper runnable at once.
+		 * Join one existing futex cohort before releasing the next one.
+		 */
+		if (i % WAKE_BATCH == 0) {
+			atomic_int *sequence = &wake_sequences[i / WAKE_BATCH];
+			atomic_fetch_add(sequence, 1);
+			wake(sequence, WAKE_BATCH);
+		}
+		joined = pthread_join(workers[i].thread, NULL);
 		if (joined) {
 			fprintf(stderr, "pthread_join %u: %s\n", i, strerror(joined));
 			/* Never free an array that an unjoined worker might use. */
 			_exit(1);
 		}
+		if ((i + 1) % 10000 == 0)
+			printf("population drain progress joined=%u/%u duration=%.3f\n",
+			       i + 1, created, now() - draining_started);
 	}
+	printf("population drain joined monotonic=%.3f duration=%.3f\n",
+	       now(), now() - draining_started);
 	/* Joining can precede the kernel removing the worker from Threads:. */
 	while (!ret) {
-		unsigned long remaining = status_value("/proc/self/status", "Threads:");
+		unsigned long remaining;
+
+		if (interrupted || now() >= draining_deadline) {
+			ret = interrupted ? EINTR : ETIMEDOUT;
+			break;
+		}
+		remaining = status_value("/proc/self/status", "Threads:");
 		if (remaining == 1)
 			break;
 		if (remaining == ULONG_MAX) {
 			ret = EIO;
-			break;
-		}
-		if (interrupted || now() >= draining_deadline) {
-			ret = interrupted ? EINTR : ETIMEDOUT;
 			break;
 		}
 		nanosleep(&pause, NULL);
