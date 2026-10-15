@@ -1,7 +1,8 @@
 let
-  # Livepatches must use the original boot ABI, not a same-version rebuild
-  # with the current package set. Keep its immutable inputs buildable on
-  # machines which do not already have the historical outputs in the store.
+  # Livepatches must use the original boot ABI, not a same-version rebuild.
+  # Retain the producing recipe for toolchain/configuration metadata, but
+  # restore the binary outputs: clean builds generate a different signing
+  # certificate and therefore a different kernel build ID.
   source = builtins.getFlake "github:vpsfreecz/vpsadminos/c065fa2f8485399737e20e8ef9e44299d0766654";
   pkgs = import source.inputs.nixpkgs.outPath {
     system = "x86_64-linux";
@@ -39,14 +40,25 @@ let
       sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";
     }).zfsStable
       { enableDebug = false; };
-  kernel = mkKernel zfs;
+  originalKernel = mkKernel zfs;
+  frozenKernel = pkgs.callPackage ./boot-6.12.95 { inherit originalKernel; };
+  kernel = frozenKernel // {
+    inherit (originalKernel)
+      configfile
+      modDirVersion
+      nativeBuildInputs
+      stdenv
+      version
+      ;
+  };
   toolchain = pkgs.stdenv.cc;
 in
 assert
   zfs.drvPath == "/nix/store/sp29nf66lg6slc9qkzbrjpz9r5gjywva-zfs-builtin-2.3-vpsadminos-6.12.95.drv";
-assert kernel.drvPath == "/nix/store/rwffs5wf4jvigna0ykv85v93q1zkn8s5-linux-6.12.95.drv";
-assert kernel.outPath == "/nix/store/f3rgj3iq8z1kvkc0g64d4mgyrjhi0q6w-linux-6.12.95";
-assert kernel.dev.outPath == "/nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev";
+assert originalKernel.drvPath == "/nix/store/rwffs5wf4jvigna0ykv85v93q1zkn8s5-linux-6.12.95.drv";
+assert originalKernel.outPath == "/nix/store/f3rgj3iq8z1kvkc0g64d4mgyrjhi0q6w-linux-6.12.95";
+assert
+  originalKernel.dev.outPath == "/nix/store/c7ckwabnv0k4yfys5jnswjz08ffmirwh-linux-6.12.95-dev";
 assert
   kernel.configfile.outPath == "/nix/store/np082gl8insab5lisjdhqlh4128jlm9m-linux-config-6.12.95";
 assert toolchain.outPath == "/nix/store/hbsz2ngi9ixbhd9na1xagh2yc8qnmj7y-gcc-wrapper-15.2.0";

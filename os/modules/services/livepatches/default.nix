@@ -21,9 +21,9 @@ let
 
   buildEnable = (patchVersion > 0) && cfg.enable;
 
-  # Boot ABI and compiler inputs retain their producing derivations, so a
-  # fresh builder can obtain the exact reviewed outputs without local paths.
-  # The helper asserts their identities; it does not select a new boot line.
+  # Boot ABI bytes are frozen separately from their producing recipe: a
+  # clean kernel rebuild generates a different signing certificate/build ID.
+  # The helper pins binary/toolchain inputs; it selects no new boot line.
   # This lock belongs only to .95. Other supported kernels must retain their
   # own development/configuration outputs and ordinary build toolchain.
   useFrozenBootInputs = config.boot.kernelVersion == "6.12.95";

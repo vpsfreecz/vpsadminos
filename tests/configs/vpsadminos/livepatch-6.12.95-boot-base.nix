@@ -7,7 +7,7 @@ let
   bootKernel = (import ../../../os/packages/linux/boot-6.12.95.nix).kernel;
 
   # Keep the CURRENT OS package's build inputs for the v7 module. Only the
-  # guest's exact boot outputs need the historical derivation dependency.
+  # guest's exact boot outputs need the frozen binary-input dependency.
   currentPackageShape = pkgs.callPackage ../../../os/packages/linux {
     kernelVersion = "6.12.95";
     url = "https://github.com/vpsfreecz/linux/archive/a2384967b90f24d2470c9eb15f0e66d938df7e08.tar.gz";
@@ -16,8 +16,8 @@ let
     features = { };
   };
   # This remains an attrset, not a derivation whose output path was
-  # overwritten. The exact historical output strings retain their Nix
-  # derivation contexts so CI can build them from the immutable source.
+  # overwritten. The frozen output strings retain their Nix derivation
+  # contexts so fresh builders restore the same bytes without a warm cache.
   pinnedKernel =
     (builtins.removeAttrs currentPackageShape [
       "drvPath"
