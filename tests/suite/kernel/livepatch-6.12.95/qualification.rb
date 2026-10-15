@@ -319,6 +319,18 @@ after(:example) do
         'for name in population.log sctp.log tun.log exit sctp.exit tun.exit; do ' \
         "state_file=#{QUAL_STATE}/$name; " \
         'printf "\n=== %s ===\n" "$state_file"; tail -n 200 "$state_file" 2>&1 || true; done; ' \
+        "population_pid=$(sed -n 's/^pid=//p' #{QUAL_STATE}/population); " \
+        'case "$population_pid" in ""|*[!0-9]*) echo "population controller PID unavailable";; *) ' \
+        'if test "$(timeout -k 1 2 cat /proc/"$population_pid"/comm 2>/dev/null)" = task-population; then ' \
+        'snapshot_count=0; ' \
+        'for snapshot_pid in "$population_pid" ' \
+        '$(timeout -k 1 2 cat /proc/"$population_pid"/task/"$population_pid"/children 2>/dev/null); do ' \
+        'case "$snapshot_pid" in ""|*[!0-9]*) continue;; esac; ' \
+        'for name in status stat wchan syscall stack; do state_file=/proc/$snapshot_pid/$name; ' \
+        'printf "\n=== population process %s ===\n" "$state_file"; ' \
+        'timeout -k 1 2 cat "$state_file" 2>&1 || true; done; ' \
+        'snapshot_count=$((snapshot_count + 1)); test "$snapshot_count" -lt 2 || break; done; ' \
+        'else echo "population controller no longer present pid=$population_pid"; fi; esac; ' \
         "cat #{QUAL_STATE}/population #{QUAL_TRACE}/trace; ls -R /sys/kernel/livepatch; " \
         'for state_file in /sys/kernel/livepatch/*/enabled /sys/kernel/livepatch/*/transition; do ' \
         'test -f "$state_file" || continue; printf "%s=" "$state_file"; cat "$state_file" 2>&1 || true; done',

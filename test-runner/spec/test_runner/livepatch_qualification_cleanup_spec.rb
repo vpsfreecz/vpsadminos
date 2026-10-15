@@ -138,6 +138,47 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
     expect(cleanup).to end_with('exit "$cleanup_status"')
   end
 
+  it 'captures the controller and at most one child without enumerating population threads' do
+    add_failed_example
+    commands = []
+    allow(machine).to receive(:execute) do |command, **_options|
+      commands << command
+      [0, '']
+    end
+    expect(group.evaluate.first.exception).to equal(primary_error)
+    argv = Shellwords.split(commands.first)
+    expect(argv.first(6)).to eq(%w[timeout -k 1 25 sh -c])
+    expect(argv.last).not_to include('ps -eL', '/task/*')
+
+    Dir.mktmpdir('population-failure') do |dir|
+      state = File.join(dir, 'population')
+      FileUtils.mkdir_p(state)
+      File.write(File.join(state, 'population'), "pid=100\nstate=running\n")
+      FileUtils.mkdir_p(File.join(dir, 'proc/100/task/100'))
+      File.write(File.join(dir, 'proc/100/comm'), "task-population\n")
+      File.write(File.join(dir, 'proc/100/task/100/children'), "200 300\n")
+      %w[100 200 300].each do |pid|
+        FileUtils.mkdir_p(File.join(dir, 'proc', pid))
+        %w[status stat wchan syscall stack].each do |name|
+          File.write(File.join(dir, 'proc', pid, name), "fixture process #{pid} #{name}\n")
+        end
+      end
+      FileUtils.mkdir_p(File.join(dir, 'sys/kernel/livepatch'))
+      argv[-1] = argv.last.gsub('/run/livepatch-qualification', state)
+                     .gsub('/proc/', "#{dir}/proc/").gsub('/sys/', "#{dir}/sys/")
+      output, _error, status = Open3.capture3(*argv)
+      expect(status).to be_success
+      expect(output).to include('fixture process 100 stack', 'fixture process 200 syscall')
+      expect(output).not_to include('fixture process 300')
+
+      File.write(File.join(state, 'population'), "pid=invalid\n")
+      output, _error, status = Open3.capture3(*argv)
+      expect(status).to be_success
+      expect(output).to include('population controller PID unavailable')
+      expect(output).not_to include('fixture process')
+    end
+  end
+
   it 'reports a bounded cleanup failure without replacing the original exception' do
     add_failed_example
     allow(machine).to receive(:execute).with(
