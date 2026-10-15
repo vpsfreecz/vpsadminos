@@ -5126,14 +5126,15 @@ index cb5f835a5d61b..0272d0f0e89d6 100644
  	} while (read_seqretry(&hh->hh_lock, seq));
  	return 0;
 diff --git a/include/net/net_namespace.h b/include/net/net_namespace.h
-index 7ee37be620058..637db95298796 100644
+index 7ee37be620058..5697a180e7f39 100644
 --- a/include/net/net_namespace.h
 +++ b/include/net/net_namespace.h
-@@ -496,6 +496,9 @@ int register_pernet_subsys(struct pernet_operations *);
+@@ -496,6 +496,10 @@ int register_pernet_subsys(struct pernet_operations *);
  void unregister_pernet_subsys(struct pernet_operations *);
  int register_pernet_device(struct pernet_operations *);
  void unregister_pernet_device(struct pernet_operations *);
 +#ifdef CONFIG_LIVEPATCH
++bool vpsadminos_pernet_write_lock_bounded(void);
 +int vpsadminos_pernet_try_register(struct pernet_operations *ops);
 +#endif
  
@@ -8428,10 +8429,18 @@ index 4e7b9848771ed..4a4cf53b06cbc 100644
  	}
  
 diff --git a/net/core/net_namespace.c b/net/core/net_namespace.c
-index 16b646f0c1d58..cc54ed289d2b0 100644
+index 16b646f0c1d58..c4685103ff327 100644
 --- a/net/core/net_namespace.c
 +++ b/net/core/net_namespace.c
-@@ -338,6 +338,12 @@ static __net_init void preinit_net(struct net *net, struct user_namespace *user_
+@@ -7,6 +7,7 @@
+ #include <linux/slab.h>
+ #include <linux/list.h>
+ #include <linux/delay.h>
++#include <linux/jiffies.h>
+ #include <linux/sched.h>
+ #include <linux/idr.h>
+ #include <linux/rculist.h>
+@@ -338,6 +339,12 @@ static __net_init void preinit_net(struct net *net, struct user_namespace *user_
  	preinit_net_sysctl(net);
  }
  
@@ -8444,7 +8453,7 @@ index 16b646f0c1d58..cc54ed289d2b0 100644
  /*
   * setup_net runs the initializers for the network namespace object.
   */
-@@ -349,6 +355,8 @@ static __net_init int setup_net(struct net *net)
+@@ -349,6 +356,8 @@ static __net_init int setup_net(struct net *net)
  	LIST_HEAD(dev_kill_list);
  	int error = 0;
  
@@ -8453,7 +8462,7 @@ index 16b646f0c1d58..cc54ed289d2b0 100644
  	preempt_disable();
  	net->net_cookie = gen_cookie_next(&net_cookie);
  	preempt_enable();
-@@ -591,6 +599,8 @@ static void cleanup_net(struct work_struct *work)
+@@ -591,6 +600,8 @@ static void cleanup_net(struct work_struct *work)
  	LIST_HEAD(net_exit_list);
  	LIST_HEAD(dev_kill_list);
  
@@ -8462,16 +8471,39 @@ index 16b646f0c1d58..cc54ed289d2b0 100644
  	/* Atomically snapshot the list of namespaces to cleanup */
  	net_kill_list = llist_del_all(&cleanup_list);
  
-@@ -1376,6 +1386,20 @@ int register_pernet_subsys(struct pernet_operations *ops)
+@@ -1376,6 +1387,43 @@ int register_pernet_subsys(struct pernet_operations *ops)
  }
  EXPORT_SYMBOL_GPL(register_pernet_subsys);
  
 +#ifdef CONFIG_LIVEPATCH
++bool vpsadminos_pernet_write_lock_bounded(void)
++{
++	unsigned long deadline = jiffies + 10 * HZ;
++
++	/*
++	 * Namespace cleanup holds read exclusion across its grace periods and
++	 * device teardown. A single failed sample under churn need not force an
++	 * otherwise avoidable livepatch module backout and reload.
++	 *
++	 * Do not queue indefinitely for the semaphore while holding klp_mutex:
++	 * a reader may itself depend on module or livepatch progress. Retry only
++	 * within this admission window, before acquiring any pernet exclusion,
++	 * and preserve the caller's fail-closed EBUSY path when it expires.
++	 */
++	do {
++		if (down_write_trylock(&pernet_ops_rwsem))
++			return true;
++		msleep(100);
++	} while (time_before(jiffies, deadline));
++
++	return false;
++}
++
 +int vpsadminos_pernet_try_register(struct pernet_operations *ops)
 +{
 +	int error;
 +
-+	if (!down_write_trylock(&pernet_ops_rwsem))
++	if (!vpsadminos_pernet_write_lock_bounded())
 +		return -EBUSY;
 +	error = register_pernet_operations(first_device, ops);
 +	up_write(&pernet_ops_rwsem);
@@ -12120,7 +12152,7 @@ index f12d0d229aaa5..7961a391ab849 100644
  		return netlink_ack(skb, nlh, -EINVAL, NULL);
  replay:
 diff --git a/net/netfilter/nfnetlink_queue.c b/net/netfilter/nfnetlink_queue.c
-index 1b517cd2bb58c..cec6664518660 100644
+index 1b517cd2bb58c..82357a85bcd4d 100644
 --- a/net/netfilter/nfnetlink_queue.c
 +++ b/net/netfilter/nfnetlink_queue.c
 @@ -32,7 +32,12 @@
@@ -12223,7 +12255,7 @@ index 1b517cd2bb58c..cec6664518660 100644
 +	if (WARN_ON_ONCE(vpsadminos_nfqueue_transition_quiesced))
 +		return -EBUSY;
 +
-+	if (!down_write_trylock(&pernet_ops_rwsem))
++	if (!vpsadminos_pernet_write_lock_bounded())
 +		return -EBUSY;
 +	rtnl_held = rtnl_trylock();
 +	/*

@@ -5,15 +5,12 @@
   },
 }:
 let
-  # Independently built normal package with bounded ftrace teardown batching.
-  # All 711 import CRCs match the frozen boot kernel; the original handler
-  # binding, replacement inventory, callbacks and state records are inspected.
-  # Restoring the frozen boot inputs changes the output-derived compiler seed:
-  # only DWARF producer strings/offsets and the build-ID note differ from 07e31de3.
-  # Code, data, symbols, livepatch metadata and runtime relocations match exactly.
+  # Independently built normal package with bounded ftrace teardown batching
+  # and bounded retries for transient pernet writer exclusion.
+  # All 711 import CRCs match the restored frozen boot SDK.
   # Runtime qualification must exercise these exact bytes.
   # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "3d835f4ecc11e9e29ac6c4585022ec2be8664f10e4140ce21a301112fa215968";
+  correctedSha256 = "573e8d1e05433be7c4eab361bb733e92977496f6437b43a4af1e5d21d2452d9d";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
