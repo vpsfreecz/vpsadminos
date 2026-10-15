@@ -312,7 +312,13 @@ after(:example) do
     unless @qualification_completed
       # A timed-out insmod can still occupy the primary shell. Preserve the
       # qualification trace and state on the already reserved channel first.
+      # The final wait combines three exit markers. Report each marker and
+      # workload log so a teardown timeout identifies the unfinished workload.
       commands = [
+        "ls -l #{QUAL_STATE}; " \
+        'for name in population.log sctp.log tun.log exit sctp.exit tun.exit; do ' \
+        "state_file=#{QUAL_STATE}/$name; " \
+        'printf "\n=== %s ===\n" "$state_file"; tail -n 200 "$state_file" 2>&1 || true; done; ' \
         "cat #{QUAL_STATE}/population #{QUAL_TRACE}/trace; ls -R /sys/kernel/livepatch; " \
         'for state_file in /sys/kernel/livepatch/*/enabled /sys/kernel/livepatch/*/transition; do ' \
         'test -f "$state_file" || continue; printf "%s=" "$state_file"; cat "$state_file" 2>&1 || true; done',
