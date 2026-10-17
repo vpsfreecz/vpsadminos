@@ -39,4 +39,5 @@ with lib;
   tty.autologin.enable = mkDefault true;
   services.haveged.enable = mkDefault true;
   os.channel-registration.enable = mkDefault false;
+  system.squashfsMemoryMiB = mkDefault 2048;
 }
