@@ -75,7 +75,7 @@ module OsVm
 
     class Network
       # @return [Network]
-      def self.from_config(i, cfg)
+      def self.from_config(i, cfg, allocate_resources: true)
         type = cfg.fetch('type')
         klass =
           case type
@@ -89,7 +89,7 @@ module OsVm
             raise ArgumentError, "unknown network type #{type.inspect}"
           end
 
-        klass.new(i, cfg)
+        klass.new(i, cfg, allocate_resources:)
       end
 
       # @return [String]
@@ -105,7 +105,8 @@ module OsVm
       # @return [String]
       attr_reader :model
 
-      def initialize(i, cfg)
+      def initialize(i, cfg, allocate_resources: true)
+        @allocate_resources = allocate_resources
         @index = i
         @type = cfg.fetch('type')
         @opts = cfg.fetch('opts', default_opts)
@@ -122,9 +123,11 @@ module OsVm
       def resolve_mac_address(cfg)
         mac = cfg['macAddress'] || cfg['mac'] || @opts['macAddress'] || @opts['mac']
         mac = mac.to_s.downcase unless mac.nil?
-        return MacAddressGenerator.register_mac(mac) if mac && !mac.empty?
+        if mac && !mac.empty?
+          return @allocate_resources ? MacAddressGenerator.register_mac(mac) : mac
+        end
 
-        MacAddressGenerator.next_mac
+        MacAddressGenerator.next_mac if @allocate_resources
       end
 
       def resolve_model(cfg)
@@ -160,7 +163,7 @@ module OsVm
       # @return [Integer]
       attr_reader :mcast_port
 
-      def initialize(_i, cfg)
+      def initialize(_i, cfg, allocate_resources: true)
         super
 
         mcast = cfg.fetch('mcast', {})
@@ -172,7 +175,7 @@ module OsVm
         @mcast_port =
           case mcast_port
           when String
-            PortReservation.get_port(key: "mcast:#{mcast_port}")
+            PortReservation.get_port(key: "mcast:#{mcast_port}") if allocate_resources
           when Integer
             mcast_port
           else
@@ -195,7 +198,7 @@ module OsVm
       # @return [String, nil]
       attr_reader :helper
 
-      def initialize(_i, cfg)
+      def initialize(_i, cfg, allocate_resources: true)
         super
         @link = @opts.fetch('link')
         @helper = @opts['helper']&.to_s
@@ -223,17 +226,26 @@ module OsVm
     # Build machine config from hash
     # @param cfg [Hash]
     # @return [MachineConfig]
-    def self.from_config(cfg)
+    def self.from_config(cfg, allocate_resources: true)
       spin = cfg.fetch('spin', 'vpsadminos')
 
       case spin
       when 'vpsadminos'
-        VpsadminosMachineConfig.new(cfg)
+        VpsadminosMachineConfig.new(cfg, allocate_resources:)
       when 'nixos'
-        NixosMachineConfig.new(cfg)
+        NixosMachineConfig.new(cfg, allocate_resources:)
       else
         raise ArgumentError, "Unknown machine spin #{spin.inspect}"
       end
+    end
+
+    # Check the canonical parser and deferred network fields without reserving
+    # global MAC addresses/ports or constructing a machine. Discard this object:
+    # host availability and allocation collisions remain runtime checks.
+    def self.validate_config!(cfg)
+      parsed = from_config(cfg, allocate_resources: false)
+      parsed.networks.each(&:qemu_options)
+      true
     end
 
     # @return [String]
@@ -309,7 +321,7 @@ module OsVm
     attr_reader :labels
 
     # @param cfg [Hash]
-    def initialize(cfg)
+    def initialize(cfg, allocate_resources: true)
       @spin = cfg.fetch('spin', 'vpsadminos')
       @qemu = cfg.fetch('qemu')
       @boot_mode = cfg.fetch('bootMode', 'direct')
@@ -331,7 +343,7 @@ module OsVm
       @cpu = Cpu.new(cfg.fetch('cpu'))
       @shared_filesystems = cfg.fetch('sharedFileSystems', {})
       @networks = cfg.fetch('networks', [{ 'type' => 'user' }]).each_with_index.map do |net_cfg, i|
-        Network.from_config(i, net_cfg)
+        Network.from_config(i, net_cfg, allocate_resources:)
       end
       @tags = cfg.fetch('tags', [])
       @labels = cfg.fetch('labels', {})
@@ -379,7 +391,7 @@ module OsVm
     attr_reader :squashfs
 
     # @param cfg [Hash]
-    def initialize(cfg)
+    def initialize(cfg, allocate_resources: true)
       @squashfs = cfg['squashfs']
       super
 
@@ -402,7 +414,7 @@ module OsVm
     end
 
     # @param cfg [Hash]
-    def initialize(cfg)
+    def initialize(cfg, allocate_resources: true)
       if cfg['rootDisk'] && cfg['diskImage']
         raise ArgumentError, 'rootDisk and diskImage cannot be used together'
       end

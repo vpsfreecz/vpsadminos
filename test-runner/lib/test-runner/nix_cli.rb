@@ -34,6 +34,23 @@ module TestRunner
       run!(*build_cmd(mode: 'testJson', test_path: path, test_args:, out_link: out_link))
     end
 
+    def build_test_batch(selection, out_link, max_jobs:, log_path:)
+      cmd = build_cmd(mode: 'testBatch', test_path: nil, test_args: nil, out_link:)
+      cmd += ['--argstr', 'selectedTestsJson', JSON.generate(selection), '--max-jobs', max_jobs.to_s]
+      run!(*cmd, log_path:)
+    end
+
+    def local_max_jobs
+      config = JSON.parse(capture_output('nix', 'config', 'show', '--json'))
+      value = config.fetch('max-jobs').fetch('value')
+      # Nix normally serializes the resolved value even for max-jobs=auto.
+      value = ResourcePool.detect_cpus if value == 'auto'
+      jobs = Integer(value)
+      raise ArgumentError, 'Nix max-jobs must be non-negative' if jobs < 0
+
+      jobs
+    end
+
     protected
 
     def helper_file
@@ -85,15 +102,44 @@ module TestRunner
 
     def capture_output(*cmd)
       out, status = Open3.capture2(*cmd)
-      raise "#{cmd.join(' ')} failed (#{status.exitstatus})" unless status.success?
+      raise "#{cmd.join(' ')} failed (#{status_description(status)})" unless status.success?
 
       out
     end
 
-    def run!(*cmd)
-      pid = spawn(*cmd)
-      Process.wait(pid)
-      raise "#{cmd.join(' ')} failed (#{$?.exitstatus})" unless $?.exitstatus == 0
+    def run!(*cmd, log_path: nil)
+      log = File.open(log_path, 'a') if log_path
+      options = { pgroup: true }
+      options.merge!(out: log, err: %i[child out]) if log
+      pid = spawn(*cmd, **options)
+      _pid, status = Process.wait2(pid)
+      return if status.success?
+
+      log&.puts("Preparation build failed (#{status_description(status)})")
+      raise "#{cmd.join(' ')} failed (#{status_description(status)})"
+    rescue SignalException => e
+      if pid
+        begin
+          Process.kill(e.signo, -pid)
+        rescue Errno::ESRCH
+          # The owned client already exited.
+        end
+        begin
+          Process.wait(pid)
+        rescue Errno::ECHILD
+          # Cancellation can arrive after wait2 has already reaped the client.
+        end
+      end
+      log&.puts("Preparation interrupted by signal #{e.signo} (#{Signal.signame(e.signo)})")
+      raise
+    ensure
+      log&.close
+    end
+
+    def status_description(status)
+      return status.exitstatus.to_s unless status.signaled?
+
+      "signal #{status.termsig} (#{Signal.signame(status.termsig)})"
     end
   end
 end

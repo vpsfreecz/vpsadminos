@@ -21,14 +21,18 @@ module TestRunner
     end
 
     def test
+      estimate = opts['prebuild-memory-per-job-mib']
+      if estimate && Integer(estimate) <= 0
+        raise ArgumentError, 'prebuild-memory-per-job-mib must be positive'
+      end
+
       test_scripts = select_test_scripts(args[0])
 
       puts 'The following test scripts will be run:'
       test_scripts.each { |t| puts "  #{t.path}" }
       puts
 
-      exec = TestRunner::Executor.new(
-        test_scripts,
+      executor_options = {
         state_dir:,
         jobs: test_jobs(test_scripts),
         jobs_auto: jobs_auto?,
@@ -51,8 +55,22 @@ module TestRunner
         system: opts['system'],
         test_config_path:,
         repo_root:
-      )
-      results = exec.run
+      }
+      results = if opts['prebuild']
+                  pool = ResourcePool.from_options(executor_options)
+                  Prebuild.new(
+                    test_scripts,
+                    resource_pool: pool,
+                    state_dir:,
+                    memory_per_job_mib: opts['prebuild-memory-per-job-mib'] || Prebuild::DEFAULT_MEMORY_PER_JOB_MIB,
+                    system: opts['system'], test_config_path:, repo_root:
+                  ).open do |configs|
+                    pool.refresh_capacity
+                    Executor.new(test_scripts, **executor_options, resource_pool: pool, prepared_configs: configs).run
+                  end
+                else
+                  Executor.new(test_scripts, **executor_options).run
+                end
 
       return unless results.detect(&:unexpected_result?)
 
@@ -142,7 +160,11 @@ module TestRunner
 
     def with_repository_environment(source_path)
       original_env = ENV.fetch('TEST_RUNNER_REPO_ROOT', nil)
+      original_config = ENV.fetch('VPSADMINOS_CONFIG', nil)
       ENV['TEST_RUNNER_REPO_ROOT'] = source_path
+      if original_config && !original_config.empty? && @repository_source
+        ENV['VPSADMINOS_CONFIG'] = @repository_source.resolve_path(original_config)
+      end
 
       yield
     ensure
@@ -150,6 +172,11 @@ module TestRunner
         ENV.delete('TEST_RUNNER_REPO_ROOT')
       else
         ENV['TEST_RUNNER_REPO_ROOT'] = original_env
+      end
+      if original_config.nil?
+        ENV.delete('VPSADMINOS_CONFIG')
+      else
+        ENV['VPSADMINOS_CONFIG'] = original_config
       end
     end
 

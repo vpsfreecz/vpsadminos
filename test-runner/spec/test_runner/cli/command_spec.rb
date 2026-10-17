@@ -320,4 +320,130 @@ RSpec.describe TestRunner::Cli::Command do
       end
     end
   end
+
+  it 'constructs no executor before full preparation and injects the startup pool' do
+    test = build_test
+    scripts = [build_test_script(test)]
+    stub_test_script_list(scripts)
+    pool = instance_double(TestRunner::ResourcePool, refresh_capacity: false)
+    preparation = instance_double(TestRunner::Prebuild)
+    executor = instance_double(TestRunner::Executor, run: [])
+    config = instance_double(TestRunner::TestConfig)
+    events = []
+    allow(TestRunner::ResourcePool).to receive(:from_options).and_return(pool)
+    allow(TestRunner::Prebuild).to receive(:new) do |*_args, **options|
+      expect(options.fetch(:resource_pool)).to equal(pool)
+      preparation
+    end
+    allow(preparation).to receive(:open) do |&runtime|
+      events << :preparation_complete
+      results = runtime.call(test => config)
+      events << :runtime_cleanup_complete
+      results
+    end
+    allow(TestRunner::Executor).to receive(:new) do |*_args, **options|
+      expect(events).to eq([:preparation_complete])
+      expect(options.fetch(:resource_pool)).to equal(pool)
+      expect(options.fetch(:prepared_configs)).to eq(test => config)
+      executor
+    end
+    described_class.new({}, opts.merge('prebuild' => true), []).test
+    expect(pool).to have_received(:refresh_capacity).once
+    expect(events).to eq(%i[preparation_complete runtime_cleanup_complete])
+  end
+
+  it 'never constructs an executor when preparation fails, even for expected failures' do
+    test = build_test(expect_failure: true)
+    stub_test_script_list([build_test_script(test)])
+    preparation = instance_double(TestRunner::Prebuild)
+    allow(TestRunner::Prebuild).to receive(:new).and_return(preparation)
+    allow(preparation).to receive(:open).and_raise('preparation failed')
+    allow(TestRunner::Executor).to receive(:new)
+    expect do
+      described_class.new({}, opts.merge('prebuild' => true), []).test
+    end.to raise_error('preparation failed')
+    expect(TestRunner::Executor).not_to have_received(:new)
+  end
+
+  it 'rejects a non-positive preparation estimate even when prebuild is disabled' do
+    expect do
+      described_class.new({}, opts.merge('prebuild-memory-per-job-mib' => 0), []).test
+    end.to raise_error(ArgumentError, /must be positive/)
+  end
+
+  describe 'prepared machine validation barrier' do
+    let(:machine_config) do
+      {
+        'spin' => 'vpsadminos', 'qemu' => '/qemu', 'virtiofsd' => '/virtiofsd',
+        'kernel' => '/kernel', 'initrd' => '/initrd', 'toplevel' => '/system', 'squashfs' => '/root.squashfs',
+        'memory' => 1024, 'cpus' => 2, 'cpu' => { 'cores' => 2, 'threads' => 1, 'sockets' => 1 },
+        'disks' => [{ 'device' => 'data.img', 'type' => 'file', 'size' => '1G' }],
+        'networks' => [
+          { 'type' => 'user' },
+          { 'type' => 'socket', 'mac' => '52:54:00:00:00:11', 'mcast' => { 'port' => 'test' } }
+        ]
+      }
+    end
+
+    [
+      [{ 'networks' => [{ 'type' => 'bridge', 'opts' => {} }] }, /link/],
+      [{ 'networks' => [{ 'type' => 'user', 'opts' => {} }] }, /network/],
+      [{ 'testShells' => 0 }, /testShells must be an integer/],
+      [{ 'testShellTransport' => 'invalid' }, /unsupported test shell transport/],
+      [{ 'testShells' => 2, 'shells' => %w[first second] }, /testShells must be greater than/],
+      [{ 'spin' => 'nixos', 'rootDisk' => {}, 'diskImage' => '/root.img' }, /cannot be used together/]
+    ].each do |invalid_fields, error_message|
+      it "rejects a later malformed machine before Executor or fresh disk reset: #{invalid_fields.inspect}" do
+        with_tmpdir do |dir|
+          test = build_test(expect_failure: true)
+          script = build_test_script(test)
+          stub_test_script_list([script])
+          invalid = machine_config.merge(invalid_fields)
+          config_data = {
+            'machines' => { 'first' => machine_config, 'second' => invalid },
+            'testScripts' => { 'default' => { 'script' => '' } }
+          }
+          json_path = '/nix/store/prepared-invalid-later-machine.json'
+          root = File.join(dir, 'preparation.root')
+          nix = instance_double(TestRunner::NixCli, local_max_jobs: 1)
+          pool = instance_double(TestRunner::ResourcePool, prebuild_memory_mib: 16_384, prebuild_memory_status: 'test')
+          gc_root = instance_double(TestRunner::GcRoot)
+          machine = instance_double(OsVm::VpsadminosMachine, destroy_disks: nil)
+          marker = File.join(dir, 'retained-disk.img')
+          File.write(marker, 'retained data')
+          allow(TestRunner::ResourcePool).to receive(:from_options).and_return(pool)
+          allow(TestRunner::NixCli).to receive(:new).and_return(nix)
+          allow(TestRunner::GcRoot).to receive(:new).and_return(gc_root)
+          allow(gc_root).to receive(:open).and_yield(root)
+          allow(nix).to receive(:build_test_batch) do |requests, output, **_options|
+            File.write(output, JSON.generate([{ id: requests.first.fetch(:id), json: json_path }]))
+          end
+          allow(File).to receive(:file?).and_call_original
+          allow(File).to receive(:file?).with(json_path).and_return(true)
+          allow(File).to receive(:read).and_call_original
+          allow(File).to receive(:read).with(json_path).and_return(JSON.generate(config_data))
+          allow(TestRunner::Executor).to receive(:new).and_raise('Executor entered before validation')
+          allow(OsVm::VpsadminosMachine).to receive(:new).and_return(machine)
+          allow(OsVm::NixosMachine).to receive(:new)
+          allow(OsVm::MacAddressGenerator).to receive(:next_mac).and_call_original
+          allow(OsVm::MacAddressGenerator).to receive(:register_mac).and_call_original
+          allow(OsVm::PortReservation).to receive(:get_port).and_call_original
+
+          expect do
+            described_class.new({}, opts.merge('prebuild' => true, 'fresh' => true, 'state-dir' => dir), []).test
+          end.to raise_error(RuntimeError, /Test preparation failed:.*#{error_message.source}/)
+
+          expect(TestRunner::Executor).not_to have_received(:new)
+          expect(OsVm::VpsadminosMachine).not_to have_received(:new)
+          expect(OsVm::NixosMachine).not_to have_received(:new)
+          expect(machine).not_to have_received(:destroy_disks)
+          expect(OsVm::MacAddressGenerator).not_to have_received(:next_mac)
+          expect(OsVm::MacAddressGenerator).not_to have_received(:register_mac)
+          expect(OsVm::PortReservation).not_to have_received(:get_port)
+          expect(File.read(marker)).to eq('retained data')
+          expect(Dir.glob(File.join(dir, '**/test-result.txt'))).to be_empty
+        end
+      end
+    end
+  end
 end

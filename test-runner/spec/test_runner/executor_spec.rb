@@ -728,6 +728,28 @@ RSpec.describe TestRunner::Executor do
     expect(executor).to have_received(:log).with(/CPUs beyond.*memory admission enforced/)
   end
 
+  it 'uses an injected startup pool without resampling post-build availability' do
+    pool = TestRunner::ResourcePool.from_options(
+      { resource_detector: resource_detector(memory_mib: [48_000, 40_000], memory_available_mib: [40_000, 1000]),
+        memory_reserve_mib: 8000 }, env: {}
+    )
+    allow(TestRunner::ResourcePool).to receive(:from_options)
+    executor = build_executor([], resource_pool: pool)
+    expect(TestRunner::ResourcePool).not_to have_received(:from_options)
+    expect(executor.send(:resource_pool)).to equal(pool)
+    expect(pool.memory_mib).to eq(32_000)
+    executor.send(:refresh_resource_capacity)
+    expect(pool.memory_mib).to eq(32_000)
+  end
+
+  it 'requires prepared configs and reuses the exact object across retries' do
+    test = build_test(attempts: 2)
+    config = instance_double(TestRunner::TestConfig)
+    executor = build_executor([build_test_script(test)], prepared_configs: { test => config })
+    2.times { expect(executor.send(:prepared_config_options, test)).to eq(prepared_config: config) }
+    expect { executor.send(:prepared_config_options, build_test) }.to raise_error(KeyError)
+  end
+
   it 'releases reserved resources after a test finishes' do
     test = build_test(
       resources: {
@@ -1027,5 +1049,33 @@ RSpec.describe TestRunner::Executor do
 
     expect(OsVm::PortReservation).to have_received(:get_ports).with(key: 'test:osctl/ct-exec-v1', size: 4)
     expect(OsVm::PortReservation).to have_received(:release_ports).with(key: 'test:osctl/ct-exec-v1')
+  end
+
+  it 'runs an actual prepared evaluator through retry without any Nix calls' do
+    with_tmpdir do |dir|
+      counter = File.join(dir, 'attempts')
+      test = build_test(attempts: 2)
+      path = File.join(dir, 'prepared.json')
+      script = <<~RUBY
+        count = File.exist?(#{counter.inspect}) ? File.read(#{counter.inspect}).to_i : 0
+        File.write(#{counter.inspect}, (count + 1).to_s)
+        raise 'first attempt fails' if count == 0
+      RUBY
+      File.write(path, JSON.generate('machines' => {}, 'testScripts' => { 'default' => { 'script' => script } }))
+      config = TestRunner::TestConfig.load(test, config_path: path)
+      executor = build_executor([build_test_script(test)], prepared_configs: { test => config }, status_interval: 0)
+      allow(executor).to receive(:sleep)
+      allow(executor).to receive(:log)
+      allow(OsVm::PortReservation).to receive(:get_ports).and_return([10_000, 10_001, 10_002, 10_003])
+      allow(OsVm::PortReservation).to receive(:release_ports)
+      allow(TestRunner::TestConfig).to receive(:build).and_call_original
+      allow(TestRunner::NixCli).to receive(:new).and_call_original
+      results = executor.run
+      expect(TestRunner::TestConfig).not_to have_received(:build)
+      expect(TestRunner::NixCli).not_to have_received(:new)
+      expect(results.first).to be_expected_result
+      expect(File.read(counter)).to eq('2')
+      expect(File.realpath(File.join(results.first.state_dir, 'config.json'))).to eq(path)
+    end
   end
 end

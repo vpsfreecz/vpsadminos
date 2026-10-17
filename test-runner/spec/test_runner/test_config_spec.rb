@@ -27,4 +27,25 @@ RSpec.describe TestRunner::TestConfig do
       expect(config.dig('framework', 'testConfig', 'foo')).to eq('bar')
     end
   end
+
+  it 'loads and validates a prepared config without creating a Nix client' do
+    with_tmpdir do |dir|
+      test = build_test
+      path = File.join(dir, 'config.json')
+      File.write(path, JSON.generate('machines' => {}, 'testScripts' => { 'default' => { 'script' => '' } }))
+      allow(TestRunner::NixCli).to receive(:new).and_call_original
+      cfg = described_class.load(test, config_path: path)
+      expect(cfg.validate!(test.test_scripts.values)).to equal(cfg)
+      expect(TestRunner::NixCli).not_to have_received(:new)
+    end
+  end
+
+  it 'rejects an invalid prepared machine before runtime can reset any disk' do
+    with_tmpdir do |dir|
+      path = File.join(dir, 'config.json')
+      File.write(path, JSON.generate('machines' => { 'bad' => {} }, 'testScripts' => {}))
+      cfg = described_class.load(build_test, config_path: path)
+      expect { cfg.validate!([]) }.to raise_error(ArgumentError, /Invalid prepared machine/)
+    end
+  end
 end

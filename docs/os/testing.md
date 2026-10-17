@@ -400,7 +400,47 @@ are post-failure observations, and an overwritten ring cannot establish that
 an earlier disconnect or reset was absent. No lock or cancellation assertion
 depends on a particular transport topology or on the diagnostic contents.
 
-## Squashfs cache
+## Preparing images before running tests
+
+`./test-runner.sh test --prebuild --jobs auto -t ci` builds the configurations
+and image closures for the selected tests before starting any selected VM.
+Patterns, script selectors, tags, labels and metadata expressions keep their
+usual meaning. Several selected scripts from one test share one prepared
+configuration. The prepared JSON and its closure stay GC-rooted through all
+attempts and VM cleanup; runtime loads those exact configurations without
+invoking Nix. A test script or extension that explicitly starts a separate host
+build is outside this boundary.
+
+Prebuild is opt-in. `--no-prebuild` keeps per-test image preparation. It does
+not remove the test squashfs cache default or relax memory admission. `debug`
+continues to prepare one test when it starts. CI enables prebuild for native
+tests; the manual `prebuild` boolean can disable it.
+
+Preparation snapshots VM capacity before building, then refreshes assigned
+limits before starting VMs. It chooses local Nix build jobs separately from
+`--jobs`, using available host/cgroup memory bounded by assigned capacity and
+`--max-memory-mib`. After subtracting `--memory-reserve-mib` (default 8192), it
+divides the usable memory by `--prebuild-memory-per-job-mib` (default 8192),
+rounds down, and caps the result at inherited local Nix `max-jobs`. The estimate
+must be positive. Unknown headroom requires an explicit usable maximum;
+insufficient capacity fails before any VM starts. Runtime memory overcommit is
+not applied to preparation sizing. Inherited `max-jobs=0` keeps remote-only or
+substitution behavior; local headroom does not size remote builders.
+
+The 8192 MiB estimate is an admission heuristic, not a derivation RSS limit.
+Preparation changes neither Nix `cores` nor kernel/compression CPU parallelism.
+Evaluation, substitution and daemon overhead, one unusually heavy derivation,
+and unrelated builds can exceed the estimate. CI sizing assumes one worker job
+per runner container without a competing test or build workload.
+
+Preparation errors are reported as infrastructure/build failures, with the
+selected identities, full build log path, and exit code or signal. They start
+zero selected VMs and do not fabricate script assertion results. Cancellation
+reaps the owned Nix client and releases its root; shared daemon work is not
+killed. Retrying the command reuses valid cached outputs. Disk reset through
+`--fresh` begins only after complete preparation succeeds.
+
+### Squashfs cache
 
 vpsAdminOS test images default to `system.squashfsMemoryMiB = 2048`, passed to
 both `sqfstar` and `mksquashfs`. This bounds the compressor cache, not total
@@ -411,7 +451,7 @@ settings (zstd level 10 by default) and image metadata. Override it when needed;
 pinned OS sources and unrelated Nixpkgs image builders do not inherit this
 setting.
 
-## Runtime memory admission
+### Runtime memory admission
 
 A test whose aggregate RAM or `/dev/shm` request exceeds the nominal capacity
 fails explicitly instead of bypassing the limit or waiting forever. The error

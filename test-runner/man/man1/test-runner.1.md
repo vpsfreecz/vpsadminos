@@ -58,6 +58,27 @@ selected tests and reporting results.
       runner starts enough scheduler workers for all selected tests and lets
       resource reservations decide how many VMs can actually run.
 
+    `--prebuild`, `--no-prebuild`
+      Build selected test JSON and image closures before starting any selected
+      VM. Runtime and retries load the exact prepared configurations without
+      Nix, with their closures GC-rooted through VM cleanup. Disabled by
+      default; `--no-prebuild` keeps per-test preparation. Disabling prebuild
+      retains the test squashfs cache default and strict memory admission.
+      Explicit host builds started by test scripts or extensions are outside
+      this boundary. Preparation failure starts no selected VMs, reports the
+      build log and exit code or signal, and creates no script assertion results.
+
+    `--prebuild-memory-per-job-mib` *n*
+      Positive memory estimate per local Nix preparation job, in MiB; defaults
+      to `8192`. Preparation jobs are usable startup host/cgroup headroom,
+      bounded by assigned capacity and `--max-memory-mib`, minus the memory
+      reserve, divided by this estimate and rounded down, capped at inherited
+      local Nix `max-jobs`. Runtime memory overcommit is not applied. Unknown
+      headroom needs an explicit usable maximum; insufficient memory fails.
+      Inherited `max-jobs=0` keeps remote-only/substitution behavior without
+      sizing remote memory. The estimate is a heuristic, not an RSS cap.
+      Nix `cores`, kernel parallelism and VM `--jobs` remain unchanged.
+
     `--max-memory-mib` *n*
       Maximum memory available to running test VMs, in MiB. Detected memory
       capacity is limited by memory available when the run starts and cannot
@@ -223,7 +244,8 @@ to historical pinned OS sources or unrelated Nixpkgs image builders.
 
 Tests exceeding the nominal RAM or `/dev/shm` capacity fail explicitly. A
 CPU-only overage may run alone when memory fits, including large-vCPU livepatch
-fixtures.
+fixtures. These policies apply with either prebuild setting. Preparation sizing
+assumes no competing test/build workload in the runner container.
 
 ## BUGS
 Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.
