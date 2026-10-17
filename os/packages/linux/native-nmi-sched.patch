@@ -1,3 +1,195 @@
+diff --git a/kernel/livepatch/transition-state-vpsadminos.h b/kernel/livepatch/transition-state-vpsadminos.h
+new file mode 100644
+index 0000000000000..e61728f910a93
+--- /dev/null
++++ b/kernel/livepatch/transition-state-vpsadminos.h
+@@ -0,0 +1,98 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef _LIVEPATCH_VPSADMINOS_TRANSITION_STATE_H
++#define _LIVEPATCH_VPSADMINOS_TRANSITION_STATE_H
++
++#include <linux/cgroup.h>
++#include <linux/pid_namespace.h>
++
++#define VPSADMINOS_KLP_STATE_BATCH_SIZE 64
++
++static void vpsadminos_klp_set_task_state(struct task_struct *task, int state)
++{
++	if (state == KLP_TRANSITION_IDLE)
++		WARN_ON_ONCE(test_tsk_thread_flag(task, TIF_PATCH_PENDING));
++	else
++		WARN_ON_ONCE(task->patch_state != KLP_TRANSITION_IDLE);
++	WRITE_ONCE(task->patch_state, state);
++}
++
++/*
++ * Initialize/reset the live task set without a population-sized spinlocked
++ * walk. The caller preserves the normal function-selection barriers and holds
++ * klp_mutex; no transition task flags are changed here.
++ */
++static void vpsadminos_klp_set_task_states(int state)
++{
++	struct task_struct *task;
++	unsigned int cpu;
++#ifdef CONFIG_CGROUPS
++	struct pid *pid;
++	unsigned int scanned;
++	int next_pid = 1;
++	bool done = false;
++#else
++	struct task_struct *g;
++#endif
++
++	lockdep_assert_held(&klp_mutex);
++
++	/* Follow cgroup_attach_lock() ordering, without a cgroup-internal API. */
++	cpus_read_lock();
++#ifdef CONFIG_CGROUPS
++	percpu_down_write(&cgroup_threadgroup_rwsem);
++	/*
++	 * This excludes fork publication/state inheritance and exec PID swaps.
++	 * Only removals can change the live PID set. Consequently every task
++	 * still linked at the end of the walk has been initialized, just as for
++	 * an atomic tasklist walk at that point. Tasks already unlinked are not
++	 * added to the transition, matching the original tasklist semantics.
++	 * Later children inherit the initialized state when exclusion ends.
++	 *
++	 * Never retain a task-list cursor across RCU sections: even a referenced
++	 * task can be unlinked and its old successor can subsequently be freed.
++	 * A monotonically increasing global PID cursor survives those removals.
++	 */
++	while (!done) {
++		rcu_read_lock();
++		for (scanned = 0; scanned < VPSADMINOS_KLP_STATE_BATCH_SIZE;
++		     scanned++) {
++			pid = find_ge_pid(next_pid, &init_pid_ns);
++			if (!pid) {
++				done = true;
++				break;
++			}
++			next_pid = pid_nr(pid) + 1;
++			task = pid_task(pid, PIDTYPE_PID);
++			/* Count PID objects even if no task is attached yet. */
++			if (task)
++				vpsadminos_klp_set_task_state(task, state);
++		}
++		rcu_read_unlock();
++		cond_resched();
++	}
++	/*
++	 * __unhash_process() detaches the PID before removing the task-list
++	 * nodes. Drain any such in-flight writer so this is also a completed
++	 * task-list removal. The live set at this point is fully initialized;
++	 * no population-sized work is performed while holding tasklist_lock.
++	 */
++	read_lock(&tasklist_lock);
++	read_unlock(&tasklist_lock);
++#else
++	/* Without fork exclusion retain the original atomic walk. */
++	read_lock(&tasklist_lock);
++	for_each_process_thread(g, task)
++		vpsadminos_klp_set_task_state(task, state);
++	read_unlock(&tasklist_lock);
++#endif
++
++	for_each_possible_cpu(cpu)
++		vpsadminos_klp_set_task_state(idle_task(cpu), state);
++
++#ifdef CONFIG_CGROUPS
++	percpu_up_write(&cgroup_threadgroup_rwsem);
++#endif
++	cpus_read_unlock();
++}
++
++#endif /* _LIVEPATCH_VPSADMINOS_TRANSITION_STATE_H */
+diff --git a/kernel/livepatch/transition.c b/kernel/livepatch/transition.c
+index a4b37b8128efd..a5ad8f3707bac 100644
+--- a/kernel/livepatch/transition.c
++++ b/kernel/livepatch/transition.c
+@@ -88,6 +88,8 @@ static void klp_synchronize_transition(void)
+ 	schedule_on_each_cpu(klp_sync);
+ }
+ 
++#include "transition-state-vpsadminos.h"
++
+ /*
+  * The transition to the target patch state is complete.  Clean up the data
+  * structures.
+@@ -96,8 +98,6 @@ static void klp_complete_transition(void)
+ {
+ 	struct klp_object *obj;
+ 	struct klp_func *func;
+-	struct task_struct *g, *task;
+-	unsigned int cpu;
+ 
+ 	pr_debug("'%s': completing %s transition\n",
+ 		 klp_transition_patch->mod->name,
+@@ -132,18 +132,7 @@ static void klp_complete_transition(void)
+ 	if (klp_target_state == KLP_TRANSITION_PATCHED)
+ 		klp_synchronize_transition();
+ 
+-	read_lock(&tasklist_lock);
+-	for_each_process_thread(g, task) {
+-		WARN_ON_ONCE(test_tsk_thread_flag(task, TIF_PATCH_PENDING));
+-		task->patch_state = KLP_TRANSITION_IDLE;
+-	}
+-	read_unlock(&tasklist_lock);
+-
+-	for_each_possible_cpu(cpu) {
+-		task = idle_task(cpu);
+-		WARN_ON_ONCE(test_tsk_thread_flag(task, TIF_PATCH_PENDING));
+-		task->patch_state = KLP_TRANSITION_IDLE;
+-	}
++	vpsadminos_klp_set_task_states(KLP_TRANSITION_IDLE);
+ 
+ 	klp_for_each_object(klp_transition_patch, obj) {
+ 		if (!klp_is_object_loaded(obj))
+@@ -790,8 +779,6 @@ void klp_start_transition(void)
+  */
+ void klp_init_transition(struct klp_patch *patch, int state)
+ {
+-	struct task_struct *g, *task;
+-	unsigned int cpu;
+ 	struct klp_object *obj;
+ 	struct klp_func *func;
+ 	int initial_state = !state;
+@@ -813,21 +800,7 @@ void klp_init_transition(struct klp_patch *patch, int state)
+ 	 * Initialize all tasks to the initial patch state to prepare them for
+ 	 * switching to the target state.
+ 	 */
+-	read_lock(&tasklist_lock);
+-	for_each_process_thread(g, task) {
+-		WARN_ON_ONCE(task->patch_state != KLP_TRANSITION_IDLE);
+-		task->patch_state = initial_state;
+-	}
+-	read_unlock(&tasklist_lock);
+-
+-	/*
+-	 * Ditto for the idle "swapper" tasks.
+-	 */
+-	for_each_possible_cpu(cpu) {
+-		task = idle_task(cpu);
+-		WARN_ON_ONCE(task->patch_state != KLP_TRANSITION_IDLE);
+-		task->patch_state = initial_state;
+-	}
++	vpsadminos_klp_set_task_states(initial_state);
+ 
+ 	/*
+ 	 * Enforce the order of the task->patch_state initializations and the
+@@ -920,9 +893,10 @@ void klp_copy_process(struct task_struct *child)
+ 	 * the thread flag was copied in setup_thread_stack earlier. Bring
+ 	 * the task flag up to date with the parent here.
+ 	 *
+-	 * tasklist_lock serializes this with transition initialization, the
+-	 * final task-set check, and completion.  Remote stack checks cannot
+-	 * change our state while we are runnable or on-CPU.  The remaining
++	 * Threadgroup exclusion (or the tasklist_lock fallback) serializes this
++	 * with initialization and completion. tasklist_lock also protects the
++	 * final task-set check. Remote stack checks cannot change our state
++	 * while we are runnable or on-CPU. The remaining
+ 	 * state updates run on current, so they cannot race with us either.
+ 	 */
+ 	if (test_tsk_thread_flag(current, TIF_PATCH_PENDING))
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
 index 36f6f5df387b2..5053bc5fc7d8c 100644
 --- a/kernel/sched/core.c

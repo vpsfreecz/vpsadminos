@@ -1,0 +1,59 @@
+Subject: [PATCH] kpatch: bracket admission with an optional payload adapter
+
+The frozen core initializes task states before invoking pre-patch callbacks.
+Allow a same-payload adapter to cover that initial phase and its cancellation,
+then retire before module-init returns. The hook is optional for older payloads
+and must not access unresolved private symbols during preparation/retirement.
+
+--- a/kmod/patch/livepatch-patch-hook.c
++++ b/kmod/patch/livepatch-patch-hook.c
+@@ -464,6 +464,16 @@
+ {
+ }
+ #endif /* HAVE_CALLBACKS */
++
++/*
++ * Optional same-payload admission adapter. Preparation/retirement must use
++ * only ordinary exported symbols: private KLP relocations are resolved inside
++ * klp_enable_patch(). CHECK=0 is used by the payload's pre-patch callback;
++ * PREPARE=1 and FINISH=2 bracket this call, including failed admission.
++ * Payloads without the adapter retain the ordinary loader path.
++ */
++extern int vpsadminos_klp_loader(struct klp_patch *patch,
++			       unsigned int action) __attribute__((weak));
+ 
+ /* Defined by kpatch.lds.S */
+ extern struct kpatch_patch_func __kpatch_funcs[], __kpatch_funcs_end[];
+@@ -620,16 +630,24 @@
+ 	}
+ #endif
+ 
++	if (vpsadminos_klp_loader) {
++		ret = vpsadminos_klp_loader(lpatch, 1);
++		if (ret)
++			goto unregister_patch;
++	}
+ 	ret = klp_enable_patch(lpatch);
+-	if (ret) {
++	if (vpsadminos_klp_loader)
++		WARN_ON(vpsadminos_klp_loader(lpatch, 2));
++	if (ret)
++		goto unregister_patch;
++
++	return 0;
++unregister_patch:
+ #ifndef HAVE_SIMPLE_ENABLE
+-		WARN_ON(klp_unregister_patch(lpatch));
+-#endif
+-		patch_free_livepatch(lpatch);
+-		return ret;
+-	}
+-
+-	return 0;
++	WARN_ON(klp_unregister_patch(lpatch));
++#endif
++	patch_free_livepatch(lpatch);
++	return ret;
+ out:
+ 	patch_free_livepatch(lpatch);
+ 	patch_free_scaffold();

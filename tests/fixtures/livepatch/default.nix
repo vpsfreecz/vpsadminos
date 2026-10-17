@@ -5,12 +5,12 @@
   },
 }:
 let
-  # Independently built normal package with bounded ftrace teardown batching
-  # and bounded retries for transient pernet writer exclusion.
-  # All 711 import CRCs match the restored frozen boot SDK.
+  # Independently built normal package with bounded task-state initialization,
+  # reset, ftrace teardown batching and retries for pernet writer exclusion.
+  # All 715 import CRCs match the restored frozen boot SDK.
   # Runtime qualification must exercise these exact bytes.
   # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "573e8d1e05433be7c4eab361bb733e92977496f6437b43a4af1e5d21d2452d9d";
+  correctedSha256 = "7b7b5545e02289995a6e47121f6d769c6da19cce6540bbfb51ca2af002b6b296";
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;

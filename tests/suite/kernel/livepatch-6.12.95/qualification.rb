@@ -162,7 +162,10 @@ def qualification_trace_start
   @qualification_events = []
   probes = {
     'start' => 'klp_start_transition',
-    'complete' => 'klp_complete_transition',
+    # The bounded transition engine completes both directions in its payload
+    # helper, not the original core function. Keep the exact once-per-direction
+    # assertion on the helper that actually resets state and runs callbacks.
+    'complete' => "#{CORRECTED_NAME}:vpsadminos_klp_complete_transition",
     'replace' => 'klp_unpatch_replaced_patches'
   }
   QUAL_CALLBACKS.each_key.with_index do |symbol, i|

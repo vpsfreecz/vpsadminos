@@ -4641,10 +4641,10 @@ index 0000000000000..53553063e5011
 +#endif /* _LINUX_VPSADMINOS_CANCEL_H */
 diff --git a/include/linux/vpsadminos-livepatch.h b/include/linux/vpsadminos-livepatch.h
 new file mode 100644
-index 0000000000000..5aeb92fcbff2c
+index 0000000000000..d76b4e64d524c
 --- /dev/null
 +++ b/include/linux/vpsadminos-livepatch.h
-@@ -0,0 +1,166 @@
+@@ -0,0 +1,167 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_VPSADMINOS_LIVEPATCH_H
 +#define _LINUX_VPSADMINOS_LIVEPATCH_H
@@ -4655,6 +4655,7 @@ index 0000000000000..5aeb92fcbff2c
 +struct ftrace_ops;
 +
 +int vpsadminos_klp_transition_pre_patch(struct klp_object *obj);
++int vpsadminos_klp_loader(struct klp_patch *patch, unsigned int action);
 +void vpsadminos_klp_transition_post_patch(void);
 +void vpsadminos_klp_transition_post_unpatch(void);
 +void vpsadminos_sched_dynamic_klp_disable(void);
@@ -5978,7 +5979,7 @@ index cf03d4bdfc663..0eedad5e9dcc4 100644
  livepatch-objs := core.o patch.o shadow.o state.o transition.o
 +livepatch-$(CONFIG_X86_64) += vpsadminos_rhashtable.o
 diff --git a/kernel/livepatch/core.c b/kernel/livepatch/core.c
-index 077e078032e05..7a3b49250f14c 100644
+index 077e078032e05..2f3ecf263cf5b 100644
 --- a/kernel/livepatch/core.c
 +++ b/kernel/livepatch/core.c
 @@ -387,12 +387,19 @@ static ssize_t enabled_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -6005,6 +6006,15 @@ index 077e078032e05..7a3b49250f14c 100644
  
  out:
  	mutex_unlock(&klp_mutex);
+@@ -990,7 +997,7 @@ static int __klp_disable_patch(struct klp_patch *patch)
+ 	if (klp_transition_patch)
+ 		return -EBUSY;
+ 
+-	klp_init_transition(patch, KLP_TRANSITION_UNPATCHED);
++	vpsadminos_klp_init_unpatch(patch);
+ 
+ 	klp_for_each_object(patch, obj)
+ 		if (obj->patched)
 diff --git a/kernel/livepatch/patch.c b/kernel/livepatch/patch.c
 index 90408500e5a38..fae10e0181cc9 100644
 --- a/kernel/livepatch/patch.c
@@ -6103,12 +6113,116 @@ index 90408500e5a38..fae10e0181cc9 100644
  static int klp_patch_func(struct klp_func *func)
  {
  	struct klp_ops *ops;
+diff --git a/kernel/livepatch/transition-state-vpsadminos.h b/kernel/livepatch/transition-state-vpsadminos.h
+new file mode 100644
+index 0000000000000..e61728f910a93
+--- /dev/null
++++ b/kernel/livepatch/transition-state-vpsadminos.h
+@@ -0,0 +1,98 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef _LIVEPATCH_VPSADMINOS_TRANSITION_STATE_H
++#define _LIVEPATCH_VPSADMINOS_TRANSITION_STATE_H
++
++#include <linux/cgroup.h>
++#include <linux/pid_namespace.h>
++
++#define VPSADMINOS_KLP_STATE_BATCH_SIZE 64
++
++static void vpsadminos_klp_set_task_state(struct task_struct *task, int state)
++{
++	if (state == KLP_TRANSITION_IDLE)
++		WARN_ON_ONCE(test_tsk_thread_flag(task, TIF_PATCH_PENDING));
++	else
++		WARN_ON_ONCE(task->patch_state != KLP_TRANSITION_IDLE);
++	WRITE_ONCE(task->patch_state, state);
++}
++
++/*
++ * Initialize/reset the live task set without a population-sized spinlocked
++ * walk. The caller preserves the normal function-selection barriers and holds
++ * klp_mutex; no transition task flags are changed here.
++ */
++static void vpsadminos_klp_set_task_states(int state)
++{
++	struct task_struct *task;
++	unsigned int cpu;
++#ifdef CONFIG_CGROUPS
++	struct pid *pid;
++	unsigned int scanned;
++	int next_pid = 1;
++	bool done = false;
++#else
++	struct task_struct *g;
++#endif
++
++	lockdep_assert_held(&klp_mutex);
++
++	/* Follow cgroup_attach_lock() ordering, without a cgroup-internal API. */
++	cpus_read_lock();
++#ifdef CONFIG_CGROUPS
++	percpu_down_write(&cgroup_threadgroup_rwsem);
++	/*
++	 * This excludes fork publication/state inheritance and exec PID swaps.
++	 * Only removals can change the live PID set. Consequently every task
++	 * still linked at the end of the walk has been initialized, just as for
++	 * an atomic tasklist walk at that point. Tasks already unlinked are not
++	 * added to the transition, matching the original tasklist semantics.
++	 * Later children inherit the initialized state when exclusion ends.
++	 *
++	 * Never retain a task-list cursor across RCU sections: even a referenced
++	 * task can be unlinked and its old successor can subsequently be freed.
++	 * A monotonically increasing global PID cursor survives those removals.
++	 */
++	while (!done) {
++		rcu_read_lock();
++		for (scanned = 0; scanned < VPSADMINOS_KLP_STATE_BATCH_SIZE;
++		     scanned++) {
++			pid = find_ge_pid(next_pid, &init_pid_ns);
++			if (!pid) {
++				done = true;
++				break;
++			}
++			next_pid = pid_nr(pid) + 1;
++			task = pid_task(pid, PIDTYPE_PID);
++			/* Count PID objects even if no task is attached yet. */
++			if (task)
++				vpsadminos_klp_set_task_state(task, state);
++		}
++		rcu_read_unlock();
++		cond_resched();
++	}
++	/*
++	 * __unhash_process() detaches the PID before removing the task-list
++	 * nodes. Drain any such in-flight writer so this is also a completed
++	 * task-list removal. The live set at this point is fully initialized;
++	 * no population-sized work is performed while holding tasklist_lock.
++	 */
++	read_lock(&tasklist_lock);
++	read_unlock(&tasklist_lock);
++#else
++	/* Without fork exclusion retain the original atomic walk. */
++	read_lock(&tasklist_lock);
++	for_each_process_thread(g, task)
++		vpsadminos_klp_set_task_state(task, state);
++	read_unlock(&tasklist_lock);
++#endif
++
++	for_each_possible_cpu(cpu)
++		vpsadminos_klp_set_task_state(idle_task(cpu), state);
++
++#ifdef CONFIG_CGROUPS
++	percpu_up_write(&cgroup_threadgroup_rwsem);
++#endif
++	cpus_read_unlock();
++}
++
++#endif /* _LIVEPATCH_VPSADMINOS_TRANSITION_STATE_H */
 diff --git a/kernel/livepatch/transition-vpsadminos.h b/kernel/livepatch/transition-vpsadminos.h
 new file mode 100644
-index 0000000000000..53dac16bd8d9c
+index 0000000000000..2e471cbc0037f
 --- /dev/null
 +++ b/kernel/livepatch/transition-vpsadminos.h
-@@ -0,0 +1,692 @@
+@@ -0,0 +1,956 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef _LIVEPATCH_VPSADMINOS_TRANSITION_H
 +#define _LIVEPATCH_VPSADMINOS_TRANSITION_H
@@ -6129,6 +6243,116 @@ index 0000000000000..53dac16bd8d9c
 +#include <linux/smp.h>
 +#include <linux/sort.h>
 +#include <linux/vpsadminos-livepatch.h>
++
++/* State-control helpers are not selected by task patch state. */
++static void vpsadminos_klp_complete_transition(void)
++{
++	struct klp_object *obj;
++	struct klp_func *func;
++
++	pr_debug("'%s': completing %s transition\n",
++		 klp_transition_patch->mod->name,
++		 klp_target_state == KLP_TRANSITION_PATCHED ? "patching" : "unpatching");
++
++	if (klp_transition_patch->replace && klp_target_state == KLP_TRANSITION_PATCHED) {
++		klp_unpatch_replaced_patches(klp_transition_patch);
++		klp_discard_nops(klp_transition_patch);
++	}
++
++	if (klp_target_state == KLP_TRANSITION_UNPATCHED) {
++		/*
++		 * All tasks have transitioned to KLP_TRANSITION_UNPATCHED so we can now
++		 * remove the new functions from the func_stack.
++		 */
++		klp_unpatch_objects(klp_transition_patch);
++
++		/*
++		 * Make sure klp_ftrace_handler() can no longer see functions
++		 * from this patch on the ops->func_stack.  Otherwise, after
++		 * func->transition gets cleared, the handler may choose a
++		 * removed function.
++		 */
++		klp_synchronize_transition();
++	}
++
++	klp_for_each_object(klp_transition_patch, obj)
++		klp_for_each_func(obj, func)
++			func->transition = false;
++
++	/* Prevent klp_ftrace_handler() from seeing KLP_TRANSITION_IDLE state */
++	if (klp_target_state == KLP_TRANSITION_PATCHED)
++		klp_synchronize_transition();
++
++	vpsadminos_klp_set_task_states(KLP_TRANSITION_IDLE);
++
++	klp_for_each_object(klp_transition_patch, obj) {
++		if (!klp_is_object_loaded(obj))
++			continue;
++		if (klp_target_state == KLP_TRANSITION_PATCHED)
++			klp_post_patch_callback(obj);
++		else if (klp_target_state == KLP_TRANSITION_UNPATCHED)
++			klp_post_unpatch_callback(obj);
++	}
++
++	pr_notice("'%s': %s complete\n", klp_transition_patch->mod->name,
++		  klp_target_state == KLP_TRANSITION_PATCHED ? "patching" : "unpatching");
++
++	klp_target_state = KLP_TRANSITION_IDLE;
++	klp_transition_patch = NULL;
++}
++
++static void vpsadminos_klp_init_transition(struct klp_patch *patch, int state)
++{
++	struct klp_object *obj;
++	struct klp_func *func;
++	int initial_state = !state;
++
++	WARN_ON_ONCE(klp_target_state != KLP_TRANSITION_IDLE);
++
++	klp_transition_patch = patch;
++
++	/*
++	 * Set the global target patch state which tasks will switch to.  This
++	 * has no effect until the TIF_PATCH_PENDING flags get set later.
++	 */
++	klp_target_state = state;
++
++	pr_debug("'%s': initializing %s transition\n", patch->mod->name,
++		 klp_target_state == KLP_TRANSITION_PATCHED ? "patching" : "unpatching");
++
++	/*
++	 * Initialize all tasks to the initial patch state to prepare them for
++	 * switching to the target state.
++	 */
++	vpsadminos_klp_set_task_states(initial_state);
++
++	/*
++	 * Enforce the order of the task->patch_state initializations and the
++	 * func->transition updates to ensure that klp_ftrace_handler() doesn't
++	 * see a func in transition with a task->patch_state of KLP_TRANSITION_IDLE.
++	 *
++	 * Also enforce the order of the klp_target_state write and future
++	 * TIF_PATCH_PENDING writes to ensure klp_update_patch_state() and
++	 * __klp_sched_try_switch() don't set a task->patch_state to
++	 * KLP_TRANSITION_IDLE.
++	 */
++	smp_wmb();
++
++	/*
++	 * Set the func transition states so klp_ftrace_handler() will know to
++	 * switch to the transition logic.
++	 *
++	 * When patching, the funcs aren't yet in the func_stack and will be
++	 * made visible to the ftrace handler shortly by the calls to
++	 * klp_patch_object().
++	 *
++	 * When unpatching, the funcs are already in the func_stack and so are
++	 * already visible to the ftrace handler.
++	 */
++	klp_for_each_object(patch, obj)
++		klp_for_each_func(obj, func)
++			func->transition = true;
++}
 +
 +#define VPSADMINOS_KLP_TASK_BATCH_SIZE 256
 +
@@ -6588,7 +6812,7 @@ index 0000000000000..53dac16bd8d9c
 +	patch = klp_transition_patch;
 +	if (klp_target_state == KLP_TRANSITION_UNPATCHED)
 +		vpsadminos_klp_unpatch_batch(patch);
-+	klp_complete_transition();
++	vpsadminos_klp_complete_transition();
 +
 +	/*
 +	 * It would make more sense to free the unused patches in
@@ -6745,15 +6969,155 @@ index 0000000000000..53dac16bd8d9c
 +	return ret;
 +}
 +
++/*
++ * The ordinary pre-patch callback is too late for klp_init_transition().
++ * The module loader brackets klp_enable_patch() with this temporary adapter.
++ * Preparation/retirement use only exported APIs and new module-local data:
++ * private livepatch relocations are not resolved until inside klp_enable_patch.
++ * Only the loading task and patch may enter the redirects, after relocation.
++ */
++static struct {
++	struct klp_patch *patch;
++	struct task_struct *task;
++	struct ftrace_ops *init_ops;
++	struct ftrace_ops *complete_ops;
++	bool init_registered;
++	bool complete_registered;
++	bool entered;
++} vpsadminos_klp_loader_state;
++
++static void notrace
++vpsadminos_klp_loader_init_ftrace(unsigned long ip, unsigned long parent_ip,
++			       struct ftrace_ops *ops, struct ftrace_regs *fregs)
++{
++	struct pt_regs *regs = ftrace_get_regs(fregs);
++
++	if (current != READ_ONCE(vpsadminos_klp_loader_state.task) || !regs ||
++	    (struct klp_patch *)regs_get_kernel_argument(regs, 0) !=
++	    READ_ONCE(vpsadminos_klp_loader_state.patch))
++		return;
++
++	WRITE_ONCE(vpsadminos_klp_loader_state.entered, true);
++	ftrace_regs_set_instruction_pointer(fregs,
++		(unsigned long)vpsadminos_klp_init_transition);
++}
++
++static void notrace
++vpsadminos_klp_loader_complete_ftrace(unsigned long ip, unsigned long parent_ip,
++				   struct ftrace_ops *ops,
++				   struct ftrace_regs *fregs)
++{
++	if (current != READ_ONCE(vpsadminos_klp_loader_state.task) ||
++	    !READ_ONCE(vpsadminos_klp_loader_state.entered))
++		return;
++
++	ftrace_regs_set_instruction_pointer(fregs,
++		(unsigned long)vpsadminos_klp_complete_transition);
++}
++
++static void vpsadminos_klp_loader_stop(void)
++{
++	struct ftrace_ops *ops;
++
++	/* No redirected frame remains when klp_enable_patch() has returned. */
++	WRITE_ONCE(vpsadminos_klp_loader_state.task, NULL);
++	ops = vpsadminos_klp_loader_state.complete_ops;
++	if (ops) {
++		if (vpsadminos_klp_loader_state.complete_registered)
++			WARN_ON_ONCE(unregister_ftrace_function(ops));
++		ftrace_free_filter(ops);
++		kfree(ops);
++	}
++	ops = vpsadminos_klp_loader_state.init_ops;
++	if (ops) {
++		if (vpsadminos_klp_loader_state.init_registered)
++			WARN_ON_ONCE(unregister_ftrace_function(ops));
++		ftrace_free_filter(ops);
++		kfree(ops);
++	}
++	memset(&vpsadminos_klp_loader_state, 0,
++	       sizeof(vpsadminos_klp_loader_state));
++}
++
++/*
++ * Also referenced by the pre-patch callback, so the producer retains this
++ * exact entry point for its optional typed module-init hook. Do not specialize
++ * the callback's CHECK call and drop the entry needed before relocation.
++ * Actions are CHECK=0, PREPARE=1, FINISH=2, shared with the producer hook.
++ */
++__noipa int vpsadminos_klp_loader(struct klp_patch *patch, unsigned int action)
++{
++	static unsigned char init_name[] = "klp_init_transition";
++	static unsigned char complete_name[] = "klp_complete_transition";
++	struct ftrace_ops *ops;
++	int ret;
++
++	if (!action)
++		return vpsadminos_klp_loader_state.patch == patch &&
++			vpsadminos_klp_loader_state.task == current &&
++			vpsadminos_klp_loader_state.entered ? 0 : -EINVAL;
++	if (action == 2) {
++		if (vpsadminos_klp_loader_state.patch != patch ||
++		    vpsadminos_klp_loader_state.task != current)
++			return -EINVAL;
++		vpsadminos_klp_loader_stop();
++		return 0;
++	}
++	if (action != 1 || !patch || vpsadminos_klp_loader_state.patch)
++		return -EINVAL;
++
++	vpsadminos_klp_loader_state.patch = patch;
++	vpsadminos_klp_loader_state.task = current;
++	ret = -ENOMEM;
++	ops = kzalloc(sizeof(*ops), GFP_KERNEL);
++	if (!ops)
++		goto fail;
++	vpsadminos_klp_loader_state.init_ops = ops;
++	ops->func = vpsadminos_klp_loader_init_ftrace;
++	ops->flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY |
++		     FTRACE_OPS_FL_PERMANENT;
++	ret = ftrace_set_filter(ops, init_name, sizeof(init_name) - 1, 1);
++	if (ret)
++		goto fail;
++	ret = register_ftrace_function(ops);
++	if (ret)
++		goto fail;
++	vpsadminos_klp_loader_state.init_registered = true;
++
++	ret = -ENOMEM;
++	ops = kzalloc(sizeof(*ops), GFP_KERNEL);
++	if (!ops)
++		goto fail;
++	vpsadminos_klp_loader_state.complete_ops = ops;
++	ops->func = vpsadminos_klp_loader_complete_ftrace;
++	ops->flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY |
++		     FTRACE_OPS_FL_PERMANENT;
++	ret = ftrace_set_filter(ops, complete_name, sizeof(complete_name) - 1, 1);
++	if (ret)
++		goto fail;
++	ret = register_ftrace_function(ops);
++	if (ret)
++		goto fail;
++	vpsadminos_klp_loader_state.complete_registered = true;
++	return 0;
++fail:
++	vpsadminos_klp_loader_stop();
++	return ret;
++}
++
 +int vpsadminos_klp_transition_pre_patch(struct klp_object *obj)
 +{
 +	struct klp_patch *patch = klp_transition_patch;
++	int ret;
 +
 +	lockdep_assert_held(&klp_mutex);
 +	if (!patch || obj->name || obj->kobj.parent != &patch->kobj)
 +		return -EINVAL;
 +	if (vpsadminos_klp_engine.patch && vpsadminos_klp_engine.patch != patch)
 +		return -EINVAL;
++	ret = vpsadminos_klp_loader(patch, 0);
++	if (ret)
++		return ret;
 +
 +	vpsadminos_klp_engine.patch = patch;
 +	vpsadminos_klp_engine.owner = patch->mod;
@@ -6792,6 +7156,14 @@ index 0000000000000..53dac16bd8d9c
 +		vpsadminos_klp_stop_engine(true);
 +}
 +
++void vpsadminos_klp_init_unpatch(struct klp_patch *patch)
++{
++	if (patch == vpsadminos_klp_engine.patch)
++		vpsadminos_klp_init_transition(patch, KLP_TRANSITION_UNPATCHED);
++	else
++		klp_init_transition(patch, KLP_TRANSITION_UNPATCHED);
++}
++
 +/*
 + * Keep the frozen dispatch entry out of the livepatch function table. New
 + * helper references can change compiler inlining, but not its source logic.
@@ -6800,27 +7172,43 @@ index 0000000000000..53dac16bd8d9c
 +void *__kpatch_ignore_func_klp_try_complete_transition
 +__section(".kpatch.ignore.functions") = klp_try_complete_transition;
 +
++/* The loader hooks these unchanged frozen entries, not payload replacements. */
++void *__kpatch_ignore_func_klp_init_transition
++__section(".kpatch.ignore.functions") = klp_init_transition;
++void *__kpatch_ignore_func_klp_complete_transition
++__section(".kpatch.ignore.functions") = klp_complete_transition;
++
 +#endif /* _LIVEPATCH_VPSADMINOS_TRANSITION_H */
 diff --git a/kernel/livepatch/transition.c b/kernel/livepatch/transition.c
-index ba069459c1017..ead5d3924de54 100644
+index ba069459c1017..bf7ce60e8f2a8 100644
 --- a/kernel/livepatch/transition.c
 +++ b/kernel/livepatch/transition.c
-@@ -750,3 +750,5 @@ void klp_force_transition(void)
+@@ -83,6 +83,8 @@ static void klp_synchronize_transition(void)
+ 	schedule_on_each_cpu(klp_sync);
+ }
+ 
++#include "transition-state-vpsadminos.h"
++
+ /*
+  * The transition to the target patch state is complete.  Clean up the data
+  * structures.
+@@ -750,3 +752,5 @@ void klp_force_transition(void)
  		}
  	}
  }
 +
 +#include "transition-vpsadminos.h"
 diff --git a/kernel/livepatch/transition.h b/kernel/livepatch/transition.h
-index 322db16233de1..9f1f182ecc88e 100644
+index 322db16233de1..402382ced35a3 100644
 --- a/kernel/livepatch/transition.h
 +++ b/kernel/livepatch/transition.h
-@@ -13,4 +13,7 @@ void klp_try_complete_transition(void);
+@@ -13,4 +13,8 @@ void klp_try_complete_transition(void);
  void klp_reverse_transition(void);
  void klp_force_transition(void);
  
 +int vpsadminos_klp_prepare_unpatch(struct klp_patch *patch);
 +void vpsadminos_klp_abort_unpatch(struct klp_patch *patch);
++void vpsadminos_klp_init_unpatch(struct klp_patch *patch);
 +
  #endif /* _LIVEPATCH_TRANSITION_H */
 diff --git a/kernel/livepatch/vpsadminos_rhashtable.c b/kernel/livepatch/vpsadminos_rhashtable.c
