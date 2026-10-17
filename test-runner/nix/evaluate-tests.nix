@@ -5,6 +5,7 @@
   mode ? "testsMetaAll",
   testPath ? null,
   testArgsJson ? null,
+  selectedTestsJson ? "[]",
   configuration ?
     let
       cfg = builtins.getEnv "VPSADMINOS_CONFIG";
@@ -36,7 +37,10 @@ let
   effectiveTestConfig = if testConfig == null then { } else testConfig;
   testsRoot = repoRoot + "/tests";
   directSingleTestAvailable =
-    testPath != null && builtins.pathExists (testsRoot + "/suite/${testPath}.nix");
+    path:
+    path != null
+    && builtins.pathExists (repoRoot + "/test-runner/nix/lib.nix")
+    && builtins.pathExists (testsRoot + "/suite/${path}.nix");
   directTestArgs = if testArgsJson == null then { } else builtins.fromJSON testArgsJson;
 
   directTestLib =
@@ -65,41 +69,67 @@ let
     };
 
   directTest =
+    path: args:
     (directTestLib.makeSingleTest {
-      test = testPath;
-      args = directTestArgs;
+      test = path;
+      inherit args;
     }).value;
 
+  useConfiguredFramework = testConfigPath != null || (configuration != null && haveTestFramework);
+  configuredFramework = if testConfigPath != null then testFramework else flake.lib.testFramework;
+
   tests =
-    if testConfigPath == null then
+    if !useConfiguredFramework then
       flake.tests.${system}
     else
-      testFramework.mkTests {
-        inherit system testConfig;
+      configuredFramework.mkTests {
+        inherit system;
+        testConfig = effectiveTestConfig;
         testsRoot = repoRoot + "/tests";
         inherit configuration;
       };
 
   testsMeta =
-    if testConfigPath == null then
+    if !useConfiguredFramework then
       flake.testsMeta.${system}
     else
-      testFramework.mkTestsMeta {
-        inherit system testConfig;
+      configuredFramework.mkTestsMeta {
+        inherit system;
+        testConfig = effectiveTestConfig;
         testsRoot = repoRoot + "/tests";
         inherit configuration;
       };
+  resolveTestJson =
+    path: args:
+    if directSingleTestAvailable path then
+      (directTest path args).test.json
+    else
+      builtins.getAttr path tests;
+
+  selected = builtins.fromJSON selectedTestsJson;
+  manifest = map (request: {
+    inherit (request) id;
+    json = resolveTestJson request.path (request.testArgs or { });
+  }) selected;
+  # Preserve the JSON string contexts: this output roots all selected JSONs and
+  # their referenced closures, rather than only a list of discarded path text.
+  batchPkgs = import (builtins.toPath (builtins.getEnv "TEST_RUNNER_NIXPKGS_PATH")) {
+    inherit system;
+  };
+  batch = batchPkgs.writeText "os-test-prebuild.json" (builtins.toJSON manifest);
 in
 if mode == "testsMetaAll" then
   testsMeta
 else if mode == "testsMetaOne" then
   if testPath != null && builtins.hasAttr testPath testsMeta then
     builtins.getAttr testPath testsMeta
-  else if directSingleTestAvailable then
-    directTestLib.testMeta directTest
+  else if directSingleTestAvailable testPath then
+    directTestLib.testMeta (directTest testPath directTestArgs)
   else
     builtins.getAttr testPath testsMeta
 else if mode == "testJson" then
-  if directSingleTestAvailable then directTest.test.json else builtins.getAttr testPath tests
+  resolveTestJson testPath directTestArgs
+else if mode == "testBatch" then
+  batch
 else
   builtins.throw "Unsupported mode '${mode}'"

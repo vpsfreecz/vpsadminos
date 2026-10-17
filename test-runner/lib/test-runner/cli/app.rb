@@ -58,6 +58,12 @@ module TestRunner::Cli
         c.desc 'How many tests to run in parallel, or auto'
         c.flag %w[j jobs], default_value: '1'
 
+        c.desc 'Build selected test images before starting VMs; disabling keeps the test cache and runtime resource scheduling'
+        c.switch 'prebuild', default_value: false
+
+        c.desc 'Estimated preparation memory per Nix build job, in MiB (positive integer; CPU parallelism is unchanged)'
+        c.flag 'prebuild-memory-per-job-mib', type: Integer, default_value: TestRunner::Prebuild::DEFAULT_MEMORY_PER_JOB_MIB
+
         c.desc 'Maximum memory available to running test VMs, in MiB'
         c.flag 'max-memory-mib', type: Integer
 

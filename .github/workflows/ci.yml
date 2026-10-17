@@ -2,6 +2,7 @@ name: CI
 run-name: "CI (${{ inputs.test_suite || 'ci' }}${{ inputs.test_pattern && format(': {0}', inputs.test_pattern) || '' }}${{ inputs.test_suite == 'zfs-full' && inputs.zfs_tags && inputs.zfs_tags != 'functional' && format(': {0}', inputs.zfs_tags) || '' }})"
 
 env:
+  TEST_RUNNER_PREBUILD: ${{ github.event_name != 'workflow_dispatch' || inputs.prebuild }}
   VPSADMINOS_CONFIG: >-
     ${{ (inputs.test_suite == 'ci-unstable' || inputs.test_suite == 'zfs-full' || github.ref == 'refs/heads/snajpa-6.18' || github.head_ref == 'snajpa-6.18') && format('{0}/os/configs/unstable.nix', github.workspace) || '' }}
 
@@ -45,6 +46,11 @@ on:
         required: false
         type: string
         default: ''
+      prebuild:
+        description: Build selected test images before starting VMs
+        required: true
+        default: true
+        type: boolean
       stop_on_failure:
         description: Stop scheduling after the first unexpected result
         required: true
@@ -272,6 +278,12 @@ jobs:
             args+=(--stop-on-failure)
           fi
 
+          if [[ "$TEST_RUNNER_PREBUILD" == "true" ]]; then
+            args+=(--prebuild)
+          else
+            args+=(--no-prebuild)
+          fi
+
           if [[ -n "$TEST_PATTERN" ]]; then
             # One quoted positional glob, never shell words or CLI options.
             args+=(-- "$TEST_PATTERN")
@@ -448,6 +460,12 @@ jobs:
             printf '128 guest vCPUs on %s host-visible CPUs; factor=%s\n' \
               "$host_cpus" "$cpu_factor"
             args+=(--max-cpus 128 --cpu-overcommit "$cpu_factor")
+          fi
+
+          if [[ "$TEST_RUNNER_PREBUILD" == "true" ]]; then
+            args+=(--prebuild)
+          else
+            args+=(--no-prebuild)
           fi
 
           ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"

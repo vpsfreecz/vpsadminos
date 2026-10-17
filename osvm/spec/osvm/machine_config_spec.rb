@@ -35,6 +35,59 @@ RSpec.describe OsVm::MachineConfig do
     end
   end
 
+  describe '.validate_config!' do
+    it 'parses all network kinds without allocating global addresses or ports' do
+      raw = machine_config_hash(
+        'networks' => [
+          { 'type' => 'user' },
+          { 'type' => 'socket', 'mac' => '52:54:00:00:00:11', 'mcast' => { 'port' => 'group-a' } },
+          { 'type' => 'socket', 'mcast' => { 'port' => 12_346 } },
+          { 'type' => 'bridge', 'opts' => { 'link' => 'br0' } }
+        ]
+      )
+      allow(OsVm::MacAddressGenerator).to receive(:next_mac).and_call_original
+      allow(OsVm::MacAddressGenerator).to receive(:register_mac).and_call_original
+      allow(OsVm::PortReservation).to receive(:get_port).and_return(12_345)
+
+      expect(described_class.validate_config!(raw)).to be(true)
+      expect(OsVm::MacAddressGenerator).not_to have_received(:next_mac)
+      expect(OsVm::MacAddressGenerator).not_to have_received(:register_mac)
+      expect(OsVm::PortReservation).not_to have_received(:get_port)
+
+      parsed = described_class.from_config(raw)
+      expect(parsed.networks[1].mcast_port).to eq(12_345)
+      expect(parsed.networks[2].mcast_port).to eq(12_346)
+      expect(OsVm::MacAddressGenerator).to have_received(:next_mac).exactly(3).times
+      expect(OsVm::MacAddressGenerator).to have_received(:register_mac).with('52:54:00:00:00:11').once
+      expect(OsVm::PortReservation).to have_received(:get_port).with(key: 'mcast:group-a').once
+    end
+
+    [
+      [{ 'testShells' => 0 }, ArgumentError, /testShells must be an integer/],
+      [{ 'testShellTransport' => 'unknown' }, ArgumentError, /unsupported test shell transport/],
+      [{ 'shells' => %w[first first] }, ArgumentError, /shell names must be unique/],
+      [{ 'testShells' => 2, 'shells' => %w[first second] }, ArgumentError, /testShells must be greater than/],
+      [{ 'networks' => [{ 'type' => 'bridge', 'opts' => {} }] }, KeyError, /link/],
+      [{ 'networks' => [{ 'type' => 'user', 'opts' => {} }] }, KeyError, /network/],
+      [{ 'networks' => [{ 'type' => 'socket', 'mcast' => { 'port' => nil } }] }, RuntimeError, /Invalid mcast port/],
+      [{ 'rootDisk' => {} }, ArgumentError, /cannot be used together/],
+      [{ 'disks' => [{ 'device' => 'bad.img', 'type' => 'bogus' }] }, ArgumentError, /unsupported disk type/],
+      [{ 'kernel' => nil }, ArgumentError, /missing "kernel"/]
+    ].each do |overrides, error_class, error_message|
+      it "enforces canonical parsing and rendering for #{overrides.inspect}" do
+        raw = machine_config_hash(overrides, spin: 'nixos')
+        allow(OsVm::MacAddressGenerator).to receive(:next_mac).and_call_original
+        allow(OsVm::MacAddressGenerator).to receive(:register_mac).and_call_original
+        allow(OsVm::PortReservation).to receive(:get_port).and_call_original
+
+        expect { described_class.validate_config!(raw) }.to raise_error(error_class, error_message)
+        expect(OsVm::MacAddressGenerator).not_to have_received(:next_mac)
+        expect(OsVm::MacAddressGenerator).not_to have_received(:register_mac)
+        expect(OsVm::PortReservation).not_to have_received(:get_port)
+      end
+    end
+  end
+
   it 'requires kernel, initrd, and toplevel for direct boot machines' do
     %w[kernel initrd toplevel].each do |key|
       expect do

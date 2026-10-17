@@ -37,7 +37,7 @@ module TestRunner
     # @option opts [Boolean] :recreate_disks
     # @option opts [String] :state_dir
     # @option opts [String] :sock_dir
-    def initialize(test, scripts, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil, repo_root: nil, **opts)
+    def initialize(test, scripts, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil, repo_root: nil, prepared_config: nil, **opts)
       scripts.each do |s|
         next if s.test == test
 
@@ -47,13 +47,17 @@ module TestRunner
       @test = test
       @scripts = scripts
       @opts = opts
-      @config = TestConfig.build(
-        test,
-        system:,
-        test_config_path:,
-        repo_root:,
-        config_path: File.join(@opts.fetch(:state_dir), 'config.json')
+      @config = prepared_config || TestConfig.build(
+        test, system:, test_config_path:, repo_root:,
+              config_path: File.join(@opts.fetch(:state_dir), 'config.json')
       )
+      if prepared_config
+        raise ArgumentError, 'Prepared configuration belongs to another test' unless prepared_config.test == test
+
+        prepared_config.validate!(scripts)
+        FileUtils.mkdir_p(@opts.fetch(:state_dir))
+        FileUtils.ln_sf(prepared_config.config_path, File.join(@opts.fetch(:state_dir), 'config.json'))
+      end
       @machines = {}
       @default_timeout = opts.fetch(:default_timeout)
       @used_container_ids = []

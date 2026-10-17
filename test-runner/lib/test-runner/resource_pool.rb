@@ -33,7 +33,7 @@ module TestRunner
     end
 
     class CapacitySource
-      attr_reader :detected, :initial_available, :reserve, :current_value
+      attr_reader :detected, :initial_available, :reserve, :current_value, :max_value
 
       def initialize(
         max_value:,
@@ -65,9 +65,14 @@ module TestRunner
         @current_value = value
       end
 
-      protected
+      # Preparation uses the startup sample without runtime overcommit.
+      def preparation_capacity
+        return nil if initial_available.nil? && max_value.nil?
 
-      attr_reader :max_value
+        ResourcePool.capacity(limit(usable_detected), reserve)
+      end
+
+      protected
 
       def usable_detected
         if detected && initial_available
@@ -418,6 +423,19 @@ module TestRunner
       fits?(memory_mib, used.memory_mib + resources.memory_mib) &&
         fits?(shm_mib, used.shm_mib + resources.shm_mib) &&
         fits?(cpus, used.cpus + resources.cpus)
+    end
+
+    def prebuild_memory_mib
+      @memory_capacity ? @memory_capacity.preparation_capacity : memory_mib
+    end
+
+    def prebuild_memory_status
+      return "explicit pool capacity=#{memory_mib.inspect} MiB" unless @memory_capacity
+
+      "detected assigned=#{@memory_capacity.detected.inspect} MiB, " \
+        "available-at-start=#{@memory_capacity.initial_available.inspect} MiB, " \
+        "configured maximum=#{@memory_capacity.max_value.inspect} MiB, " \
+        "reserve=#{@memory_capacity.reserve} MiB"
     end
 
     def reserve(resources)

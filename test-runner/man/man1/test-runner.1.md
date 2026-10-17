@@ -58,6 +58,27 @@ selected tests and reporting results.
       runner starts enough scheduler workers for all selected tests and lets
       resource reservations decide how many VMs can actually run.
 
+    `--prebuild`, `--no-prebuild`
+      Build selected test JSON and image closures before starting any selected
+      VM. Runtime and retries load the exact prepared configurations without
+      Nix, with their closures GC-rooted through VM cleanup. Disabled by
+      default; `--no-prebuild` keeps per-test preparation. Disabling prebuild
+      retains the test squashfs cache default and runtime resource scheduling.
+      Explicit host builds started by test scripts or extensions are outside
+      this boundary. Preparation failure starts no selected VMs, reports the
+      build log and exit code or signal, and creates no script assertion results.
+
+    `--prebuild-memory-per-job-mib` *n*
+      Positive memory estimate per local Nix preparation job, in MiB; defaults
+      to `8192`. Preparation jobs are usable startup host/cgroup headroom,
+      bounded by assigned capacity and `--max-memory-mib`, minus the memory
+      reserve, divided by this estimate and rounded down, capped at inherited
+      local Nix `max-jobs`. Runtime memory overcommit is not applied. Unknown
+      headroom needs an explicit usable maximum; insufficient memory fails.
+      Inherited `max-jobs=0` keeps remote-only/substitution behavior without
+      sizing remote memory. The estimate is a heuristic, not an RSS cap.
+      Nix `cores`, kernel parallelism and VM `--jobs` remain unchanged.
+
     `--max-memory-mib` *n*
       Maximum memory available to running test VMs, in MiB. Detected memory
       capacity is limited by memory available when the run starts and cannot
@@ -212,7 +233,7 @@ root filesystem. Installed systems booted from disks retain those disks.
 Retained NixOS roots need the selected system closure before direct boot; after
 changing configuration, use `--fresh` or update the running VM before restart.
 
-## IMAGE CACHE
+## IMAGE CACHE AND RESOURCE SCHEDULING
 
 vpsAdminOS test images use a 2048 MiB squashfs compressor cache by default.
 `system.squashfsMemoryMiB` can override it; `null` uses the tool default,
@@ -220,6 +241,12 @@ which remains the production default. The setting preserves CPU parallelism
 and compression settings, including the default zstd level 10. The cache bound
 does not cap total RSS, and does not apply
 to historical pinned OS sources or unrelated Nixpkgs image builders.
+
+Concurrent tests share the RAM, `/dev/shm` and CPU budgets. When no pending test
+fits and no test is running, one test runs alone with a warning, even if it
+exceeds a budget. The test may exhaust the host or fail from OOM. Resource
+requests are unchanged. This applies with either prebuild setting. Preparation
+sizing assumes no competing test/build workload in the runner container.
 
 ## BUGS
 Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.

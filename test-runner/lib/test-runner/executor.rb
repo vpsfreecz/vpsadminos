@@ -46,7 +46,7 @@ module TestRunner
       @mutex = Mutex.new
       @scheduler_mutex = Mutex.new
       @scheduler_cv = ConditionVariable.new
-      @resource_pool = ResourcePool.from_options(opts)
+      @resource_pool = opts[:resource_pool] || ResourcePool.from_options(opts)
       @last_resource_wait_log_at = nil
       @resource_refresh_interval = parse_resource_refresh_interval(opts[:resource_refresh_interval])
       @resource_monitor_mutex = Mutex.new
@@ -82,6 +82,15 @@ module TestRunner
         end
 
         wait_for_workers
+      rescue Exception # rubocop:disable Lint/RescueException
+        stop_work!
+        # The preparation root must outlive every worker's guest cleanup.
+        workers.each do |worker|
+          worker.join
+        rescue StandardError
+          next
+        end
+        raise
       ensure
         stop_status_monitor
         stop_resource_monitor
@@ -629,7 +638,8 @@ module TestRunner
           sock_dir: test_sock_dir,
           default_timeout: opts[:default_timeout],
           destructive: opts[:destructive],
-          recreate_disks: opts[:recreate_disks]
+          recreate_disks: opts[:recreate_disks],
+          **prepared_config_options(test)
         )
 
         begin
@@ -773,6 +783,12 @@ module TestRunner
     def stop_work!
       @stop_work = true
       scheduler_mutex.synchronize { scheduler_cv.broadcast }
+    end
+
+    def prepared_config_options(test)
+      return {} unless opts.has_key?(:prepared_configs)
+
+      { prepared_config: opts.fetch(:prepared_configs).fetch(test) }
     end
 
     def stop_work?

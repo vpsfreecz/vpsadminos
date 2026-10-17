@@ -278,4 +278,21 @@ RSpec.describe TestRunner::ResourcePool do
     expect(described_class.detect_shm_mib).to eq(1024)
     expect(described_class.detect_shm_available_mib).to eq(256)
   end
+
+  it 'sizes preparation from startup headroom and maximum before reserve, without overcommit' do
+    [24_000, 64_000].each do |available|
+      pool = build_pool(
+        max_memory_mib: 40_000, memory_reserve_mib: 8000, memory_overcommit: 3,
+        resource_detector: resource_detector(memory_mib: 96_000, memory_available_mib: available)
+      )
+      expect(pool.prebuild_memory_mib).to eq([available, 40_000].min - 8000)
+    end
+  end
+
+  it 'needs explicit capacity when available headroom cannot be detected' do
+    pool = build_pool(resource_detector: resource_detector(memory_mib: 96_000))
+    expect(pool.prebuild_memory_mib).to be_nil
+    explicit = build_pool(max_memory_mib: 32_000, memory_reserve_mib: 8000)
+    expect(explicit.prebuild_memory_mib).to eq(24_000)
+  end
 end

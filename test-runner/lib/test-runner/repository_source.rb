@@ -1,7 +1,7 @@
 require 'fileutils'
 require 'open3'
 require 'pathname'
-require 'securerandom'
+require 'test-runner/gc_root'
 require 'tmpdir'
 
 module TestRunner
@@ -20,19 +20,13 @@ module TestRunner
       @nixpkgs_path = File.expand_path(nixpkgs_path || ENV.fetch('TEST_RUNNER_NIXPKGS_PATH'))
       @nix_system = nix_system || ENV.fetch('TEST_RUNNER_NIX_SYSTEM')
       @path = nil
-      @lock_file = nil
-      @lock_path = nil
-      @root_path = nil
     end
 
     def open
-      FileUtils.mkdir_p(root_directory, mode: 0o700)
-      reserve_gc_root
-      @path = resolve_and_root_source
-
-      yield(self)
-    ensure
-      remove_gc_root
+      GcRoot.new(root_directory:).open do |root_path|
+        @path = resolve_and_root_source(root_path)
+        yield(self)
+      end
     end
 
     def resolve_path(file_path)
@@ -51,11 +45,11 @@ module TestRunner
       File.expand_path('../../nix/resolve-repository-source.nix', __dir__)
     end
 
-    def resolve_and_root_source
+    def resolve_and_root_source(root_path)
       out, status = Open3.capture2(
         'nix-build',
         '--out-link',
-        @root_path,
+        root_path,
         helper_file,
         '--arg',
         'repoRoot',
@@ -76,90 +70,6 @@ module TestRunner
       raise 'nix-build returned no repository source output' if output_path.nil?
 
       File.realpath(File.join(output_path, 'source'))
-    end
-
-    def reserve_gc_root
-      with_registry_lock do
-        cleanup_stale_roots
-
-        loop do
-          token = "#{Process.pid}-#{SecureRandom.hex(8)}"
-          @lock_path = File.join(root_directory, "#{token}.lock")
-          @root_path = File.join(root_directory, "#{token}.root")
-
-          begin
-            @lock_file = File.open(
-              @lock_path,
-              File::RDWR | File::CREAT | File::EXCL,
-              0o600
-            )
-            break
-          rescue Errno::EEXIST
-            next
-          end
-        end
-
-        @lock_file.flock(File::LOCK_EX)
-      end
-    end
-
-    def remove_gc_root
-      return if @lock_path.nil? && @root_path.nil?
-
-      with_registry_lock do
-        unlink_gc_root(@root_path)
-
-        @lock_file&.flock(File::LOCK_UN)
-        @lock_file&.close
-        @lock_file = nil
-
-        File.unlink(@lock_path) if @lock_path && File.file?(@lock_path)
-      end
-    rescue Errno::ENOENT
-      nil
-    ensure
-      @lock_path = nil
-      @root_path = nil
-    end
-
-    def cleanup_stale_roots
-      Dir.glob(File.join(root_directory, '*.lock')).each do |lock_path|
-        File.open(lock_path, File::RDWR) do |lock_file|
-          next unless lock_file.flock(File::LOCK_EX | File::LOCK_NB)
-
-          unlink_gc_root(lock_path.sub(/\.lock\z/, '.root'))
-          File.unlink(lock_path)
-        end
-      rescue Errno::ENOENT
-        next
-      end
-
-      Dir.glob(File.join(root_directory, '*.root')).each do |root_path|
-        lock_path = root_path.sub(/\.root\z/, '.lock')
-        unlink_gc_root(root_path) unless File.exist?(lock_path)
-      end
-    end
-
-    def with_registry_lock
-      File.open(registry_lock_path, File::RDWR | File::CREAT, 0o600) do |lock_file|
-        lock_file.flock(File::LOCK_EX)
-        yield
-      ensure
-        lock_file.flock(File::LOCK_UN)
-      end
-    end
-
-    def unlink_gc_root(root_path)
-      return if root_path.nil?
-      return unless File.file?(root_path) || File.symlink?(root_path)
-
-      File.unlink(root_path)
-    rescue Errno::ENOENT
-      nil
-    end
-
-    def registry_lock_path
-      "#{root_directory}.lock"
     end
 
     def default_root_directory
