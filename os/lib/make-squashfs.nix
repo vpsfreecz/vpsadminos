@@ -16,6 +16,9 @@
   # Preserve source pathnames in the generated filesystem.
   noStrip ? false,
 
+  # Compressor cache in MiB; null retains squashfs-tools' default.
+  memoryMiB ? null,
+
   # Compression parameters.
   # For zstd compression you can use [ "zstd" "-Xcompression-level" "10" ].
   comp ? [
@@ -29,7 +32,9 @@ let
   compFlags = lib.escapeShellArgs (
     if comp == null then [ "-no-compression" ] else [ "-comp" ] ++ comp
   );
+  memoryFlags = lib.optionalString (memoryMiB != null) " -mem ${toString memoryMiB}M";
 in
+assert memoryMiB == null || (builtins.isInt memoryMiB && memoryMiB > 0);
 stdenv.mkDerivation {
   name = "squashfs.img";
 
@@ -75,14 +80,14 @@ stdenv.mkDerivation {
           --files-from "$closureInfo/store-paths" \
         | sqfstar \
           -all-root -root-uid 0 -root-gid 0 -root-mode 0755 \
-          -b 1048576 ${compFlags} \
+          -b 1048576 ${compFlags}${memoryFlags} \
           "$out"
       ''
     else
       ''
         mksquashfs nix-path-registration $(cat $closureInfo/store-paths) \
           ${lib.optionalString (secretsDir != null) "secrets"} \
-          $out -keep-as-directory -all-root -b 1048576 ${compFlags}
+          $out -keep-as-directory -all-root -b 1048576 ${compFlags}${memoryFlags}
       ''
   );
 }

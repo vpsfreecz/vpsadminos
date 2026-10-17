@@ -400,6 +400,17 @@ are post-failure observations, and an overwritten ring cannot establish that
 an earlier disconnect or reset was absent. No lock or cancellation assertion
 depends on a particular transport topology or on the diagnostic contents.
 
+## Squashfs cache
+
+vpsAdminOS test images default to `system.squashfsMemoryMiB = 2048`, passed to
+both `sqfstar` and `mksquashfs`. This bounds the compressor cache, not total
+build memory. Metadata, dictionaries, compression contexts and other processes
+use additional memory. The setting preserves CPU parallelism, compression
+settings (zstd level 10 by default) and image metadata. Override it when needed;
+`null` restores the tool default. Production defaults to `null`. Historical
+pinned OS sources and unrelated Nixpkgs image builders do not inherit this
+setting.
+
 ## Expected failure
 A test can be expected to fail. The failure is shown, but it does not result
 in error exit status. If a test succeeds and we expected it to fail, it is

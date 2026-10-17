@@ -139,6 +139,17 @@ in
       '';
     };
 
+    system.squashfsMemoryMiB = mkOption {
+      default = null;
+      type = types.nullOr types.ints.positive;
+      description = lib.mdDoc ''
+        Compressor cache size in MiB for `mksquashfs` and `sqfstar`.
+        `null` keeps the tool default. Compressor metadata and worker state
+        use additional memory. CPU parallelism and compression settings
+        are unchanged.
+      '';
+    };
+
     system.squashfsCompression = mkOption {
       default = [
         "zstd"
@@ -426,6 +437,7 @@ in
       secretsDir = config.system.secretsDir;
       noStrip = true;
       comp = config.system.squashfsCompression;
+      memoryMiB = config.system.squashfsMemoryMiB;
     };
 
     system.build.dist = pkgs.runCommand "vpsadminos-dist" { } ''

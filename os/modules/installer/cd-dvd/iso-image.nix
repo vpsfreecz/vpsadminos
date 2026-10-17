@@ -281,6 +281,7 @@ in
       storeContents = config.isoImage.storeContents;
       noStrip = true;
       comp = config.system.squashfsCompression;
+      memoryMiB = config.system.squashfsMemoryMiB;
     };
 
     # Individual files to be included on the CD, outside of the Nix
