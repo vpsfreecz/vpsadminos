@@ -212,7 +212,7 @@ root filesystem. Installed systems booted from disks retain those disks.
 Retained NixOS roots need the selected system closure before direct boot; after
 changing configuration, use `--fresh` or update the running VM before restart.
 
-## IMAGE CACHE
+## IMAGE CACHE AND MEMORY ADMISSION
 
 vpsAdminOS test images use a 2048 MiB squashfs compressor cache by default.
 `system.squashfsMemoryMiB` can override it; `null` uses the tool default,
@@ -220,6 +220,10 @@ which remains the production default. The setting preserves CPU parallelism
 and compression settings, including the default zstd level 10. The cache bound
 does not cap total RSS, and does not apply
 to historical pinned OS sources or unrelated Nixpkgs image builders.
+
+Tests exceeding the nominal RAM or `/dev/shm` capacity fail explicitly. A
+CPU-only overage may run alone when memory fits, including large-vCPU livepatch
+fixtures.
 
 ## BUGS
 Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.

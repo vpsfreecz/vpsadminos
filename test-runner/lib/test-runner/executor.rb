@@ -7,6 +7,7 @@ require 'test-runner/resource_pool'
 
 module TestRunner
   class Executor
+    class ResourceError < StandardError; end
     # Private parent/child status that cannot be accepted by expectFailure.
     KERNEL_FAILURE_EXIT_STATUS = 86
     DEFAULT_RESOURCE_REFRESH_INTERVAL = 15
@@ -197,6 +198,9 @@ module TestRunner
           mark_test_finished(test, result)
         end
       end
+    rescue StandardError
+      stop_work!
+      raise
     end
 
     def reserve_next_test
@@ -231,15 +235,18 @@ module TestRunner
 
       return i unless i.nil?
 
-      # Never deadlock the suite just because one test is larger than the
-      # detected capacity. Run it alone and let QEMU or the host enforce the
-      # real limit.
       if resource_pool.running == 0
         _test_i, test, = pending.first
+        unless resource_pool.memory_fits?(test.resources)
+          raise ResourceError,
+                "Test #{test.path}: #{resource_pool.memory_overflows(test.resources).join('; ')}"
+        end
+
+        # Keep the CPU-only exception for deliberately large-vCPU tests.
         log(
-          "WARNING: Test #{test.path} requests resources beyond the scheduler " \
+          "WARNING: Test #{test.path} requests CPUs beyond the scheduler " \
           "limits (requested: #{test.resources.summary}; available: #{resource_pool.status}); " \
-          'running it alone may exhaust the host'
+          'running it alone with memory admission enforced'
         )
         return 0
       end

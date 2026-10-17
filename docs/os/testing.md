@@ -411,6 +411,15 @@ settings (zstd level 10 by default) and image metadata. Override it when needed;
 pinned OS sources and unrelated Nixpkgs image builders do not inherit this
 setting.
 
+## Runtime memory admission
+
+A test whose aggregate RAM or `/dev/shm` request exceeds the nominal capacity
+fails explicitly instead of bypassing the limit or waiting forever. The error
+names the test, constraint, requested amount and capacity. CPU-only oversized
+tests can still run alone when both memory requests fit, including intentional
+large-vCPU livepatch fixtures. Guest memory, CPU counts and shared-memory
+requests are unchanged.
+
 ## Expected failure
 A test can be expected to fail. The failure is shown, but it does not result
 in error exit status. If a test succeeds and we expected it to fail, it is

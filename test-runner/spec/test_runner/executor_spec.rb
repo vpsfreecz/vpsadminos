@@ -698,38 +698,34 @@ RSpec.describe TestRunner::Executor do
     expect(executor.instance_variable_get(:@status_monitor)).to be_nil
   end
 
-  it 'runs an oversized pending test alone to avoid scheduler deadlock' do
-    large = build_test(
-      path: 'suite/large',
-      resources: {
-        'machines' => 1,
-        'memoryMiB' => 12_000,
-        'shmMiB' => 12_000,
-        'maxMachineMemoryMiB' => 12_000,
-        'cpus' => 4
-      }
-    )
-    executor = build_executor(
-      [large.test_scripts['default']],
-      max_memory_mib: 10_000,
-      max_shm_mib: 10_000,
-      memory_reserve_mib: 0,
-      shm_reserve_mib: 0
-    )
-    logs = []
-    allow(executor).to receive(:log) { |msg| logs << msg }
-
-    _i, test, = executor.send(:reserve_next_test)
-
-    expect(test).to eq(large)
-    expect(executor.send(:resource_pool).used.memory_mib).to eq(12_000)
-    expect(logs).to include(
-      a_string_including(
-        'WARNING: Test suite/large requests resources beyond the scheduler limits',
-        'requested: machines=1, memory=11.7 GiB, shm=11.7 GiB, cpus=4',
-        'running it alone may exhaust the host'
+  %w[memoryMiB shmMiB].each do |constraint|
+    it "rejects oversized #{constraint} finitely without starting a test" do
+      test = build_test(resources: { constraint => 12_000 })
+      executor = build_executor(
+        [build_test_script(test)], max_memory_mib: 10_000, max_shm_mib: 10_000,
+                                   memory_reserve_mib: 0, shm_reserve_mib: 0
       )
+      allow(executor).to receive(:run_test_with_retries)
+      expect do
+        executor.send(:reserve_next_test)
+      end.to raise_error(TestRunner::Executor::ResourceError, /request 12000 MiB exceeds capacity 10000 MiB/)
+      expect(executor).not_to have_received(:run_test_with_retries)
+      expect(executor.send(:resource_pool).running).to eq(0)
+    end
+  end
+
+  it 'runs CPU-only oversized tests alone when both memory constraints fit' do
+    test = build_test(resources: { 'memoryMiB' => 8000, 'shmMiB' => 8000, 'cpus' => 128 })
+    executor = build_executor(
+      [build_test_script(test)], max_memory_mib: 10_000, max_shm_mib: 10_000, max_cpus: 4,
+                                 memory_reserve_mib: 0, shm_reserve_mib: 0, resource_detector: resource_detector(cpus: 4)
     )
+    allow(executor).to receive(:log)
+    _i, selected, = executor.send(:reserve_next_test)
+    expect(selected).to eq(test)
+    expect(executor.send(:resource_pool).used.cpus).to eq(128)
+    expect(executor.send(:resource_pool).used.memory_mib).to eq(8000)
+    expect(executor).to have_received(:log).with(/CPUs beyond.*memory admission enforced/)
   end
 
   it 'releases reserved resources after a test finishes' do

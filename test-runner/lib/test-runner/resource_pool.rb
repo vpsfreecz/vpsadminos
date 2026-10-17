@@ -420,6 +420,16 @@ module TestRunner
         fits?(cpus, used.cpus + resources.cpus)
     end
 
+    def memory_fits?(resources)
+      memory_overflows(resources).empty?
+    end
+
+    def memory_overflows(resources)
+      [['memory', memory_mib, resources.memory_mib], ['/dev/shm', shm_mib, resources.shm_mib]].filter_map do |name, cap, requested|
+        "#{name} request #{requested} MiB exceeds capacity #{cap} MiB" if cap && requested > cap
+      end
+    end
+
     def reserve(resources)
       @used += resources
       @running += 1
