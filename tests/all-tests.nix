@@ -322,6 +322,7 @@ let
             };
           }
           "zfs/full-suite"
+          "zfs/boot-modes"
           "zfs/block-cloning-corruption"
           "zfs/fallocate-deadlock"
           "zfs/large-folios"

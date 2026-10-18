@@ -116,6 +116,9 @@ jobs:
       - name: Check vpsAdminOS disk image reuse
         run: nix build .#checks.x86_64-linux.vpsadminos-disk-image-reuse --no-link
 
+      - name: Check builtin and external ZFS package parity
+        run: nix build .#checks.x86_64-linux.zfs-package-parity --no-link --option allow-import-from-derivation false
+
       - name: Determine branch name
         id: vars
         run: |

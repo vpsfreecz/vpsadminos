@@ -44,7 +44,10 @@ let
             rev = kernelPackages.kernels.${config.boot.kernelVersion}.zfs.rev;
             sha256 = kernelPackages.kernels.${config.boot.kernelVersion}.zfs.sha256;
           }).zfsStable
-            { enableDebug = config.system.vpsadminos.zfsDebug; }
+            {
+              enableDebug = config.system.vpsadminos.zfsDebug;
+              extraPatches = kernelPackages.kernels.${config.boot.kernelVersion}.zfs.patches or [ ];
+            }
         else
           (super.stdenv.mkDerivation {
             name = "zfs";

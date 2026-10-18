@@ -808,6 +808,10 @@
           vpsadminos-disk-image-reuse = import ./tests/vpsadminos-disk-image-reuse-check.nix {
             inherit nixpkgs system testFramework;
           };
+          zfs-package-parity = import ./tests/zfs-package-parity-check.nix {
+            pkgs = import nixpkgs { inherit system; };
+            makeSystem = args: vpsadminosSystem (args // { inherit system; });
+          };
         }
       );
     };
