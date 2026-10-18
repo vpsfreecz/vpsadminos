@@ -51,11 +51,17 @@ module OsCtld
     # @option opts [String, nil] :syslogns_tag (nil)
     def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, **opts, &block)
       chown_cgroups = opts.has_key?(:chown_cgroups) ? opts[:chown_cgroups] : true
+      pipes = []
+      pid = nil
+      handed_off = false
 
       r, w = IO.pipe
+      pipes.push(r, w)
+      prepared_r, prepared_w = IO.pipe
+      pipes.push(prepared_r, prepared_w)
 
       keep_fds = (opts[:keep_fds] || []).clone
-      keep_fds << r
+      keep_fds << r << prepared_w
 
       CGroup.mkpath_all(cgroup_path.split('/'), chown: chown_cgroups ? ugid : false)
 
@@ -78,6 +84,11 @@ module OsCtld
           syslogns_tag: opts.fetch(:syslogns_tag, nil)
         )
 
+        # Lowering NOFILE before inherited FDs are closed can prevent even
+        # opening /proc/self/fd. Acknowledge preparation before applying limits.
+        prepared_w.puts('prepared')
+        prepared_w.close
+
         msg = r.readline.strip
         r.close
 
@@ -89,13 +100,45 @@ module OsCtld
       end
 
       r.close
+      prepared_w.close
+
+      if prepared_r.readline != "prepared\n"
+        raise 'invalid child preparation acknowledgement'
+      end
+
+      prepared_r.close
 
       apply_prlimits(pid, opts[:prlimits]) if opts[:prlimits]
 
       w.puts('ready')
       w.close
+      handed_off = true
       pid
+    ensure
+      pipes&.each do |pipe|
+        pipe.close unless pipe.closed?
+      rescue IOError, SystemCallError
+        # Close the remaining ends without hiding the original setup failure.
+      end
+
+      reap_failed_fork(pid) if pid && !handed_off
     end
+
+    def self.reap_failed_fork(pid)
+      # An already-reaped PID is no longer ours to signal. The caller owns
+      # successful children; only an incomplete handoff is collected here.
+      return if Process.waitpid(pid, Process::WNOHANG)
+
+      begin
+        Process.kill('KILL', pid)
+      rescue Errno::ESRCH
+        # The child exited between checking and signalling it.
+      end
+      Process.waitpid(pid)
+    rescue Errno::ECHILD
+      nil
+    end
+    private_class_method :reap_failed_fork
 
     # Switch the current process to an unprivileged user
     def self.switch_to(sysuser, ugid, homedir, cgroup_path, syslogns_tag: nil)

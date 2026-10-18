@@ -310,6 +310,7 @@ let
           "osctld/direct-start"
           "osctld/resilience"
           "osctld/restart"
+          "osctld/switch-user-prlimits"
           "prometheus/exporters"
           "podman/almalinux"
           "podman/arch"

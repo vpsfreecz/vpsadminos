@@ -4,6 +4,7 @@ require 'osctld/switch_user'
 require 'osctld/process_identity'
 require 'fcntl'
 require 'socket'
+require 'timeout'
 
 RSpec.describe OsCtld::SwitchUser do
   around do |example|
@@ -80,6 +81,223 @@ RSpec.describe OsCtld::SwitchUser do
       9_999,
       1_024
     )
+  end
+
+  describe '.fork_and_switch_to' do
+    before do
+      stub_const('OsCtld::CGroup', Class.new do
+        def self.mkpath_all(*); end
+      end)
+      allow(described_class).to receive(:switch_to)
+      allow(described_class).to receive(:apply_prlimits)
+    end
+
+    def helper_fork(**opts, &block)
+      described_class.fork_and_switch_to('alice', 1234, '/home/alice', 'osctl/ct1', **opts, &block)
+    end
+
+    def capture_helper_pids
+      children = []
+      allow(described_class).to receive(:fork).and_wrap_original do |original, **opts, &work|
+        child = original.call(**opts) do
+          work.call
+        rescue StandardError
+          exit!(1)
+        end
+        children << child
+        child
+      end
+      children
+    end
+
+    def expect_failed_handoff(error, message = nil)
+      children = capture_helper_pids
+      Dir.mktmpdir('osctld-fork-failure') do |dir|
+        marker = File.join(dir, 'workload')
+        before_fds = Dir.children('/proc/self/fd').sort
+
+        expect do
+          Timeout.timeout(5) do
+            helper_fork(prlimits: { 'nofile' => { soft: 1024, hard: 2048 } }) do
+              File.write(marker, 'ran')
+              exit!(0)
+            end
+          end
+        end.to raise_error(error, message)
+
+        expect(File).not_to exist(marker)
+        expect(Dir.children('/proc/self/fd').sort).to eq(before_fds)
+        children.each do |pid|
+          expect { Process.waitpid(pid, Process::WNOHANG) }.to raise_error(Errno::ECHILD)
+        end
+      end
+    end
+
+    it 'waits for cleanup with over 1024 inherited FDs before lowering the child limit' do
+      in_cleanup_child do
+        inherited = Array.new(1100) { File.open(File::NULL) }
+        entered_r, entered_w = IO.pipe
+        release_r, release_w = IO.pipe
+        result_r, result_w = IO.pipe
+        progress = Queue.new
+        children = capture_helper_pids
+        pipes = []
+
+        # The main test thread releases cleanup only after the helper parent
+        # reaches its acknowledgement read. The old implementation instead
+        # reaches apply_prlimits while cleanup is still held behind this gate.
+        allow(described_class).to receive(:close_fds).and_wrap_original do |original, **opts|
+          entered_w.puts('entered')
+          raise 'cleanup gate closed' unless release_r.read(1) == '.'
+
+          original.call(**opts)
+        end
+        allow(IO).to receive(:pipe).and_wrap_original do |original|
+          pair = original.call
+          pipes << pair
+          if pipes.length == 2
+            allow(pair.first).to receive(:readline).and_wrap_original do |readline|
+              progress << :waiting_for_preparation
+              readline.call
+            end
+          end
+          pair
+        end
+
+        prlimit = Fiddle::Function.new(
+          Fiddle::Handle::DEFAULT['prlimit'],
+          [Fiddle::TYPE_INT, Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP],
+          Fiddle::TYPE_INT
+        )
+        allow(described_class).to receive(:apply_prlimits) do |pid, limits|
+          progress << :applying_limits
+          limit = limits.fetch('nofile')
+          ret = prlimit.call(pid, Process::RLIMIT_NOFILE, [limit[:soft], limit[:hard]].pack('L!L!'), nil)
+          raise SystemCallError.new('prlimit', Fiddle.last_error) if ret != 0
+        end
+
+        worker = Thread.new do
+          helper_fork(keep_fds: [result_w], prlimits: { 'nofile' => { soft: 1024, hard: 2048 } }) do
+            result_w.puts(Process.getrlimit(:NOFILE).join(':'))
+            exit!(0)
+          end
+        end
+        worker.report_on_exception = false
+
+        expect(Timeout.timeout(5) { entered_r.readline }).to eq("entered\n")
+        expect(Timeout.timeout(5) { progress.pop }).to eq(:waiting_for_preparation)
+        expect(described_class).not_to have_received(:apply_prlimits)
+        release_w.write('.')
+        pid = Timeout.timeout(5) { worker.value }
+
+        expect(Timeout.timeout(5) { result_r.readline }).to eq("1024:2048\n")
+        expect(Process.wait2(pid).last.exitstatus).to eq(0)
+        expect(described_class).to have_received(:apply_prlimits).once
+      ensure
+        release_w&.close
+        worker&.join(1)
+        children&.each do |child|
+          described_class.send(:reap_failed_fork, child)
+        end
+        [entered_r, entered_w, release_r, result_r, result_w, *inherited].compact.each do |io|
+          io.close unless io.closed?
+        end
+      end
+    end
+
+    it 'reports child setup failure without applying limits or leaking descriptors or children' do
+      in_cleanup_child do
+        allow(described_class).to receive(:switch_to).and_raise('child setup failed')
+
+        expect_failed_handoff(EOFError)
+        expect(described_class).not_to have_received(:apply_prlimits)
+      end
+    end
+
+    it 'rejects an invalid acknowledgement and reaps the waiting child' do
+      in_cleanup_child do
+        pipes = 0
+        allow(IO).to receive(:pipe).and_wrap_original do |original|
+          pair = original.call
+          pipes += 1
+          if pipes == 2
+            allow(pair.last).to receive(:puts).with('prepared').and_wrap_original do |puts|
+              puts.call('invalid')
+            end
+          end
+          pair
+        end
+
+        expect_failed_handoff(RuntimeError, 'invalid child preparation acknowledgement')
+        expect(described_class).not_to have_received(:apply_prlimits)
+      end
+    end
+
+    it 'reaps only its failed helper when applying limits fails' do
+      in_cleanup_child do
+        other_r, other_w = IO.pipe
+        unrelated = Process.fork do
+          other_w.close
+          other_r.read
+          exit!(0)
+        end
+        other_r.close
+        allow(described_class).to receive(:apply_prlimits).and_raise(Errno::EPERM, 'limit failure')
+
+        expect_failed_handoff(Errno::EPERM, /limit failure/)
+        expect(Process.waitpid(unrelated, Process::WNOHANG)).to be_nil
+        other_w.close
+        expect(Process.wait2(unrelated).last.exitstatus).to eq(0)
+      ensure
+        other_w&.close unless other_w&.closed?
+        described_class.send(:reap_failed_fork, unrelated) if unrelated
+      end
+    end
+
+    it 'reaps the child and preserves the error when the ready release fails' do
+      in_cleanup_child do
+        pipes = 0
+        allow(IO).to receive(:pipe).and_wrap_original do |original|
+          pair = original.call
+          pipes += 1
+          allow(pair.last).to receive(:puts).with('ready').and_raise(Errno::EPIPE) if pipes == 1
+          pair
+        end
+
+        expect_failed_handoff(Errno::EPIPE)
+      end
+    end
+
+    it 'closes the first pipe if creating the acknowledgement pipe fails' do
+      in_cleanup_child do
+        pipes = 0
+        allow(IO).to receive(:pipe).and_wrap_original do |original|
+          pipes += 1
+          raise Errno::EMFILE if pipes == 2
+
+          original.call
+        end
+
+        expect_failed_handoff(Errno::EMFILE)
+      end
+    end
+
+    it 'closes helper pipes if the fork fails' do
+      in_cleanup_child do
+        allow(Process).to receive(:fork).and_raise(Errno::EAGAIN)
+
+        expect_failed_handoff(Errno::EAGAIN)
+      end
+    end
+
+    it 'does not signal a helper that has already been reaped' do
+      allow(Process).to receive(:waitpid).with(123, Process::WNOHANG).and_raise(Errno::ECHILD)
+      allow(Process).to receive(:kill)
+
+      described_class.send(:reap_failed_fork, 123)
+
+      expect(Process).not_to have_received(:kill)
+    end
   end
 
   it 'closes only file descriptors that are not explicitly kept' do
