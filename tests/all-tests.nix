@@ -270,6 +270,19 @@ let
           "kernel/vpsadminos"
           "kernel/livepatch-kernel-identity"
           "kernel/module-autoload"
+          {
+            template = "kernel/large-swap";
+            instances = lib.cartesianProduct {
+              cgroupsVersion = [
+                1
+                2
+              ];
+              kernelSeries = [
+                "stable"
+                "unstable"
+              ];
+            };
+          }
           "kernel/cpu-view/cgroups-v1"
           "kernel/cpu-view/cgroups-v2"
           "kernel/loadavg"

@@ -6,9 +6,9 @@ with lib.kernel;
 
   kernels = {
     "6.18.49" = {
-      rev = "a770f5086fc500ca258852aea1cb3e209a342d2b";
+      rev = "364b298b8e8cf79c2d06f5e0eb38045cd70cd197";
       # Linux uses fetchurl: hash archive bytes, not the unpacked source tree.
-      sha256 = "sha256-YJVRl+2+x+arnS3vzteI+t8LRUKAKDlONCrw9bbmZK0=";
+      sha256 = "sha256-Rr0ql/tQzXVuI1ylT6M5ozADPopMhhSCrTy74RUtt6w=";
       structuredExtraConfig = {
         DAMON = yes;
         DAMON_VADDR = yes;
@@ -45,8 +45,8 @@ with lib.kernel;
       };
     };
     "6.12.113" = {
-      rev = "11058eb4fe1cba30653e8e643546c13bc8bcd792";
-      sha256 = "sha256-YuxV0X1N5f42y6Jlx1bbiXWU0U3ETg233f1OYL0a0vA=";
+      rev = "50e2a54f0d04b1ad2885374637b3840be37a1344";
+      sha256 = "sha256-l2klScrVmb3GujXlajIGMUdrRik6Tm5FMHl7Gip82bs=";
       zfs = {
         rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
         sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";
