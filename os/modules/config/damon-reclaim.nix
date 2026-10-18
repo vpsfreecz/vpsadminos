@@ -23,21 +23,6 @@ in
       '';
     };
 
-    scope = mkOption {
-      type = types.enum [
-        "global"
-        "perNode"
-      ];
-      default = "global";
-      description = ''
-        Reclaim scope.
-
-        ``global`` uses one DAMON_RECLAIM scheme for the configured global
-        target region. ``perNode`` applies the same policy independently on
-        each NUMA node that has matching System RAM.
-      '';
-    };
-
     minAge = mkOption {
       type = types.int;
       default = 120000000;
@@ -68,22 +53,6 @@ in
         default = 1000;
         description = ''
           Quota reset interval in milliseconds.
-        '';
-      };
-
-      freeMemRate = mkOption {
-        type = types.int;
-        default = 0;
-        description = ''
-          Target system free-memory rate in per-thousand units.
-        '';
-      };
-
-      freeMemBytes = mkOption {
-        type = types.int;
-        default = 0;
-        description = ''
-          Target system free-memory tail in bytes.
         '';
       };
 
@@ -212,14 +181,6 @@ in
         message = "boot.damon.reclaim.quota.resetIntervalMs must be non-negative";
       }
       {
-        assertion = cfg.quota.freeMemRate >= 0 && cfg.quota.freeMemRate <= 1000;
-        message = "boot.damon.reclaim.quota.freeMemRate must be between 0 and 1000";
-      }
-      {
-        assertion = cfg.quota.freeMemBytes >= 0;
-        message = "boot.damon.reclaim.quota.freeMemBytes must be non-negative";
-      }
-      {
         assertion = cfg.quota.autotuneFeedback >= 0;
         message = "boot.damon.reclaim.quota.autotuneFeedback must be non-negative";
       }
@@ -313,18 +274,6 @@ in
           fi
         }
 
-        write_scope() {
-          value="${if cfg.scope == "perNode" then "per-node" else "global"}"
-          path="$params/scope"
-
-          if [ -e "$path" ]; then
-            write_param scope "$value"
-          elif [ "$value" != "global" ]; then
-            echo "damon_reclaim scope parameter is not available"
-            exit 1
-          fi
-        }
-
         if [ ! -d "$params" ] && [ "$target_enabled" = "Y" ]; then
           modprobe damon_reclaim 2>/dev/null || true
         fi
@@ -339,12 +288,9 @@ in
         fi
 
         write_param min_age "${toString cfg.minAge}"
-        write_scope
         write_param quota_ms "${toString cfg.quota.ms}"
         write_param quota_sz "${toString cfg.quota.size}"
         write_param quota_reset_interval_ms "${toString cfg.quota.resetIntervalMs}"
-        write_param quota_free_mem_rate "${toString cfg.quota.freeMemRate}"
-        write_param quota_free_mem_bytes "${toString cfg.quota.freeMemBytes}"
         write_param quota_autotune_feedback "${toString cfg.quota.autotuneFeedback}"
         write_param wmarks_interval "${toString cfg.watermarks.intervalUs}"
         write_param wmarks_high "${toString cfg.watermarks.high}"

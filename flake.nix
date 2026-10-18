@@ -332,7 +332,6 @@
             };
 
           qemuSystem = mkQemuSystem [ ];
-          proactiveSwapQemuSystem = mkQemuSystem [ ./os/configs/proactive-swap-qemu.nix ];
           ciLivepatch95System = mkQemuSystem [
             ./tests/configs/vpsadminos/livepatch-6.12.95-boot-base.nix
             { services.live-patches.enable = true; }
@@ -433,12 +432,10 @@
           {
             default = qemuSystem.config.system.build.runvm;
             qemu = qemuSystem.config.system.build.runvm;
-            qemu-proactive-swap = proactiveSwapQemuSystem.config.system.build.runvm;
             toplevel = qemuSystem.config.system.build.toplevel;
             ci-toplevel = ciQemuSystem.config.system.build.toplevel;
             ci-livepatch-6_12_95 = ciLivepatch95;
             qemu-script = qemuSystem.config.system.build.runvmScript;
-            qemu-script-proactive-swap = proactiveSwapQemuSystem.config.system.build.runvmScript;
             vpsadminos-rebuild = qemuSystem.config.system.build.vpsadminos-rebuild;
             os-rebuild = qemuSystem.config.system.build.os-rebuild;
             iso = isoSystem.config.system.build.isoImage;

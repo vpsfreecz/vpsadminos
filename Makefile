@@ -18,12 +18,6 @@ build-qemu-script:
 qemu-script:
 	$(MAKE) -C os qemu-script
 
-build-qemu-proactive-swap:
-	$(MAKE) -C os build-qemu-proactive-swap
-
-qemu-proactive-swap:
-	$(MAKE) -C os qemu-proactive-swap
-
 kernel-dev-build:
 	./tools/vpsadminos-kernel-dev-build build
 

@@ -102,8 +102,6 @@ let
     in
     scriptsList;
 
-  proactiveSwapEnabled = builtins.getEnv "VPSADMINOS_ENABLE_PROACTIVE_SWAP_TEST" == "1";
-  proactiveSwapOnly = builtins.getEnv "VPSADMINOS_ONLY_PROACTIVE_SWAP_TEST" == "1";
   livepatchTestEnabled = builtins.getEnv "VPSADMINOS_ENABLE_LIVEPATCH_TEST" == "1";
   livepatchOnly = builtins.getEnv "VPSADMINOS_ONLY_LIVEPATCH_TEST" == "1";
   nfsTransitionTestEnabled =
@@ -116,14 +114,6 @@ let
   schedProxyExecLockBadneighborOnly =
     builtins.getEnv "VPSADMINOS_ONLY_SCHED_PROXY_EXEC_LOCK_BADNEIGHBOR_TEST" == "1";
 
-  proactiveSwapTests =
-    if proactiveSwapEnabled || proactiveSwapOnly then
-      [
-        "kernel/proactive-swap-cgroups-v1"
-        "kernel/proactive-swap"
-      ]
-    else
-      [ ];
   schedProxyExecTests =
     if schedProxyExecEnabled || schedProxyExecOnly then [ "kernel/sched-proxy-exec" ] else [ ];
   schedProxyExecLockBadneighborTests =
@@ -150,14 +140,12 @@ let
   nfsTransitionTests =
     if nfsTransitionTestEnabled then [ "kernel/livepatch-nfs-transition" ] else [ ];
   sctpHostileTests = if sctpHostileTestEnabled then [ "kernel/livepatch-sctp-hostile" ] else [ ];
-  localOnlyTests = lib.unique (
-    proactiveSwapTests ++ schedProxyExecTests ++ schedProxyExecLockBadneighborTests
-  );
+  localOnlyTests = lib.unique (schedProxyExecTests ++ schedProxyExecLockBadneighborTests);
 
   selectedTests =
     if livepatchOnly then
       livepatchTests ++ nfsTransitionTests ++ sctpHostileTests
-    else if proactiveSwapOnly || schedProxyExecOnly || schedProxyExecLockBadneighborOnly then
+    else if schedProxyExecOnly || schedProxyExecLockBadneighborOnly then
       localOnlyTests
     else
       lib.unique (
