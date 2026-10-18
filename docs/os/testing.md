@@ -359,8 +359,11 @@ This wait only affects failure cleanup: it does not suppress kernel-failure
 detection, permit further guest commands, or turn a failing test into a pass.
 A dump can still be incomplete if a collection limit is reached.
 
-When a test stops for a guest kernel failure, the executor also prints bounded
-tails of `test-runner.log` and each machine's console log into its normal output.
+When a test stops for a guest kernel failure or has another unexpected result,
+the executor also prints bounded tails of `test-runner.log` and each machine's
+console log into its normal output. This includes evaluation and build errors
+that occur before a guest or test example starts; they remain ordinary failures,
+not kernel-failure verdicts.
 Each tail is limited to the final 200 lines within the final 64 KiB. This keeps
 diagnostic context in the CI job log if a later artifact upload is interrupted;
 it does not replace the full retained logs or guarantee a complete first trace.

@@ -556,7 +556,7 @@ module TestRunner
       if result.kernel_failure?
         log("#{prefix} Test '#{test.path}' stopped after #{secs} seconds due to a guest kernel failure, " \
             "see #{result.state_dir}")
-        log_kernel_failure_context(result.state_dir, prefix:)
+        log_failure_context(result.state_dir, prefix:)
         stop_work! if opts[:stop_on_failure]
       elsif result.expected_result?
         if result.successful?
@@ -571,6 +571,7 @@ module TestRunner
           log("#{prefix} Test '#{test.path}' failed after #{secs} seconds, see #{result.state_dir}")
         end
 
+        log_failure_context(result.state_dir, prefix:)
         unexpected_scripts = result.script_results.select(&:unexpected_result?)
         if opts[:stop_on_failure] && (
           unexpected_scripts.empty? || unexpected_scripts.any? { |sr| attempt + 1 >= sr.test_script.attempts }
@@ -792,9 +793,9 @@ module TestRunner
       opts[:state_dir]
     end
 
-    # Keep kernel evidence in the ordinary CI job log even if artifact upload is
+    # Keep failure evidence in the ordinary CI job log even if artifact upload is
     # interrupted. Full logs remain in the test state; these are bounded tails.
-    def log_kernel_failure_context(state_dir, prefix:)
+    def log_failure_context(state_dir, prefix:)
       paths = [File.join(state_dir, 'test-runner.log')] + Dir[File.join(state_dir, '*-console.log')]
 
       paths.each do |path|
@@ -805,10 +806,10 @@ module TestRunner
           f.read(65_536)
         end
 
-        log("#{prefix} Kernel failure log tail: #{path} (at most 200 lines / 65536 bytes)")
+        log("#{prefix} Failed test log tail: #{path} (at most 200 lines / 65536 bytes)")
         data.to_s.lines.last(200).each { |line| log("#{prefix} #{line.chomp}") }
       rescue SystemCallError, IOError => e
-        log("#{prefix} Unable to read kernel failure log #{path}: #{e.message}")
+        log("#{prefix} Unable to read failed test log #{path}: #{e.message}")
       end
     end
 

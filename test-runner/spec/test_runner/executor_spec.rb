@@ -33,7 +33,7 @@ RSpec.describe TestRunner::Executor do
     )
   end
 
-  describe 'kernel failure job-log context' do
+  describe 'failed test job-log context' do
     let(:executor) { build_executor([]) }
 
     before { allow(executor).to receive(:log) }
@@ -46,7 +46,7 @@ RSpec.describe TestRunner::Executor do
       File.write(runner_path, runner_log)
       File.write(console_path, console_log)
 
-      executor.send(:log_kernel_failure_context, executor_state_dir, prefix: '[1/1]')
+      executor.send(:log_failure_context, executor_state_dir, prefix: '[1/1]')
 
       expect(executor).to have_received(:log).with('[1/1] OsVm::KernelFailure: kernel BUG at mm/swapfile.c')
       expect(executor).to have_received(:log).with('[1/1] [1.1] Call Trace:')
@@ -60,7 +60,7 @@ RSpec.describe TestRunner::Executor do
       lines = (1..250).map { |i| "line #{i}\n" }.join
       File.write(path, "not in the tail\n#{'x' * 100_000}\n#{lines}")
 
-      executor.send(:log_kernel_failure_context, executor_state_dir, prefix: '[1/1]')
+      executor.send(:log_failure_context, executor_state_dir, prefix: '[1/1]')
 
       expect(executor).not_to have_received(:log).with('[1/1] not in the tail')
       expect(executor).not_to have_received(:log).with('[1/1] line 50')
@@ -73,7 +73,7 @@ RSpec.describe TestRunner::Executor do
       path = File.join(executor_state_dir, 'machine-console.log')
       File.write(path, 'x' * 100_000)
 
-      executor.send(:log_kernel_failure_context, executor_state_dir, prefix: '[1/1]')
+      executor.send(:log_failure_context, executor_state_dir, prefix: '[1/1]')
 
       expect(executor).to have_received(:log).with("[1/1] #{'x' * 65_536}")
     end
@@ -84,10 +84,46 @@ RSpec.describe TestRunner::Executor do
       allow(File).to receive(:open).with(path, 'rb').and_raise(Errno::ENOENT, path)
 
       expect do
-        executor.send(:log_kernel_failure_context, executor_state_dir, prefix: '[1/1]')
+        executor.send(:log_failure_context, executor_state_dir, prefix: '[1/1]')
       end.not_to raise_error
 
-      expect(executor).to have_received(:log).with(%r{\[1/1\] Unable to read kernel failure log})
+      expect(executor).to have_received(:log).with(%r{\[1/1\] Unable to read failed test log})
+    end
+  end
+
+  it 'retains evaluator errors for an ordinary unexpected failed attempt' do
+    test = build_test
+    script = build_test_script(test)
+    failed = TestRunner::TestResult.new(
+      test, [TestRunner::TestScriptResult.new(script, false, 0.1)], false, 0.1, executor_state_dir
+    )
+    File.write(File.join(executor_state_dir, 'test-runner.log'), "error: fixture build failed\n")
+    executor = build_executor([script])
+    allow(executor).to receive(:run_test).and_return(failed)
+    allow(executor).to receive(:log)
+
+    result = executor.send(:run_test_attempt, 0, test, [script], 0)
+
+    expect(result).to be_failed
+    expect(result).not_to be_kernel_failure
+    expect(executor).to have_received(:log).with('[1/1] error: fixture build failed')
+  end
+
+  [false, true].each do |expect_failure|
+    it "does not print failure context for an expected result, expect_failure=#{expect_failure}" do
+      test = build_test(expect_failure:)
+      script = build_test_script(test)
+      result = TestRunner::TestResult.new(
+        test, [TestRunner::TestScriptResult.new(script, !expect_failure, 0.1)],
+        !expect_failure, 0.1, executor_state_dir
+      )
+      executor = build_executor([script])
+      allow(executor).to receive(:run_test).and_return(result)
+      allow(executor).to receive(:log)
+      allow(executor).to receive(:log_failure_context)
+
+      expect(executor.send(:run_test_attempt, 0, test, [script], 0)).to be_expected_result
+      expect(executor).not_to have_received(:log_failure_context)
     end
   end
 
