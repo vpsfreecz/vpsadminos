@@ -45,8 +45,8 @@ with lib.kernel;
       };
     };
     "6.12.113" = {
-      rev = "11058eb4fe1cba30653e8e643546c13bc8bcd792";
-      sha256 = "sha256-YuxV0X1N5f42y6Jlx1bbiXWU0U3ETg233f1OYL0a0vA=";
+      rev = "86d54e7adff82e632299b41a2d1397ccbec1cb9e";
+      sha256 = "sha256-qOskH2ecF3n0yzNE2F9vo7voFS1flXZo8Dc9h8MzxPM=";
       zfs = {
         rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
         sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";
