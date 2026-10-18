@@ -5,6 +5,7 @@
   ...
 }:
 let
+  availableKernels = import ../packages/linux/available-kernels.nix { inherit lib; };
   kernelPackages = import ../packages/linux/packages.nix {
     inherit config lib pkgs;
   };
@@ -39,7 +40,7 @@ let
       lib.concatStringsSep "." (lib.take 2 (lib.splitString "." snapshotKernelVersion));
 
   requestedKernelVersion =
-    if kernelVersionEnv == "" then kernelPackages.defaultVersion else kernelVersionEnv;
+    if kernelVersionEnv == "" then availableKernels.unstableKernelVersion else kernelVersionEnv;
   kernelVersion =
     if snapshotKernelVersion == null then
       requestedKernelVersion

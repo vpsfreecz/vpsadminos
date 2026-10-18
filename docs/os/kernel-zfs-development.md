@@ -117,6 +117,10 @@ export VPSADMINOS_LOCAL_ZFS_STAGE=/path/to/zfs/stage
 `os/configs/local-dev-qemu.nix` is the reusable staged-artifact hook. It is
 imported by `os/configs/kernel-dev-qemu.nix` for general QEMU development and
 by `os/configs/proxy-exec-qemu.nix` for the proxy-execution validation loop.
+The proxy configuration defaults to the maintained unstable kernel, which
+carries proxy execution, independently of the general stable/unstable setting.
+`VPSADMINOS_PROXY_EXEC_KERNEL_VERSION` or a source snapshot can still select an
+explicit kernel for focused development.
 Run Nix builds that depend on these variables with impure evaluation, for
 example through the test runner or a config-specific QEMU target that passes
 `--impure`.

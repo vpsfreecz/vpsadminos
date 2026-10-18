@@ -954,7 +954,10 @@ import ../../make-test.nix (
       Validate proxy execution against CPU-limited bad-neighbor contention for touched lock classes
     '';
 
-    tags = [ "proxy-exec" ];
+    tags = [
+      "ci"
+      "proxy-exec"
+    ];
 
     machine = import ../../machines/vpsadminos/with-tank.nix {
       inherit pkgs;
