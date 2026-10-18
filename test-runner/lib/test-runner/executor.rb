@@ -556,6 +556,7 @@ module TestRunner
       if result.kernel_failure?
         log("#{prefix} Test '#{test.path}' stopped after #{secs} seconds due to a guest kernel failure, " \
             "see #{result.state_dir}")
+        log_kernel_failure_context(result.state_dir, prefix:)
         stop_work! if opts[:stop_on_failure]
       elsif result.expected_result?
         if result.successful?
@@ -789,6 +790,26 @@ module TestRunner
 
     def state_dir
       opts[:state_dir]
+    end
+
+    # Keep kernel evidence in the ordinary CI job log even if artifact upload is
+    # interrupted. Full logs remain in the test state; these are bounded tails.
+    def log_kernel_failure_context(state_dir, prefix:)
+      paths = [File.join(state_dir, 'test-runner.log')] + Dir[File.join(state_dir, '*-console.log')]
+
+      paths.each do |path|
+        next unless File.file?(path)
+
+        data = File.open(path, 'rb') do |f|
+          f.seek([f.size - 65_536, 0].max)
+          f.read(65_536)
+        end
+
+        log("#{prefix} Kernel failure log tail: #{path} (at most 200 lines / 65536 bytes)")
+        data.to_s.lines.last(200).each { |line| log("#{prefix} #{line.chomp}") }
+      rescue SystemCallError, IOError => e
+        log("#{prefix} Unable to read kernel failure log #{path}: #{e.message}")
+      end
     end
 
     def last_nonempty_line(path, max_bytes: 8192)

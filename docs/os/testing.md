@@ -359,6 +359,13 @@ This wait only affects failure cleanup: it does not suppress kernel-failure
 detection, permit further guest commands, or turn a failing test into a pass.
 A dump can still be incomplete if a collection limit is reached.
 
+When a test stops for a guest kernel failure, the executor also prints bounded
+tails of `test-runner.log` and each machine's console log into its normal output.
+Each tail is limited to the final 200 lines within the final 64 KiB. This keeps
+diagnostic context in the CI job log if a later artifact upload is interrupted;
+it does not replace the full retained logs or guarantee a complete first trace.
+Failure status, retry policy and console collection deadlines are unchanged.
+
 Console detection includes bad-RSS accounting BUGs reported during final
 shutdown. A successful script body and zero QEMU exit status do not clear a
 recorded kernel failure; the runner checks again after final console collection.

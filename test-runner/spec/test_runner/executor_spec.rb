@@ -33,6 +33,64 @@ RSpec.describe TestRunner::Executor do
     )
   end
 
+  describe 'kernel failure job-log context' do
+    let(:executor) { build_executor([]) }
+
+    before { allow(executor).to receive(:log) }
+
+    it 'reports both the detected failure and the retained console without changing logs' do
+      runner_path = File.join(executor_state_dir, 'test-runner.log')
+      console_path = File.join(executor_state_dir, 'machine-console.log')
+      runner_log = "OsVm::KernelFailure: kernel BUG at mm/swapfile.c\n"
+      console_log = "[1.0] kernel BUG at mm/swapfile.c\n[1.1] Call Trace:\n[1.2] fault_site\n"
+      File.write(runner_path, runner_log)
+      File.write(console_path, console_log)
+
+      executor.send(:log_kernel_failure_context, executor_state_dir, prefix: '[1/1]')
+
+      expect(executor).to have_received(:log).with('[1/1] OsVm::KernelFailure: kernel BUG at mm/swapfile.c')
+      expect(executor).to have_received(:log).with('[1/1] [1.1] Call Trace:')
+      expect(executor).to have_received(:log).with('[1/1] [1.2] fault_site')
+      expect(File.read(runner_path)).to eq(runner_log)
+      expect(File.read(console_path)).to eq(console_log)
+    end
+
+    it 'bounds noisy console tails by both bytes and lines' do
+      path = File.join(executor_state_dir, 'machine-console.log')
+      lines = (1..250).map { |i| "line #{i}\n" }.join
+      File.write(path, "not in the tail\n#{'x' * 100_000}\n#{lines}")
+
+      executor.send(:log_kernel_failure_context, executor_state_dir, prefix: '[1/1]')
+
+      expect(executor).not_to have_received(:log).with('[1/1] not in the tail')
+      expect(executor).not_to have_received(:log).with('[1/1] line 50')
+      expect(executor).to have_received(:log).with('[1/1] line 51')
+      expect(executor).to have_received(:log).with('[1/1] line 250')
+      expect(executor).to have_received(:log).exactly(201).times
+    end
+
+    it 'bounds a single oversized console line' do
+      path = File.join(executor_state_dir, 'machine-console.log')
+      File.write(path, 'x' * 100_000)
+
+      executor.send(:log_kernel_failure_context, executor_state_dir, prefix: '[1/1]')
+
+      expect(executor).to have_received(:log).with("[1/1] #{'x' * 65_536}")
+    end
+
+    it 'reports an unavailable log without masking the kernel failure' do
+      path = File.join(executor_state_dir, 'test-runner.log')
+      File.write(path, 'retained failure')
+      allow(File).to receive(:open).with(path, 'rb').and_raise(Errno::ENOENT, path)
+
+      expect do
+        executor.send(:log_kernel_failure_context, executor_state_dir, prefix: '[1/1]')
+      end.not_to raise_error
+
+      expect(executor).to have_received(:log).with(%r{\[1/1\] Unable to read kernel failure log})
+    end
+  end
+
   it 'refuses occupied state before touching logs or disks' do
     test = build_test
     executor = build_executor([test.test_scripts['default']])
