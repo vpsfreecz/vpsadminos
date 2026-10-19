@@ -1,509 +1,88 @@
 name: CI
-run-name: "CI (${{ inputs.test_suite || 'ci' }}${{ inputs.test_pattern && format(': {0}', inputs.test_pattern) || '' }}${{ inputs.test_suite == 'zfs-full' && inputs.zfs_tags && inputs.zfs_tags != 'functional' && format(': {0}', inputs.zfs_tags) || '' }})"
-
-env:
-  TEST_RUNNER_PREBUILD: ${{ github.event_name != 'workflow_dispatch' || inputs.prebuild }}
-  VPSADMINOS_CONFIG: >-
-    ${{ (inputs.test_suite == 'ci-unstable' || inputs.test_suite == 'zfs-full' || github.ref == 'refs/heads/snajpa-6.18' || github.head_ref == 'snajpa-6.18') && format('{0}/os/configs/unstable.nix', github.workspace) || '' }}
+run-name: Warm full native suite, no-prebuild then prebuild
 
 on:
   workflow_dispatch:
-    inputs:
-      test_suite:
-        description: Native suite (unstable and ZTS use the selected vpsAdminOS 6.18 tuple)
-        required: true
-        default: ci
-        type: choice
-        options:
-          - ci
-          - ci-unstable
-          - zfs-full
-      test_pattern:
-        description: 'Optional native test/script glob (not regex); empty runs the whole suite'
-        required: false
-        type: string
-        default: ''
-      test_tag:
-        description: 'Native CI tag; proxy-exec selects the opt-in scheduler fixtures'
-        required: true
-        default: ci
-        type: choice
-        options:
-          - ci
-          - proxy-exec
-      proxy_lock_full_matrix:
-        description: 'Run all existing lock classes and disabled controls (proxy-exec tag only)'
-        required: false
-        default: false
-        type: boolean
-      zfs_tags:
-        description: 'ZTS tags for zfs-full; comma-separated affected groups or functional for all'
-        required: false
-        type: string
-        default: functional
-      zfs_test_body:
-        description: 'Optional single ZTS body for native diagnosis (e.g. cli_root/zpool_reopen/zpool_reopen_003_pos); empty runs full ZTS'
-        required: false
-        type: string
-        default: ''
-      prebuild:
-        description: Build selected test images before starting VMs
-        required: true
-        default: true
-        type: boolean
-      stop_on_failure:
-        description: Stop scheduling after the first unexpected result
-        required: true
-        default: false
-        type: boolean
-  push:
-    paths:
-      - .github/workflows/ci.yml
-      - flake.nix
-      - ctstartmenu/**
-      - libosctl/**
-      - os/**
-      - osctl/**
-      - osctl-exporter/**
-      - osctl-exportfs/**
-      - osctl-image/**
-      - osctl-repo/**
-      - osctld/**
-      - osup/**
-      - osvm/**
-      - svctl/**
-      - test-runner/**
-      - tests/**
-  pull_request:
-    paths:
-      - .github/workflows/ci.yml
-      - flake.nix
-      - ctstartmenu/**
-      - libosctl/**
-      - os/**
-      - osctl/**
-      - osctl-exporter/**
-      - osctl-exportfs/**
-      - osctl-image/**
-      - osctl-repo/**
-      - osctld/**
-      - osup/**
-      - osvm/**
-      - svctl/**
-      - test-runner/**
-      - tests/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prebuild-benchmark
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build OS and populate binary cache
+  compare:
+    name: Matched warm native suite timing
     runs-on: self-hosted
-    timeout-minutes: 480
-
+    timeout-minutes: 1380
+    env:
+      VPSADMINOS_CONFIG: ""
     steps:
-      - uses: actions/checkout@v7
-        # Git >= 2.54 maintenance is not disabled by checkout's gc.auto=0.
+      - name: Check out benchmark harness
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: benchmark-harness
+          persist-credentials: false
         env:
           GIT_CONFIG_COUNT: "1"
           GIT_CONFIG_KEY_0: maintenance.auto
           GIT_CONFIG_VALUE_0: "false"
 
-      - name: Check NixOS container image repository module
-        run: nix eval --impure --raw --file tests/nixos-container-image-repository-eval.nix
-
-      - name: Check NixOS guest compatibility modules and generated flakes
-        run: bash tests/nixos-container-eval.sh
-
-      - name: Check squashfs cache flags and module wiring
-        run: nix eval --impure --raw --file tests/squashfs-memory-eval.nix
-
-      - name: Check NixOS persistent activation
-        run: nix build .#checks.x86_64-linux.nixos-container-persistence --no-link
-
-      - name: Check NixOS disk image reuse
-        run: nix build .#checks.x86_64-linux.nixos-disk-image-reuse --no-link
-
-      - name: Check vpsAdminOS disk image reuse
-        run: nix build .#checks.x86_64-linux.vpsadminos-disk-image-reuse --no-link
-
-      - name: Determine branch name
-        id: vars
-        run: |
-          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
-
-      - name: Build toplevel closure
-        run: |
-          make OUTPUT=ci-toplevel toplevel
-          build_out=$(readlink -e os/result/toplevel)
-          livepatch_out=$(readlink -e "$build_out/livepatch-6.12.95")
-          echo "BUILD_OUT=$build_out" >> "$GITHUB_ENV"
-          echo "LIVEPATCH_BUILD_OUT=$livepatch_out" >> "$GITHUB_ENV"
-
-      - name: Upload production livepatch package
-        uses: actions/upload-artifact@v7
+      - name: Check out exact product source
+        uses: actions/checkout@v7
         with:
-          name: production-livepatch-6.12.95-${{ github.run_id }}
-          path: ${{ env.LIVEPATCH_BUILD_OUT }}/
-          include-hidden-files: true
-          if-no-files-found: error
-
-      - name: Copy toplevel closure to binary cache
-        env:
-          VPSADMINOS_CACHE_SSH_KEY: ${{ secrets.VPSADMINOS_CACHE_SSH_KEY }}
-        run: |
-          install -m 600 -D <(echo "$VPSADMINOS_CACHE_SSH_KEY") .ssh/cache_id
-          NIX_SSHOPTS="-i .ssh/cache_id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" nix-copy-closure --to push@cache.int.vpsadminos.org "$BUILD_OUT"
-
-      - name: Add new profile generation
-        env:
-          BRANCH: ${{ steps.vars.outputs.branch }}
-        run: |
-          ssh -i .ssh/cache_id \
-              -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              push@cache.int.vpsadminos.org \
-              sudo push-ci-generation "$BRANCH" "$BUILD_OUT"
-
-  test:
-    name: Run test suite
-    needs: build
-    runs-on: self-hosted
-    # Full ZTS takes about ten hours, plus closure construction. Leave time
-    # for artifact upload before the job's 24-hour GITHUB_TOKEN lifetime.
-    # An unfiltered ci-unstable run can still be making progress after 3.5 hours;
-    # ordinary full CI also needs cold livepatch builds and the NFS guests.
-    # Keep focused selectors at their original four-hour limit.
-    timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || (inputs.test_suite == 'ci-unstable' && !inputs.test_pattern) && 420 || ((inputs.test_suite || 'ci') == 'ci' && !inputs.test_pattern) && 360 || 240 }}
-
-    steps:
-      - uses: actions/checkout@v7
-        # Keep checkout's fetch from starting a background repack.
+          ref: a2ccd72d08dc67f678d7f115a92ed5eeca50c1a1
+          path: product
+          persist-credentials: false
         env:
           GIT_CONFIG_COUNT: "1"
           GIT_CONFIG_KEY_0: maintenance.auto
           GIT_CONFIG_VALUE_0: "false"
 
-      - name: Prepare test state
-        id: prepare-tests
-        uses: ./.github/actions/prepare-test-state
+      - name: Prepare isolated benchmark state
+        id: prepare
+        uses: ./benchmark-harness/.github/actions/prepare-test-state
 
-      - name: Run tests
-        id: run-tests
-        # Keep upload time for ordinary full CI without capping ZTS/native runs
-        # at the shorter livepatch/NFS budget.
-        timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || (inputs.test_suite == 'ci-unstable' && !inputs.test_pattern) && 420 || ((inputs.test_suite || 'ci') == 'ci' && !inputs.test_pattern) && 350 || 240 }}
+      - name: Prepare environment, warm closures and measure both legs
+        id: measure
+        timeout-minutes: 1350
+        working-directory: product
         env:
-          STOP_ON_FAILURE: ${{ github.event.inputs.stop_on_failure || 'false' }}
-          TEST_SUITE: ${{ inputs.test_suite || 'ci' }}
-          TEST_PATTERN: ${{ inputs.test_pattern }}
-          TEST_TAG: ${{ inputs.test_tag || 'ci' }}
-          VPSADMINOS_ZFS_FULL_TAGS: ${{ inputs.zfs_tags || 'functional' }}
-          VPSADMINOS_ZFS_FULL_TEST_BODY: ${{ inputs.zfs_test_body }}
-          VPSADMINOS_PROXY_LOCK_FULL_MATRIX: ${{ inputs.proxy_lock_full_matrix && '1' || '0' }}
-        run: |
-          set -o pipefail
-
-          if [[ "$VPSADMINOS_PROXY_LOCK_FULL_MATRIX" == "1" &&
-                ( "$TEST_SUITE" == "zfs-full" || "$TEST_TAG" != "proxy-exec" ) ]]; then
-            echo "::error::The full lock matrix requires a native proxy-exec run"
-            exit 1
-          fi
-
-          printf 'Native suite: %s\nConfiguration: %s\n' "$TEST_SUITE" "$VPSADMINOS_CONFIG"
-          printf 'Native test pattern: %s\n' "${TEST_PATTERN:-<whole suite>}"
-          printf 'Proxy lock full matrix: %s\n' "$VPSADMINOS_PROXY_LOCK_FULL_MATRIX"
-          if [[ "$TEST_SUITE" == "zfs-full" ]]; then
-            printf 'ZTS tags: %s\n' "$VPSADMINOS_ZFS_FULL_TAGS"
-          fi
-          git show --no-patch --format='Source: %H%nTree: %T' HEAD
-          cat os/packages/linux/available-kernels.nix
-
-          args=(
-            test
-            --test-config tests/test-configs/ci.nix
-            --state-dir "$TEST_RUNNER_STATE_DIR"
-            -f
-          )
-
-          case "$TEST_SUITE" in
-            ci|ci-unstable)
-              case "$TEST_TAG" in
-                ci) ;;
-                proxy-exec)
-                  # This existing locktorture fixture also needs discovery opt-in.
-                  export VPSADMINOS_ENABLE_SCHED_PROXY_EXEC_TEST=1
-                  ;;
-                *)
-                  echo "::error::Unknown native test tag: $TEST_TAG"
-                  exit 1
-                  ;;
-              esac
-              printf 'Native test tag: %s\n' "$TEST_TAG"
-              args+=(--jobs auto -t "$TEST_TAG")
-              ;;
-            zfs-full)
-              if [[ -n "$TEST_PATTERN" ]]; then
-                echo "::error::Full ZTS does not accept a native test pattern"
-                exit 1
-              fi
-              # Keep the default complete ZTS on the native VM; the optional
-              # single-body selector uses that same supported fixture for RCA.
-              unset VPSADMINOS_LOCAL_ZFS_STAGE VPSADMINOS_ZFS_FULL_USER_SOURCE
-              unset VPSADMINOS_ZFS_FULL_TEST
-              if [[ -n "$VPSADMINOS_ZFS_FULL_TEST_BODY" ]]; then
-                if [[ ! "$VPSADMINOS_ZFS_FULL_TEST_BODY" =~ ^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)+$ ]]; then
-                  echo "::error::Expected a ZTS group/body path without .ksh or traversal"
-                  exit 1
-                fi
-                export VPSADMINOS_ZFS_FULL_TEST="$VPSADMINOS_ZFS_FULL_TEST_BODY"
-                printf 'ZTS body (focused native diagnostic, not full ZTS): %s\n' "$VPSADMINOS_ZFS_FULL_TEST"
-              else
-                echo 'ZTS body: <whole suite>'
-              fi
-              export VPSADMINOS_ZFS_FULL_PROFILE=full
-              export VPSADMINOS_ZFS_FULL_USE_BUILTIN=1
-              export VPSADMINOS_ZFS_FULL_RUNFILES=common.run,linux.run
-              export VPSADMINOS_ZFS_FULL_TAGS="${VPSADMINOS_ZFS_FULL_TAGS:-functional}"
-              args+=(--jobs 1 -t zfs-full zfs/full-suite)
-              ;;
-            *)
-              echo "::error::Unknown native test suite: $TEST_SUITE"
-              exit 1
-              ;;
-          esac
-
-          if [[ "$STOP_ON_FAILURE" == "true" ]]; then
-            args+=(--stop-on-failure)
-          fi
-
-          if [[ "$TEST_RUNNER_PREBUILD" == "true" ]]; then
-            args+=(--prebuild)
-          else
-            args+=(--no-prebuild)
-          fi
-
-          if [[ -n "$TEST_PATTERN" ]]; then
-            # One quoted positional glob, never shell words or CLI options.
-            args+=(-- "$TEST_PATTERN")
-          fi
-
-          ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"
-
-      - name: Upload full test logs
-        id: upload-test-logs
-        if: >-
-          (failure() || cancelled() || inputs.test_pattern || inputs.test_suite == 'zfs-full' || inputs.test_suite == 'ci-unstable') &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/upload-test-logs
-        with:
-          name: os-test-logs-${{ github.run_id }}-${{ github.run_attempt }}-native
-          # Preserve ZTS report paths such as posix-sa:Linux inside tar.
-          archive-root: ${{ inputs.test_suite == 'zfs-full' && steps.prepare-tests.outputs.state-directory || '' }}
-          # ZTS's text reports have no suffix. Do not upload binary test state
-          # or VM images along with these diagnostic files.
-          paths: |
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/log
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/results
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/stdout
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/stderr
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/zfs-test-results/**/merged
-
-      - name: Evaluate test results
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/evaluate-test-results
-        with:
-          log-file: ${{ steps.prepare-tests.outputs.state-directory }}/test.log
-
-      - name: Summarise test logs
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/summarise-test-logs
-        with:
-          logs-root: ${{ steps.prepare-tests.outputs.state-directory }}
-
-      - name: Cleanup test state
-        # Successful qualification still needs its complete uploaded evidence.
-        if: >-
-          always() &&
-          ((!inputs.test_pattern && inputs.test_suite != 'zfs-full' && inputs.test_suite != 'ci-unstable') ||
-          steps.upload-test-logs.outcome == 'success')
-        uses: ./.github/actions/cleanup-test-state
-        with:
-          state-directory: ${{ steps.prepare-tests.outputs.state-directory }}
-          prepare-outcome: ${{ steps.prepare-tests.outcome }}
-          test-outcome: ${{ steps.run-tests.outcome }}
-          upload-outcome: ${{ steps.upload-test-logs.outcome }}
-
-  livepatch-lifecycle:
-    name: Livepatch lifecycle (${{ matrix.label }})
-    # Whole CI retains these jobs; ZTS-only/focused runs do not repeat them.
-    if: ${{ inputs.test_suite != 'zfs-full' && !inputs.test_pattern }}
-    needs: build
-    runs-on:
-      group: vpsAdminOS runners
-      labels: "${{ matrix.runner }}"
-    timeout-minutes: 360
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd
-            tag: livepatch-amd
-          - vendor: intel
-            runner: intel-kvm
-            label: intel
-            tag: livepatch-intel
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-fresh
-            tag: livepatch-qualification-amd-fresh
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-scale-aged-v5
-            tag: livepatch-qualification-amd-scale-aged-v5
-            large: true
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-scale-aged-v6
-            tag: livepatch-qualification-amd-scale-aged-v6
-            large: true
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-low-memory-v5
-            tag: livepatch-qualification-amd-low-memory-v5
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-low-memory-v6
-            tag: livepatch-qualification-amd-low-memory-v6
-          - vendor: intel
-            runner: intel-kvm
-            label: intel-representative-v5
-            tag: livepatch-qualification-intel-representative-v5
-          - vendor: intel
-            runner: intel-kvm
-            label: intel-representative-v6
-            tag: livepatch-qualification-intel-representative-v6
-
-    steps:
-      - uses: actions/checkout@v7
-        # Keep checkout's fetch from starting a background repack.
-        env:
-          GIT_CONFIG_COUNT: "1"
-          GIT_CONFIG_KEY_0: maintenance.auto
-          GIT_CONFIG_VALUE_0: "false"
-
-      - name: Prepare test state
-        id: prepare-tests
-        uses: ./.github/actions/prepare-test-state
-
-      - name: Run livepatch lifecycle tests
-        id: run-tests
-        # Include main/security checks on AMD and perf on both vendors, using
-        # the existing tag selectors. Keep ten minutes for logs and cleanup.
-        timeout-minutes: 350
-        env:
-          VPSADMINOS_ENABLE_LIVEPATCH_TEST: "1"
+          BENCHMARK_HARNESS: ${{ github.workspace }}/benchmark-harness/.github/workflows/scripts/prebuild_benchmark.rb
+          BENCHMARK_HARNESS_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          # Environment and the native extension are prepared outside both timers.
+          nix develop .#test-runner --command bash -c '
+            cd libosctl/ext/libosctl
+            ruby extconf.rb
+            make
+            cp native.so ../../lib/libosctl/native.so
+          ' > "$TEST_RUNNER_STATE_DIR/environment.log" 2>&1
+          nix develop .#test-runner --command bundle exec ruby "$BENCHMARK_HARNESS" \
+            "$PWD" "$TEST_RUNNER_STATE_DIR" \
+            2>&1 | tee "$TEST_RUNNER_STATE_DIR/benchmark.log"
 
-          # Prepare normal repository fixtures, preserving every main/perf
-          # identity assertion. The expected hash is a reviewed source pin,
-          # not a checksum computed from the module being tested.
-          unset VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE \
-            VPSADMINOS_LIVEPATCH_MODULE_NAME VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER \
-            VPSADMINOS_ONLY_LIVEPATCH_TEST
-          nix eval --impure --raw --expr \
-            '(import ./tests/fixtures/livepatch {}).correctedSha256' \
-            > "$TEST_RUNNER_STATE_DIR/livepatch-corrected-sha256.txt"
-          export VPSADMINOS_LIVEPATCH_CORRECTED_SHA256="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-corrected-sha256.txt")"
-          nix-build tests/fixtures/livepatch -A corrected \
-            --out-link "$TEST_RUNNER_STATE_DIR/livepatch-corrected" \
-            > "$TEST_RUNNER_STATE_DIR/livepatch-corrected-path.txt"
-          nix-build tests/fixtures/livepatch -A releasedV5 \
-            --out-link "$TEST_RUNNER_STATE_DIR/livepatch-released-v5" \
-            > "$TEST_RUNNER_STATE_DIR/livepatch-released-v5-path.txt"
-          nix-build tests/fixtures/livepatch -A shippedV6 \
-            --out-link "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6" \
-            > "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6-path.txt"
-          export VPSADMINOS_LIVEPATCH_CORRECTED_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-corrected-path.txt")"
-          export VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-released-v5-path.txt")"
-          export VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6-path.txt")"
-
-          args=(
-            test
-            --state-dir "$TEST_RUNNER_STATE_DIR"
-            --fresh
-            --jobs 1
-            --tag "${{ matrix.tag }}"
-          )
-
-          if [[ "${{ matrix.large || false }}" == "true" ]]; then
-            # Step 25 requires 128 *guest* vCPUs. Admit one such VM using
-            # the normal runner's CPU-only oversubscription option. Keep
-            # memory admission unchanged; never pretend these are 128
-            # physical host CPUs or lower the guest/task requirements.
-            host_cpus=$(nproc)
-            cpu_factor=$(((128 + host_cpus - 1) / host_cpus))
-            printf '128 guest vCPUs on %s host-visible CPUs; factor=%s\n' \
-              "$host_cpus" "$cpu_factor"
-            args+=(--max-cpus 128 --cpu-overcommit "$cpu_factor")
-          fi
-
-          if [[ "$TEST_RUNNER_PREBUILD" == "true" ]]; then
-            args+=(--prebuild)
-          else
-            args+=(--no-prebuild)
-          fi
-
-          ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"
-
-      # Keep producer module checksums available even when every case passes.
-      - name: Upload full test logs
-        id: upload-test-logs
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/upload-test-logs
+      - name: Upload timings and complete text logs
+        id: upload
+        if: always() && steps.prepare.outcome == 'success'
+        uses: actions/upload-artifact@v7
         with:
-          name: os-test-logs-${{ github.run_id }}-${{ github.run_attempt }}-livepatch-${{ matrix.label }}
-          paths: |
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
+          name: prebuild-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.prepare.outputs.state-directory }}/**/*.log
+            ${{ steps.prepare.outputs.state-directory }}/**/*.txt
+            ${{ steps.prepare.outputs.state-directory }}/**/*.json
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: Evaluate test results
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/evaluate-test-results
-        with:
-          log-file: ${{ steps.prepare-tests.outputs.state-directory }}/test.log
-
-      - name: Summarise test logs
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/summarise-test-logs
-        with:
-          logs-root: ${{ steps.prepare-tests.outputs.state-directory }}
-
-      - name: Cleanup test state
+      - name: Retain benchmark diagnostics
         if: always()
-        uses: ./.github/actions/cleanup-test-state
-        with:
-          state-directory: ${{ steps.prepare-tests.outputs.state-directory }}
-          prepare-outcome: ${{ steps.prepare-tests.outcome }}
-          test-outcome: ${{ steps.run-tests.outcome }}
-          upload-outcome: ${{ steps.upload-test-logs.outcome }}
+        env:
+          BENCHMARK_ROOT: ${{ steps.prepare.outputs.state-directory }}
+        run: |
+          printf 'Benchmark state retained for configured host retention: %s\n' "$BENCHMARK_ROOT"
+          echo 'Guest teardown is part of each measured native test-runner invocation.'
