@@ -58,6 +58,53 @@ RSpec.describe VpsadminosFailureLogs do
     context
   end
 
+  def run_runner_selector(rows)
+    script = described_class.diagnostics_script
+    selector = script.split("section 'container runner bootstrap state (at most 8 processes)'\n", 2).last&.split("\n\n", 2)&.first
+    raise 'missing actual runner selector' unless selector&.start_with?('ps -eo')
+
+    # Use synthetic ps rows and record the proc paths without reading the host.
+    stubs = <<~SH
+      ps() { cat <<'TASKS'
+      #{rows.join("\n")}
+      TASKS
+      }
+      run() { printf '%s\n' "$*"; }
+    SH
+    stdout, stderr, status = Open3.capture3('sh', '-c', stubs + selector)
+    expect(status).to be_success, stderr
+    stdout.lines
+  end
+
+  it 'captures runnable and sleeping bootstrap runners but not unrelated Ruby processes' do
+    rows = [
+      '14106 Rl osctld-ct-runne',
+      '14107 Sl osctld-ct-runner',
+      '14108 Rl ruby',
+      '14109 Rl osctld:main',
+      '14110 Rl osctld-ct-runner-extra'
+    ]
+    output = run_runner_selector(rows)
+
+    expect(output.length).to eq(2)
+    expect(output.first).to include(
+      'timeout 2 cat /proc/14106/stat /proc/14106/status /proc/14106/schedstat',
+      '/proc/14106/cgroup /proc/14106/syscall /proc/14106/wchan /proc/14106/stack'
+    )
+    expect(output.last).to include('/proc/14107/stat')
+    expect(output.join).not_to include('/proc/14108/', '/proc/14109/', '/proc/14110/')
+  end
+
+  it 'bounds runner bootstrap snapshots before diagnostic RPCs create more workers' do
+    output = run_runner_selector((1..12).map { |pid| "#{pid} Rl osctld-ct-runne" })
+
+    expect(output.length).to eq(8)
+    expect(output.last).to include('/proc/8/stat')
+    expect(output.join).not_to include('/proc/9/', '/proc/12/')
+    script = described_class.diagnostics_script
+    expect(script.index("section 'container runner bootstrap state")).to be < script.index('timeout 10 osctl debug threads ls')
+  end
+
   it 'preserves the healthy authorization clone path without collecting diagnostics' do
     allow(machine).to receive(:succeeds).with('send clone').and_return('sent')
     context = transfer_context

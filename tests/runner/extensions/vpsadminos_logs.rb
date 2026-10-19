@@ -76,6 +76,16 @@ module VpsadminosFailureLogs
       run ps -eo pid,ppid,stat,comm,args
       run ps -eLo pid,tid,stat,wchan:32,comm
 
+      # A runner can time out while still loading Ruby, before setting its
+      # container-specific title or forking lxc-attach. It need not be blocked.
+      section 'container runner bootstrap state (at most 8 processes)'
+      ps -eo pid=,stat=,comm= |
+        awk '$3 ~ /^osctld-ct-runne(r)?$/ { print $1 }' |
+        head -n 8 |
+        while read -r pid; do
+          run timeout 2 cat "/proc/$pid/stat" "/proc/$pid/status" "/proc/$pid/schedstat" "/proc/$pid/cgroup" "/proc/$pid/syscall" "/proc/$pid/wchan" "/proc/$pid/stack"
+        done
+
       # A timed-out module loader can remain running rather than blocked.
       # Prioritize it without letting other blocked threads exhaust the cap.
       section 'module loader and blocked task kernel stacks (at most 32 threads)'
