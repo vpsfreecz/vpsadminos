@@ -64,7 +64,7 @@ RSpec.describe TestRunner::NixCli do
   end
 
   it 'raises on capture_output failures' do
-    status = instance_double(Process::Status, success?: false, exitstatus: 1)
+    status = instance_double(Process::Status, success?: false, signaled?: false, exitstatus: 1)
     allow(Open3).to receive(:capture2).and_return(['', status])
     cli = described_class.new
 
@@ -79,5 +79,33 @@ RSpec.describe TestRunner::NixCli do
     expect do
       cli.send(:run!, RbConfig.ruby, '-e', 'exit 1')
     end.to raise_error(RuntimeError, /failed \(1\)/)
+  end
+
+  it 'returns captured output on success' do
+    cli = described_class.new
+
+    expect(cli.send(:capture_output, RbConfig.ruby, '-e', 'print "ready"')).to eq('ready')
+  end
+
+  it 'returns normally when run! succeeds' do
+    cli = described_class.new
+
+    expect(cli.send(:run!, RbConfig.ruby, '-e', 'exit 0')).to be_nil
+  end
+
+  it 'reports the signal when a captured subprocess is killed' do
+    cli = described_class.new
+
+    expect do
+      cli.send(:capture_output, RbConfig.ruby, '-e', 'Process.kill("KILL", Process.pid)')
+    end.to raise_error(RuntimeError, /failed \(signal 9 \(SIGKILL\)\)/)
+  end
+
+  it 'reports the signal when a run! subprocess is killed' do
+    cli = described_class.new
+
+    expect do
+      cli.send(:run!, RbConfig.ruby, '-e', 'Process.kill("KILL", Process.pid)')
+    end.to raise_error(RuntimeError, /failed \(signal 9 \(SIGKILL\)\)/)
   end
 end

@@ -85,15 +85,21 @@ module TestRunner
 
     def capture_output(*cmd)
       out, status = Open3.capture2(*cmd)
-      raise "#{cmd.join(' ')} failed (#{status.exitstatus})" unless status.success?
+      raise "#{cmd.join(' ')} failed (#{status_description(status)})" unless status.success?
 
       out
     end
 
     def run!(*cmd)
       pid = spawn(*cmd)
-      Process.wait(pid)
-      raise "#{cmd.join(' ')} failed (#{$?.exitstatus})" unless $?.exitstatus == 0
+      _, status = Process.wait2(pid)
+      raise "#{cmd.join(' ')} failed (#{status_description(status)})" unless status.success?
+    end
+
+    def status_description(status)
+      return status.exitstatus unless status.signaled?
+
+      "signal #{status.termsig} (SIG#{Signal.signame(status.termsig)})"
     end
   end
 end
