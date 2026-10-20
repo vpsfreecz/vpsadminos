@@ -662,6 +662,61 @@ RSpec.describe TestRunner::TestEvaluator do
     expect(machine.calls).to include(:stop, :kill, :destroy, :finalize, :cleanup)
   end
 
+  it 'reports a failed stop before cleanup and preserves the original error' do
+    machine = build_fake_machine
+    evaluator = build_evaluator
+    evaluator.instance_variable_set(:@machines, { 'machine' => machine })
+    timeout = OsVm::UnrecoverableTimeoutError.new('stop timed out')
+    allow(machine).to receive(:stop) do
+      machine.calls << :stop
+      raise timeout
+    end
+    allow(TestRunner::Hook).to receive(:call).with(
+      :after_machine_stop_failure,
+      kwargs: hash_including(machine:, error: timeout, state_dir: '/tmp/state')
+    ) do
+      expect(machine.calls).to eq([:stop])
+      machine.calls << :diagnostics
+    end
+
+    expect { evaluator.send(:do_run) { nil } }.to raise_error(OsVm::UnrecoverableTimeoutError) do |error|
+      expect(error).to equal(timeout)
+    end
+    expect(TestRunner::Hook).to have_received(:call).with(:after_machine_stop_failure, kwargs: anything).once
+    expect(machine.calls).to eq(%i[stop diagnostics kill destroy finalize cleanup])
+  end
+
+  it 'does not let diagnostic hook errors replace a failed stop or prevent cleanup' do
+    machine = build_fake_machine
+    evaluator = build_evaluator
+    evaluator.instance_variable_set(:@machines, { 'machine' => machine })
+    timeout = OsVm::UnrecoverableTimeoutError.new('stop timed out')
+    allow(machine).to receive(:stop) do
+      machine.calls << :stop
+      raise timeout
+    end
+    allow(TestRunner::Hook).to receive(:call).with(
+      :after_machine_stop_failure, kwargs: anything
+    ).and_raise('collector failed')
+    allow(evaluator).to receive(:warn)
+
+    expect { evaluator.send(:do_run) { nil } }.to raise_error(OsVm::UnrecoverableTimeoutError) do |error|
+      expect(error).to equal(timeout)
+    end
+    expect(evaluator).to have_received(:warn).with(/collector failed/)
+    expect(machine.calls).to eq(%i[stop kill destroy finalize cleanup])
+  end
+
+  it 'does not report a normal stop as a stop failure' do
+    machine = build_fake_machine
+    evaluator = build_evaluator
+    evaluator.instance_variable_set(:@machines, { 'machine' => machine })
+    allow(TestRunner::Hook).to receive(:call)
+
+    evaluator.send(:do_run) { nil }
+    expect(TestRunner::Hook).not_to have_received(:call).with(:after_machine_stop_failure, kwargs: anything)
+  end
+
   it 'stops runnable machines and always kills, finalizes, and cleans up' do
     evaluator = build_evaluator
     runnable = instance_spy(

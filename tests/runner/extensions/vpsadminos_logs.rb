@@ -199,3 +199,10 @@ TestRunner::Hook.subscribe(:after_test_script_run) do |script_result:, machines:
     VpsadminosFailureLogs.collect(machine, path)
   end
 end
+
+TestRunner::Hook.subscribe(:after_machine_stop_failure) do |machine:, state_dir:, **|
+  next unless machine.running? && machine.can_execute?
+
+  path = File.join(state_dir, "#{machine.name}-shutdown-failure-diagnostics.log")
+  VpsadminosFailureLogs.collect(machine, path)
+end

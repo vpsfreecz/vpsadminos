@@ -281,9 +281,15 @@ Custom helpers can be added under `tests/runner/extensions/`. vpsAdmin adds
   end
   ```
 Use the same hook points to add helpers for your own services or machine types.
-Two more hooks are available for post-run diagnostics:
+The following hooks are available for post-run diagnostics:
 - `:after_test_run` receives the test, scripts, machines and a `TestRunner::TestResult`.
 - `:after_test_script_run` receives the test, machines and a `TestRunner::TestScriptResult`.
+- `:after_machine_stop_failure` receives `test`, `machine`, `error` and
+  `state_dir` after an automatic machine stop raises, before forced cleanup.
+  Use bounded diagnostic commands while the guest is still available.
+  Ordinary hook errors are logged without replacing the stop failure or
+  preventing cleanup. A successful script remains successful; the enclosing
+  test still fails if machine shutdown fails.
 Example: gather logs only when a script ends with an unexpected result:
 ```ruby
 TestRunner::Hook.subscribe(:after_test_script_run) do |script_result:, machines:, **|

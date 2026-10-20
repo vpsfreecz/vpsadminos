@@ -11,6 +11,7 @@ module TestRunner
   Hook.register(:machine_class_for)
   Hook.register(:after_test_run)
   Hook.register(:after_test_script_run)
+  Hook.register(:after_machine_stop_failure)
 
   class TestEvaluator
     include RSpec::Matchers
@@ -570,6 +571,15 @@ module TestRunner
       )
     end
 
+    def call_machine_stop_failure_hook(machine, error)
+      Hook.call(
+        :after_machine_stop_failure,
+        kwargs: { test: @test, machine:, error:, state_dir: @opts[:state_dir] }
+      )
+    rescue StandardError => e
+      warn "Machine stop failure hook failed: #{e.class}: #{e.message}"
+    end
+
     def build_test_result(script_results, elapsed_time)
       test_success = script_results.all?(&:expected_result?)
 
@@ -761,7 +771,14 @@ module TestRunner
       yield
 
       machines.each_value do |m|
-        m.stop if !m.kernel_failed? && m.running? && m.can_execute?
+        next unless !m.kernel_failed? && m.running? && m.can_execute?
+
+        begin
+          m.stop
+        rescue StandardError => e
+          call_machine_stop_failure_hook(m, e)
+          raise
+        end
       end
     ensure
       begin

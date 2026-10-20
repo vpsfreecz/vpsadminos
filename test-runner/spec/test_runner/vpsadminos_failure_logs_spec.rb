@@ -22,6 +22,34 @@ RSpec.describe VpsadminosFailureLogs do
     )
   end
 
+  it 'collects a stop failure without overwriting script failure diagnostics' do
+    allow(machine).to receive(:execute).and_return([0, "shutdown state\n"])
+
+    Dir.mktmpdir do |directory|
+      original = File.join(directory, 'machine-failure-diagnostics.log')
+      File.write(original, 'original script failure')
+      TestRunner::Hook.call(
+        :after_machine_stop_failure,
+        kwargs: { machine:, state_dir: directory, error: RuntimeError.new('stop failed') }
+      )
+
+      expect(File.read(original)).to eq('original script failure')
+      expect(File.read(File.join(directory, 'machine-shutdown-failure-diagnostics.log')))
+        .to include('shutdown state')
+    end
+    expect(machine).to have_received(:execute).with(described_class.diagnostics_script, timeout: 300, shell: nil)
+  end
+
+  it 'does not collect stop diagnostics without an executable guest shell' do
+    allow(machine).to receive(:can_execute?).and_return(false)
+
+    Dir.mktmpdir do |directory|
+      TestRunner::Hook.call(:after_machine_stop_failure, kwargs: { machine:, state_dir: directory })
+      expect(Dir.children(directory)).to be_empty
+    end
+    expect(machine).not_to have_received(:execute)
+  end
+
   def run_stack_selector(rows)
     selector = described_class.diagnostics_script[/^ps -eLo pid=,tid=,stat=,comm= \|.*?^  done$/m]
     raise 'missing actual kernel stack selector' unless selector
