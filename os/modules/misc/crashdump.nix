@@ -58,7 +58,7 @@ in
             boot on crash, and leave the user in systemd rescue
             to be able to save the crashed kernel dump at
             /proc/vmcore.
-            It also activates the NMI watchdog.
+            It also enables panic on soft and hard lockups.
           '';
         };
         reservedMemory = mkOption {
@@ -413,9 +413,15 @@ in
           fi
         '';
       };
+      kernel.sysctl = {
+        "kernel.hardlockup_panic" = 1;
+        "kernel.softlockup_panic" = 1;
+      };
       kernelParams = [
         "crashkernel=${cfg.reservedMemory}"
         "softlockup_panic=1"
+        # Panic on hard lockups detected by the NMI watchdog.
+        "nmi_watchdog=panic"
       ];
     };
 
