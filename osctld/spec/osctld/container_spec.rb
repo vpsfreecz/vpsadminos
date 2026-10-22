@@ -1184,6 +1184,7 @@ RSpec.describe OsCtld::Container do
 
     it 'stores :error when current_state raises ContainerControl::Error' do
       with_tmpdir do |dir|
+        allow(OsCtl::Lib::Logger).to receive(:log)
         ct = build_container(root: dir)
         allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_raise(
           OsCtld::ContainerControl::Error,
@@ -1192,6 +1193,9 @@ RSpec.describe OsCtld::Container do
 
         expect(ct.current_state).to eq(:error)
         expect(ct.state).to eq(:error)
+        expect(OsCtl::Lib::Logger).to have_received(:log).with(
+          :warn, '[container_state_history] Unable to query container tank:ct1: boom'
+        )
       end
     end
   end

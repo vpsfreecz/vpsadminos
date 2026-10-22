@@ -124,4 +124,21 @@ RSpec.describe OsCtld::Config do
       expect(config.garbage_collector.prune_interval).to eq(120)
     end
   end
+
+  it 'defaults and overrides the global state history cap' do
+    build_config({}) { |config| expect(config.state_history.max_events).to eq(1000) }
+    [1, 10_000].each do |cap|
+      build_config('state_history' => { 'max_events' => cap }) do |config|
+        expect(config.state_history.max_events).to eq(cap)
+      end
+    end
+  end
+
+  [nil, false, [], { 'max_events' => true }, { 'max_events' => '1' },
+   { 'max_events' => 1.5 }, { 'max_events' => 0 }, { 'max_events' => -1 },
+   { 'max_events' => 10_001 }].each do |value|
+    it "rejects invalid state history configuration #{value.inspect}" do
+      expect { build_config('state_history' => value) { |_config| nil } }.to raise_error(ArgumentError)
+    end
+  end
 end

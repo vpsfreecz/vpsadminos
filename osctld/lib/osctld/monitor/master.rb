@@ -131,9 +131,9 @@ module OsCtld
 
     def update_state(ct)
       st = ContainerControl::Commands::State.run!(ct)
-      return if ct.state == :error
+      return unless ct.accepts_observed_state?(st.state)
 
-      ct.state = st.state
+      ct.assign_observed_state(st.state)
 
       if st.init_pid
         init_pid = ct.set_init_pid(st.init_pid)

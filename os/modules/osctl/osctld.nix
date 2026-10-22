@@ -54,6 +54,14 @@ in
   ###### implementation
 
   config = {
+    environment.etc."osctl/container-state-history-version".text = "1\n";
+
+    # Only an actual boot initializes history. Service restarts and activation
+    # must preserve it, including an unavailable or damaged record.
+    boot.postBootCommands = ''
+      ${pkgs.ruby}/bin/ruby ${./container_state_history.rb}
+    '';
+
     osctld.settings = {
       apparmor_paths = optionals config.security.apparmor.enable (
         map (s: "${s}/etc/apparmor.d") apparmorPaths

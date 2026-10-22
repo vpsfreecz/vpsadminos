@@ -13,6 +13,7 @@ RSpec.describe OsCtld::DB::Containers do
     stub_const(
       'OsCtld::DB::ContainersSpecObject',
       Struct.new(:id, :pool, :netifs, keyword_init: true) do
+        def record_initial_state; end
         def ident = "#{pool.name}:#{id}"
       end
     )

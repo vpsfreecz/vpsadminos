@@ -552,6 +552,16 @@ module OsCtl::Cli
 
       desc 'Manage containers'
       command %i[ct vps] do |ct|
+        ct.desc 'Show observed container state history for this host boot'
+        ct.arg_name '[ID]'
+        ct.command :'state-history' do |c|
+          c.desc 'Filter by pool'
+          c.flag :pool, arg_name: 'POOL'
+          c.desc 'Show permanent first-running evidence only'
+          c.switch :'ever-running', default_value: false
+          c.action(&Command.run(Container, :state_history))
+        end
+
         ct.desc 'List containers'
         ct.arg_name '[ctid...]'
         ct.command %i[ls list] do |ls|

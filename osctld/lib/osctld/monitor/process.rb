@@ -133,7 +133,9 @@ module OsCtld
         return
       end
 
-      return if ct.state == :error
+      unless ct.accepts_observed_state?(change[:state])
+        return
+      end
 
       # PID1 has exited by STOPPING, but the LXC monitor can still block while
       # releasing NFS mounts. Cancel the retained run before publishing a
@@ -149,7 +151,7 @@ module OsCtld
         Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
       end
 
-      ct.state = change[:state]
+      ct.assign_observed_state(change[:state])
       init_pid = nil
 
       case ct.state

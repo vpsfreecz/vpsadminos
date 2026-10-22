@@ -8,6 +8,7 @@ module OsCtld::DB
         OsCtld::NetInterface.validate_container_host_link_claims!(obj)
         super
       end
+      obj.record_initial_state
     end
 
     def remove(obj)

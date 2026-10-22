@@ -17,6 +17,7 @@ nav:
     - Administration: 'containers/administration.md'
     - Datasets: 'containers/datasets.md'
     - Auto starting: 'containers/auto-starting.md'
+    - State history: 'containers/state-history.md'
     - Start menu: 'containers/start-menu.md'
     - Resources: 'containers/resources.md'
     - Devices: 'containers/devices.md'

@@ -210,6 +210,25 @@ module OsCtl::Cli
       format_output(cts, **fmt_opts)
     end
 
+    def state_history
+      require_args!(optional: ['id'])
+      view = opts['ever-running'] ? 'ever_running' : 'timeline'
+      data = osctld_call(:ct_state_history, view:, pool: opts[:pool] || gopts[:pool], id: args[0])
+      if gopts[:json]
+        format_output(data)
+      elsif !data[:available]
+        puts "History unavailable: #{data[:reason]}"
+      elsif view == 'ever_running'
+        format_output(data[:entries])
+      else
+        if data[:truncated]
+          puts "History truncated: #{data[:dropped_events]} older events dropped (limit #{data[:max_events]})"
+        end
+        format_output(data[:events])
+      end
+      data
+    end
+
     def tree
       require_args!('pool')
       Tree.print(

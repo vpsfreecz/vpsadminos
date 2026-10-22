@@ -3,6 +3,7 @@ require 'digest'
 require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
+require 'osctld/container_state_history'
 require 'osctld/local_transfer/log'
 require 'osctld/net_interface'
 
@@ -349,35 +350,66 @@ module OsCtld
     end
 
     def state=(v)
-      if state == :staged
-        case v
-        when :complete
-          exclusively { @state = :stopped }
+      exclusively do
+        if @state == :staged
+          case v
+          when :complete
+            @state = :stopped
+          when :running
+            @state = v
+          else
+            next
+          end
           save_config
-
-        when :running
-          exclusively { @state = v }
-          save_config
+        else
+          @state = v
         end
-
-        return
+        ContainerStateHistory.record(pool.name, id, @state)
       end
+    end
 
-      exclusively { @state = v }
+    # Initial publication is a managed sample, not a newly queried LXC sample.
+    def record_initial_state
+      exclusively { ContainerStateHistory.record(pool.name, id, @state, initial: true) }
+    end
+
+    def record_state_observation(value)
+      exclusively { ContainerStateHistory.record(pool.name, id, value, kind: :observation) }
+    end
+
+    # Monitors retain their existing management guards and control side effects.
+    def accepts_observed_state?(value)
+      exclusively do
+        refused = @state == :error
+        record_state_observation(value) if refused
+        !refused
+      end
+    end
+
+    # Direct queries/recovery preserve their existing ability to clear error.
+    def assign_observed_state(value)
+      exclusively do
+        if @state == :staged && value != :running
+          record_state_observation(value)
+        else
+          self.state = value
+        end
+      end
     end
 
     # Fetch current container state by forking into it
     # @return [Symbol]
     def current_state
       st = ContainerControl::Commands::State.run!(self)
-      self.state = st.state
+      assign_observed_state(st.state)
       if st.state == :stopped
         run_conf&.clear_dead_init_identity
       elsif st.init_pid
         set_init_pid(st.init_pid)
       end
       st.state
-    rescue ContainerControl::Error
+    rescue ContainerControl::Error => e
+      log(:warn, :container_state_history, "Unable to query container #{ident}: #{e.message}")
       self.state = :error
     end
 
@@ -427,7 +459,7 @@ module OsCtld
       return init_pid unless running?
 
       st = ContainerControl::Commands::State.run!(self)
-      self.state = st.state
+      assign_observed_state(st.state)
       return unless st.init_pid
 
       set_init_pid(st.init_pid, expected_run_conf:)

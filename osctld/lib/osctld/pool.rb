@@ -696,7 +696,7 @@ module OsCtld
 
         ct.reconfigure
 
-        running = ct.fresh_state == :running
+        running = reconcile_container_state_history(ct)
 
         ct.ensure_run_conf if running
         Monitor::Master.monitor(ct)
@@ -707,6 +707,20 @@ module OsCtld
 
       ep.wait
       log(:info, 'All containers loaded')
+    end
+
+    def reconcile_container_state_history(ct)
+      return ct.fresh_state == :running unless %i[error staged].include?(ct.state)
+
+      # Query quarantined containers without clearing their persisted state.
+      # Actual running is history evidence, not a management-health assertion.
+      state = ContainerControl::Commands::State.run!(ct)
+      ct.record_initial_state
+      ct.record_state_observation(state.state)
+      false
+    rescue ContainerControl::Error => e
+      log(:warn, :container_state_history, "Unable to query container #{ct.ident}: #{e.message}")
+      false
     end
 
     def load_repositories

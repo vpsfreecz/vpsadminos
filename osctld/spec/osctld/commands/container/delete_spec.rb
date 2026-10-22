@@ -21,6 +21,7 @@ end
 require 'osctld/command'
 require 'osctld/exceptions'
 require 'osctld/commands/container/delete'
+require 'osctld/container_state_history'
 
 RSpec.describe OsCtld::Commands::Container::Delete do
   let(:root) { Dir.mktmpdir('osctld-delete') }
@@ -123,6 +124,24 @@ RSpec.describe OsCtld::Commands::Container::Delete do
     ret = cmd.execute(ct)
 
     expect(ret).to eq(status: true, output: nil)
+  end
+
+  it 'retains successful boot history when deletion clears the scheduler state' do
+    path = File.join(root, 'state-history.json')
+    boot_id_path = File.join(root, 'boot-id')
+    boot_id = '00000000-0000-4000-8000-000000000001'
+    File.write(boot_id_path, boot_id)
+    File.write(path, JSON.generate(schema_version: 1, boot_id:, next_sequence: 1, dropped_events: 0, entries: [], events: []))
+    history = OsCtld::ContainerStateHistory.new(path:, boot_id_path:)
+    history.load
+    history.record('tank', 'ct1', :running)
+    saved = history.export
+    allow(OsCtld::ContainerStateHistory).to receive(:instance).and_return(history)
+    allow(cmd).to receive(:call_cmd!).and_return(status: true)
+
+    expect(cmd.execute(ct)).to include(status: true)
+    expect(autostart_plan).to have_received(:clear_ct).with(ct)
+    expect(history.export).to eq(saved)
   end
 
   it 'keeps runtime files, dataset, and registration when recovery cleanup is tainted' do

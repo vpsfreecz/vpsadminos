@@ -3,6 +3,19 @@ require 'json'
 module OsCtld
   # osctld config file interface
   class Config
+    class StateHistory
+      attr_reader :max_events
+
+      def initialize(cfg)
+        raise ArgumentError, 'state_history must be an object' unless cfg.is_a?(Hash)
+
+        @max_events = cfg.fetch('max_events', 1000)
+        return if @max_events.is_a?(Integer) && (1..10_000).cover?(@max_events)
+
+        raise ArgumentError, 'state_history.max_events must be an integer from 1 to 10000'
+      end
+    end
+
     class CpuScheduler
       # @return [Boolean]
       attr_reader :enable
@@ -164,6 +177,9 @@ module OsCtld
     # @return [GarbageCollector]
     attr_reader :garbage_collector
 
+    # @return [StateHistory]
+    attr_reader :state_history
+
     # @param path [String]
     def initialize(path)
       cfg = JSON.parse(File.read(path))
@@ -179,6 +195,7 @@ module OsCtld
       @send_receive = SendReceive.new(cfg.fetch('send_receive', {}))
       @trash_bin = TrashBin.new(cfg.fetch('trash_bin', {}))
       @garbage_collector = GarbageCollector.new(cfg.fetch('garbage_collector', {}))
+      @state_history = StateHistory.new(cfg.fetch('state_history', {}))
     end
   end
 end

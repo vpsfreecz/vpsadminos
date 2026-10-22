@@ -55,6 +55,14 @@ RSpec.describe OsCtld::Monitor::Process do
         "#{pool.name}:#{id}"
       end
 
+      def accepts_observed_state?(_value)
+        state != :error
+      end
+
+      def assign_observed_state(value)
+        self.state = value
+      end
+
       def ensure_run_conf
         run_conf
       end

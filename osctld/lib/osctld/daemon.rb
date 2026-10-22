@@ -6,6 +6,7 @@ require 'osctld/exceptions'
 require 'osctld/hook'
 require 'osctld/hook/base'
 require 'osctld/run_state'
+require 'osctld/container_state_history'
 require 'osctld/generic/client_handler'
 
 module OsCtld
@@ -117,6 +118,9 @@ module OsCtld
     def setup
       # Setup /run/osctl
       RunState.create
+
+      # Resume boot-wide observations before accepting commands or loading CTs.
+      ContainerStateHistory.load(max_events: config.state_history.max_events)
 
       # Open start config
       start_cfg = RunState.open_start_config

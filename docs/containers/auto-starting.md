@@ -101,3 +101,7 @@ osctl pool import --no-autostart tank
 
 The auto start process can be later trigger manually using
 `osctl pool autostart trigger`.
+
+For successful LXC running observations during the current host boot, use
+[`osctl ct state-history --ever-running`](state-history.md). Autostart queue state
+alone does not prove that a container reached the running state.

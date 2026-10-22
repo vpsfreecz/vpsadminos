@@ -824,6 +824,19 @@ The following shortcuts are supported:
       Remove all snapshots of the container's root dataset. `ct reinstall`
       cannot proceed if there are snapshots present.
 
+`ct state-history` [`--pool` *pool*] [`--ever-running`] [*id*]
+  Show the recent observed container state timeline for this host boot. The
+  optional ID requires an explicit pool; command-local `--pool` overrides the
+  global option. Put options before the ID. Saved identities remain queryable
+  after deletion or pool export. Human output reports evicted events.
+
+  `--ever-running` shows first-running evidence, retained across
+  stopped states, event eviction and daemon restarts until host reboot. Use
+  global `--json` for the complete response, including availability and boot ID.
+  The global timeline limit is `osctld.settings.state_history.max_events`, an
+  integer from 1 to 10000 (default 1000), effective on daemon restart. History
+  cannot reconstruct transitions entirely missed during daemon downtime.
+
 `ct ls` [*options*] [*ctids...*]
   List containers. If no *ids* are provided, all containers matching filters
   are listed.

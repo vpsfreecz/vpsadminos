@@ -7,6 +7,43 @@ RSpec.describe OsCtl::Cli::Container do
     build_command(described_class, args:, opts:, gopts:)
   end
 
+  it 'queries the timeline with local pool taking precedence' do
+    command = cmd(args: ['_ct'], opts: { pool: 'local' }, gopts: { pool: 'global', json: true })
+    data = { available: true, truncated: false, events: [] }
+    expect(command).to receive(:osctld_call).with(:ct_state_history, view: 'timeline', pool: 'local', id: '_ct').and_return(data)
+
+    out, = capture_output { command.state_history }
+    expect(JSON.parse(out)).to eq(JSON.parse(data.to_json))
+  end
+
+  it 'queries compact permanent proof with the global pool' do
+    command = cmd(opts: { 'ever-running' => true }, gopts: { pool: 'tank' })
+    expect(command).to receive(:osctld_call).with(:ct_state_history, view: 'ever_running', pool: 'tank', id: nil).and_return(available: true, entries: [])
+    capture_output { command.state_history }
+  end
+
+  it 'rejects multiple positional IDs' do
+    expect { cmd(args: %w[ct1 ct2]).state_history }.to raise_error(GLI::BadCommandLine)
+  end
+
+  it 'makes truncated human history visible' do
+    command = cmd
+    allow(command).to receive(:osctld_call).and_return(available: true, truncated: true, dropped_events: 5, max_events: 1, events: [])
+    out, = capture_output { command.state_history }
+
+    expect(out).to include('History truncated: 5 older events dropped (limit 1)')
+  end
+
+  it 'parses actual CLI filters, compact switch and optional ID' do
+    command = cmd
+    allow(described_class).to receive(:new).and_return(command)
+    allow(command).to receive(:state_history)
+    expect(OsCtl::Cli::App.get.run(%w[-j --pool global ct state-history --pool local --ever-running _ct])).to eq(0)
+    expect(described_class).to have_received(:new).with(
+      hash_including(json: true, pool: 'global'), hash_including(pool: 'local', 'ever-running' => true), ['_ct']
+    )
+  end
+
   [
     ['exit 0', 0],
     ['exit 23', 23],
