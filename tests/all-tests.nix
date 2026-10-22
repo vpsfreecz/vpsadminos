@@ -313,6 +313,7 @@ let
           "system/install"
           "system/install-zfs"
           "system/switch-to-configuration"
+          "system/sysctl"
           "systemd/credentials"
           "systemd/ebpf"
           {

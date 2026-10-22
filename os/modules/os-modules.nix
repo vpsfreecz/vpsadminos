@@ -6,6 +6,7 @@
   ./config/runit.nix
   ./config/system-path.nix
   ./config/swap.nix
+  ./config/sysctl.nix
   ./config/tunables.nix
   # ./misc/manual.nix # broken on 23.11
   ./misc/crashdump.nix
