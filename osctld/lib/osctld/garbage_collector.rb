@@ -75,6 +75,7 @@ module OsCtld
       @config_path = File.join(pool.conf_path, 'pool', 'garbage-collector.yml')
       @queue = OsCtl::Lib::Queue.new
       @stop = false
+      @retirement_inhibited = false
 
       load_config
     end
@@ -107,6 +108,53 @@ module OsCtld
 
     def prune
       @queue << :prune
+    end
+
+    # Called during pool import, before the worker starts, if container state
+    # cannot be authenticated. Only a fresh collector can resume retirement.
+    # Refused frees without a registered record are not durable cleanup requests.
+    def inhibit_retirement
+      exclusively { @retirement_inhibited = true }
+      nil
+    end
+
+    # Import-only ownership evidence. Read outside the GC lock, then ensure the
+    # persisted records still agree with the in-memory view. Never create owners.
+    def container_run_dataset_ownership(allow_missing: false)
+      records = inclusively { @container_run_datasets.map(&:dump) }
+      begin
+        input = File.open(@config_path, File::RDONLY | File::NOFOLLOW) do |f|
+          before = f.stat
+          bytes = f.read
+          after = f.stat
+          before_identity = [before.dev, before.ino, before.size, before.mtime, before.ctime]
+          after_identity = [after.dev, after.ino, after.size, after.mtime, after.ctime]
+          raise ConfigError, 'GC ownership file changed during import' unless before_identity == after_identity
+
+          [after_identity, bytes]
+        end
+      rescue Errno::ENOENT
+        raise unless allow_missing && records.empty?
+
+        begin
+          File.lstat(@config_path)
+        rescue Errno::ENOENT
+          unless inclusively { @container_run_datasets.empty? }
+            raise ConfigError, 'GC ownership changed during import'
+          end
+
+          return [records, nil]
+        end
+        raise ConfigError, 'GC ownership file appeared during import'
+      end
+
+      cfg = OsCtl::Lib::ConfigFile.load_yaml(input.last)
+      unless cfg.is_a?(Hash) && cfg['container_run_datasets'] == records &&
+             inclusively { @container_run_datasets.map(&:dump) == records }
+        raise ConfigError, 'GC ownership changed during import'
+      end
+
+      [records, input]
     end
 
     # @param run_conf [Container::RunConfiguration]
@@ -220,6 +268,8 @@ module OsCtld
 
     # @return [Boolean] true if the dataset was moved to trash or if it doesn't exist
     def trash_dataset(dataset)
+      return false if inclusively { @retirement_inhibited }
+
       pool.trash_bin.add_dataset(dataset)
       true
     rescue SystemCommandFailed => e

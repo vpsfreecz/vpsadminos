@@ -13,6 +13,32 @@ Notice that `ROOTFS` is not directly in the dataset's mountpoint, i.e.
 to the `.zfs` special directory, which could be used to manipulate snapshots
 from within the container.
 
+## Impermanent NixOS roots
+
+On a normal start, an impermanent NixOS container gets a new temporary dataset
+named `<base-dataset>.impermanence-<suffix>`. Its root filesystem is the
+temporary dataset's `private` directory. The supplied impermanence images keep
+persistent data on the base dataset mounted at `/persistent`; see
+[NixOS guests](nixos.md) for guest configuration.
+
+Enabling impermanence on an already-running container does not replace its
+current root. It uses the temporary root on its next normal start.
+
+The runtime configuration records the selected dataset, run identity and cleanup
+policy before the workload starts, independently of CPU scheduler assignment.
+Replacing osctld or activating another userspace generation preserves that run,
+its mounts and temporary data. A normal container restart creates a new temporary
+root while retaining persistent backing data.
+
+The container's mount namespace can show `/private` as the root of the ZFS mount
+at `/`, including an idmapped bind mount. Its dataset mountpoint and live root
+are different directories. A recovery check must identify the live root through
+the container init process and match the dataset's `private` directory; a host
+mount prefix or a matching pathname alone does not establish ownership.
+
+See [updates](../os/updates.md#running-impermanent-containers) for importing
+containers whose saved runtime selection came from an older daemon.
+
 ## Subdatasets
 *osctld* also supports subdatasets, which can be used to logically divide data
 or provide specific configuration of ZFS properties. Subdatasets can be created

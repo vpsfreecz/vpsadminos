@@ -40,6 +40,7 @@ module OsCtld
     include Lockable
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::File
+    include OsCtl::Lib::Utils::System
 
     # @param ct [Container]
     def self.load(ct)
@@ -180,31 +181,98 @@ module OsCtld
     end
 
     def init_pid=(pid)
-      identity = nil
-      old_identity = nil
+      install_init_identity { ProcessIdentity.new(pid, namespaces: [:mnt], root: true) }
+    end
 
-      @init_lease_mutex.synchronize do
-        raise LifecycleError, 'container run is retiring' if @retiring || @destroyed
+    # Import retains its authenticated descriptors; never reopen the numeric PID.
+    # The caller keeps its identity, while this run owns an independent copy.
+    def retain_init_identity(identity)
+      install_init_identity { identity.duplicate }
+    end
+
+    # Called only for an unpublished, running impermanent CT during pool import.
+    # Prove the saved base root, or the temporary root and its existing GC owner.
+    # Preparation may use the selected root, but persistence waits for all final
+    # checks. There are no monitor callbacks or collector worker during this call.
+    def recover_impermanent_root!(pid, publish:)
+      original_dataset = @dataset
+      original_cleanup = @destroy_dataset_on_stop
+      identity = nil
+      installed = false
+      completed = false
+
+      validate_saved_run!
+      base_selection = dataset.name == ct.dataset.name
+      if base_selection && destroy_dataset_on_stop?
+        raise ConfigError, 'stale base selection has contradictory cleanup state'
+      end
+
+      ownership = pool.garbage_collector.container_run_dataset_ownership(allow_missing: base_selection)
+      records = ownership.first
+      ordinary_base = base_selection && records.none? { |row| row['run_id'] == run_id.dump }
+      if ordinary_base
+        conflicting = records.any? do |row|
+          other = row['dataset']
+          other.is_a?(String) &&
+            (other == dataset.name || other.start_with?("#{dataset.name}/") || dataset.name.start_with?("#{other}/"))
+        end
+        raise ConfigError, 'base root has conflicting GC ownership' if conflicting
+
+        candidate = dataset.name
+      else
+        candidate = impermanent_root_owner(records)
+      end
+      repair = base_selection && !ordinary_base
+
+      unless ordinary_base || repair || (dataset.name == candidate && destroy_dataset_on_stop?)
+        raise ConfigError, 'saved temporary root contradicts GC ownership'
       end
 
       identity = ProcessIdentity.new(pid, namespaces: [:mnt], root: true)
+      identity.authenticate!(cgroup_path: ct.payload_cgroup_path)
+      birth = init_birth(identity)
+      mount = init_root_mount(identity, candidate)
+      zfs_identity = root_dataset_identity(candidate, identity, temporary: !ordinary_base)
 
-      @init_lease_mutex.synchronize do
-        @init_lease_cond.wait(@init_lease_mutex) while @init_lease_count > 0 && !@retiring
+      unless ordinary_base
+        @dataset = OsCtl::Lib::Zfs::Dataset.new(candidate, base: candidate)
+        @destroy_dataset_on_stop = true
+      end
+      yield if block_given?
 
-        raise LifecycleError, 'container run is retiring' if @retiring || @destroyed
-
-        exclusively do
-          old_identity = @init_identity
-          @init_identity = identity
-          @init_pid = identity.pid
-          identity = nil
-        end
+      # Installation can wait for leases. Do it before the last authentication,
+      # while the standalone identity is still held; never lease this run here.
+      retain_init_identity(identity)
+      installed = true
+      unless root_dataset_identity(candidate, identity, temporary: !ordinary_base) == zfs_identity &&
+             init_root_mount(identity, candidate) == mount && init_birth(identity) == birth
+        raise ConfigError, 'live root changed during import'
+      end
+      unless runtime_config_input == @loaded_input &&
+             pool.garbage_collector.container_run_dataset_ownership(allow_missing: ordinary_base) == ownership
+        raise ConfigError, 'saved run or GC ownership changed during import'
       end
 
-      old_identity&.close
-      @init_pid
+      identity.authenticate!(cgroup_path: ct.payload_cgroup_path)
+      if repair
+        regenerate_file(file_path, 0o400) do |new|
+          new.write(OsCtl::Lib::ConfigFile.dump_yaml(@loaded_config.merge(
+                                                       'dataset' => candidate,
+                                                       'destroy_dataset_on_stop' => true
+                                                     )))
+        end
+      end
+      publish.call
+      completed = true
+      nil
+    rescue SystemCallError, IOError, ArgumentError, KeyError, Psych::Exception, SystemCommandFailed => e
+      raise ConfigError.new('unable to authenticate impermanent live root', e)
     ensure
+      unless completed
+        @dataset = original_dataset
+        @destroy_dataset_on_stop = original_cleanup
+        close_init_identity if installed
+      end
       identity&.close
     end
 
@@ -327,7 +395,16 @@ module OsCtld
     def load_conf(from_file: true)
       cfg =
         if from_file && File.exist?(file_path)
-          OsCtl::Lib::ConfigFile.load_yaml_file(file_path)
+          @loaded_input = runtime_config_input
+          @loaded_config = OsCtl::Lib::ConfigFile.load_yaml(@loaded_input.last)
+          unless @loaded_config.is_a?(Hash)
+            raise ConfigError, 'runtime configuration must be a mapping'
+          end
+          if @loaded_config.has_key?('id') && !@loaded_config['id'].is_a?(Hash)
+            raise ConfigError, 'runtime configuration has an invalid run ID'
+          end
+
+          @loaded_config
         else
           {}
         end
@@ -357,6 +434,8 @@ module OsCtld
           false
         end
       nil
+    rescue Psych::Exception, KeyError, ArgumentError, TypeError => e
+      raise ConfigError.new('invalid runtime configuration', e)
     end
 
     def save
@@ -386,6 +465,161 @@ module OsCtld
     end
 
     protected
+
+    def runtime_config_input
+      File.open(file_path, File::RDONLY | File::NOFOLLOW) do |f|
+        before = f.stat
+        bytes = f.read
+        after = f.stat
+        previous = [before.dev, before.ino, before.size, before.mtime, before.ctime]
+        current = [after.dev, after.ino, after.size, after.mtime, after.ctime]
+        unless before.file? && previous == current
+          raise ConfigError, 'runtime configuration changed during import'
+        end
+
+        [current, bytes]
+      end
+    end
+
+    def validate_saved_run!
+      cfg = @loaded_config
+      required = %w[id dataset distribution version arch vendor variant destroy_dataset_on_stop]
+      unless cfg.is_a?(Hash) && required.all? { |key| cfg.has_key?(key) } &&
+             cfg['id'].is_a?(Hash) && cfg['id']['pool_name'] == pool.name &&
+             cfg['id']['container_id'] == id && cfg['id']['timestamp'].is_a?(Numeric) &&
+             cfg['id']['timestamp'].finite? && cfg['id']['timestamp'] > 0 &&
+             cfg['id'] == run_id.dump && cfg['dataset'] == dataset.name &&
+             [true, false].include?(cfg['destroy_dataset_on_stop']) &&
+             %w[distribution version arch vendor variant].all? { |key| cfg[key].is_a?(String) && !cfg[key].empty? }
+        raise ConfigError, 'running impermanent container requires complete saved run metadata'
+      end
+    end
+
+    def impermanent_root_owner(records)
+      matching = records.select { |row| row['run_id'] == run_id.dump }
+      unless matching.one?
+        raise ConfigError, 'temporary root requires one existing GC owner for the saved run'
+      end
+
+      candidate = matching.first['dataset']
+      suffix = dataset.name == ct.dataset.name ? 'impermanence' : '(?:impermanence|boot)'
+      pattern = /\A#{Regexp.escape(ct.dataset.name)}\.#{suffix}-[0-9a-f]{6}\z/
+      unless candidate.is_a?(String) && candidate.match?(pattern)
+        raise ConfigError, 'temporary root has conflicting or foreign GC ownership'
+      end
+
+      overlapping = records.count do |row|
+        other = row['dataset']
+        other.is_a?(String) &&
+          (other == candidate || other.start_with?("#{candidate}/") || candidate.start_with?("#{other}/"))
+      end
+      unless overlapping == 1
+        raise ConfigError, 'temporary root has conflicting or foreign GC ownership'
+      end
+
+      candidate
+    end
+
+    def init_birth(identity)
+      namespace_pids = identity.read_proc_file('status').lines.grep(/\ANSpid:\s/)
+      pids = namespace_pids.one? ? namespace_pids.first.split.drop(1) : []
+      unless pids.length >= 2 && pids.first == identity.pid.to_s && pids.last == '1'
+        raise ConfigError, 'live process is not the container namespace init'
+      end
+
+      stat = identity.read_proc_file('stat')
+      unless stat.start_with?("#{identity.pid} (") && stat.include?(')')
+        raise ConfigError, 'invalid init process birth identity'
+      end
+
+      birth = stat.rpartition(')').last.split.fetch(19)
+      raise ConfigError, 'invalid init process birth identity' unless birth.match?(/\A[0-9]+\z/) && birth.to_i > 0
+
+      birth
+    end
+
+    def root_mount_entries(bytes)
+      bytes.lines.map do |line|
+        fields, filesystem = line.strip.split(' - ', 2)
+        left = fields&.split
+        right = filesystem&.split
+        raise ConfigError, 'malformed mount identity' unless left && left.length >= 6 && right && right.length >= 3
+
+        [left[2], left[3], left[4], right[0], right[1]].map do |value|
+          value.gsub(/\\([0-7]{3})/) { Regexp.last_match(1).to_i(8).chr }
+        end
+      end
+    end
+
+    def init_root_mount(identity, candidate)
+      roots = root_mount_entries(identity.read_proc_file('mountinfo')).select { |row| row[2] == '/' }
+      stat = identity.root_dir.stat
+      expected = ["#{stat.dev_major}:#{stat.dev_minor}", '/private', '/', 'zfs', candidate]
+      raise ConfigError, 'init root is not the selected dataset private root' unless roots == [expected]
+
+      roots.first
+    end
+
+    def root_dataset_identity(candidate, identity, temporary:)
+      output = syscmd_argv([
+                             'zfs', 'list', '-H', '-p', '-t', 'filesystem',
+                             '-o', 'name,guid,mountpoint,mounted,origin', candidate
+                           ]).output.lines.map { |line| line.chomp.split("\t") }
+      unless output.one? && output.first.length == 5 && output.first[0] == candidate &&
+             output.first[1].match?(/\A[1-9][0-9]*\z/) && output.first[2].start_with?('/') &&
+             output.first[3] == 'yes' && (!temporary || output.first[4] == '-')
+        raise ConfigError, 'root ZFS identity is missing or unsupported'
+      end
+
+      properties = output.first
+      File.open(properties[2], File::RDONLY | File::NOFOLLOW) do |directory|
+        private_root = OsCtl::Lib::Sys.new.open_beneath(directory, 'private')
+        begin
+          host = private_root.stat
+          guest = identity.root_dir.stat
+          unless directory.stat.directory? && host.directory? && host.dev == guest.dev && host.ino == guest.ino
+            raise ConfigError, 'selected private root differs from the held init root'
+          end
+
+          mounts = root_mount_entries(File.read('/proc/self/mountinfo')).select { |row| row[2] == properties[2] }
+          expected = ["#{host.dev_major}:#{host.dev_minor}", '/', properties[2], 'zfs', candidate]
+          raise ConfigError, 'selected dataset mount identity is ambiguous' unless mounts == [expected]
+
+          [properties, host.dev, host.ino, directory.stat.dev, directory.stat.ino]
+        ensure
+          private_root.close
+        end
+      end
+    end
+
+    def install_init_identity
+      identity = nil
+      old_identity = nil
+
+      @init_lease_mutex.synchronize do
+        raise LifecycleError, 'container run is retiring' if @retiring || @destroyed
+      end
+
+      identity = yield
+
+      @init_lease_mutex.synchronize do
+        @init_lease_cond.wait(@init_lease_mutex) while @init_lease_count > 0 && !@retiring
+
+        raise LifecycleError, 'container run is retiring' if @retiring || @destroyed
+
+        exclusively do
+          old_identity = @init_identity
+          @init_identity = identity
+          @init_pid = identity.pid
+          identity = nil
+        end
+      end
+
+      @init_pid
+    ensure
+      old_identity&.close
+      identity&.close
+    end
 
     def wait_for_init_leases
       @init_lease_mutex.synchronize do

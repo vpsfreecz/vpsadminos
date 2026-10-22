@@ -682,31 +682,78 @@ module OsCtld
 
       ep.run do |ctid|
         log(:info, "Loading container #{ctid}")
-
-        ct = load_entity('container', ctid) do
-          Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
-        end
-        next unless ct
-
-        ensure_limits(ct)
-
-        builder = Container::Builder.new(ct.get_run_conf)
-        builder.setup_lxc_home
-        builder.setup_log_file
-
-        ct.reconfigure
-
-        running = ct.fresh_state == :running
-
-        ct.ensure_run_conf if running
-        Monitor::Master.monitor(ct)
-        Console.reconnect_tty0(ct) if running
-
-        DB::Containers.add(ct)
+        load_container(ctid, ds_cache)
       end
 
       ep.wait
       log(:info, 'All containers loaded')
+    end
+
+    def load_container(ctid, ds_cache)
+      published = false
+      ct = load_entity('container', ctid) do
+        Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
+      end
+      raise ConfigError, 'container configuration could not be loaded' unless ct
+
+      ensure_limits(ct)
+
+      if ct.impermanence && ct.distribution == 'nixos'
+        state = ContainerControl::Commands::State.run!(ct, force: true)
+        if state.state == :running
+          raise ConfigError, 'running impermanent container has no saved run configuration' unless ct.run_conf
+
+          # The next-start setting may have changed while running on the base.
+          # Publish only the authenticated run, before monitors can refresh its
+          # numeric PID. Stop can find importing CTs: keep manipulation excluded
+          # until monitoring and console attachment have completed.
+          ct.manipulate('pool import') do
+            publication_error = nil
+            publish = lambda do
+              ct.state = :running
+              begin
+                DB::Containers.add(ct)
+              rescue StandardError => e
+                # DB.add reports an event after insertion; reconcile that
+                # uncertain outcome without dropping an already-visible run.
+                raise unless DB::Containers.find(ct.id, name).equal?(ct)
+
+                publication_error = e
+              end
+              published = true
+            end
+            ct.run_conf.recover_impermanent_root!(state.init_pid, publish:) do
+              prepare_container(ct)
+            end
+            ct.state = :running
+            raise publication_error if publication_error
+
+            Monitor::Master.monitor(ct)
+            Console.reconnect_tty0(ct)
+          end
+          return
+        end
+      end
+
+      prepare_container(ct)
+      running = ct.fresh_state == :running
+      ct.ensure_run_conf if running
+      Monitor::Master.monitor(ct)
+      Console.reconnect_tty0(ct) if running
+      DB::Containers.add(ct)
+    rescue StandardError => e
+      garbage_collector.inhibit_retirement
+      published ||= ct && DB::Containers.find(ct.id, name).equal?(ct)
+      status = published ? 'attachment incomplete; published container remains managed' : 'container omitted and unmanaged'
+      log(:fatal, "Container #{ctid}: #{status}: #{e.message} (#{e.class}); " \
+                  'pool temporary-dataset reclamation is inhibited until successful fresh reimport')
+    end
+
+    def prepare_container(ct)
+      builder = Container::Builder.new(ct.get_run_conf)
+      builder.setup_lxc_home
+      builder.setup_log_file
+      ct.reconfigure
     end
 
     def load_repositories

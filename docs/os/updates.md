@@ -23,6 +23,62 @@ You can also build the tool from a checkout:
 make vpsadminos-rebuild
 ```
 
+## Running impermanent containers
+
+Older osctld versions can save the base dataset and a disabled temporary-dataset
+cleanup flag before selecting an impermanent NixOS container's live temporary
+root. The container can continue running with correct in-memory state until the
+daemon is replaced. Current starts save the completed selection before the
+workload starts, independently of CPU topology or scheduler assignment.
+
+During pool import, osctld repairs this saved base selection only when the
+complete saved run ID belongs to that pool and container, exactly one existing
+GC record owns the same run's temporary dataset, and no competing record names
+that dataset or an ancestor or descendant. It authenticates the retained live
+init process, its namespace PID 1, birth identity, cgroup, mount namespace and
+root. The ZFS source, GUID and host `private` directory must match that root.
+The checks run again before publication. The repair atomically updates only the
+saved dataset and cleanup flag, preserving the run ID, other saved fields and
+GC records. Already-correct impermanent selections and supported `.boot-<suffix>`
+selections with cleanup enabled undergo the same checks without rewriting YAML.
+
+Enabling impermanence while a NixOS container is running takes effect on its
+next start. During import, osctld preserves an ordinary base-root run when the
+saved selection names the base with cleanup disabled, the held live process
+and root match that base, and GC ownership does not conflict. The GC file may
+be absent only when in-memory ownership is empty and both remain unchanged
+through the final checks. This case leaves the saved runtime configuration
+and GC records unchanged.
+
+For temporary-root recovery, missing, empty, malformed, foreign, conflicting,
+ambiguous or changed evidence prevents the container from entering management.
+The daemon reports
+`container omitted and unmanaged` and inhibits temporary-dataset reclamation
+for that pool instance. This refusal preserves the live workload and storage;
+it does not reconstruct ownership from dataset names or host mount prefixes.
+If monitoring, console attachment or event reporting fails after publication,
+the same run remains managed and the daemon reports
+`attachment incomplete; published container remains managed`. Reclamation is
+inhibited in that case as well.
+
+While reclamation is inhibited, periodic and manual pruning and queued explicit
+frees cannot move temporary datasets to the trash bin. Registered ownership
+records remain intact. Queue handling, new registrations, saving and collector
+shutdown still work. Datasets already in the trash bin are outside this
+safeguard, and a refused free without a registered ownership record has no
+durable automatic retry guarantee. Only a fresh import that loads all containers
+successfully resumes reclamation; there is no manual hold-release command.
+Preserve the reported runtime and GC metadata when investigating a refusal, and
+do not delete a live root to clear the error.
+
+The writer and import repair use the existing YAML fields and run ID format;
+they add no API or schema version. Nodes can update independently without a
+coordinated fleet update. Updating a writer does not correct state already saved
+by an older daemon, so retaining the authenticated import reader matters during
+mixed-version operation. Older readers can parse repaired metadata, but rolling
+back osctld loses the authenticated recovery and reclamation safeguards. A
+userspace update preserves the running kernel and existing container mounts.
+
 ## Selectable Linux 6.18 platform
 
 The 6.18 release line selects Linux 6.18.49 with its matching OpenZFS and LXC
