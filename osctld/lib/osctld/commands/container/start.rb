@@ -321,6 +321,10 @@ module OsCtld
       %w[boot dev etc proc run sbin sys var].each do |dir|
         Dir.mkdir(File.join(ctrc.rootfs, dir))
       end
+
+      # init_run_conf saved the base dataset before this temporary root existed.
+      # Persist the prepared selection even when the CPU scheduler has no work.
+      ctrc.save
     end
   end
 end
