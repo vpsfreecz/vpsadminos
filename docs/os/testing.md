@@ -254,6 +254,31 @@ script itself can be run by calling method `test_script`. You can call method
 
 ## Userspace upgrades between versions
 
+The ordinary `upgrade/impermanence-from-2abbe3cc1c10@v1` and `@v2` cases validate a
+production-origin container run through a candidate userspace switch. They pin
+host source `2abbe3cc1c102a4b39022d3f73ef4a432ad4d616` with its stable/default
+6.12.113 kernel, then activate the checkout being tested with its stable profile.
+They ignore `VPSADMINOS_CONFIG` and retain the booted kernel and host boot ID.
+The pin identifies a source boundary; it does not inventory live node kernels.
+The two cgroup modes use one NixOS impermanent container each and carry both
+`upgrade` and `ci` tags.
+
+```sh
+./test-runner.sh ls 'upgrade/impermanence-from-2abbe3cc1c10@*'
+```
+
+The stopped container's supported `cpu-package none` preference prevents an
+incidental scheduler save. The production writer must naturally leave valid
+saved run identity with stale base-dataset/cleanup metadata while a unique GC
+owner and held live root identify the temporary dataset. Missing stale-state
+coverage fails explicitly; the test does not synthesize metadata or retry it.
+Candidate import must preserve that run, root and both payloads while repairing
+only the saved selection. A daemon reload must retain the corrected file
+without rewriting it. A new candidate-created run must already persist its
+new selection before other setters, survive one reload with its payloads,
+and retire temporary roots through ordinary stop/cleanup. Existing focused
+units cover refusal, races and GC fencing; custom boot remains unit-only.
+
 Version-specific upgrade cases live in `tests/suite/upgrade/`. Each case pins
 one **older OS commit**, not a moving branch. Its kernel, osctld, LXC, ZFS and
 locked dependencies come from that revision. The target is always the checkout

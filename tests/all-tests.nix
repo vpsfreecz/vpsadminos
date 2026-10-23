@@ -150,6 +150,13 @@ let
     else
       lib.unique (
         [
+          {
+            template = "upgrade/impermanence-from-2abbe3cc1c10";
+            instances = [
+              { cgroupVersion = 1; }
+              { cgroupVersion = 2; }
+            ];
+          }
           "upgrade/from-6.12"
           "upgrade/from-6.12-guests"
           "upgrade/from-6.12-guests-v1"
