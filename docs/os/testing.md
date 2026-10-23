@@ -325,6 +325,14 @@ This avoids placing both long NFS groups in one 350-minute step. The ordinary
 stop/restart cycles and per-example deadlines are unchanged. No matrix row or
 longer step deadline is added.
 
+## Livepatch CPU hotplug diagnostics
+
+Qualification checks kernel health after each hotplug and workload-progress
+check, using the example's original dmesg baseline. A warning before the
+transition fails that phase even when CPU online/offline and progress checks
+succeed. The ordinary workload, aging, ABI, quarantine and recovery requirements
+still apply.
+
 ## Livepatch qualification shutdown diagnostics
 
 Livepatch qualification guests retain a shutdown-only RSS diagnostic.

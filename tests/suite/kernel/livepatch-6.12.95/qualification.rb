@@ -228,9 +228,10 @@ def qualification_transition(command, name, enabled)
   expect(elapsed).to be < QUALIFICATION_TRANSITION_SECONDS
 end
 
-def qualification_hotplug
+def qualification_hotplug(phase:)
   before = qualification_population
   cpu = QUALIFICATION_CPUS - 1
+  puts "qualification hotplug phase=#{phase} cpu=#{cpu} starting"
   machine.all_succeed(
     "echo 0 > /sys/devices/system/cpu/cpu#{cpu}/online",
     "test \"$(cat /sys/devices/system/cpu/cpu#{cpu}/online)\" = 0",
@@ -238,6 +239,11 @@ def qualification_hotplug
     "test \"$(getconf _NPROCESSORS_ONLN)\" = #{QUALIFICATION_CPUS}"
   )
   qualification_wait_for_progress(before, cpu: cpu)
+  # Retain the example-wide baseline: a warning before replacement must fail
+  # the predecessor phase, even if both sysfs writes and workload progress pass.
+  puts "qualification hotplug phase=#{phase} cpu=#{cpu} checking cumulative kernel health"
+  assert_kernel_healthy(machine, @example_dmesg_start)
+  puts "qualification hotplug phase=#{phase} cpu=#{cpu} complete"
 end
 
 def qualification_failed_activation(previous_name)
@@ -488,7 +494,7 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
     puts "qualification predecessor=#{previous_name} tasks=#{QUALIFICATION_TASKS} cpus=#{QUALIFICATION_CPUS} age=#{age}"
     break if age >= QUALIFICATION_AGE_SECONDS
   end
-  qualification_hotplug
+  qualification_hotplug(phase: 'pre-transition')
   qualification_failed_activation(previous_name) if QUALIFICATION_FAILURE_RETENTION
   qualification_trace_start
   before = qualification_population
@@ -498,7 +504,7 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
   machine.fails("test -d /sys/module/#{forbidden_name}")
   machine.succeeds("rmmod #{previous_name}")
   qualification_trace_counts(disabled: false)
-  qualification_hotplug
+  qualification_hotplug(phase: 'post-transition')
   sleep 2
   qualification_progress(before, qualification_population)
   wait_for_stress_advance(machine, counts)
