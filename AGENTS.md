@@ -35,6 +35,8 @@
 - Tests/scripts: snake_case filenames; gem/module names match their directories (`osctl-oomd`, `libosctl`, etc.).
 
 ## Testing Guidelines
+- Before adding, changing or retiring a userspace upgrade test, read the
+  [userspace upgrade-test lifecycle policy](docs/os/testing.md#userspace-upgrade-test-lifecycle).
 - Add tests in `tests/suite/*.nix` and register them in `tests/all-tests.nix`; reuse machines from `tests/machines/*.nix` and configs from `tests/configs/`.
 - Use `my-test#script` for multi-script cases; set `expectFailure = true` when capturing known failures.
 - Tests that transfer, copy, move, send, receive, back up, or restore

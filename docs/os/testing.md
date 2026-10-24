@@ -279,66 +279,43 @@ new selection before other setters, survive one reload with its payloads,
 and retire temporary roots through ordinary stop/cleanup. Existing focused
 units cover refusal, races and GC fencing; custom boot remains unit-only.
 
-Version-specific upgrade cases live in `tests/suite/upgrade/`. Each case pins
-one **older OS commit**, not a moving branch. Its kernel, osctld, LXC, ZFS and
-locked dependencies come from that revision. The target is always the checkout
-being tested and its own locked dependencies; there is no target commit to
-update when developing a fix.
+### Userspace upgrade-test lifecycle
 
-For the 6.18 integration series, run:
+Name each top-level case or template
+`upgrade/<behavior>-from-<12charSHA>`, with ordinary instance suffixes such as
+`@v1` and `@v2`. Use a kernel name only when the kernel identifies the
+transition being tested. Pin each baseline to its full immutable revision;
+never silently repin an existing case.
 
-```sh
-export VPSADMINOS_CONFIG="$PWD/os/configs/unstable.nix"
-./test-runner.sh ls 'upgrade/*'
-./test-runner.sh test --fresh --jobs 1 -t upgrade 'upgrade/*'
-```
+Add a comment header to each top-level case or template with these labels:
 
-The four cases have both `upgrade` and `ci` tags, so ordinary CI includes
-live activation. The unsuffixed cases use cgroup v2; `-v1` cases boot and
-activate cgroup v1. Each builds two generations and can also be selected
-explicitly or with `-t upgrade`. No predecessor worktree,
-production access, deployment credentials or `VPSADMINOS_UPGRADE_FROM` is
-needed. The ordinary runner fetches the pinned source. `VPSADMINOS_CONFIG`
-selects the target configuration; each case selects its predecessor
-configuration independently.
+- `Baseline`: full revision, profile and any intermediate upgrade hops.
+- `Purpose`: the supported transition and data boundary the test protects.
+- `Target`: the checkout being tested and its explicit profile.
+- `Removal condition`: the support boundary or replacement coverage that
+  permits retirement.
+- `Retirement evidence`: confirmation references, or an explicit statement
+  that the evidence is not established.
 
-`common.nix` boots the predecessor, creates two running workloads, and activates
-the target with `switch-to-configuration test`. The host kernel and boot ID
-must stay unchanged while the daemon changes. The test preserves container
-init/worker/HTTP identities, cgroups, veths, consoles, data and connectivity,
-then starts and restarts a new networked container and verifies its data.
-It also repeats activation and gracefully/abruptly restarts the daemon while
-checking workload and private mount identities. Predecessor-created never-started,
-mounted-stopped and previously-run containers must start successfully, and
-stopped exec/runscript networking must work before startup. Inherited running
-containers must stop/start, restart with normal guest init, and retain their data.
-All containers must stop and delete cleanly. This tests
-**userspace switching**, not live kernel replacement or a host reboot upgrade.
+Exercise the actual transition and assert that expected state and data survive.
+A fresh target boot does not establish upgrade coverage. Retire a case only
+after its support boundary explicitly ends or verified replacement coverage
+preserves its guarantees. Remove its registration, exclusive helpers/specs and
+obsolete documentation together. Age, flaky failures and missing caches are
+not retirement grounds.
+Record the evidence confirming retirement in the removal commit.
 
-Only the predecessor's **test-shell module** is replaced with the current
-runner's test transport. This permits ordinary `./test-runner.sh` use even
-when older guests used a different serial protocol. It does not replace the
-old daemon, container manager, kernel, ZFS, lifecycle callbacks or networking.
-The test shell stays open across activation; it is not an application workload.
+The impermanence transition must remain until support for equivalent old
+saved/running state ends, including supported rollback and restoration paths,
+or a verified real-transition replacement covers old-writer repair, live
+run/root/payload continuity, reload stability, new-writer persistence and
+ordinary cleanup. Record the support/migration decision or the exact replacement
+and successful native results. This retirement evidence is not established.
+Deploying fixed userspace alone does not prove that old saved state is gone.
 
-### Adding and retiring cases
+Keep focused writer, import, refusal, race and GC unit regressions while their
+behavior is supported. They do not replace the real transition test.
 
-1. Copy a small `from-*.nix` case and choose an immutable, full predecessor
-   commit, normally the relevant default-branch revision before the change.
-   Never resolve a moving branch at test time.
-2. Give it a descriptive name and expected kernel prefix. If necessary, select
-   a configuration file **from the predecessor revision**; otherwise its
-   default is used. Keep the target unpinned.
-3. Register the case in `tests/all-tests.nix`. Reuse `common.nix` for the standard
-   continuity scenario; put independently meaningful migration assertions in
-   a focused case rather than weakening existing checks.
-4. Run the named case from the development checkout with the desired target
-   configuration. Confirm the actual predecessor kernel and target generation
-   in the native logs. A fresh target boot is not an upgrade result.
-5. Remove a case and its registration when its source version or transition is
-   no longer supported/relevant. Do not silently retarget an old case to a new
-   commit and lose the compatibility boundary it represented. Git history
-   preserves retired cases; no separate fixture registry is necessary.
 ## Livepatch Intel CI distribution
 
 The existing `livepatch-intel` selector includes cumulative .95 NFS cancellation.
