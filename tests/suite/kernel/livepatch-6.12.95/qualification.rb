@@ -473,6 +473,8 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
   machine.succeeds("printf '%s' #{nfs_value} > #{NFS_STATE}/mnt/qualification-data")
   loop do
     sleep 60
+    # A newer published snapshot can still precede worker wakeups.
+    qualification_wait_for_progress(population)
     current = qualification_population
     qualification_progress(population, current)
     population = current

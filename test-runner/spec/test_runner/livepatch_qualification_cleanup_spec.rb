@@ -295,6 +295,19 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
       end
     end
 
+    def aging_observation
+      path = File.join(REPO_ROOT, 'tests/suite/kernel/livepatch-6.12.95/qualification.rb')
+      source = File.read(path)
+      step = source[/^    sleep 60\n.*?^    population = current\n/m]
+      raise 'missing aging observation' unless step
+
+      definition = "def observe_aging(population)\n#{step}end"
+      instance.tap do |target|
+        target.extend(RSpec::Matchers)
+        target.singleton_class.class_eval(definition, path, source.lines.find_index("    sleep 60\n"))
+      end
+    end
+
     it 'rejects the observed newer report with unchanged wakeups, then accepts full progress' do
       command = progress_command
       expect(progress_status(command, advanced.merge('wakeups' => '52864'))).to eq(1)
@@ -312,6 +325,48 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
       command = progress_command
       expect(progress_status(command, advanced.merge('elapsed' => population.fetch('elapsed')))).to eq(1)
       expect(progress_status(command, advanced.except('wakeups'))).to eq(1)
+    end
+
+    it 'waits after aging sleep for all counters before rereading and asserting strict progress' do
+      target = aging_observation
+      events = []
+      allow(target).to receive(:sleep) { |seconds| events << [:sleep, seconds] }
+      allow(machine).to receive(:wait_until_succeeds) do |command, **options|
+        events << :wait
+        expect(options).to eq(timeout: 60)
+        expect(progress_status(command, advanced.merge('wakeups' => population.fetch('wakeups')))).to eq(1)
+        expect(progress_status(command, advanced)).to eq(0)
+      end
+      allow(target).to receive(:qualification_population) do
+        events << :read
+        advanced
+      end
+      allow(target).to receive(:qualification_progress).and_wrap_original do |original, *args|
+        events << :assert
+        original.call(*args)
+      end
+
+      expect(target.observe_aging(population)).to eq(advanced)
+      expect(target).to have_received(:qualification_progress).with(population, advanced)
+      expect(events).to eq([[:sleep, 60], :wait, :read, :assert])
+    end
+
+    it 'propagates an aging progress timeout without rereading or continuing with a stalled counter' do
+      target = aging_observation
+      allow(target).to receive(:sleep)
+      allow(target).to receive(:qualification_population)
+      allow(target).to receive(:qualification_progress).and_call_original
+      allow(machine).to receive(:wait_until_succeeds) do |command, **options|
+        expect(options).to eq(timeout: 60)
+        expect(progress_status(command, advanced.merge('wakeups' => population.fetch('wakeups')))).to eq(1)
+        raise primary_error
+      end
+
+      expect { target.observe_aging(population) }
+        .to(raise_error { |error| expect(error).to equal(primary_error) })
+      expect(target).to have_received(:sleep).with(60)
+      expect(target).not_to have_received(:qualification_population)
+      expect(target).not_to have_received(:qualification_progress)
     end
 
     it 'retains the loaded CPU identity requirement for hotplug within the same bound' do
