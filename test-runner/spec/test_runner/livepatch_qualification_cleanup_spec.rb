@@ -316,13 +316,18 @@ RSpec.describe TestRunner::ExampleGroup, '#evaluate' do
 
     it 'retains the loaded CPU identity requirement for hotplug within the same bound' do
       target = instance
+      baseline = 42
+      health_check = instance_spy(Proc)
+      target.instance_variable_set(:@example_dmesg_start, baseline)
+      target.define_singleton_method(:assert_kernel_healthy) { |*args| health_check.call(*args) }
       allow(target).to receive(:qualification_population).and_return(population)
       command = nil
       allow(machine).to receive(:wait_until_succeeds) do |value, **options|
         expect(options).to eq(timeout: 60)
         command = value
       end
-      target.qualification_hotplug
+      target.qualification_hotplug(phase: 'pre-transition')
+      expect(health_check).to have_received(:call).with(machine, baseline)
       expect(machine).to have_received(:all_succeed).with(
         'echo 0 > /sys/devices/system/cpu/cpu3/online',
         'test "$(cat /sys/devices/system/cpu/cpu3/online)" = 0',
