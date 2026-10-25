@@ -107,6 +107,7 @@ import (production.outPath + "/tests/make-template.nix")
 
             pid, dataset = ARGV
             File.open("/proc/#{Integer(pid)}") do |proc_dir|
+              proc_identity = identity(proc_dir)
               held = "/proc/self/fd/#{proc_dir.fileno}"
               File.open("#{held}/root") do |root|
                 File.open("#{held}/ns/mnt") do |namespace|
@@ -135,10 +136,11 @@ import (production.outPath + "/tests/make-template.nix")
                       end
                       after = File.binread("#{held}/stat")
                       finish_status = File.binread("#{held}/status")
-                      stable = File.open("#{held}/root") { |file| identity(file) == identity(root) } &&
+                      stable = identity(proc_dir) == proc_identity &&
+                        File.open("#{held}/root") { |file| identity(file) == identity(root) } &&
                         File.open("#{held}/ns/mnt") { |file| identity(file) == identity(namespace) }
                       record = {
-                        pid: Integer(pid), proc: identity(proc_dir), root: identity(root), namespace: identity(namespace),
+                        pid: Integer(pid), proc: proc_identity, root: identity(root), namespace: identity(namespace),
                         stat_before: before, stat_after: after, status_before: status, status_after: finish_status,
                         birth: before.rpartition(') ').last.split.fetch(19),
                         birth_after: after.rpartition(') ').last.split.fetch(19), stable: stable,
@@ -222,7 +224,9 @@ import (production.outPath + "/tests/make-template.nix")
             expected = previous.fetch('config')
             expected = expected.merge('dataset' => dataset, 'destroy_dataset_on_stop' => true) if persisted
             expect(cfg).to eq(expected)
-            %w[pid proc birth root namespace cgroup root_rows zfs mountpoint private owner].each do |key|
+            # Proc inode identity is held only within each probe. Across independent
+            # observations, compare PID/birth and the authenticated root and run.
+            %w[pid birth root namespace cgroup root_rows zfs mountpoint private owner].each do |key|
               expect(record.fetch(key)).to eq(previous.fetch(key)), "impermanence #{key} changed across import"
             end
           end
