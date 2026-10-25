@@ -33,6 +33,21 @@ callPackage ./generic.nix (rec {
   src = fetchurl {
     inherit url;
     inherit sha256;
+    # Give transient failures time to clear. Partial-transfer resumes can start
+    # another curl retry window, so this is not a whole-fetch deadline.
+    curlOptsList = [
+      "--no-retry-all-errors"
+      "--retry"
+      "3"
+      "--retry-delay"
+      "30"
+      "--connect-timeout"
+      "30"
+      "--max-time"
+      "600"
+      "--retry-max-time"
+      "1800"
+    ];
   };
 
   kernelPatches = [
