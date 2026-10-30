@@ -90,12 +90,15 @@ module OsCtl::Oomd
 
         @mutex.synchronize do
           ct = @containers[ctid]
-          ct = @containers[ctid] = Container.new(pool, id) if ct.nil?
 
           if event == :hit
+            ct = @containers[ctid] = Container.new(pool, id) if ct.nil?
             ct.hit
             action = determine_action(ct)
           else
+            # A queued miss can outlive the record removed by pruning.
+            next if ct.nil?
+
             ct.miss
           end
 

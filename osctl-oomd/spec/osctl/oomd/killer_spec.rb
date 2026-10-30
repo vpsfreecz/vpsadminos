@@ -68,6 +68,103 @@ RSpec.describe OsCtl::Oomd::Killer do
     end
   end
 
+  describe 'event processing and pruning' do
+    subject(:killer) { described_class.new(restart_hits: 8, stop_hits: 40, dry_run: true) }
+
+    let(:event_queue) { killer.instance_variable_get(:@event_queue) }
+    let(:prune_queue) { killer.instance_variable_get(:@prune_queue) }
+    let(:event_processor) { Fiber.new { killer.send(:process_events) }.tap(&:resume) }
+    let(:pruner) { Fiber.new { killer.send(:prune) }.tap(&:resume) }
+
+    before do
+      # Pause at queue boundaries to control the worker ordering without sleeps.
+      allow(event_queue).to receive(:pop).and_wrap_original do |original|
+        Fiber.yield
+        original.call
+      end
+      allow(prune_queue).to receive(:pop).with(timeout: 60) { Fiber.yield }
+    end
+
+    it 'ignores a miss for an unknown container' do
+      allow(Kernel).to receive(:system)
+      killer.add_miss('tank', 'missing')
+      event_processor.resume
+
+      expect(killer.export).to be_empty
+      expect(killer.watched?('tank', 'missing')).to be(false)
+      expect(Kernel).not_to have_received(:system)
+      expect { pruner.resume }.not_to raise_error
+    end
+
+    it 'creates timestamps on a hit and decays counters without going below zero' do
+      now = Time.at(1000)
+      allow(Time).to receive(:now).and_return(now)
+      killer.add_hit('tank', 'ct1')
+      event_processor.resume
+
+      container = killer.export.first
+      expect(container.first_hit).to eq(now)
+      expect(container.last_hit).to eq(now)
+      expect(container.restart_hits).to eq(1)
+      expect(container.stop_hits).to eq(1)
+
+      2.times do
+        killer.add_miss('tank', 'ct1')
+        event_processor.resume
+      end
+
+      container = killer.export.first
+      expect(container.restart_hits).to eq(0)
+      expect(container.stop_hits).to eq(0)
+      expect(container.last_hit).to eq(now)
+      expect(killer.watched?('tank', 'ct1')).to be(false)
+    end
+
+    it 'ignores a queued miss delivered after an idle record is pruned' do
+      allow(Time).to receive(:now).and_return(Time.at(1000))
+      killer.add_hit('tank', 'ct1')
+      event_processor.resume
+
+      2.times do
+        expect(killer.watched?('tank', 'ct1')).to be(true)
+        killer.add_miss('tank', 'ct1')
+      end
+
+      allow(Time).to receive(:now).and_return(Time.at(1601))
+      event_processor.resume
+      pruner.resume
+      expect(killer.export).to be_empty
+
+      event_processor.resume
+      expect { pruner.resume }.not_to raise_error
+      expect(killer.export).to be_empty
+    end
+
+    it 'prunes only old records with both counters at zero' do
+      allow(Time).to receive(:now).and_return(Time.at(1000))
+      containers = killer.instance_variable_get(:@containers)
+
+      %w[old_idle restart_pending stop_pending].each do |id|
+        container = OsCtl::Oomd::Killer::Container.new('tank', id)
+        container.hit
+        containers["tank:#{id}"] = container
+      end
+      containers['tank:old_idle'].miss
+      containers['tank:restart_pending'].reset_stop_hits
+      containers['tank:stop_pending'].reset_restart_hits
+
+      allow(Time).to receive(:now).and_return(Time.at(1601))
+      recent = OsCtl::Oomd::Killer::Container.new('tank', 'recent_idle')
+      recent.hit
+      recent.miss
+      containers['tank:recent_idle'] = recent
+
+      pruner.resume
+
+      expect(killer.export.map(&:id)).to contain_exactly('recent_idle', 'restart_pending', 'stop_pending')
+    end
+  end
+
   describe '#determine_action' do
     it 'prefers stop when both thresholds are met' do
       killer = described_class.new(restart_hits: 2, stop_hits: 3, dry_run: false)
