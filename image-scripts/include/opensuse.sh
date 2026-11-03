@@ -13,7 +13,9 @@ else
 	fail "unsupported spin"
 fi
 
-EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-extras openssh curl ca-certificates ca-certificates-mozilla wicked hostname'
+# systemd device units need udev's network events. Install it explicitly because
+# the bootstrap excludes recommended packages.
+EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-extras openssh curl ca-certificates ca-certificates-mozilla wicked hostname udev'
 
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --gpg-auto-import-keys "
 
