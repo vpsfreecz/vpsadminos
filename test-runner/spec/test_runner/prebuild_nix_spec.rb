@@ -14,12 +14,13 @@ RSpec.describe TestRunner::Prebuild do
       FileUtils.mkdir_p(library_dir)
       FileUtils.cp(File.join(REPO_ROOT, 'test-runner/nix/lib.nix'), library_dir)
       File.write(File.join(tests_dir, 'registered.nix'), <<~NIX)
-        { pkgs, system, testArgs, testConfig, configuration, ... }:
+        { pkgs, system, testArgs, testConfig, configuration, testFramework ? {}, ... }:
         let p = import pkgs { inherit system; }; in {
           json = p.writeText "native.json" (builtins.toJSON {
             args = testArgs;
             cfg = testConfig;
             host = configuration;
+            provider = testFramework.sourcePath or null;
           });
         }
       NIX
@@ -40,7 +41,7 @@ RSpec.describe TestRunner::Prebuild do
           tests.x86_64-linux = testsFor {} null;
           testsMeta.x86_64-linux = {};
           #{if framework
-              'lib.testFramework = { mkTests = args: testsFor args.testConfig args.configuration; mkTestsMeta = args: {}; };'
+              'lib.testFramework = { sourcePath = "/pinned-os-provider"; mkTests = args: testsFor args.testConfig args.configuration; mkTestsMeta = args: {}; };'
             end}
         };
       }
@@ -118,6 +119,18 @@ RSpec.describe TestRunner::Prebuild do
       expect(result.fetch('manifest').map { |entry| entry.fetch('json') }).to eq(
         result.fetch('singles').map { |entry| entry.fetch('json') }
       )
+    end
+  end
+
+  it 'passes the full provider framework to default and configured direct imports' do
+    with_tmpdir do |dir|
+      write_repository(dir, native: true, framework: true)
+      config = File.join(dir, 'test-config.nix')
+      File.write(config, '{}')
+      [nil, config].each do |test_config_path|
+        result = evaluate_batch(dir, [{ id: 'native', path: 'registered' }], test_config_path:)
+        expect(result.fetch('singles').first.fetch('data').fetch('provider')).to eq('/pinned-os-provider')
+      end
     end
   end
 end

@@ -7,7 +7,7 @@ require 'tmpdir'
 module TestRunner
   class RepositorySource
     ROOT_DIRECTORY = 'os-test-runner-repository-sources'.freeze
-    attr_reader :original_path, :path, :root_directory
+    attr_reader :original_path, :path, :root_directory, :source_info
 
     def self.open(original_path:, root_directory: nil, nixpkgs_path: nil, nix_system: nil)
       source = new(original_path:, root_directory:, nixpkgs_path:, nix_system:)
@@ -24,7 +24,9 @@ module TestRunner
 
     def open
       GcRoot.new(root_directory:).open do |root_path|
+        git_identity = capture_git_identity
         @path = resolve_and_root_source(root_path)
+        @source_info = snapshot_identity(git_identity)
         yield(self)
       end
     end
@@ -40,6 +42,59 @@ module TestRunner
     end
 
     protected
+
+    def capture_git_identity
+      out, _err, status = Open3.capture3('git', '-C', original_path, 'rev-parse', '--show-toplevel', '--absolute-git-dir')
+      return unless status.success?
+
+      root, git_dir = out.lines.map(&:strip)
+      return unless File.realpath(root) == File.realpath(original_path)
+
+      revision, _err, status = Open3.capture3('git', '-C', original_path, 'rev-parse', '--verify', 'HEAD^{commit}')
+      return unless status.success?
+
+      [git_dir, revision.strip]
+    rescue Errno::ENOENT
+      nil
+    end
+
+    def snapshot_identity(git_identity)
+      revision = git_identity&.last
+      dirty = snapshot_dirty_state(*git_identity) if git_identity
+      revision = nil if dirty.nil?
+
+      {
+        sourcePath: path,
+        revision:,
+        shortRev: revision&.slice(0, 7),
+        dirty:
+      }.freeze
+    end
+
+    def snapshot_dirty_state(git_dir, revision)
+      Dir.mktmpdir('source-index-', root_directory) do |dir|
+        env = { 'GIT_INDEX_FILE' => File.join(dir, 'index'), 'GIT_WORK_TREE' => path, 'GIT_DIR' => git_dir }
+        git = ['git', '-c', 'core.filemode=true']
+        _out, _err, status = Open3.capture3(env, *git, 'read-tree', revision)
+        return nil unless status.success?
+
+        # Refresh only this private index. Git compares captured bytes with the
+        # captured commit, even if the live checkout or HEAD has since moved.
+        _out, _err, status = Open3.capture3(env, *git, 'update-index', '-q', '--refresh')
+        return nil unless [0, 1].include?(status.exitstatus)
+
+        _out, _err, status = Open3.capture3(env, *git, 'diff-files', '--quiet', '--')
+        return nil unless [0, 1].include?(status.exitstatus)
+        return true unless status.success?
+
+        # No --exclude-standard: ignored files included by the path snapshot
+        # change its identity too. Git's own metadata is not source content.
+        extra, _err, status = Open3.capture3(env, *git, 'ls-files', '--others', '--directory', '-z', '--', '.', ':!.git')
+        return nil unless status.success?
+
+        !extra.empty?
+      end
+    end
 
     def helper_file
       File.expand_path('../../nix/resolve-repository-source.nix', __dir__)

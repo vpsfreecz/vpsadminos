@@ -219,25 +219,57 @@ RSpec.describe TestRunner::Cli::Command do
   end
 
   it 'exports the immutable source to test definitions and restores the environment' do
-    source = instance_double(TestRunner::RepositorySource, path: '/nix/store/stable-source')
+    info = { sourcePath: '/nix/store/stable-source', revision: 'captured', dirty: true }
+    source = instance_double(TestRunner::RepositorySource, path: '/nix/store/stable-source', source_info: info)
     original_root = ENV.fetch('TEST_RUNNER_REPO_ROOT', nil)
+    original_info = ENV.fetch('TEST_RUNNER_SOURCE_INFO', nil)
+    ENV['TEST_RUNNER_SOURCE_INFO'] = 'caller metadata'
     ENV['TEST_RUNNER_REPO_ROOT'] = '/work/original-source'
     allow(TestRunner::RepositorySource).to receive(:open).and_yield(source)
 
     described_class.new({}, opts.merge('system' => 'aarch64-linux'), []).send(:with_repository_source) do
       expect(ENV.fetch('TEST_RUNNER_REPO_ROOT')).to eq('/nix/store/stable-source')
+      expect(JSON.parse(ENV.fetch('TEST_RUNNER_SOURCE_INFO'))).to eq(JSON.parse(JSON.generate(info)))
     end
 
     expect(ENV.fetch('TEST_RUNNER_REPO_ROOT')).to eq('/work/original-source')
+    expect(ENV.fetch('TEST_RUNNER_SOURCE_INFO')).to eq('caller metadata')
     expect(TestRunner::RepositorySource).to have_received(:open).with(
       original_path: '/work/original-source'
     )
   ensure
+    if original_info.nil?
+      ENV.delete('TEST_RUNNER_SOURCE_INFO')
+    else
+      ENV['TEST_RUNNER_SOURCE_INFO'] = original_info
+    end
     if original_root.nil?
       ENV.delete('TEST_RUNNER_REPO_ROOT')
     else
       ENV['TEST_RUNNER_REPO_ROOT'] = original_root
     end
+  end
+
+  it 'removes invocation source metadata and restores configuration after an exception' do
+    keys = %w[TEST_RUNNER_REPO_ROOT TEST_RUNNER_SOURCE_INFO VPSADMINOS_CONFIG]
+    previous = keys.to_h { |key| [key, ENV.fetch(key, nil)] }
+    source = instance_double(TestRunner::RepositorySource, path: '/nix/store/source', source_info: {}, resolve_path: '/nix/store/source/config.nix')
+    ENV.delete('TEST_RUNNER_SOURCE_INFO')
+    ENV['TEST_RUNNER_REPO_ROOT'] = '/work/source'
+    ENV['VPSADMINOS_CONFIG'] = '/work/source/config.nix'
+    allow(TestRunner::RepositorySource).to receive(:open).and_yield(source)
+
+    expect do
+      command.send(:with_repository_source) do
+        expect(ENV.fetch('VPSADMINOS_CONFIG')).to eq('/nix/store/source/config.nix')
+        raise 'command failed'
+      end
+    end.to raise_error('command failed')
+    expect(ENV).not_to have_key('TEST_RUNNER_SOURCE_INFO')
+    expect(ENV.fetch('TEST_RUNNER_REPO_ROOT')).to eq('/work/source')
+    expect(ENV.fetch('VPSADMINOS_CONFIG')).to eq('/work/source/config.nix')
+  ensure
+    previous.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
   end
 
   it 'filters scripts by metadata expression' do

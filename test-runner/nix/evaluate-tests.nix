@@ -59,14 +59,19 @@ let
           <nixpkgs>;
       nixpkgs' = import pkgsPath { inherit system; };
     in
-    import (repoRoot + "/test-runner/nix/lib.nix") {
-      pkgs = pkgsPath;
-      inherit system;
-      lib = nixpkgs'.lib;
-      suitePath = testsRoot + "/suite";
-      inherit configuration;
-      testConfig = effectiveTestConfig;
-    };
+    import (repoRoot + "/test-runner/nix/lib.nix") (
+      {
+        pkgs = pkgsPath;
+        inherit system;
+        lib = nixpkgs'.lib;
+        suitePath = testsRoot + "/suite";
+        inherit configuration;
+        testConfig = effectiveTestConfig;
+      }
+      // nixpkgs'.lib.optionalAttrs haveTestFramework {
+        testFramework = flake.lib.testFramework;
+      }
+    );
 
   directTest =
     path: args:

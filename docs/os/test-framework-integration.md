@@ -30,6 +30,31 @@ So to integrate the runner into another repository, your project needs:
 For writing tests (machine definition, `testScript`, tags, multiple scripts),
 see [Testing](testing.md).
 
+## Source snapshots and OS version metadata
+
+Each runner invocation resolves the tested repository to one immutable Nix
+source and keeps it GC-rooted until the command finishes. Path snapshots retain
+the files selected by Nix, including untracked and ignored files. The runner
+captures the original repository's commit once and compares that commit with
+the snapshot through a temporary Git index. Included extra files and changed
+tracked content mark the snapshot dirty. The caller's index is unchanged;
+later checkout or HEAD changes do not change the captured identity.
+
+The runner scopes `TEST_RUNNER_SOURCE_INFO` to that invocation. Its JSON object
+contains `sourcePath`, nullable `revision`, `shortRev` and `dirty`. Git-free roots
+have unknown identity; a Git repository enclosing a different source root is
+not used as its provenance. The previous environment value is restored when the
+command returns or raises.
+
+`lib.testFramework.sourceVersionModule` supplies the same source revision,
+dirty flag and version suffix defaults as normal flake OS construction. The
+framework uses captured metadata only when `sourcePath` equals the vpsAdminOS
+provider's source path. For example, a vpsAdmin test suite using a pinned
+vpsAdminOS input retains that input's identity, rather than the vpsAdmin caller's
+revision. Explicit module settings still override these defaults. Older
+framework providers without this optional field remain supported; existing
+packaged revision files remain the fallback when source identity is unknown.
+
 ## Integration example (vpsAdmin)
 The [vpsAdmin repository](https://github.com/vpsfreecz/vpsadmin) reuses the
 framework directly via a flake input. The sections below describe the same

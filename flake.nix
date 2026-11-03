@@ -51,6 +51,7 @@
       nixpkgsRevision = if nixpkgs ? rev then nixpkgs.rev else null;
       nixpkgsRevisionFor =
         pkgs: if toString pkgs.path == toString nixpkgs.outPath then nixpkgsRevision else null;
+      sourceVersionModule = import ./os/lib/source-version.nix { source = self; };
       containerStableModule = import ./os/lib/nixos-container/stable/vpsadminos.nix;
       containerReleaseModules = {
         "22.11" = import ./os/lib/nixos-container/stable/vpsadminos-22.11.nix;
@@ -83,6 +84,7 @@
       testFramework =
         let
           framework = rec {
+            inherit sourceVersionModule;
             sourcePath = self.outPath;
             nixpkgsPath = nixpkgs.outPath;
             nixpkgsRevision = if nixpkgs ? rev then nixpkgs.rev else null;
@@ -178,39 +180,13 @@
           platform ? null,
         }:
         let
-          flakeDirty = !(self ? rev) && self ? dirtyRev;
-          flakeRev =
-            if self ? rev then
-              self.rev
-            else if self ? dirtyRev then
-              nixpkgs.lib.removeSuffix "-dirty" self.dirtyRev
-            else
-              null;
-          flakeShortRev =
-            self.shortRev or (
-              if self ? dirtyShortRev then
-                self.dirtyShortRev
-              else if flakeRev == null then
-                null
-              else
-                builtins.substring 0 7 flakeRev
-            );
           flakeVersionInfoModule =
             { lib, pkgs, ... }:
             {
               system.vpsadminos = {
                 nixpkgsVersion = pkgs.lib.version;
                 nixpkgsRevision = nixpkgsRevisionFor pkgs;
-              }
-              // lib.optionalAttrs (flakeRev != null) (
-                {
-                  revision = lib.mkDefault flakeRev;
-                  revisionDirty = lib.mkDefault flakeDirty;
-                }
-                // lib.optionalAttrs (flakeShortRev != null) {
-                  versionSuffix = lib.mkDefault ".git.${flakeShortRev}";
-                }
-              );
+              };
             };
         in
         import ./os/default.nix (
@@ -221,7 +197,10 @@
               ;
             importedPkgs = pkgs;
             nixpkgsPath = pkgs.path;
-            modules = modules ++ [ flakeVersionInfoModule ];
+            modules = modules ++ [
+              flakeVersionInfoModule
+              sourceVersionModule
+            ];
             extraArgs = specialArgs;
             inherit (inputs) netlinkrb ruby-lxc;
           }

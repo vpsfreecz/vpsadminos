@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  options ? { },
   ...
 }:
 
@@ -16,7 +17,16 @@ let
   revisionFile = ../../../.git-revision;
   gitRepo = "${toString ../../..}/.git";
   gitCommitId = lib.substring 0 7 (commitIdFromGitRepo gitRepo);
-  sourceRevision = if pathIsDirectory gitRepo then commitIdFromGitRepo gitRepo else cfg.revision;
+  gitFallbackPriority = 1100;
+  # Preserve authoritative source/consumer identity. Only the legacy Git
+  # fallback expands its shortened display revision for security evidence.
+  sourceRevision =
+    if (options.system.vpsadminos.revision.highestPrio or 1500) < gitFallbackPriority then
+      cfg.revision
+    else if pathIsDirectory gitRepo then
+      commitIdFromGitRepo gitRepo
+    else
+      cfg.revision;
 
   inherit (lib)
     concatStringsSep
@@ -227,9 +237,13 @@ in
       # changing them would not rebuild the manual
       version = mkDefault (cfg.release + cfg.versionSuffix);
 
-      revision = mkIf (pathIsDirectory gitRepo) (mkDefault gitCommitId);
+      # Source metadata uses mkDefault (1000); automatic Git values must be
+      # weaker, while still overriding option defaults (1500).
+      revision = mkIf (pathIsDirectory gitRepo) (lib.mkOverride gitFallbackPriority gitCommitId);
 
-      versionSuffix = mkIf (pathIsDirectory gitRepo) (mkDefault (".git." + gitCommitId));
+      versionSuffix = mkIf (pathIsDirectory gitRepo) (
+        lib.mkOverride gitFallbackPriority (".git." + gitCommitId)
+      );
     };
 
     # Note: code names must only increase in alphabetical order.

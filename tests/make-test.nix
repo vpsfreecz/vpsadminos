@@ -114,6 +114,9 @@ let
           ++ (cfg.modules or [ ])
           ++ [ ./configs/vpsadminos/base.nix ]
           ++ [ { system.vpsadminos.nixpkgsRevision = exactNixpkgsRevision; } ]
+          ++ lib.optional (
+            effectiveTestFramework != null && effectiveTestFramework ? sourceVersionModule
+          ) effectiveTestFramework.sourceVersionModule
           ++ [ cfg.config or { } ]
           ++ [
             {

@@ -161,7 +161,9 @@ module TestRunner
     def with_repository_environment(source_path)
       original_env = ENV.fetch('TEST_RUNNER_REPO_ROOT', nil)
       original_config = ENV.fetch('VPSADMINOS_CONFIG', nil)
+      original_source_info = ENV.fetch('TEST_RUNNER_SOURCE_INFO', nil)
       ENV['TEST_RUNNER_REPO_ROOT'] = source_path
+      ENV['TEST_RUNNER_SOURCE_INFO'] = JSON.generate(@repository_source.source_info)
       if original_config && !original_config.empty? && @repository_source
         ENV['VPSADMINOS_CONFIG'] = @repository_source.resolve_path(original_config)
       end
@@ -177,6 +179,11 @@ module TestRunner
         ENV.delete('VPSADMINOS_CONFIG')
       else
         ENV['VPSADMINOS_CONFIG'] = original_config
+      end
+      if original_source_info.nil?
+        ENV.delete('TEST_RUNNER_SOURCE_INFO')
+      else
+        ENV['TEST_RUNNER_SOURCE_INFO'] = original_source_info
       end
     end
 

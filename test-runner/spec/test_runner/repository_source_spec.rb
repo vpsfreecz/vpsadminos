@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'tempfile'
 
 RSpec.describe TestRunner::RepositorySource do
   def open_source(repo, root_directory, &)
@@ -26,6 +27,128 @@ RSpec.describe TestRunner::RepositorySource do
     File.write(File.join(repo, 'marker'), "before\n")
   end
 
+  def git(repo, *args)
+    out, err, status = Open3.capture3('git', '-C', repo, *args)
+    raise "git #{args.join(' ')} failed: #{err}" unless status.success?
+
+    out.strip
+  end
+
+  def commit_fixture(repo)
+    Tempfile.create('source-commit-') do |message|
+      message.write("Capture fixture content\n")
+      message.flush
+      git(repo, '-c', 'user.name=Source fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-F', message.path)
+    end
+    git(repo, 'rev-parse', 'HEAD')
+  end
+
+  def git_fixture(repo)
+    write_flake(repo)
+    File.write(File.join(repo, '.gitignore'), "ignored\n")
+    git(repo, 'init', '-q')
+    git(repo, 'add', '.')
+    commit_fixture(repo)
+  end
+
+  [false, true].each do |worktree|
+    it "captures clean Git identity with linked worktree=#{worktree}" do
+      Dir.mktmpdir do |dir|
+        repo = File.join(dir, 'repo')
+        FileUtils.mkdir_p(repo)
+        revision = git_fixture(repo)
+        if worktree
+          linked = File.join(dir, 'linked')
+          git(repo, 'worktree', 'add', '-q', '-b', 'linked', linked)
+          repo = linked
+        end
+        index = git(repo, 'rev-parse', '--path-format=absolute', '--git-path', 'index')
+        original_index = File.binread(index)
+
+        open_source(repo, File.join(dir, 'roots')) do |source|
+          expect(source.source_info).to eq(sourcePath: source.path, revision:, shortRev: revision[0, 7], dirty: false)
+          expect(File.binread(index)).to eq(original_index)
+
+          File.write(File.join(repo, 'marker'), "later\n")
+          git(repo, 'add', 'marker')
+          commit_fixture(repo)
+          expect(source.source_info.fetch(:revision)).to eq(revision)
+          expect(source.source_info.fetch(:dirty)).to be(false)
+          expect(File.read(File.join(source.path, 'marker'))).to eq("before\n")
+        end
+        expect(Dir.children(File.join(dir, 'roots'))).to be_empty
+      end
+    end
+  end
+
+  it 'compares captured tracked, untracked and ignored content without modifying the caller index' do
+    Dir.mktmpdir do |repo|
+      Dir.mktmpdir do |roots|
+        revision = git_fixture(repo)
+        File.write(File.join(repo, 'marker'), "staged\n")
+        git(repo, 'add', 'marker')
+        File.write(File.join(repo, 'marker'), "captured\n")
+        File.write(File.join(repo, 'untracked'), "included\n")
+        File.write(File.join(repo, 'ignored'), "included despite ignore\n")
+        index = File.join(repo, '.git/index')
+        original_index = File.binread(index)
+
+        open_source(repo, roots) do |source|
+          expect(source.source_info).to include(revision:, dirty: true)
+          expect(File.read(File.join(source.path, 'marker'))).to eq("captured\n")
+          expect(File.read(File.join(source.path, 'untracked'))).to eq("included\n")
+          expect(File.read(File.join(source.path, 'ignored'))).to eq("included despite ignore\n")
+          expect(File.binread(index)).to eq(original_index)
+        end
+      end
+    end
+  end
+
+  %w[untracked ignored].each do |name|
+    it "marks included #{name} content dirty even without tracked changes" do
+      Dir.mktmpdir do |repo|
+        Dir.mktmpdir do |roots|
+          git_fixture(repo)
+          File.write(File.join(repo, name), "extra\n")
+          open_source(repo, roots) { |source| expect(source.source_info.fetch(:dirty)).to be(true) }
+        end
+      end
+    end
+  end
+
+  it 'compares the snapshot against the commit captured before resolution, not a later HEAD' do
+    Dir.mktmpdir do |repo|
+      Dir.mktmpdir do |roots|
+        revision = git_fixture(repo)
+        source = described_class.new(original_path: repo, root_directory: roots)
+        allow(source).to receive(:resolve_and_root_source).and_wrap_original do |resolve, *args|
+          File.write(File.join(repo, 'marker'), "new commit\n")
+          git(repo, 'add', 'marker')
+          commit_fixture(repo)
+          resolve.call(*args)
+        end
+        source.open do
+          expect(source.source_info).to include(revision:, dirty: true)
+          expect(File.read(File.join(source.path, 'marker'))).to eq("new commit\n")
+        end
+      end
+    end
+  end
+
+  it 'does not attribute a Git-free child source to its parent repository' do
+    Dir.mktmpdir do |repo|
+      Dir.mktmpdir do |roots|
+        git_fixture(repo)
+        child = File.join(repo, 'child')
+        FileUtils.mkdir_p(child)
+        write_flake(child)
+        open_source(child, roots) do |source|
+          expect(source.source_info).to eq(sourcePath: source.path, revision: nil, shortRev: nil, dirty: nil)
+        end
+      end
+    end
+  end
+
   it 'keeps one immutable source while the checkout changes' do
     Dir.mktmpdir do |repo|
       Dir.mktmpdir do |root_directory|
@@ -33,6 +156,7 @@ RSpec.describe TestRunner::RepositorySource do
 
         open_source(repo, root_directory) do |source|
           expect(source.path).to start_with('/nix/store/')
+          expect(source.source_info).to include(revision: nil, dirty: nil)
           expect(File.read(File.join(source.path, 'marker'))).to eq("before\n")
           expect(Dir.glob(File.join(root_directory, '*.root')).length).to eq(1)
 
