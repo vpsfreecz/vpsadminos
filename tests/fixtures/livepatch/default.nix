@@ -5,17 +5,18 @@
   },
 }:
 let
-  # Independently built normal package with bounded ftrace teardown batching
-  # and bounded retries for transient pernet writer exclusion.
-  # All 711 import CRCs match the restored frozen boot SDK.
-  # Runtime qualification must exercise these exact bytes.
-  # Never derive this pin from the candidate selected during test execution.
-  correctedSha256 = "573e8d1e05433be7c4eab361bb733e92977496f6437b43a4af1e5d21d2452d9d";
+  # Qualify the current normal package. Capture its identity after realization,
+  # before discovery; consumers verify those bytes without a historical allowlist.
   candidateSystem = import ../../../os {
     importedPkgs = pkgs;
     configuration = ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix;
   };
-  candidateModule = "${candidateSystem.config.system.build.livePatches}/lib/modules/6.12.95/extra/livepatch_7.ko";
+  candidateProducer = candidateSystem.config.system.build.livePatches;
+  candidateModule = "${candidateProducer}/lib/modules/6.12.95/extra/livepatch_7.ko";
+  probeSites = import ./probe-sites.nix {
+    inherit pkgs candidateModule;
+    bootKernel = (import ../../../os/packages/linux/boot-6.12.95.nix).kernel;
+  };
 
   # These are the released module bytes, not rebuilds from today's sources.
   mkExactModule =
@@ -26,7 +27,8 @@ let
     '';
 in
 {
-  inherit correctedSha256;
+  inherit candidateProducer candidateModule;
+  inherit (probeSites) resolver siteChecks candidateSites;
   ipv6FragmentPartial = pkgs.stdenv.mkDerivation {
     pname = "livepatch-test-ipv6-fragment-partial";
     version = "1";
@@ -44,8 +46,7 @@ in
         "$out/bin/ipv6_fragment_partial"
     '';
   };
-  corrected = pkgs.runCommand "livepatch_7-exact-candidate.ko" { } ''
-    printf '%s  %s\n' '${correctedSha256}' '${candidateModule}' | sha256sum --check --status
+  corrected = pkgs.runCommand "livepatch_7-current-candidate.ko" { } ''
     ln -s '${candidateModule}' "$out"
   '';
   releasedV5 =

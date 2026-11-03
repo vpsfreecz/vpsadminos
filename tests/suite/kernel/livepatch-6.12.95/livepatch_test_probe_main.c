@@ -13,6 +13,7 @@
 #include <linux/sched.h>
 #include <linux/skbuff.h>
 #include <linux/smp.h>
+#include <linux/uaccess.h>
 #include <linux/wait.h>
 
 #include <net/sctp/structs.h>
@@ -34,6 +35,7 @@ static int shadow_failures;
 static atomic_t shadow_failures_injected = ATOMIC_INIT(0);
 
 static unsigned long probe_address;
+static unsigned long probe_caller_return;
 static unsigned long probe_arg0;
 static unsigned long probe_arg1;
 static unsigned long probe_arg2;
@@ -291,6 +293,8 @@ NOKPROBE_SYMBOL(livepatch_test_sctp_check_retran);
 static int livepatch_test_probe_pre(struct kprobe *probe,
 				    struct pt_regs *regs)
 {
+	unsigned long expected_return;
+	unsigned long caller_return;
 	struct net_device *dev;
 	struct sk_buff *clone;
 	struct sk_buff *old;
@@ -303,6 +307,13 @@ static int livepatch_test_probe_pre(struct kprobe *probe,
 		wake_up_all(&probe_waitq);
 		return 0;
 	}
+	/* Only validated entry/preprologue sites retain the return PC at SP. */
+	expected_return = READ_ONCE(probe_caller_return);
+	if (expected_return &&
+	    (copy_from_kernel_nofault(&caller_return, (const void *)regs->sp,
+				     sizeof(caller_return)) ||
+	     caller_return != expected_return))
+		return 0;
 	livepatch_test_inject_svm_x2apic(regs);
 	if (READ_ONCE(probe_hold) &&
 	    atomic_cmpxchg(&probe_redirect_active, 0, 1))
@@ -566,6 +577,7 @@ static int livepatch_test_set_probe_address(const char *value,
 	WRITE_ONCE(target_probe.nmissed, 0);
 	cpumask_clear(&probe_cpus);
 	if (!address) {
+		WRITE_ONCE(probe_caller_return, 0);
 		mutex_unlock(&probe_mutex);
 		return 0;
 	}
@@ -593,6 +605,42 @@ static int livepatch_test_get_probe_address(char *buffer,
 static const struct kernel_param_ops probe_address_ops = {
 	.set = livepatch_test_set_probe_address,
 	.get = livepatch_test_get_probe_address,
+};
+
+static int livepatch_test_set_probe_caller_return(
+	const char *value,
+	const struct kernel_param *param)
+{
+	unsigned long address;
+	int ret;
+
+	(void)param;
+	ret = kstrtoul(value, 0, &address);
+	if (ret)
+		return ret;
+
+	mutex_lock(&probe_mutex);
+	if (probe_registered || atomic_read(&probe_redirect_active) ||
+	    READ_ONCE(probe_held) || READ_ONCE(probe_resume_task)) {
+		mutex_unlock(&probe_mutex);
+		return -EBUSY;
+	}
+	WRITE_ONCE(probe_caller_return, address);
+	mutex_unlock(&probe_mutex);
+	return 0;
+}
+
+static int livepatch_test_get_probe_caller_return(
+	char *buffer,
+	const struct kernel_param *param)
+{
+	(void)param;
+	return sysfs_emit(buffer, "%#lx\n", READ_ONCE(probe_caller_return));
+}
+
+static const struct kernel_param_ops probe_caller_return_ops = {
+	.set = livepatch_test_set_probe_caller_return,
+	.get = livepatch_test_get_probe_caller_return,
 };
 
 static int livepatch_test_get_probe_hits(char *buffer,
@@ -1378,6 +1426,10 @@ MODULE_PARM_DESC(probe3_match_hits,
 module_param_cb(probe_match_arg0, &probe_match_arg0_ops, NULL, 0600);
 MODULE_PARM_DESC(probe_match_arg0,
 		 "First argument for probe2 and probe3 match counters");
+
+module_param_cb(probe_caller_return, &probe_caller_return_ops, NULL, 0600);
+MODULE_PARM_DESC(probe_caller_return,
+		 "Optional exact caller return PC for an entry/preprologue probe");
 
 module_param_cb(probe_missed, &probe_missed_ops, NULL, 0400);
 MODULE_PARM_DESC(probe_missed,

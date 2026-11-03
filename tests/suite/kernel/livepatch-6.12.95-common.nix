@@ -1,10 +1,12 @@
 let
   correctedModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_MODULE";
+  correctedSitesEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_SITES";
   releasedV5ModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE";
   predecessorModuleEnv = builtins.getEnv "VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE";
   exampleFilter = builtins.getEnv "VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER";
 in
 assert correctedModuleEnv != "";
+assert correctedSitesEnv != "";
 assert releasedV5ModuleEnv != "";
 assert predecessorModuleEnv != "";
 {
@@ -29,6 +31,8 @@ let
     '';
   };
   correctedModule = builtins.storePath correctedModuleEnv;
+  correctedSites = "${builtins.storePath correctedSitesEnv}/sites.json";
+  siteRecord = builtins.fromJSON (builtins.readFile correctedSites);
   releasedV5Module = builtins.storePath releasedV5ModuleEnv;
   predecessorModule = builtins.storePath predecessorModuleEnv;
   correctedSha256 = builtins.hashFile "sha256" correctedModule;
@@ -452,6 +456,7 @@ let
         }
         // {
           "livepatch-test/corrected.ko".source = correctedModule;
+          "livepatch-test/sites.json".source = correctedSites;
           "livepatch-test/released-v5.ko".source = releasedV5Module;
           "livepatch-test/predecessor.ko".source = predecessorModule;
           "livepatch-test/perf-transition".source = "${perfTransition}/bin/perf_transition";
@@ -474,6 +479,8 @@ let
     };
 in
 assert correctedSha256 == expectedCorrectedSha256;
+assert siteRecord.schema_version == 1;
+assert siteRecord.module_sha256 == expectedCorrectedSha256;
 assert releasedV5Sha256 == expectedReleasedV5Sha256;
 assert predecessorSha256 == expectedPredecessorSha256;
 assert !qualifying || exampleFilter == "";
@@ -515,6 +522,7 @@ assert selectedExample == null || exampleFilter == "";
 
   testScript = ''
     require 'shellwords'
+    require 'json'
 
     livepatch_example_filter = ${builtins.toJSON exampleFilter}
     unless livepatch_example_filter.empty?
@@ -558,21 +566,15 @@ assert selectedExample == null || exampleFilter == "";
     RELEASED_V5_NAME = "livepatch_5"
     PREDECESSOR_NAME = "livepatch_6"
     CORRECTED_SHA256 = ${builtins.toJSON expectedCorrectedSha256}
+    SITE_RECORD = JSON.parse(${builtins.toJSON (builtins.readFile correctedSites)}).freeze
+    SITES_SHA256 = ${builtins.toJSON (builtins.hashFile "sha256" correctedSites)}
     RELEASED_V5_SHA256 = ${builtins.toJSON expectedReleasedV5Sha256}
     PREDECESSOR_SHA256 = ${builtins.toJSON expectedPredecessorSha256}
-    # Exact GCC 15.2 disassembly places the fuse_copy_finish() call in the
-    # inlined fuse_ref_page() at this offset in the boot, predecessor, and
-    # corrected fuse_copy_page() implementations.  A direct internal kprobe
-    # redirects this exact call site through the schedulable hold trampoline,
-    # after unlock_request() cleared FR_LOCKED and before fuse_ref_page()
-    # finishes the old copy state or publishes the pipe buffer.
-    FUSE_REF_PAGE_ENTRY_OFFSET = 0x329
-    FUSE_REF_PAGE_FINISH_CALL_OFFSET = 0x369
-    # Exact boot-module and corrected-module disassembly places the first
-    # instruction after the five-byte __fentry__ call at this offset in
-    # nft_pipapo_insert().  Holding an entry kprobe would claim ftrace's
-    # IPMODIFY slot and prevent livepatch from registering its own handler.
-    NFT_PIPAPO_HOLD_OFFSET = 0x5
+    # Only these original boot sites are immutable. Candidate sites come from
+    # the digest-bound record, including the original FUSE callee's safe entry.
+    BOOT_FUSE_REF_PAGE_ENTRY_OFFSET = 0x329
+    BOOT_FUSE_REF_PAGE_FINISH_RETURN_OFFSET = 0x36e
+    BOOT_NFT_PIPAPO_HOLD_OFFSET = 0x5
     # Hold the boot SUNRPC TLS worker on its push %rbp immediately after
     # the five-byte __fentry__ call.  The transition gate occupies the
     # following instruction so it can repair that pushed word before
@@ -580,33 +582,15 @@ assert selectedExample == null || exampleFilter == "";
     SUNRPC_TLS_ENTRY_HOLD_OFFSET = 0x5
     # xs_tcp_tls_setup_socket() receives the embedded work_struct. Exact
     # production DWARF places it 0x640 bytes into its sock_xprt.
-    SUNRPC_TLS_WORK_OFFSET = 0x640
+    SUNRPC_TLS_WORK_OFFSET = SITE_RECORD.fetch('abi').fetch('sock_xprt_connect_worker')
     SUNRPC_XS_CONNECT_GATE_OFFSET = 0x5
     SUNRPC_TLS_WORKER_GATE_OFFSET = 0x6
     # Hold a boot worker after the transition gate but before its first
     # transport->clnt read. Activation must reject this unowned old frame;
     # the entry hold above instead exercises gate redirection.
     SUNRPC_TLS_UNOWNED_HOLD_OFFSET = 0xb
-    # Exact GCC 15.2 DWARF and instruction-boundary disassembly place the
-    # corrected cast-before-add size calculation from inlined
-    # tcp_mtu_probe() at this function-relative offset in tcp_write_xmit().
-    TCP_MTU_PROBE_SIZE_OFFSET = 0x7e0
-    # Exact GCC 15.2 DWARF and instruction-boundary disassembly place the
-    # klp_shadow_alloc() call used to publish a TLS work shadow at section
-    # offset 0x1fc.  The xs_connect symbol follows the section's 16-byte
-    # __pfx_xs_connect prefix, making the required function-relative offset
-    # 0x1ec.
-    SUNRPC_TLS_SHADOW_ALLOC_OFFSET = 0x1ec
-    # Exact corrected-module disassembly places this klp_shadow_free() call
-    # at a function-relative offset where %rdi holds the transport.
-    SUNRPC_CB_RELEASE_SHADOW_FREE_OFFSET = 0x27
-    # After vpsadminos_sunrpc_tls_take_work() returns a callback-owned
-    # record, exact corrected-module disassembly reaches this
-    # cancel_delayed_work_sync() call with %rdi naming that record's
-    # embedded work_struct.  Observing the held worker at this instruction
-    # proves pre_unpatch() claimed the exact queued record instead of merely
-    # initializing the livepatch core's unpatch transition.
-    SUNRPC_TLS_DRAIN_CALLBACK_CLAIM_OFFSET = 0x56
+    TCP_MTU_TRACE = '/sys/kernel/tracing/instances/livepatch_tcp_mtu'
+    TCP_MTU_EVENT = 'lp95_tcp/size_needed'
     STRESS_STATE = "/run/livepatch-transition-stress"
     BPF_STATE = "/run/livepatch-bpf"
     IPSET_DUMP_STATE = "/run/livepatch-ipset-dump"
@@ -824,19 +808,161 @@ assert selectedExample == null || exampleFilter == "";
       )
     end
 
-    def self.symbol_address(machine, symbol, module_name = nil)
+    def self.validate_site_record
+      contracts = {
+        'svm_entry' => ['svm_vcpu_run', 'entry_hold', 'preprologue', nil],
+        'nft_insert_entry' => ['nft_pipapo_insert', 'entry_hold', 'preprologue', nil],
+        'sunrpc_worker_entry' => ['xs_tcp_tls_setup_socket', 'entry_hold', 'preprologue', nil],
+        'fuse_finish' => ['fuse_copy_page', 'callee_entry_hold', 'observe_only', 'fuse_ref_page'],
+        'sunrpc_shadow_alloc' => ['xs_connect', 'call_observe', 'observe_only', nil],
+        'sunrpc_callback_claim' => ['vpsadminos_sunrpc_tls_drain', 'call_observe', 'observe_only', nil],
+        'sunrpc_callback_release' => ['vpsadminos_sunrpc_cb_release', 'call_observe', 'observe_only', nil],
+        'inet_frag_timer' => ['inet_frag_find', 'call_observe', 'observe_only', 'inet_frag_create'],
+        'tcp_mtu_size' => ['tcp_write_xmit', 'tcp_size_observe', 'observe_only', 'tcp_mtu_probe']
+      }
+      unless SITE_RECORD.fetch('schema_version') == 1 &&
+             SITE_RECORD.fetch('module_sha256') == CORRECTED_SHA256 &&
+             CORRECTED_SHA256.match?(/\A[0-9a-f]{64}\z/) &&
+             SITE_RECORD.fetch('elf').fetch('elf_class') == 64 &&
+             SITE_RECORD.fetch('elf').fetch('machine') == 'EM_X86_64' &&
+             SITE_RECORD.fetch('elf').fetch('build_id').match?(/\A[0-9a-f]+\z/) &&
+             SITE_RECORD.fetch('sites').keys.sort == contracts.keys.sort
+        raise 'invalid livepatch site identity or witness set'
+      end
+
+      contracts.each do |name, (symbol, kind, frame, inline)|
+        site = SITE_RECORD.fetch('sites').fetch(name)
+        validate_site_bounds(site)
+        symbols = name == 'inet_frag_timer' ? %w[inet_frag_find inet_frag_create] : [symbol]
+        unless site.fetch('object') == CORRECTED_NAME && site.fetch('symbol_pos') == 0 &&
+               symbols.include?(site.fetch('symbol')) && site.fetch('kind') == kind &&
+               site.fetch('frame') == frame && site.fetch('inline') == inline
+          raise "invalid livepatch site contract: #{name}"
+        end
+        roles = site.fetch('registers')
+        roles.each_value do |role|
+          unless %w[rax rbx rcx rdx rsi rdi rbp rsp r8 r9 r10 r11 r12 r13 r14 r15].include?(role.fetch('register')) &&
+                 [32, 64].include?(role.fetch('width'))
+            raise "invalid livepatch register: #{name}"
+          end
+        end
+        if name == 'tcp_mtu_size'
+          unless roles.keys.sort == %w[mss needed reordering] &&
+                 roles.fetch('needed').fetch('width') == 64 &&
+                 roles.fetch('reordering').fetch('width') == 32 &&
+                 roles.fetch('mss').fetch('width') == 32
+            raise 'invalid TCP live-value register widths'
+          end
+        elsif %w[svm_entry nft_insert_entry sunrpc_worker_entry fuse_finish sunrpc_callback_claim sunrpc_callback_release inet_frag_timer].include?(name)
+          unless roles.keys == ['arg0'] && roles.fetch('arg0') == { 'register' => 'rdi', 'width' => 64 }
+            raise "invalid argument ABI: #{name}"
+          end
+        end
+      end
+      {
+        'sunrpc_shadow_alloc' => 'klp_shadow_alloc',
+        'sunrpc_callback_claim' => 'cancel_delayed_work_sync',
+        'sunrpc_callback_release' => 'klp_shadow_free',
+        'inet_frag_timer' => 'mod_timer'
+      }.each do |name, symbol|
+        callee = SITE_RECORD.fetch('sites').fetch(name).fetch('callee')
+        unless callee.fetch('object') == 'vmlinux' && callee.fetch('symbol') == symbol && callee.fetch('symbol_pos') == 0
+          raise "invalid livepatch callee: #{name}"
+        end
+      end
+
+      fuse = SITE_RECORD.fetch('sites').fetch('fuse_finish')
+      callee = fuse.fetch('callee')
+      validate_site_bounds(callee)
+      unless fuse.fetch('return_offset') == fuse.fetch('offset') + fuse.fetch('instruction_length') &&
+             callee.fetch('object') == 'fuse' && callee.fetch('symbol') == 'fuse_copy_finish' &&
+             callee.fetch('symbol_pos') == 1 && callee.fetch('frame') == 'preprologue'
+        raise 'invalid FUSE original-callee hold contract'
+      end
+      abi = SITE_RECORD.fetch('abi')
+      unless abi.keys.sort == %w[inet_frag_lock inet_frag_node inet_frag_timer sock_xprt_connect_worker] &&
+             abi.values.all? { |offset| offset.is_a?(Integer) && offset.between?(0, 65535) } &&
+             abi.fetch('sock_xprt_connect_worker') > 0 &&
+             abi.fetch('inet_frag_timer') > abi.fetch('inet_frag_node') &&
+             abi.fetch('inet_frag_lock') > abi.fetch('inet_frag_timer')
+        raise 'invalid livepatch structure ABI'
+      end
+    end
+
+    def self.validate_site_bounds(site)
+      size = site.fetch('symbol_size')
+      offset = site.fetch('offset')
+      length = site.fetch('instruction_length')
+      unless site.fetch('section').match?(/\A\.text(?:[.a-zA-Z0-9_]*)\z/) &&
+             size.is_a?(Integer) && size.between?(1, 16777216) &&
+             offset.is_a?(Integer) && offset >= 0 &&
+             length.is_a?(Integer) && length.between?(1, 15) && offset + length <= size
+        raise "invalid livepatch site bounds: #{site.fetch('symbol')}"
+      end
+    end
+
+    def self.current_site(name)
+      SITE_RECORD.fetch('sites').fetch(name)
+    end
+
+    def self.site_address(machine, name)
+      site = current_site(name)
+      base = symbol_address(machine, site.fetch('symbol'), site.fetch('object'), position: site.fetch('symbol_pos')).to_i(16)
+      base + site.fetch('offset')
+    end
+
+    def self.set_site_probe(machine, name, index: 1)
+      parameter = index == 1 ? 'probe_address' : "probe#{index}_address"
+      address = site_address(machine, name)
+      machine.all_succeed(
+        "echo 0 > #{PROBE_PARAMETERS}/#{parameter}",
+        "echo 0x#{address.to_s(16)} > #{PROBE_PARAMETERS}/#{parameter}"
+      )
+      site = current_site(name)
+      assert_kprobe_site(machine, site.fetch('symbol'), site.fetch('offset'), true)
+    end
+
+    def self.set_fuse_finish_probe(machine, caller_module)
+      site = current_site('fuse_finish')
+      callee = site.fetch('callee')
+      caller = symbol_address(machine, site.fetch('symbol'), caller_module).to_i(16)
+      return_offset = caller_module == CORRECTED_NAME ? site.fetch('return_offset') : BOOT_FUSE_REF_PAGE_FINISH_RETURN_OFFSET
+      target = symbol_address(machine, callee.fetch('symbol'), callee.fetch('object'), position: callee.fetch('symbol_pos')).to_i(16) + callee.fetch('offset')
+      machine.all_succeed(
+        "echo 0 > #{PROBE_PARAMETERS}/probe_address",
+        "echo 0x#{(caller + return_offset).to_s(16)} > #{PROBE_PARAMETERS}/probe_caller_return",
+        "echo 0x#{target.to_s(16)} > #{PROBE_PARAMETERS}/probe_address"
+      )
+      assert_kprobe_site(machine, callee.fetch('symbol'), callee.fetch('offset'), true)
+    end
+
+    def self.symbol_address(machine, symbol, module_name = nil, position: 0)
+      raise "invalid kernel symbol: #{symbol.inspect}" unless symbol.match?(/\A[a-zA-Z0-9_.]+\z/)
+      if module_name && !module_name.match?(/\A[a-zA-Z0-9_]+\z/)
+        raise "invalid kernel module: #{module_name.inspect}"
+      end
+      raise "invalid symbol position: #{position.inspect}" unless [0, 1].include?(position)
+
       module_filter =
         if module_name
-          "&& $4 == \"[#{module_name}]\""
+          "&& NF == 4 && $4 == \"[#{module_name}]\""
         else
           "&& NF == 3"
         end
       _, output = machine.succeeds(
-        "awk '$3 == \"#{symbol}\" #{module_filter} " \
-        "{ print \"0x\" $1; exit }' /proc/kallsyms"
+        # /proc/kallsyms case-converts module types by export status, so
+        # resolved SHN_UNDEF imports appear as U or u, not owned definitions.
+        "awk '$2 !~ /^[Uu]$/ && $3 == \"#{symbol}\" #{module_filter} " \
+        "{ print \"0x\" $1 }' /proc/kallsyms"
       )
-      address = output.strip
-      raise "kernel symbol not found: #{symbol}" if address.empty?
+      addresses = output.lines.map(&:strip).reject(&:empty?)
+      raise "kernel symbol not found: #{symbol} in #{module_name || 'vmlinux'}" if addresses.empty?
+      if addresses.length != 1
+        raise "ambiguous kernel symbol: #{symbol} in #{module_name || 'vmlinux'} (#{addresses.length} matches)"
+      end
+      address = addresses[position.zero? ? 0 : position - 1]
+      raise "kernel symbol position missing: #{symbol},#{position}" unless address
+      raise "invalid kernel symbol address: #{address.inspect}" unless address.match?(/\A0x[0-9a-fA-F]+\z/) && address.to_i(16) > 0
 
       address
     end
@@ -1282,6 +1408,15 @@ assert selectedExample == null || exampleFilter == "";
 
     def self.cleanup_tcp_workload(machine)
       machine.execute(
+        "if test -d #{TCP_MTU_TRACE}; then " \
+        "echo 0 > #{TCP_MTU_TRACE}/tracing_on; " \
+        "echo 0 > #{TCP_MTU_TRACE}/events/#{TCP_MTU_EVENT}/enable 2>/dev/null || true; " \
+        "rmdir #{TCP_MTU_TRACE} 2>/dev/null || true; " \
+        "echo '-:#{TCP_MTU_EVENT}' >> /sys/kernel/tracing/kprobe_events 2>/dev/null || true; " \
+        "fi; " \
+        "if test -s #{TCP_STATE}/server.pid; then " \
+        "kill -- \"-$(cat #{TCP_STATE}/server.pid)\" >/dev/null 2>&1 || true; " \
+        "fi; " \
         "for pidfile in #{TCP_STATE}/*.pid; do " \
         "test -s \"$pidfile\" || continue; " \
         "pid=$(cat \"$pidfile\"); " \
@@ -1810,8 +1945,13 @@ assert selectedExample == null || exampleFilter == "";
         "ip netns exec klp_tcp_a sysctl -qw net.ipv4.tcp_base_mss=512"
       )
       machine.succeeds(
-        "ip netns exec klp_tcp_b socat -u " \
-        "TCP-LISTEN:9002,reuseaddr OPEN:/dev/null,wronly " \
+        "dd if=/dev/zero of=#{TCP_STATE}/expected bs=1048576 count=8 status=none"
+      )
+      machine.succeeds(
+        "setsid sh -c 'ip netns exec klp_tcp_b socat -u " \
+        "TCP-LISTEN:9002,reuseaddr OPEN:#{TCP_STATE}/received,creat,trunc,wronly; " \
+        "status=$?; printf \"%s\\n\" \"$status\" > #{TCP_STATE}/server.status; " \
+        "exit \"$status\"' " \
         ">#{TCP_STATE}/server.log 2>&1 & " \
         "echo $! > #{TCP_STATE}/server.pid"
       )
@@ -1838,6 +1978,75 @@ assert selectedExample == null || exampleFilter == "";
         timeout: 60
       )
       machine.succeeds("test \"$(cat #{TCP_STATE}/result)\" = 8388608")
+      machine.wait_until_succeeds(
+        "test -s #{TCP_STATE}/server.status && " \
+        "! kill -0 \"$(cat #{TCP_STATE}/server.pid)\" 2>/dev/null",
+        timeout: 60
+      )
+      machine.all_succeed(
+        "test \"$(cat #{TCP_STATE}/server.status)\" = 0",
+        "test \"$(wc -c < #{TCP_STATE}/received)\" = 8388608",
+        "cmp #{TCP_STATE}/expected #{TCP_STATE}/received"
+      )
+    end
+
+    def self.prepare_tcp_mtu_trace(machine)
+      site = current_site('tcp_mtu_size')
+      registers = {
+        'rax' => 'ax', 'rbx' => 'bx', 'rcx' => 'cx', 'rdx' => 'dx',
+        'rsi' => 'si', 'rdi' => 'di', 'rbp' => 'bp', 'rsp' => 'sp'
+      }.merge((8..15).to_h { |index| ["r#{index}", "r#{index}"] })
+      fetches = %w[needed reordering mss].map do |name|
+        role = site.fetch('registers').fetch(name)
+        "#{name}=%#{registers.fetch(role.fetch('register'))}:u#{role.fetch('width')}"
+      end.join(' ')
+      pid = Integer(machine.succeeds("cat #{TCP_STATE}/client.pid")[1].strip, 10)
+      raise 'invalid TCP sender PID' unless pid > 0
+      sockets = machine.succeeds('ip netns exec klp_tcp_a ss -tnp')[1]
+      sender_sockets = sockets.lines.select { |line| line.include?("pid=#{pid},") }
+      unless sender_sockets.length == 1 && sender_sockets.first.include?('198.51.100.2:9002')
+        raise "TCP sender does not own its one expected socket: #{sockets}"
+      end
+      puts "TCP MTU sender pid=#{pid}: #{sender_sockets.first.strip}"
+      address = site_address(machine, 'tcp_mtu_size')
+      definition = "p:#{TCP_MTU_EVENT} 0x#{address.to_s(16)} #{fetches}"
+      machine.all_succeed(
+        'mountpoint -q /sys/kernel/tracing || mount -t tracefs tracefs /sys/kernel/tracing',
+        "mkdir #{TCP_MTU_TRACE}",
+        "echo 64 > #{TCP_MTU_TRACE}/buffer_size_kb",
+        "echo #{Shellwords.escape(definition)} >> /sys/kernel/tracing/kprobe_events",
+        "echo 'common_pid == #{pid} && reordering == 4294967295' > #{TCP_MTU_TRACE}/events/#{TCP_MTU_EVENT}/filter",
+        "echo 1 > #{TCP_MTU_TRACE}/events/#{TCP_MTU_EVENT}/enable",
+        "echo 1 > #{TCP_MTU_TRACE}/tracing_on"
+      )
+      assert_kprobe_site(machine, site.fetch('symbol'), site.fetch('offset'), true)
+    end
+
+    def self.assert_tcp_mtu_trace(machine)
+      machine.all_succeed(
+        "echo 0 > #{TCP_MTU_TRACE}/tracing_on",
+        "echo 0 > #{TCP_MTU_TRACE}/events/#{TCP_MTU_EVENT}/enable"
+      )
+      trace = machine.succeeds("cat #{TCP_MTU_TRACE}/trace")[1]
+      puts "TCP MTU live-value observations:\n#{trace}"
+      rows = trace.lines.select { |line| line.include?('size_needed:') }
+      expect(rows.length).to be > 0
+      rows.each do |line|
+        sample = /needed=(\d+) reordering=(\d+) mss=(\d+)/.match(line)
+        raise "unparsed TCP MTU sample: #{line}" unless sample
+        expect(Integer(sample[2], 10)).to eq(4294967295)
+        expect(Integer(sample[3], 10)).to be > 0
+        expect(Integer(sample[1], 10)).to be > 4294967295
+      end
+      stats = machine.succeeds("cat #{TCP_MTU_TRACE}/per_cpu/cpu*/stats")[1]
+      overruns = stats.scan(/(?:^|\n)(?:commit )?overrun:\s*(\d+)/).flatten
+      expect(overruns).not_to be_empty
+      expect(overruns.map(&:to_i).uniq).to eq([0])
+      profile = machine.succeeds("awk '$1 ~ /size_needed$/ { print $2, $3 }' /sys/kernel/tracing/kprobe_profile")[1].split
+      expect(profile.length).to eq(2)
+      # The profile counts calls before the sender/event filter is applied.
+      expect(Integer(profile[0], 10)).to be >= rows.length
+      expect(Integer(profile[1], 10)).to eq(0)
     end
 
     def self.prepare_held_ipset_dump(machine)
@@ -2148,12 +2357,16 @@ assert selectedExample == null || exampleFilter == "";
 
     describe "6.12.95 cumulative livepatch", order: :defined do
       before(:suite) do
+        validate_site_record
         machine.start
         machine.wait_until_online
 
         machine.succeeds("test \"$(uname -r)\" = 6.12.95")
         machine.succeeds(
           "test \"$(sha256sum #{CORRECTED_MODULE} | cut -d' ' -f1)\" = #{CORRECTED_SHA256}"
+        )
+        machine.succeeds(
+          "test \"$(sha256sum /etc/livepatch-test/sites.json | cut -d' ' -f1)\" = #{SITES_SHA256}"
         )
         machine.succeeds(
           "test \"$(sha256sum #{RELEASED_V5_MODULE} | cut -d' ' -f1)\" = #{RELEASED_V5_SHA256}"
@@ -2432,12 +2645,7 @@ assert selectedExample == null || exampleFilter == "";
         # inhibit transition and proves every later vCPU entry repairs it.
         # Livepatch entry redirection bypasses the old function's +5 site,
         # so move the injector to the replacement before resuming L1.
-        set_offset_probe(
-          machine,
-          "svm_vcpu_run",
-          CORRECTED_NAME,
-          5
-        )
+        set_site_probe(machine, 'svm_entry')
         machine.succeeds(
           "sh -c 'echo 1 > #{PROBE_PARAMETERS}/svm_x2apic_inject'"
         )
@@ -3085,22 +3293,10 @@ assert selectedExample == null || exampleFilter == "";
           machine,
           "fuse_copy_page",
           "fuse",
-          FUSE_REF_PAGE_ENTRY_OFFSET
+          BOOT_FUSE_REF_PAGE_ENTRY_OFFSET
         )
-        set_offset_probe(
-          machine,
-          "fuse_copy_page",
-          "fuse",
-          FUSE_REF_PAGE_FINISH_CALL_OFFSET
-        )
-        machine.succeeds(
-          "if test -r /sys/kernel/debug/kprobes/list; then " \
-          "grep -E 'fuse_copy_page\\+0x0*329[[:space:]]' " \
-          "/sys/kernel/debug/kprobes/list; " \
-          "grep -E 'fuse_copy_page\\+0x0*369[[:space:]]' " \
-          "/sys/kernel/debug/kprobes/list; " \
-          "fi"
-        )
+        set_fuse_finish_probe(machine, 'fuse')
+        assert_kprobe_site(machine, 'fuse_copy_page', BOOT_FUSE_REF_PAGE_ENTRY_OFFSET, true)
         machine.succeeds(
           "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_hold'; " \
           "touch #{transition_state}/start"
@@ -3149,6 +3345,11 @@ assert selectedExample == null || exampleFilter == "";
         machine.succeeds(
           "grep -F fuse_copy_page " \
           "/proc/$(cat #{transition_state}/pid)/stack"
+        )
+        machine.all_succeed(
+          "test \"$(cat #{PROBE_PARAMETERS}/probe_arg0)\" != 0",
+          "test \"$(cat #{PROBE_PARAMETERS}/probe_missed)\" = 0",
+          "test \"$(cat #{PROBE_PARAMETERS}/probe2_missed)\" = 0"
         )
         machine.succeeds(
           "test \"$(cat #{PROBE_PARAMETERS}/probe2_hits)\" = 1"
@@ -3199,12 +3400,7 @@ assert selectedExample == null || exampleFilter == "";
           "test -e #{abort_state}/ready",
           timeout: 30
         )
-        set_offset_probe(
-          machine,
-          "fuse_copy_page",
-          CORRECTED_NAME,
-          FUSE_REF_PAGE_FINISH_CALL_OFFSET
-        )
+        set_fuse_finish_probe(machine, CORRECTED_NAME)
         machine.succeeds(
           "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_hold'; " \
           "touch #{abort_state}/start"
@@ -3213,6 +3409,11 @@ assert selectedExample == null || exampleFilter == "";
           "test \"$(cat #{PROBE_PARAMETERS}/probe_held)\" = Y && " \
           "test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" = 1",
           timeout: 30
+        )
+        machine.all_succeed(
+          "grep -F fuse_copy_page /proc/$(cat #{abort_state}/pid)/stack",
+          "test \"$(cat #{PROBE_PARAMETERS}/probe_arg0)\" != 0",
+          "test \"$(cat #{PROBE_PARAMETERS}/probe_missed)\" = 0"
         )
         machine.succeeds(
           "sh -c 'echo 1 > /sys/fs/fuse/connections/" \
@@ -3346,14 +3547,9 @@ assert selectedExample == null || exampleFilter == "";
           machine,
           "nft_pipapo_insert",
           "nf_tables",
-          NFT_PIPAPO_HOLD_OFFSET
+          BOOT_NFT_PIPAPO_HOLD_OFFSET
         )
-        machine.succeeds(
-          "if test -r /sys/kernel/debug/kprobes/list; then " \
-          "grep -E 'nft_pipapo_insert\\+0x0*5[[:space:]]' " \
-          "/sys/kernel/debug/kprobes/list; " \
-          "fi"
-        )
+        assert_kprobe_site(machine, 'nft_pipapo_insert', BOOT_NFT_PIPAPO_HOLD_OFFSET, true)
         machine.succeeds(
           "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_hold'"
         )
@@ -3390,18 +3586,8 @@ assert selectedExample == null || exampleFilter == "";
           "{ 192.0.2.20 . 80 }'"
         )
 
-        set_offset_probe(
-          machine,
-          "nft_pipapo_insert",
-          CORRECTED_NAME,
-          NFT_PIPAPO_HOLD_OFFSET
-        )
-        machine.succeeds(
-          "if test -r /sys/kernel/debug/kprobes/list; then " \
-          "grep -E 'nft_pipapo_insert\\+0x0*5[[:space:]]' " \
-          "/sys/kernel/debug/kprobes/list; " \
-          "fi"
-        )
+        set_site_probe(machine, 'nft_insert_entry')
+
         machine.succeeds(
           "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_hold'"
         )
@@ -3506,32 +3692,18 @@ assert selectedExample == null || exampleFilter == "";
         prepare_legacy_tcp_socket(machine)
         machine.succeeds("insmod #{CORRECTED_MODULE}")
         wait_for_patch(machine, CORRECTED_NAME, 1)
-        set_offset_probe(
-          machine,
-          "tcp_write_xmit",
-          CORRECTED_NAME,
-          TCP_MTU_PROBE_SIZE_OFFSET
-        )
-        machine.succeeds(
-          "if test -r /sys/kernel/debug/kprobes/list; then " \
-          "grep -E 'tcp_write_xmit\\+0x0*7e0[[:space:]]' " \
-          "/sys/kernel/debug/kprobes/list; " \
-          "fi"
-        )
+        prepare_tcp_mtu_trace(machine)
 
         machine.succeeds(
           "ip netns exec klp_tcp_a " \
           "sysctl -qw net.ipv4.tcp_reordering=-1"
         )
         release_legacy_tcp_socket(machine)
-        machine.succeeds(
-          "test \"$(cat #{PROBE_PARAMETERS}/probe_hits)\" -gt 0"
-        )
+        assert_tcp_mtu_trace(machine)
 
-        clear_probe(machine)
+        cleanup_tcp_workload(machine)
         disable_patch(machine, CORRECTED_NAME)
         remove_module(machine, CORRECTED_NAME)
-        cleanup_tcp_workload(machine)
       end
 
       it "completes fixed-buffer vsock sends across activation" do
@@ -3699,12 +3871,7 @@ assert selectedExample == null || exampleFilter == "";
           nil,
           SUNRPC_TLS_ENTRY_HOLD_OFFSET
         )
-        machine.succeeds(
-          "if test -r /sys/kernel/debug/kprobes/list; then " \
-          "grep -E 'xs_tcp_tls_setup_socket\\+0x0*5[[:space:]]' " \
-          "/sys/kernel/debug/kprobes/list; " \
-          "fi"
-        )
+        assert_kprobe_site(machine, 'xs_tcp_tls_setup_socket', SUNRPC_TLS_ENTRY_HOLD_OFFSET, true)
         machine.succeeds(
           "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_hold'"
         )
@@ -3816,24 +3983,9 @@ assert selectedExample == null || exampleFilter == "";
         race_state = "#{SUNRPC_STATE}/spin-coordinator"
 
         race_log_start = machine.succeeds("dmesg | wc -l")[1].to_i + 1
-        set_offset_probe(
-          machine,
-          "xs_tcp_tls_setup_socket",
-          CORRECTED_NAME,
-          SUNRPC_TLS_ENTRY_HOLD_OFFSET
-        )
-        set_offset_probe2(
-          machine,
-          "vpsadminos_sunrpc_tls_drain",
-          CORRECTED_NAME,
-          SUNRPC_TLS_DRAIN_CALLBACK_CLAIM_OFFSET
-        )
-        set_offset_probe3(
-          machine,
-          "vpsadminos_sunrpc_cb_release",
-          CORRECTED_NAME,
-          SUNRPC_CB_RELEASE_SHADOW_FREE_OFFSET
-        )
+        set_site_probe(machine, 'sunrpc_worker_entry')
+        set_site_probe(machine, 'sunrpc_callback_claim', index: 2)
+        set_site_probe(machine, 'sunrpc_callback_release', index: 3)
         machine.succeeds(
           "sh -c 'echo 1 > #{PROBE_PARAMETERS}/probe_hold'"
         )
@@ -4000,18 +4152,8 @@ assert selectedExample == null || exampleFilter == "";
           "xs_tcp_tls_setup_socket",
           CORRECTED_NAME
         )
-        set_offset_probe2(
-          machine,
-          "xs_connect",
-          CORRECTED_NAME,
-          SUNRPC_TLS_SHADOW_ALLOC_OFFSET
-        )
-        machine.succeeds(
-          "if test -r /sys/kernel/debug/kprobes/list; then " \
-          "grep -E 'xs_connect\\+0x0*1ec[[:space:]]' " \
-          "/sys/kernel/debug/kprobes/list; " \
-          "fi"
-        )
+        set_site_probe(machine, 'sunrpc_shadow_alloc', index: 2)
+
         injected = arm_shadow_failures(machine, 1024)
         start_sunrpc_tls_mount(machine, "shadow-failure")
         machine.wait_until_succeeds(
