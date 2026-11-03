@@ -81,6 +81,10 @@ let
       distribution = "opensuse";
       version = "latest";
     };
+    opensuse_leap_16_1 = {
+      distribution = "opensuse";
+      version = "leap-16.1";
+    };
     rocky_8 = {
       distribution = "rocky";
       version = "8";
@@ -136,6 +140,7 @@ in
     debian_stable
     devuan
     opensuse
+    opensuse_leap_16_1
     rocky_8
     rocky_9
     rocky_10
@@ -182,6 +187,7 @@ in
     nixos_stable
     nixos_unstable
     opensuse
+    opensuse_leap_16_1
     rocky_8
     rocky_9
     rocky_10

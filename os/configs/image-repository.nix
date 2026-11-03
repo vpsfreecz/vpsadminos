@@ -179,7 +179,8 @@
 
       opensuse = {
         "leap-15.6" = { };
-        "leap-16.0" = {
+        "leap-16.0" = { };
+        "leap-16.1" = {
           tags = [
             "latest"
             "stable"
