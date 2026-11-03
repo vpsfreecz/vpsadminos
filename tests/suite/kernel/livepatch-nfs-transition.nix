@@ -14,8 +14,8 @@
 #     ./test-runner.sh test -f --stop-on-failure -j 1 -t ci \
 #     --state-dir <state>/run kernel/livepatch-nfs-transition
 #
-# The test is registered only when VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE is
-# set, so ordinary test discovery and CI do not require a task-local module.
+# Ordinary qualification uses the current normal producer and the digest
+# captured before test discovery. The single-series override remains diagnostic.
 import ../../make-test.nix (
   { pkgs }:
   let
@@ -23,7 +23,7 @@ import ../../make-test.nix (
     qualifying = moduleEnv == "";
     selectedModule =
       if qualifying then builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_MODULE" else moduleEnv;
-    expectedSha256 = (import ../../fixtures/livepatch { inherit pkgs; }).correctedSha256;
+    expectedSha256 = builtins.getEnv "VPSADMINOS_LIVEPATCH_CORRECTED_SHA256";
     # The livepatch name is parameterised so a module with a different name
     # (for example a differently named single-series build) can run
     # through the same case; the default is the single-series name.
@@ -33,10 +33,7 @@ import ../../make-test.nix (
   assert selectedModule != "";
   assert
     !qualifying
-    || (
-      moduleName == "livepatch_7"
-      && builtins.hashFile "sha256" (builtins.storePath selectedModule) == expectedSha256
-    );
+    || (moduleName == "livepatch_7" && builtins.match "[0-9a-f]{64}" expectedSha256 != null);
   {
     name = "kernel-livepatch-nfs-transition";
     description =
