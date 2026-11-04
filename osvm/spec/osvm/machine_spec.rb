@@ -485,6 +485,7 @@ RSpec.describe OsVm::Machine do
       allow(machine).to receive(:stop_virtiofs)
       allow(machine).to receive(:sleep_with_deadline)
       allow(Process).to receive(:spawn).and_return(43_210)
+      allow(machine).to receive(:spawned_boot_process_identity).with(43_210, deadline: kind_of(Numeric)).and_return(nil)
       status = instance_double(Process::Status, exitstatus: 0, signaled?: false)
       allow(Process).to receive(:waitpid2).with(43_210, Process::WNOHANG).and_return(nil)
       allow(Process).to receive(:waitpid2).with(43_210).and_return([43_210, status])
@@ -522,6 +523,7 @@ RSpec.describe OsVm::Machine do
       allow(machine).to receive(:sleep_with_deadline)
       allow(machine).to receive(:run_console_thread).and_raise(failure)
       allow(Process).to receive(:spawn).and_return(43_210)
+      allow(machine).to receive(:spawned_boot_process_identity).with(43_210, deadline: kind_of(Numeric)).and_return(nil)
       allow(Process).to receive(:waitpid2).with(43_210, Process::WNOHANG) do
         wait_calls += 1
         wait_calls == 1 ? nil : [43_210, status]
@@ -564,6 +566,7 @@ RSpec.describe OsVm::Machine do
       allow(machine).to receive(:wait_for_boot).and_raise(first_error)
       allow(machine).to receive(:run_qemu_reaper).with(43_210).and_return(nil)
       allow(Process).to receive(:spawn).and_return(43_210)
+      allow(machine).to receive(:spawned_boot_process_identity).with(43_210, deadline: kind_of(Numeric)).and_return(nil)
       status = instance_double(Process::Status, exitstatus: 0, signaled?: false)
       allow(Process).to receive(:waitpid2).with(43_210, Process::WNOHANG).and_return(nil)
       allow(Process).to receive(:waitpid2).with(43_210).and_return([43_210, status])
@@ -626,6 +629,7 @@ RSpec.describe OsVm::Machine do
         raise OsVm::TimeoutError, 'startup deadline expired'
       end
       allow(Process).to receive(:spawn).and_return(43_210)
+      allow(machine).to receive(:spawned_boot_process_identity).with(43_210, deadline: kind_of(Numeric)).and_return(nil)
       status = instance_double(Process::Status, exitstatus: 0, signaled?: false)
       allow(Process).to receive(:waitpid2).with(43_210, Process::WNOHANG) do
         observed_running << machine.running?
@@ -1021,6 +1025,432 @@ RSpec.describe OsVm::Machine do
       machine = build_machine(dir:, name: 'alpha')
 
       expect(machine.inspect).to match(/name=alpha>/)
+    end
+  end
+
+  describe 'boot observations' do
+    def proc_stat(pid, parent: Process.pid, start: 123, state: 'S', threads: 40)
+      # Linux /proc/PID/stat fields 3 through 24; comm may contain parentheses.
+      fields = Array.new(22, '0')
+      { 0 => state, 1 => parent, 11 => 17, 12 => 9, 17 => threads, 19 => start, 21 => 30 }.each do |index, value|
+        fields[index] = value.to_s
+      end
+      "#{pid} (qemu (worker)) #{fields.join(' ')}\n"
+    end
+
+    def write_boot_proc(directory, pid, **options)
+      FileUtils.mkdir_p(File.join(directory, 'task'))
+      File.write(File.join(directory, 'stat'), proc_stat(pid, **options))
+      File.symlink("/nix/store/#{'a' * 32}-qemu/bin/qemu-system-x86_64", File.join(directory, 'exe'))
+      40.times do |index|
+        task = File.join(directory, 'task', (pid + index).to_s)
+        FileUtils.mkdir_p(task)
+        File.write(File.join(task, 'stat'), proc_stat(pid + index))
+        File.write(File.join(task, 'wchan'), 'futex_wait_queue')
+      end
+    end
+
+    def prepare_boot_observation(machine, directory, pid: 43_210)
+      allow(machine).to receive(:with_boot_process).with(pid).and_yield(directory)
+      machine.instance_variable_set(:@boot_process_identity, { pid:, start_time_ticks: 123 })
+    end
+
+    it 'records only safe actual spawn inputs without changing argv or the reaper handoff' do
+      with_tmpdir do |dir|
+        store = "/nix/store/#{'a' * 32}"
+        config = build_machine_config(
+          'qemu' => "#{store}-qemu", 'kernel' => "#{store}-kernel/bzImage",
+          'initrd' => "#{store}-initrd/initrd", 'toplevel' => "#{store}-system",
+          'squashfs' => "#{store}-squashfs.img", 'kernelParams' => ['password=SECRET'],
+          'extraQemuOptions' => ['-name', 'SECRET', '-m', '1024']
+        )
+        machine = build_vpsadminos_machine(dir:, config:)
+        directory = File.join(dir, 'proc')
+        write_boot_proc(directory, 43_210)
+        allow(machine).to receive(:with_boot_process).with(43_210).and_yield(directory)
+        allow(machine).to receive(:start_virtiofs)
+        allow(machine).to receive(:stop_virtiofs)
+        allow(machine).to receive(:sleep_with_deadline)
+        allow(machine).to receive(:run_console_thread)
+        command = machine.send(:qemu_command, kernel_params: ['token=SECRET'])
+        reaper = instance_spy(OsVm::Machine::QemuReaper)
+        allow(Process).to receive(:spawn).with(*command, any_args).and_return(43_210)
+        allow(machine).to receive(:run_qemu_reaper).with(43_210) do
+          expect(machine.instance_variable_get(:@boot_process_identity)).to eq(pid: 43_210, start_time_ticks: 123)
+          reaper
+        end
+
+        expect(machine.start(kernel_params: ['token=SECRET'])).to eq(machine)
+        expect(Process).to have_received(:spawn).with(*command, any_args).once
+        expect(reaper).to have_received(:start).once
+        output = File.read(File.join(dir, 'tmp', 'test-log.log'))
+        expect(output).to include('ACTION: qemu-launch', 'PID: 43210', 'START_TIME_TICKS: 123')
+        expect(output).to include("KERNEL: #{store}-kernel/bzImage", "INITRD: #{store}-initrd/initrd")
+        expect(output).to include("SYSTEM: #{store}-system", "SQUASHFS: #{store}-squashfs.img")
+        expect(output).to include('MEMORY_MIB: unavailable', 'CPUS: 2', 'OTHER_ARGUMENTS: omitted')
+        expect(output).not_to include('SECRET', 'password', 'token')
+      ensure
+        machine&.send(:cleanup_runtime_resources)
+        machine&.finalize
+      end
+    end
+
+    [IOError, ::Timeout::Error].each do |failure_class|
+      it "does not roll back a successful spawn when launch logging raises #{failure_class}" do
+        with_tmpdir do |dir|
+          machine = build_machine(dir:)
+          allow(machine).to receive(:start_virtiofs)
+          allow(machine).to receive(:stop_virtiofs)
+          allow(machine).to receive(:sleep_with_deadline)
+          allow(machine).to receive(:run_console_thread)
+          reaper = instance_spy(OsVm::Machine::QemuReaper)
+          allow(machine).to receive_messages(spawned_boot_process_identity: nil, run_qemu_reaper: reaper)
+          allow(Process).to receive(:spawn).and_return(43_210)
+          allow(machine.send(:log)).to receive(:launch).and_raise(failure_class, 'SECRET')
+          allow(machine).to receive(:rollback_start).and_call_original
+
+          expect(machine.start).to eq(machine)
+          expect(machine).to be_running
+          expect(reaper).to have_received(:start).once
+          expect(machine).not_to have_received(:rollback_start)
+        ensure
+          machine&.send(:cleanup_runtime_resources)
+          machine&.finalize
+        end
+      end
+    end
+
+    it 'keeps a startup deadline and its existing rollback when launch logging is interrupted' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        allow(machine).to receive(:start_virtiofs)
+        allow(machine).to receive(:stop_virtiofs)
+        allow(machine).to receive(:sleep_with_deadline)
+        allow(machine).to receive(:run_console_thread)
+        reaper = instance_spy(OsVm::Machine::QemuReaper)
+        allow(machine).to receive_messages(spawned_boot_process_identity: nil, run_qemu_reaper: reaper)
+        allow(Process).to receive(:spawn).and_return(43_210)
+        original = OsVm::TimeoutError.new('startup deadline')
+        allow(machine.send(:log)).to receive(:launch).and_raise(original)
+
+        expect { machine.start }.to(raise_error { |error| expect(error).to be(original) })
+        expect(reaper).to have_received(:signal).with('KILL').once
+        expect(reaper).to have_received(:join).once
+        expect(machine).not_to be_running
+        expect(machine.send(:qemu_pid)).to be_nil
+      ensure
+        machine&.finalize
+      end
+    end
+
+    it 'keeps a QEMU spawn failure and never creates a launch observation for it' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        allow(machine).to receive(:start_virtiofs)
+        allow(machine).to receive(:stop_virtiofs)
+        allow(machine).to receive(:sleep_with_deadline)
+        original = IOError.new('spawn failure')
+        allow(Process).to receive(:spawn).and_raise(original)
+        allow(machine).to receive(:spawned_boot_process_identity)
+        allow(machine).to receive(:record_boot_launch)
+
+        expect { machine.start }.to(raise_error { |error| expect(error).to be(original) })
+        expect(machine).not_to have_received(:spawned_boot_process_identity)
+        expect(machine).not_to have_received(:record_boot_launch)
+        expect(machine).not_to be_running
+        expect(machine.send(:qemu_pid)).to be_nil
+      ensure
+        machine&.finalize
+      end
+    end
+
+    [nil, :future].each do |startup_deadline|
+      it "bounds a blocked identity read with startup deadline #{startup_deadline.inspect}" do
+        with_tmpdir do |dir|
+          stub_const('OsVm::Machine::BOOT_OBSERVATION_TIMEOUT', 0.05)
+          machine = build_machine(dir:)
+          allow(machine).to receive_messages(start_virtiofs: nil, stop_virtiofs: nil,
+                                             sleep_with_deadline: nil, run_console_thread: nil)
+          allow(machine).to receive(:with_boot_process).and_yield('/unused')
+          allow(machine).to receive(:boot_process_stat) { sleep(1) }
+          reaper = instance_spy(OsVm::Machine::QemuReaper)
+          allow(machine).to receive(:run_qemu_reaper).and_return(reaper)
+          allow(Process).to receive(:spawn).and_return(43_210)
+          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2 if startup_deadline
+          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+          expect(machine.start(deadline:)).to eq(machine)
+          expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 0.5
+          expect(machine).to be_running
+          expect(reaper).to have_received(:start).once
+          expect(reaper).not_to have_received(:signal)
+          expect(machine.instance_variable_get(:@boot_process_identity)).to be_nil
+        ensure
+          machine&.send(:cleanup_runtime_resources)
+          machine&.finalize
+        end
+      end
+    end
+
+    it 'skips identity I/O when spawn has consumed the remaining startup deadline' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        allow(machine).to receive_messages(start_virtiofs: nil, stop_virtiofs: nil,
+                                           sleep_with_deadline: nil, run_console_thread: nil)
+        allow(machine).to receive(:with_boot_process)
+        reaper = instance_spy(OsVm::Machine::QemuReaper)
+        allow(machine).to receive(:run_qemu_reaper).and_return(reaper)
+        allow(Process).to receive(:spawn) do
+          sleep(0.05)
+          43_210
+        end
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.01
+
+        expect { machine.start(deadline:, timeout_message: 'startup expired') }
+          .to raise_error(OsVm::TimeoutError, 'startup expired')
+        expect(machine).not_to have_received(:with_boot_process)
+        expect(reaper).to have_received(:start).once
+        expect(reaper).to have_received(:signal).with('KILL').once
+        expect(reaper).to have_received(:join).once
+        expect(machine).not_to be_running
+        expect(machine.send(:qemu_pid)).to be_nil
+      ensure
+        machine&.finalize
+      end
+    end
+
+    it 'preserves a pending original startup timeout through a slow identity read and reaper handoff' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        allow(machine).to receive_messages(start_virtiofs: nil, stop_virtiofs: nil,
+                                           sleep_with_deadline: nil, run_console_thread: nil)
+        # Inject one exact async timeout below rather than racing two timer
+        # exceptions. Existing startup tests cover the outer deadline wrapper.
+        allow(machine).to receive(:with_deadline) { |*, &block| block.call }
+        allow(machine).to receive(:with_boot_process).and_yield('/unused')
+        entered = Queue.new
+        result = Queue.new
+        allow(machine).to receive(:boot_process_stat) do
+          entered << true
+          sleep(1)
+        end
+        handoff = []
+        reaper = instance_spy(OsVm::Machine::QemuReaper)
+        allow(reaper).to receive(:start) { handoff << :start }
+        allow(reaper).to receive(:signal).with('KILL') { handoff << :kill }
+        allow(reaper).to receive(:join) { handoff << :join }
+        allow(machine).to receive(:run_qemu_reaper).and_return(reaper)
+        allow(Process).to receive(:spawn).and_return(43_210)
+        original = OsVm::TimeoutError.new('original startup timeout')
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.1
+        runner = Thread.new do
+          Thread.current.report_on_exception = false
+          machine.start(deadline:)
+        rescue StandardError => e
+          result << e
+        end
+        Timeout.timeout(5) { entered.pop }
+        injector = Thread.new { runner.raise(original) }
+
+        expect(runner.join(0.5)).to be(runner)
+        expect(injector.join(0.5)).to be(injector)
+        expect(Timeout.timeout(1) { result.pop }).to be(original)
+        expect(handoff).to eq(%i[start kill join])
+        expect(machine).not_to be_running
+        expect(machine.send(:qemu_pid)).to be_nil
+      ensure
+        injector&.join(2)
+        runner&.join(2)
+        machine&.finalize
+      end
+    end
+
+    it 'omits non-store paths, ambiguous flags and credential-bearing arguments' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        machine.send(:record_boot_launch, [
+                       '/home/SECRET/qemu', '-kernel', '/boot/SECRET', '-initrd', 'https://user:SECRET@host',
+                       '-append', 'init=/run/SECRET/init password=SECRET', '-smp', 'cpus=2,cpus=SECRET'
+                     ], 43_210)
+        output = File.read(File.join(dir, 'tmp', 'test-log.log'))
+        expect(output).to include('QEMU: unavailable', 'KERNEL: unavailable', 'INITRD: unavailable', 'SYSTEM: unavailable')
+        expect(output).to include('CPUS: unavailable', 'OTHER_ARGUMENTS: omitted')
+        expect(output).not_to include('SECRET', 'password', 'https://')
+      end
+    end
+
+    it 'observes a real owned child through proc descriptors without reaping or signaling it' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        read_end, write_end = IO.pipe
+        pid = fork do
+          write_end.close
+          read_end.read(1)
+          exit!(0)
+        end
+        read_end.close
+        identity = machine.send(:spawned_boot_process_identity, pid)
+        expect(identity[:pid]).to eq(pid)
+        expect(identity[:start_time_ticks]).to be > 0
+        machine.instance_variable_set(:@boot_process_identity, identity)
+        original = OsVm::TimeoutError.new('original')
+        allow(machine.send(:current_shell)).to receive(:wait).and_raise(original)
+
+        expect { machine.wait_for_boot }.to(raise_error { |error| expect(error).to be(original) })
+        output = File.read(File.join(dir, 'tmp', 'test-log.log'))
+        expect(output).to include("PID: #{pid}", "START_TIME_TICKS: #{identity[:start_time_ticks]}", 'TASK:')
+        expect(output).not_to include('UNAVAILABLE:')
+        write_end.write('x')
+        write_end.close
+        expect(Process.wait(pid)).to eq(pid)
+        pid = nil
+      ensure
+        read_end&.close unless read_end&.closed?
+        write_end&.close unless write_end&.closed?
+        Process.wait(pid) if pid
+      end
+    end
+
+    it 'keeps a successful boot wait and its deadline options unchanged' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        shell = machine.send(:current_shell)
+        result = Object.new
+        allow(shell).to receive(:wait).with(timeout: 7, deadline: 123, timeout_message: 'boot').and_return(result)
+        allow(machine).to receive(:record_boot_wait_failure)
+        expect(machine.wait_for_boot(timeout: 7, deadline: 123, timeout_message: 'boot')).to be(result)
+        expect(machine).not_to have_received(:record_boot_wait_failure)
+      end
+    end
+
+    it 'captures owned host state without a guest shell and preserves the same boot error' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        directory = File.join(dir, 'proc')
+        write_boot_proc(directory, 43_210)
+        prepare_boot_observation(machine, directory)
+        original = OsVm::TimeoutError.new('original boot failure')
+        allow(machine.send(:current_shell)).to receive(:wait).and_raise(original)
+        allow(machine).to receive(:execute).and_return([0, ''])
+        allow(Process).to receive(:kill)
+
+        expect { machine.wait_for_boot(timeout: 0) }.to(raise_error { |error| expect(error).to be(original) })
+
+        output = File.read(File.join(dir, 'tmp', 'test-log.log'))
+        expect(machine).not_to have_received(:execute)
+        expect(Process).not_to have_received(:kill)
+        expect(output).to include('ACTION: boot-wait-failure', 'PID: 43210', 'STATE: S')
+        expect(output).to include("EXE: /nix/store/#{'a' * 32}-qemu/bin/qemu-system-x86_64")
+        expect(output).to include('UTIME_TICKS: 17', 'STIME_TICKS: 9', 'RSS_PAGES: 30', 'THREADS: 40')
+        expect(output.lines.grep(/^TASK: /).length).to eq(32)
+        expect(output).to include('TASK_LIMIT: 32', 'futex_wait_queue')
+        expect(output).not_to include('original boot failure')
+      end
+    end
+
+    { reused: { start: 124 }, unowned: { parent: 1 }, exited: { state: 'Z' } }.each do |kind, options|
+      it "stops before reading other process files for a #{kind} PID" do
+        with_tmpdir do |dir|
+          machine = build_machine(dir:)
+          directory = File.join(dir, 'proc')
+          write_boot_proc(directory, 43_210, **options)
+          prepare_boot_observation(machine, directory)
+          original = OsVm::TimeoutError.new('original')
+          allow(machine.send(:current_shell)).to receive(:wait).and_raise(original)
+          allow(File).to receive(:readlink).and_call_original
+          allow(Dir).to receive(:open).and_call_original
+
+          expect { machine.wait_for_boot }.to(raise_error { |error| expect(error).to be(original) })
+          output = File.read(File.join(dir, 'tmp', 'test-log.log'))
+          reason = kind == :exited ? 'exited' : 'identity_changed'
+          expect(output).to include("UNAVAILABLE: #{reason}")
+          expect(output).not_to include('TASK:', 'EXE:')
+          expect(File).not_to have_received(:readlink).with(File.join(directory, 'exe'))
+          expect(Dir).not_to have_received(:open).with(File.join(directory, 'task'))
+        end
+      end
+    end
+
+    it 'reports a missing PID without probing another process' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        prepare_boot_observation(machine, '/missing')
+        allow(machine).to receive(:with_boot_process).and_raise(Errno::ENOENT)
+        original = OsVm::TimeoutError.new('original')
+        allow(machine.send(:current_shell)).to receive(:wait).and_raise(original)
+        expect { machine.wait_for_boot }.to(raise_error { |error| expect(error).to be(original) })
+        expect(File.read(File.join(dir, 'tmp', 'test-log.log'))).to include('UNAVAILABLE: proc_entry_missing')
+      end
+    end
+
+    it 'stops sampling when process identity changes after the executable read' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        directory = File.join(dir, 'proc')
+        write_boot_proc(directory, 43_210)
+        prepare_boot_observation(machine, directory)
+        allow(File).to receive(:readlink).and_call_original
+        allow(File).to receive(:readlink).with(File.join(directory, 'exe')).and_wrap_original do |method, path|
+          result = method.call(path)
+          File.write(File.join(directory, 'stat'), proc_stat(43_210, start: 124))
+          result
+        end
+        allow(Dir).to receive(:open).and_call_original
+        original = OsVm::TimeoutError.new('original')
+        allow(machine.send(:current_shell)).to receive(:wait).and_raise(original)
+        expect { machine.wait_for_boot }.to(raise_error { |error| expect(error).to be(original) })
+        expect(File.read(File.join(dir, 'tmp', 'test-log.log'))).to include('UNAVAILABLE: identity_changed')
+        expect(Dir).not_to have_received(:open).with(File.join(directory, 'task'))
+      end
+    end
+
+    it 'omits unsafe executable and wait-channel text without emitting their values' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        directory = File.join(dir, 'proc')
+        write_boot_proc(directory, 43_210)
+        File.unlink(File.join(directory, 'exe'))
+        File.symlink('/home/SECRET/qemu', File.join(directory, 'exe'))
+        Dir.glob(File.join(directory, 'task/*/wchan')).each { |path| File.write(path, "SECRET=value\n") }
+        prepare_boot_observation(machine, directory)
+        original = OsVm::TimeoutError.new('original')
+        allow(machine.send(:current_shell)).to receive(:wait).and_raise(original)
+
+        expect { machine.wait_for_boot }.to(raise_error { |error| expect(error).to be(original) })
+        output = File.read(File.join(dir, 'tmp', 'test-log.log'))
+        expect(output).to include('EXE: unavailable')
+        expect(output.lines.grep(/^TASK: /)).to all(end_with(" S unavailable\n"))
+        expect(output).not_to include('SECRET')
+      end
+    end
+
+    it 'bounds collection and reports its timeout without replacing the original error' do
+      with_tmpdir do |dir|
+        stub_const('OsVm::Machine::BOOT_OBSERVATION_TIMEOUT', 0.05)
+        machine = build_machine(dir:)
+        original = OsVm::TimeoutError.new('original')
+        allow(machine.send(:current_shell)).to receive(:wait).and_raise(original)
+        allow(machine).to receive(:boot_host_snapshot) { sleep(1) }
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        expect { machine.wait_for_boot }.to(raise_error { |error| expect(error).to be(original) })
+        expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 0.5
+        expect(File.read(File.join(dir, 'tmp', 'test-log.log'))).to include('UNAVAILABLE: collection_timeout')
+      end
+    end
+
+    it 'omits read-error messages and survives a failed log write' do
+      with_tmpdir do |dir|
+        machine = build_machine(dir:)
+        original = OsVm::TimeoutError.new('original')
+        allow(machine.send(:current_shell)).to receive(:wait).and_raise(original)
+        allow(machine).to receive(:boot_host_snapshot).and_raise(IOError, 'SECRET')
+        expect { machine.wait_for_boot }.to(raise_error { |error| expect(error).to be(original) })
+        output = File.read(File.join(dir, 'tmp', 'test-log.log'))
+        expect(output).to include('UNAVAILABLE: read_error')
+        expect(output).not_to include('SECRET')
+        allow(machine.send(:log)).to receive(:boot_wait_failure).and_raise(IOError, 'SECRET')
+        expect { machine.wait_for_boot }.to(raise_error { |error| expect(error).to be(original) })
+      end
     end
   end
 end
