@@ -6,7 +6,21 @@ QUAL_STATE = '/run/livepatch-qualification'.freeze
 QUAL_TRACE = '/sys/kernel/tracing/instances/livepatch_qualification'.freeze
 QUAL_CGROUP_TRACE = '/sys/kernel/tracing/instances/livepatch_qualification_cgroup'.freeze
 QUAL_SHUTDOWN_TRACE = '/sys/kernel/tracing/instances/livepatch_qualification_shutdown'.freeze
+QUAL_DYING_TRACE = '/sys/kernel/tracing/instances/livepatch_qualification_dying'.freeze
 QUAL_POPULATION = '/etc/livepatch-test/task-population'.freeze
+
+# Frozen a2384967 ELF/BTF: sched_cpu_dying+0xc3 calls dl_server_stop while
+# holding rq's lock, after the warning and before dequeue. RDI is fair_server,
+# RBX is rq. These offsets belong only to the notes-guarded frozen kernel.
+QUAL_DYING_FIELDS = {
+  'server' => '%di:x64', 'rq' => '%bx:x64', 'entity_rq' => '+216(%di):x64',
+  'parent_color' => '+0(%di):x64', 'nr_running' => '+4(%bx):u32',
+  'nr_pinned' => '+3312(%bx):u32', 'cfs_nr' => '+144(%bx):u32',
+  'cfs_queued' => '+148(%bx):u32', 'cfs_runnable' => '+152(%bx):u32',
+  'cfs_delayed' => '+164(%bx):u32', 'rt_nr' => '+2256(%bx):u32',
+  'dl_nr' => '+2320(%bx):u32', 'rq_cpu' => '+2920(%bx):s32',
+  'rq_online' => '+2924(%bx):s32', 'flags' => '+84(%di):x32'
+}.freeze
 
 # Reviewed callback registrations in bp-6.12.95-production.patch. Values are
 # invocations after successful replacement, then after disable. Do not derive
@@ -246,6 +260,222 @@ def qualification_hotplug(phase:)
   puts "qualification hotplug phase=#{phase} cpu=#{cpu} complete"
 end
 
+def qualification_dying_records(trace)
+  rows = trace.lines.select { |line| line.include?('scheduler_dying:') }
+  raise 'missing locked CPU127 observation' if rows.empty?
+
+  rows.each do |line|
+    # Kallsyms' displayed span can include alignment beyond ELF st_size.
+    # It is presentation only; the notes-bound probe address is fixed above.
+    header = %r{\[(\d+)\].*?\s(\d+\.\d+): scheduler_dying: \(sched_cpu_dying\+0xc3/0x[0-9a-fA-F]+\)}.match(line)
+    pairs = line.scan(/\b([a-z_]+)=(0x[0-9a-f]+|\d+)\b/i)
+    unless header && Integer(header[1]) == 127 && Float(header[2]) > 0 &&
+           pairs.map(&:first).sort == QUAL_DYING_FIELDS.keys.sort
+      raise "unbound or incomplete dying observation: #{line}"
+    end
+
+    values = pairs.to_h.transform_values { |value| Integer(value, 0) }
+    unless %w[server rq entity_rq parent_color].all? { |key| values.fetch(key) > 0 } &&
+           values.fetch('entity_rq') == values.fetch('rq') &&
+           values.fetch('server') == values.fetch('rq') + 2408 &&
+           values.fetch('rq_cpu') == 127 && [0, 1].include?(values.fetch('rq_online')) &&
+           values.fetch('nr_running') > 0 && values.fetch('flags').allbits?(16)
+      raise "invalid runqueue/entity identity: #{line}"
+    end
+
+    # on_dl_rq() is !RB_EMPTY_NODE(): the node's parent/color equals its own
+    # address only when empty. Active alone does not establish membership.
+    flags = values.fetch('flags')
+    puts "scheduler dying queued=#{values.fetch('parent_color') != values.fetch('server')} " \
+         "throttled=#{flags & 1} active=#{(flags >> 5) & 1} defer=#{(flags >> 6) & 1} " \
+         "armed=#{(flags >> 7) & 1} defer_running=#{(flags >> 8) & 1}: #{line.strip}"
+  end
+  rows.length
+end
+
+def qualification_dying_selected?
+  QUALIFICATION_VENDOR == 'amd' && QUALIFICATION_PREDECESSOR == 'v5' &&
+    QUALIFICATION_CPUS == 128 && QUALIFICATION_MEMORY == 16_384 && QUALIFICATION_TASKS == 100_000
+end
+
+def qualification_prepare_dying
+  return unless qualification_dying_selected?
+  raise 'scheduler diagnostic already prepared or uncertain' if @qualification_dying
+
+  state = @qualification_dying = {
+    instance: :none, event: :none, arm: :none, recording: :unknown,
+    prepared: false, release_attempted: false, released: false
+  }
+  event = "#{QUAL_DYING_TRACE}/events/lp95_dying/scheduler_dying"
+  begin
+    machine.succeeds(
+      'test "$(sha256sum /sys/kernel/notes | cut -d\' \' -f1)" = ' \
+      '1e4432629c0f1a1e9c6b175495217859279f98ded2beca091834ec059e42108a', timeout: 10
+    )
+    machine.succeeds('test "$(uname -r)" = 6.12.95.5', timeout: 10)
+    address = symbol_address(machine, 'sched_cpu_dying').to_i(16) + 0xc3
+    probe = "p:lp95_dying/scheduler_dying 0x#{address.to_s(16)} " \
+            "#{QUAL_DYING_FIELDS.map { |name, fetch| "#{name}=#{fetch}" }.join(' ')}"
+    machine.succeeds('mountpoint -q /sys/kernel/tracing || mount -t tracefs tracefs /sys/kernel/tracing', timeout: 10)
+    machine.succeeds("test ! -e #{QUAL_DYING_TRACE}", timeout: 10)
+    machine.succeeds('test ! -e /sys/kernel/tracing/events/lp95_dying/scheduler_dying', timeout: 10)
+    state[:instance] = :possible
+    machine.succeeds("mkdir #{QUAL_DYING_TRACE}", timeout: 10)
+    state[:instance] = :owned
+    machine.succeeds("test \"$(cat #{QUAL_DYING_TRACE}/current_tracer)\" = nop", timeout: 10)
+    state[:recording] = :possible
+    machine.succeeds("echo 0 > #{QUAL_DYING_TRACE}/tracing_on", timeout: 10)
+    machine.succeeds("test \"$(cat #{QUAL_DYING_TRACE}/tracing_on)\" = 0", timeout: 10)
+    state[:recording] = :off
+    [
+      "echo 64 > #{QUAL_DYING_TRACE}/buffer_size_kb",
+      "echo mono > #{QUAL_DYING_TRACE}/trace_clock",
+      "echo 0 > #{QUAL_DYING_TRACE}/options/overwrite",
+      "echo 80000000,00000000,00000000,00000000 > #{QUAL_DYING_TRACE}/tracing_cpumask"
+    ].each { |command| machine.succeeds(command, timeout: 10) }
+    state[:event] = :possible
+    machine.succeeds("echo '#{probe}' >> /sys/kernel/tracing/kprobe_events", timeout: 10)
+    state[:event] = :owned
+    [
+      "echo 'rq_cpu == 127' > #{event}/filter",
+      "echo > #{QUAL_DYING_TRACE}/trace"
+    ].each { |command| machine.succeeds(command, timeout: 10) }
+    state[:arm] = :possible
+    machine.succeeds("echo 1 > #{event}/enable", timeout: 10)
+    machine.succeeds("test \"$(cat #{event}/enable)\" = 1", timeout: 10)
+    machine.succeeds("test \"$(cat #{QUAL_DYING_TRACE}/tracing_on)\" = 0", timeout: 10)
+    machine.succeeds("test \"$(cat #{QUAL_DYING_TRACE}/current_tracer)\" = nop", timeout: 10)
+    state[:arm] = :armed
+    state[:prepared] = true
+    puts "scheduler dying prepared site=0x#{address.to_s(16)} CPU127 mono nop enabled=1 recording=0; frozen notes verified"
+  ensure
+    unless state[:prepared]
+      warn 'scheduler diagnostic INCOMPLETE: early preparation did not complete'
+      begin
+        qualification_release_dying(shell: :diagnostics)
+      rescue StandardError => e
+        warn "scheduler diagnostic INCOMPLETE: #{e.message}"
+      end
+    end
+  end
+end
+
+def qualification_capture_dying(shell: nil)
+  trace = machine.succeeds("cat #{QUAL_DYING_TRACE}/trace", timeout: 10, shell: shell)[1]
+  puts "scheduler dying diagnostic trace:\n#{trace}"
+  raise 'recording-off acknowledgement unavailable' unless @qualification_dying[:recording] == :off
+
+  rows = qualification_dying_records(trace)
+  stats = machine.succeeds("cat #{QUAL_DYING_TRACE}/per_cpu/cpu127/stats", timeout: 10, shell: shell)[1]
+  puts "scheduler dying diagnostic buffer:\n#{stats}"
+  losses = stats.scan(/^(?:commit overrun|overrun|dropped events):\s*(\d+)\s*$/).flatten
+  raise 'missing or lossy dying buffer statistics' unless losses.length == 3 && losses.all? { |value| Integer(value) == 0 }
+
+  profile = machine.succeeds(
+    "awk '$1 ~ /scheduler_dying$/ { print $2, $3 }' /sys/kernel/tracing/kprobe_profile", timeout: 10, shell: shell
+  )[1].split
+  puts "scheduler dying diagnostic hits/misses: #{profile.join(' ')}"
+  return if profile.length == 2 && Integer(profile[0]) >= rows && Integer(profile[1]) == 0
+
+  raise 'missing or missed dying probe observations'
+end
+
+def qualification_observe_dying
+  return yield unless qualification_dying_selected?
+
+  state = @qualification_dying
+  unless state && state[:prepared] && state[:arm] == :armed && state[:recording] == :off
+    raise 'scheduler diagnostic INCOMPLETE: early preparation not acknowledged'
+  end
+
+  begin
+    state[:recording] = :possible
+    machine.succeeds("echo 1 > #{QUAL_DYING_TRACE}/tracing_on", timeout: 10)
+    machine.succeeds("test \"$(cat #{QUAL_DYING_TRACE}/tracing_on)\" = 1", timeout: 10)
+    state[:recording] = :on
+    yield
+  ensure
+    original_error = $!
+    shell = original_error ? :diagnostics : nil
+    failures = []
+    begin
+      state[:recording] = :possible
+      machine.succeeds("echo 0 > #{QUAL_DYING_TRACE}/tracing_on", timeout: 10, shell: shell)
+      machine.succeeds("test \"$(cat #{QUAL_DYING_TRACE}/tracing_on)\" = 0", timeout: 10, shell: shell)
+      state[:recording] = :off
+    rescue StandardError => e
+      failures << e.message
+    end
+    begin
+      qualification_capture_dying(shell: shell)
+    rescue StandardError => e
+      failures << e.message
+    end
+    unless failures.empty?
+      message = "scheduler diagnostic INCOMPLETE: #{failures.join('; ')}"
+      warn message
+      raise message unless original_error
+    end
+  end
+end
+
+def qualification_dying_drained?(shell: nil)
+  return true unless @qualification_workload_started
+  return true if @qualification_workload_drained
+
+  # One read-only check, not a new drain wait or a stop request. These are
+  # the existing successful population and stop_stress postconditions.
+  command = %w[exit sctp.exit tun.exit].map { |file| "test \"$(cat #{QUAL_STATE}/#{file})\" = 0" } + [
+    "grep -qx 'state=stopped' #{QUAL_STATE}/population",
+    "grep -qx 'tasks=1' #{QUAL_STATE}/population",
+    "test -e #{STRESS_STATE}/stop", "test ! -e #{STRESS_STATE}/pid"
+  ]
+  status, = machine.execute(command.join(' && '), timeout: 10, shell: shell)
+  @qualification_workload_drained = status == 0
+end
+
+def qualification_release_dying(shell: nil)
+  state = @qualification_dying
+  return unless state
+  return if state[:released]
+
+  if state[:instance] == :none && state[:event] == :none
+    state[:released] = true
+    return
+  end
+  raise 'scheduler diagnostic INCOMPLETE: observer release already attempted; effects remain unconfirmed' if state[:release_attempted]
+
+  state[:release_attempted] = true
+  unless qualification_dying_drained?(shell: shell)
+    raise 'scheduler diagnostic INCOMPLETE: workload drain unconfirmed; observer retained for VM teardown'
+  end
+  if state[:instance] == :possible || state[:event] == :possible || state[:arm] == :possible || state[:recording] != :off
+    raise 'scheduler diagnostic INCOMPLETE: mutation effects unconfirmed; no destructive operation attempted'
+  end
+
+  event = "#{QUAL_DYING_TRACE}/events/lp95_dying/scheduler_dying"
+  if state[:arm] == :armed
+    state[:arm] = :possible
+    machine.succeeds("echo 0 > #{event}/enable", timeout: 10, shell: shell)
+    machine.succeeds("test \"$(cat #{event}/enable)\" = 0", timeout: 10, shell: shell)
+    state[:arm] = :disarmed
+  end
+  if state[:event] == :owned
+    state[:event] = :possible
+    machine.succeeds("echo '-:lp95_dying/scheduler_dying' >> /sys/kernel/tracing/kprobe_events", timeout: 10, shell: shell)
+    machine.succeeds('test ! -e /sys/kernel/tracing/events/lp95_dying/scheduler_dying', timeout: 10, shell: shell)
+    state[:event] = :none
+  end
+  if state[:instance] == :owned
+    state[:instance] = :possible
+    machine.succeeds("rmdir #{QUAL_DYING_TRACE}", timeout: 10, shell: shell)
+    machine.succeeds("test ! -e #{QUAL_DYING_TRACE}", timeout: 10, shell: shell)
+    state[:instance] = :none
+  end
+  state[:released] = true
+  puts 'scheduler dying observer released; workload drained or never started'
+end
+
 def qualification_failed_activation(previous_name)
   hold = '/sys/module/livepatch_test_pernet_hold/parameters/hold'
   held = '/sys/module/livepatch_test_pernet_hold/parameters/held'
@@ -320,6 +550,18 @@ after(:example) do
       # qualification trace and state on the already reserved channel first.
       # The final wait combines three exit markers. Report each marker and
       # workload log so a teardown timeout identifies the unfinished workload.
+      if @qualification_dying && @qualification_dying[:instance] == :owned
+        puts "scheduler dying pre-cleanup ownership: #{@qualification_dying.inspect}"
+        begin
+          machine.execute(
+            "cat #{QUAL_DYING_TRACE}/tracing_on #{QUAL_DYING_TRACE}/trace " \
+            "#{QUAL_DYING_TRACE}/per_cpu/cpu127/stats /sys/kernel/tracing/kprobe_profile",
+            timeout: 10, shell: :diagnostics
+          )
+        rescue StandardError => e
+          warn "scheduler dying pre-cleanup snapshot unavailable: #{e.message}"
+        end
+      end
       commands = [
         "ls -l #{QUAL_STATE}; " \
         'for name in population.log sctp.log tun.log exit sctp.exit tun.exit; do ' \
@@ -379,10 +621,25 @@ rescue StandardError => e
   raise if @qualification_completed
 
   warn "qualification failure diagnostics or cleanup unavailable: #{e.class}: #{e.message}"
+ensure
+  if @qualification_dying && !@qualification_dying[:released] && !@qualification_completed
+    begin
+      if machine.running?
+        qualification_release_dying(shell: :diagnostics)
+      else
+        warn 'scheduler diagnostic INCOMPLETE: guest unavailable for owned observer cleanup'
+      end
+    rescue StandardError => e
+      warn "scheduler diagnostic INCOMPLETE: #{e.message}"
+    end
+  end
 end
 
 it 'qualifies the exact predecessor at the declared task, CPU, age and memory envelope' do
   @qualification_completed = false
+  @qualification_dying = nil
+  @qualification_workload_started = false
+  @qualification_workload_drained = false
   # A wedged cgroup migration can also prevent post-failure shell diagnostics.
   # Capture watchdog stacks directly on the retained serial console: the boot
   # loglevel exposes the emergency header but suppresses default-level frames.
@@ -409,7 +666,9 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
   machine.fails("test -d /sys/module/#{forbidden_name}")
   machine.succeeds("insmod #{previous_module}")
   wait_for_patch(machine, previous_name, 1)
+  qualification_prepare_dying
 
+  @qualification_workload_started = true
   prepare_transition_state(machine)
   # The ordinary short test's five-minute entry must survive four hours
   # here. Keep the set timeout-enabled (and GC exercised by live churn),
@@ -496,7 +755,7 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
     puts "qualification predecessor=#{previous_name} tasks=#{QUALIFICATION_TASKS} cpus=#{QUALIFICATION_CPUS} age=#{age}"
     break if age >= QUALIFICATION_AGE_SECONDS
   end
-  qualification_hotplug(phase: 'pre-transition')
+  qualification_observe_dying { qualification_hotplug(phase: 'pre-transition') }
   qualification_failed_activation(previous_name) if QUALIFICATION_FAILURE_RETENTION
   qualification_trace_start
   before = qualification_population
@@ -548,6 +807,8 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
     "{ cat #{QUAL_STATE}/population; exit 1; }"
   )
   stop_stress(machine)
+  @qualification_workload_drained = true
+  qualification_release_dying
   consume_transition_state(machine)
   machine.succeeds('ip link del klp_qual_tap')
   groups.each { |group| machine.succeeds("rmdir #{group}") }
