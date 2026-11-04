@@ -61,4 +61,33 @@ RSpec.describe OsVm::MachineLog do
       expect(output).to include('COREDUMP: false')
     end
   end
+
+  it 'records fixed launch fields and explicit omissions without unknown fields' do
+    with_tmpdir do |dir|
+      path = File.join(dir, 'machine.log')
+      log = described_class.new(path)
+      log.launch(pid: 123, qemu: '/nix/store/qemu', password: 'SECRET')
+      log.close
+      output = File.read(path)
+      expect(output).to include('ACTION: qemu-launch', 'PID: 123', 'KERNEL: unavailable', 'OTHER_ARGUMENTS: omitted')
+      expect(output).not_to include('SECRET', 'password')
+    end
+  end
+
+  it 'records only bounded fixed host facts or a fixed unavailability reason' do
+    with_tmpdir do |dir|
+      path = File.join(dir, 'machine.log')
+      log = described_class.new(path)
+      log.boot_wait_failure(
+        pid: 123, state: 'S', secret: 'SECRET',
+        tasks: Array.new(40) { |index| { tid: index, state: 'S', wchan: nil, secret: 'SECRET' } }
+      )
+      log.boot_wait_failure(unavailable: :identity_changed)
+      log.close
+      output = File.read(path)
+      expect(output.lines.grep(/^TASK: /).length).to eq(32)
+      expect(output).to include('TASK_LIMIT: 32', 'UNAVAILABLE: identity_changed', 'EXE: unavailable')
+      expect(output).not_to include('SECRET', 'secret')
+    end
+  end
 end

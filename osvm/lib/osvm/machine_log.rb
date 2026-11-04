@@ -42,6 +42,33 @@ module OsVm
       end
     end
 
+    def launch(fields)
+      log do |io|
+        io.puts('ACTION: qemu-launch')
+        %i[pid start_time_ticks qemu kernel initrd system squashfs memory_mib cpus cores threads sockets boot_mode].each do |key|
+          io.puts("#{key.to_s.upcase}: #{fields[key] || 'unavailable'}")
+        end
+        io.puts('OTHER_ARGUMENTS: omitted')
+      end
+    end
+
+    def boot_wait_failure(fields)
+      log do |io|
+        io.puts('ACTION: boot-wait-failure')
+        if fields[:unavailable]
+          io.puts("UNAVAILABLE: #{fields[:unavailable]}")
+        else
+          %i[pid start_time_ticks exe state utime_ticks stime_ticks rss_pages threads].each do |key|
+            io.puts("#{key.to_s.upcase}: #{fields[key] || 'unavailable'}")
+          end
+          io.puts('TASK_LIMIT: 32')
+          fields.fetch(:tasks).first(32).each do |task|
+            io.puts("TASK: #{task[:tid]} #{task[:state]} #{task[:wchan] || 'unavailable'}")
+          end
+        end
+      end
+    end
+
     def console_wait_begin(regex)
       log_begin do |io|
         io.puts('ACTION: console-wait')

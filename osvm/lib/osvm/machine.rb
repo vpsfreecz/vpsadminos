@@ -19,6 +19,8 @@ module OsVm
     # Process-wide collision registry; all access is serialized by the mutex.
     SOCKET_HASH_IDENTITIES = {} # rubocop:disable Style/MutableConstant
     SOCKET_HASH_MUTEX = Mutex.new
+    BOOT_OBSERVATION_TIMEOUT = 10
+    BOOT_INPUT_PATH = %r{\A/nix/store/[0-9abcdfghijklmnpqrsvwxyz]{32}-[A-Za-z0-9+._-]+(?:/[A-Za-z0-9+._-]+)*\z}
 
     # Owns all wait and signal operations for one QEMU child. A nonblocking
     # wait is always performed before pending signals are sent. If the child
@@ -286,12 +288,19 @@ module OsVm
             # deadline. Publish running before starting the reaper: an
             # immediately exiting QEMU may otherwise clear the state before
             # this thread incorrectly republishes it as live.
+            command = nil
+            observation_deadline = nil
             Thread.handle_interrupt(TimeoutError => :never) do
+              command = qemu_command(kernel_params:)
               started_qemu_pid = Process.spawn(
-                *qemu_command(kernel_params:),
+                *command,
                 **qemu_kwargs
               )
               @qemu_pid = started_qemu_pid
+              # The child is not yet reapable by our reaper, so this bounded
+              # identity read cannot mistake a reused PID for the spawned child.
+              observation_deadline = [monotonic_deadline(BOOT_OBSERVATION_TIMEOUT), deadline].compact.min
+              @boot_process_identity = spawned_boot_process_identity(started_qemu_pid, deadline: observation_deadline)
               started_qemu_reaper = run_qemu_reaper(started_qemu_pid)
               @qemu_reaper = started_qemu_reaper
               qemu_write&.close
@@ -301,6 +310,7 @@ module OsVm
               started_qemu_reaper&.start
             end
 
+            record_boot_launch(command, started_qemu_pid, deadline: observation_deadline)
             self.wait_for_boot(deadline:, timeout_message:) if wait_for_boot
             self
           end
@@ -455,10 +465,14 @@ module OsVm
     # Wait until the system has booted
     # @param timeout [Integer]
     def wait_for_boot(timeout: @default_timeout, deadline: nil, timeout_message: nil)
+      identity = @boot_process_identity
       options = { timeout: }
       options[:deadline] = deadline if deadline
       options[:timeout_message] = timeout_message if timeout_message
       current_shell.wait(**options)
+    rescue StandardError
+      record_boot_wait_failure(identity)
+      raise
     end
 
     # Execute a command
@@ -741,6 +755,158 @@ module OsVm
     attr_reader :config, :tmpdir, :sockdir, :qemu_pid, :qemu_read, :qemu_reaper,
                 :console_thread, :shell_instances, :log, :virtiofsd_pids, :shared_dir,
                 :hash_base, :shared_filesystems
+
+    def boot_input_path(value)
+      value if value.is_a?(String) && BOOT_INPUT_PATH.match?(value) && !value.split('/').include?('..')
+    end
+
+    def boot_option(command, option)
+      values = command.each_cons(2).filter_map { |key, value| value if key == option }
+      values.first if values.length == 1
+    end
+
+    def boot_positive_integer(value)
+      value.to_i if value.is_a?(String) && /\A[1-9][0-9]{0,9}\z/.match?(value)
+    end
+
+    def record_boot_launch(command, pid, deadline: nil)
+      timeout = deadline ? [BOOT_OBSERVATION_TIMEOUT, deadline - monotonic_now].min : BOOT_OBSERVATION_TIMEOUT
+      return if timeout <= 0
+
+      ::Timeout.timeout(timeout) do
+        init = boot_option(command, '-append').to_s.split.grep(/\Ainit=/)
+        if init.length == 1 && init.first.end_with?('/init')
+          system = init.first.delete_prefix('init=').delete_suffix('/init')
+        end
+        topology = boot_option(command, '-smp').to_s.split(',')
+        squashfs = command.each_cons(2).filter_map do |key, value|
+          next unless key == '-drive'
+
+          value[/\Aindex=0,id=drive1,file=(.+),readonly=on,media=cdrom,format=raw,if=virtio\z/, 1]
+        end
+        fields = {
+          pid:, start_time_ticks: @boot_process_identity&.fetch(:start_time_ticks),
+          qemu: boot_input_path(command.first), kernel: boot_input_path(boot_option(command, '-kernel')),
+          initrd: boot_input_path(boot_option(command, '-initrd')), system: boot_input_path(system),
+          squashfs: squashfs.length == 1 ? boot_input_path(squashfs.first) : nil,
+          memory_mib: boot_positive_integer(boot_option(command, '-m')),
+          boot_mode: command.include?('-kernel') ? 'direct' : 'firmware'
+        }
+        %w[cpus cores threads sockets].each do |key|
+          values = topology.grep(/\A#{key}=/)
+          fields[key.to_sym] = boot_positive_integer(values.first.delete_prefix("#{key}=")) if values.length == 1
+        end
+        log.launch(fields)
+      end
+    rescue TimeoutError
+      # An existing startup deadline still owns rollback and must propagate.
+      raise
+    rescue StandardError
+      # Observation must never roll back an otherwise successful spawn.
+      nil
+    end
+
+    def with_boot_process(pid)
+      File.open("/proc/#{pid}", File::RDONLY) do |directory|
+        # Pin this proc inode: a numeric PID reused during collection must not
+        # redirect subsequent reads to another process.
+        yield "/proc/self/fd/#{directory.fileno}"
+      end
+    end
+
+    def boot_process_stat(directory)
+      text = File.read("#{directory}/stat", 4096)
+      fields = text.rpartition(') ').last.split
+      raise ArgumentError unless %w[R S D Z T t X x K W P I].include?(fields.fetch(0))
+
+      {
+        pid: Integer(text.split(' ', 2).first, 10), ppid: Integer(fields.fetch(1), 10),
+        state: fields.fetch(0), utime_ticks: Integer(fields.fetch(11), 10),
+        stime_ticks: Integer(fields.fetch(12), 10), threads: Integer(fields.fetch(17), 10),
+        start_time_ticks: Integer(fields.fetch(19), 10), rss_pages: Integer(fields.fetch(21), 10)
+      }
+    end
+
+    def spawned_boot_process_identity(pid, deadline: nil)
+      # OsVm::TimeoutError is masked until reaper handoff. Use a distinct local
+      # timeout for this read, leaving any pending startup timeout untouched.
+      # Reserve part of the shared observation budget for the launch record.
+      timeout = BOOT_OBSERVATION_TIMEOUT * 0.9
+      timeout = [timeout, deadline - monotonic_now].min if deadline
+      return if timeout <= 0
+
+      ::Timeout.timeout(timeout) do
+        with_boot_process(pid) do |directory|
+          stat = boot_process_stat(directory)
+          return { pid:, start_time_ticks: stat[:start_time_ticks] }.freeze if stat[:pid] == pid && stat[:ppid] == Process.pid
+        end
+      end
+      nil
+    rescue TimeoutError
+      raise
+    rescue StandardError
+      nil
+    end
+
+    def checked_boot_process_stat(directory, identity)
+      stat = boot_process_stat(directory)
+      if stat[:pid] != identity[:pid] || stat[:ppid] != Process.pid || stat[:start_time_ticks] != identity[:start_time_ticks]
+        [:identity_changed, nil]
+      elsif %w[Z X x].include?(stat[:state])
+        [:exited, nil]
+      else
+        [:available, stat]
+      end
+    end
+
+    def boot_host_snapshot(identity)
+      return { unavailable: :identity_unavailable } unless identity
+
+      with_boot_process(identity[:pid]) do |directory|
+        status, stat = checked_boot_process_stat(directory, identity)
+        return { unavailable: status } unless stat
+
+        exe = boot_input_path(File.readlink("#{directory}/exe"))
+        status, current = checked_boot_process_stat(directory, identity)
+        return { unavailable: status } unless current
+
+        tasks = []
+        Dir.open("#{directory}/task") do |entries|
+          entries.each_child.take(32).each do |tid|
+            status, current = checked_boot_process_stat(directory, identity)
+            return { unavailable: status } unless current
+            next unless /\A[0-9]+\z/.match?(tid)
+
+            task = boot_process_stat("#{directory}/task/#{tid}")
+            wchan = File.read("#{directory}/task/#{tid}/wchan", 128).strip
+            tasks << { tid: tid.to_i, state: task[:state], wchan: /\A[A-Za-z0-9_]+\z/.match?(wchan) ? wchan : nil }
+          end
+        end
+        status, current = checked_boot_process_stat(directory, identity)
+        return { unavailable: status } unless current
+
+        stat.merge(exe:, tasks:)
+      end
+    end
+
+    def record_boot_wait_failure(identity)
+      # This is additional bounded failure evidence, not another boot wait or
+      # a guest command. Never log exception text or replace the primary error.
+      ::Timeout.timeout(BOOT_OBSERVATION_TIMEOUT) do
+        snapshot = begin
+          ::Timeout.timeout(BOOT_OBSERVATION_TIMEOUT * 0.9) { boot_host_snapshot(identity) }
+        rescue ::Timeout::Error
+          { unavailable: :collection_timeout }
+        rescue Errno::ENOENT, Errno::ESRCH
+          { unavailable: :proc_entry_missing }
+        rescue StandardError
+          { unavailable: :read_error }
+        end
+        log.boot_wait_failure(snapshot)
+      end
+    rescue StandardError
+      nil
+    end
 
     def monotonic_deadline(timeout)
       monotonic_now + timeout
