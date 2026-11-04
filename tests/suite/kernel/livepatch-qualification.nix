@@ -21,7 +21,8 @@ import ../../make-template.nix (
         cpus = 128;
         memory = 16384;
         tasks = 100000;
-        ageSeconds = 14400;
+        # Temporary diagnostics; restore 14400 for final four-hour qualification.
+        ageSeconds = 300;
       };
       low-memory = {
         cpus = 8;
