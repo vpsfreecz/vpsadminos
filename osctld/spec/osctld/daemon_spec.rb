@@ -31,6 +31,219 @@ RSpec.describe OsCtld::Daemon do
     end
   end
 
+  describe '#run_shutdown' do
+    let(:daemon) do
+      described_class.allocate.tap do |d|
+        d.instance_variable_set(:@shutdown_mutex, Mutex.new)
+        d.instance_variable_set(:@shutdown_cv, ConditionVariable.new)
+      end
+    end
+    let(:operation_threads) { [] }
+    let(:operation_gates) { [] }
+    let(:joined) { Queue.new }
+    let(:marker_dir) { Dir.mktmpdir('daemon-shutdown-spec-') }
+
+    def marker = OsCtld::RunState::SHUTDOWN_MARKER
+
+    def operation_gate
+      Queue.new.tap { |gate| operation_gates << gate }
+    end
+
+    def start_operation(&block)
+      result = Queue.new
+      thread = Thread.new do
+        result << daemon.run_shutdown(&block)
+      rescue Exception => e # rubocop:disable Lint/RescueException -- Preserve interruption and cleanup outcomes.
+        result << e
+      end
+      operation_threads << thread
+      [result, thread]
+    end
+
+    def nonlocal_shutdown_exit
+      daemon.run_shutdown { return :not_completed }
+    end
+
+    before do
+      stub_const('OsCtld::RunState::SHUTDOWN_MARKER', File.join(marker_dir, 'shutdown'))
+      # osctld runs as root and can reopen its mode-000 marker. Emulate only
+      # that privilege for this temporary fixture, preserving the mode tested.
+      allow(File).to receive(:new).and_wrap_original do |method, path, *args|
+        if path == OsCtld::RunState::SHUTDOWN_MARKER && File.exist?(path)
+          mode = File.stat(path).mode & 0o777
+          File.chmod(mode | 0o200, path)
+        end
+        begin
+          method.call(path, *args)
+        ensure
+          File.chmod(mode, path) if mode
+        end
+      end
+      allow(daemon.instance_variable_get(:@shutdown_cv)).to receive(:wait).and_wrap_original do |method, mutex|
+        joined << :waiting
+        method.call(mutex)
+      end
+    end
+
+    after do
+      daemon.abort_shutdown if operation_threads.any?(&:alive?)
+      operation_gates.each { |gate| gate << :release }
+      joined_threads = operation_threads.map { |thread| !thread.join(5).nil? }
+      FileUtils.remove_entry(marker_dir)
+      raise 'daemon operation fixture left a thread alive' unless joined_threads.all?
+    end
+
+    it 'preserves pending and confirmed marker modes and resumes from either after restart' do
+      expect(daemon.shutdown?).to be(false)
+      daemon.begin_shutdown
+      expect(daemon.shutdown?).to be(true)
+      expect(File.stat(marker).mode & 0o777).to eq(0)
+      restarted = described_class.allocate
+      restarted.instance_variable_set(:@shutdown_mutex, Mutex.new)
+      restarted.instance_variable_set(:@shutdown_cv, ConditionVariable.new)
+      expect(restarted.run_shutdown { :empty_pool_success }).to eq(:empty_pool_success)
+      expect(File.stat(marker).mode & 0o777).to eq(0o100)
+      expect(daemon.run_shutdown { :resumed_confirmed }).to eq(:resumed_confirmed)
+      daemon.abort_shutdown
+      expect(daemon.shutdown?).to be(false)
+      expect { daemon.confirm_shutdown }.to raise_error(OsCtld::CommandFailed, 'shutdown aborted')
+      expect(daemon.shutdown?).to be(false)
+      expect(daemon.run_shutdown { :fresh_request }).to eq(:fresh_request)
+      expect(daemon.abort_shutdown?).to be(false)
+      expect(File.stat(marker).mode & 0o777).to eq(0o100)
+    end
+
+    it 'publishes a failure to create the pending marker and permits a later request' do
+      error = IOError.new('marker fixture failure')
+      allow(File).to receive(:new).and_call_original
+      allow(File).to receive(:new).with(marker, 'w', 0o000).and_raise(error)
+      expect { daemon.run_shutdown { raise 'must not execute' } }.to(raise_error { |e| expect(e).to equal(error) })
+      allow(File).to receive(:new).with(marker, 'w', 0o000).and_call_original
+      expect(daemon.run_shutdown { :later }).to eq(:later)
+    end
+
+    it 'shares a confirmation error and retains pending restart intent' do
+      entered = Queue.new
+      release = operation_gate
+      error = IOError.new('confirmation fixture failure')
+      allow(File).to receive(:chmod).with(0o100, marker).and_raise(error)
+      owner_result, = start_operation do
+        entered << :running
+        pop_with_timeout(release, timeout: 5)
+        :success
+      end
+      pop_with_timeout(entered, timeout: 5)
+      joined_result, = start_operation { raise 'duplicate must not execute' }
+      pop_with_timeout(joined, timeout: 5)
+      release << :finish
+      expect(pop_with_timeout(owner_result, timeout: 5)).to equal(error)
+      expect(pop_with_timeout(joined_result, timeout: 5)).to equal(error)
+      expect(File.stat(marker).mode & 0o777).to eq(0)
+    end
+
+    [false, true].each do |failed|
+      it "retains a captured outcome across a later operation, failed #{failed}" do
+        entered = Queue.new
+        finish_owner = operation_gate
+        waiter_paused = Queue.new
+        resume_waiter = operation_gate
+        first_error = RuntimeError.new('first operation fixture failure')
+        first_result = Object.new
+        cv = daemon.instance_variable_get(:@shutdown_cv)
+        allow(cv).to receive(:wait).and_wrap_original do |method, mutex|
+          joined << :waiting
+          method.call(mutex)
+          # Delay a real awakened waiter while letting a subsequent request
+          # acquire the guard. Return with the CV's normal mutex ownership.
+          mutex.unlock
+          begin
+            waiter_paused << :paused
+            pop_with_timeout(resume_waiter, timeout: 5)
+          ensure
+            mutex.lock
+          end
+        end
+        owner_result, = start_operation do
+          entered << :running
+          pop_with_timeout(finish_owner, timeout: 5)
+          raise first_error if failed
+
+          first_result
+        end
+        pop_with_timeout(entered, timeout: 5)
+        joined_result, = start_operation { raise 'duplicate must not execute' }
+        pop_with_timeout(joined, timeout: 5)
+        finish_owner << :finish
+        expected = failed ? first_error : first_result
+        expect(pop_with_timeout(owner_result, timeout: 5)).to equal(expected)
+        pop_with_timeout(waiter_paused, timeout: 5)
+        expect(daemon.run_shutdown { :new_result }).to eq(:new_result)
+        resume_waiter << :wake
+        expect(pop_with_timeout(joined_result, timeout: 5)).to equal(expected)
+      end
+    end
+
+    it 'orders completion before an abort waiting on the confirmation guard' do
+      entered = Queue.new
+      finish_owner = operation_gate
+      confirming = Queue.new
+      finish_confirmation = operation_gate
+      abort_entered = Queue.new
+      aborted = Queue.new
+      allow(File).to receive(:chmod).with(0o100, marker).and_wrap_original do |method, *args|
+        confirming << :confirming
+        pop_with_timeout(finish_confirmation, timeout: 5)
+        method.call(*args)
+      end
+      owner_result, = start_operation do
+        entered << :running
+        pop_with_timeout(finish_owner, timeout: 5)
+        :success
+      end
+      pop_with_timeout(entered, timeout: 5)
+      joined_result, = start_operation { raise 'duplicate must not execute' }
+      pop_with_timeout(joined, timeout: 5)
+      finish_owner << :finish
+      pop_with_timeout(confirming, timeout: 5)
+      operation_threads << Thread.new do
+        abort_entered << :attempting
+        daemon.abort_shutdown
+        aborted << :done
+      end
+      pop_with_timeout(abort_entered, timeout: 5)
+      expect(aborted).to be_empty
+      finish_confirmation << :finish
+      expect(pop_with_timeout(owner_result, timeout: 5)).to eq(:success)
+      expect(pop_with_timeout(joined_result, timeout: 5)).to eq(:success)
+      expect(pop_with_timeout(aborted, timeout: 5)).to eq(:done)
+      expect(daemon.shutdown?).to be(false)
+    end
+
+    it 'wakes joiners with the original interruption and releases admission' do
+      entered = Queue.new
+      release = operation_gate
+      error = Interrupt.new('owner fixture interruption')
+      owner_result, owner_thread = start_operation do
+        entered << :running
+        pop_with_timeout(release, timeout: 5)
+      end
+      pop_with_timeout(entered, timeout: 5)
+      joined_result, = start_operation { raise 'duplicate must not execute' }
+      pop_with_timeout(joined, timeout: 5)
+      owner_thread.raise(error)
+      expect(pop_with_timeout(owner_result, timeout: 5)).to equal(error)
+      expect(pop_with_timeout(joined_result, timeout: 5)).to equal(error)
+      expect(File.stat(marker).mode & 0o777).to eq(0)
+      expect(daemon.run_shutdown { :later }).to eq(:later)
+    end
+
+    it 'does not publish a nonlocal owner exit as success or strand admission' do
+      expect { nonlocal_shutdown_exit }.to raise_error(OsCtld::CommandFailed, 'shutdown aborted')
+      expect(File.stat(marker).mode & 0o777).to eq(0)
+      expect(daemon.run_shutdown { :later }).to eq(:later)
+    end
+  end
+
   describe '#stop' do
     it 'drains client threads before shutting down command dependencies' do
       daemon = described_class.allocate

@@ -5,6 +5,9 @@
 require 'stringio'
 require 'osctld/exceptions'
 require 'osctld/command'
+require 'osctld/manipulable'
+require 'osctld/db/pools'
+require 'osctld/daemon'
 
 module OsCtld
   module Commands
@@ -45,6 +48,12 @@ RSpec.describe 'heavy system commands' do
         def self.get; end
       end)
       allow(daemon_class).to receive(:get).and_return(daemon)
+      allow(daemon).to receive(:run_shutdown) do |&block|
+        daemon.begin_shutdown
+        result = block.call
+        daemon.confirm_shutdown
+        result
+      end
       pool_export = stub_const('OsCtld::Commands::Pool::Export', Class.new do
         def self.run(**); end
       end)
@@ -177,6 +186,355 @@ RSpec.describe 'heavy system commands' do
       expect { described_class.run }
         .to raise_error(OsCtld::CommandFailed, 'shutdown aborted')
       expect(pool.manipulated_by).to be_nil
+    end
+  end
+
+  describe 'shutdown with real pool manipulation locks' do
+    let(:daemon) do
+      OsCtld::Daemon.allocate.tap do |d|
+        d.instance_variable_set(:@shutdown_mutex, Mutex.new)
+        d.instance_variable_set(:@shutdown_cv, ConditionVariable.new)
+      end
+    end
+    let(:pool) { OsCtld::Pool.new('tank') }
+
+    def shutdown_gate
+      Queue.new.tap { |q| @shutdown_gates << q }
+    end
+
+    def start_shutdown(command, keep_alive: false)
+      result = Queue.new
+      alive = shutdown_gate if keep_alive
+      thread = Thread.new do
+        result << command.base_execute
+      rescue Exception => e # rubocop:disable Lint/RescueException -- Preserve interruption and cleanup outcomes.
+        result << e
+      ensure
+        pop_with_timeout(alive, timeout: 5) if alive
+      end
+      @shutdown_threads << thread
+      [result, thread]
+    end
+
+    before do
+      @shutdown_gates = []
+      @shutdown_threads = []
+      @joined = Queue.new
+      @marker_dir = Dir.mktmpdir('osctld-shutdown-spec-')
+      stub_const('OsCtld::RunState::SHUTDOWN_MARKER', File.join(@marker_dir, 'shutdown'))
+      # osctld runs as root and can reopen its mode-000 marker. Emulate only
+      # that privilege for this temporary fixture, preserving the mode tested.
+      allow(File).to receive(:new).and_wrap_original do |method, path, *args|
+        if path == OsCtld::RunState::SHUTDOWN_MARKER && File.exist?(path)
+          mode = File.stat(path).mode & 0o777
+          File.chmod(mode | 0o200, path)
+        end
+        begin
+          method.call(path, *args)
+        ensure
+          File.chmod(mode, path) if mode
+        end
+      end
+      # External work is inert; locks, snapshots, nested export and removal are real.
+      stub_const('OsCtld::Pool', Class.new do
+        include OsCtld::Manipulable
+
+        attr_reader :name
+
+        def initialize(name)
+          @name = name
+          init_manipulable
+        end
+
+        def id = name
+        def pool = self
+        def manipulation_resource = ['pool', name]
+        def exclusively = yield
+        def disable; end
+        def begin_export; end
+        def begin_stop; end
+        def autostop_and_wait(**); end
+        def all_stop; end
+        def abort_export? = false
+      end)
+      stub_const('OsCtld::DB::Pools', Class.new(OsCtld::DB::List))
+      %w[Containers Users Groups Repositories IdRanges].each do |name|
+        registry = stub_const("OsCtld::DB::#{name}", Class.new do
+          def self.get = []
+        end)
+        registry.define_singleton_method(:root) { |_pool| nil } if name == 'Groups'
+      end
+      stub_const('OsCtld::Hook', Class.new do
+        def self.run(*); end
+      end)
+      stub_const('OsCtld::History', Class.new do
+        def self.close(*); end
+      end)
+      stub_const('OsCtld::SendReceive', Module.new do
+        def self.deploy; end
+      end)
+      stub_const('OsCtld::Eventd', Module.new do
+        def self.report(*); end
+      end)
+      allow(OsCtld::Daemon).to receive(:get).and_return(daemon)
+      allow(daemon.instance_variable_get(:@shutdown_cv)).to receive(:wait).and_wrap_original do |method, mutex|
+        @joined << Thread.current
+        method.call(mutex)
+      end
+      allow(OsCtld::Commands::Pool::Export).to receive(:run).and_call_original
+      OsCtld::DB::Pools.add(pool)
+    end
+
+    after do
+      daemon.abort_shutdown if @shutdown_threads.any?(&:alive?)
+      @shutdown_gates.each { |gate| gate << :release }
+      joined = @shutdown_threads.map { |thread| !thread.join(5).nil? }
+      FileUtils.remove_entry(@marker_dir)
+      raise 'shutdown fixture left a thread alive' unless joined.all?
+    end
+
+    it 'completes a single shutdown and releases the nested export outer hold' do
+      command = OsCtld::Commands::Self::Shutdown.new({}, id: 101)
+      expect(command.base_execute).to eq(status: true, output: nil)
+      expect(OsCtld::DB::Pools.get).to be_empty
+      expect(OsCtld::Commands::Pool::Export).to have_received(:run).once
+      expect(pool.manipulated_by).to be_nil
+      expect(File.stat(OsCtld::RunState::SHUTDOWN_MARKER).mode & 0o777).to eq(0o100)
+    end
+
+    [['setup', 'client'], ['client', 'setup'], ['client', 'duplicate client']].each do |owner_kind, joiner_kind|
+      it "joins #{joiner_kind} to #{owner_kind} before snapshots and through both export tails" do
+        owner = OsCtld::Commands::Self::Shutdown.new({ cli: owner_kind }, id: 201)
+        joiner = OsCtld::Commands::Self::Shutdown.new({ cli: joiner_kind }, id: 202)
+        import_holder = Struct.new(:manipulation_holder).new('pool_import')
+        retry_entered = Queue.new
+        resume_owner = shutdown_gate
+        tail_entered = Queue.new
+        deploy_gate = shutdown_gate
+        hook_gate = shutdown_gate
+        snapshot_threads = []
+        allow(OsCtld::DB::Pools).to receive(:get).and_wrap_original do |method, *args|
+          snapshot_threads << Thread.current
+          method.call(*args)
+        end
+        allow(owner).to receive(:sleep) do |_seconds|
+          retry_entered << pool.manipulated_by
+          pop_with_timeout(resume_owner, timeout: 5)
+        end
+        allow(OsCtld::SendReceive).to receive(:deploy) do
+          tail_entered << :deploy
+          pop_with_timeout(deploy_gate, timeout: 5)
+        end
+        allow(OsCtld::Hook).to receive(:run) do |_pool, event|
+          next unless event == :post_export
+
+          tail_entered << :post_export
+          pop_with_timeout(hook_gate, timeout: 5)
+        end
+
+        pool.acquire_manipulation_lock(import_holder)
+        begin
+          owner_result, owner_thread = start_shutdown(owner, keep_alive: true)
+          expect(pop_with_timeout(retry_entered, timeout: 5)).to equal(import_holder)
+          joiner_result, joiner_thread = start_shutdown(joiner)
+          expect(pop_with_timeout(@joined, timeout: 5)).to equal(joiner_thread)
+          expect(snapshot_threads).not_to include(joiner_thread)
+          expect(OsCtld::Commands::Pool::Export).not_to have_received(:run)
+        ensure
+          pool.release_manipulation_lock if pool.manipulated_by.equal?(import_holder)
+        end
+        resume_owner << :retry
+        expect(pop_with_timeout(tail_entered, timeout: 5)).to eq(:deploy)
+        expect(OsCtld::DB::Pools.get).to be_empty
+        expect(owner_result).to be_empty
+        expect(joiner_result).to be_empty
+        expect(File.stat(OsCtld::RunState::SHUTDOWN_MARKER).mode & 0o777).to eq(0)
+        deploy_gate << :continue
+        expect(pop_with_timeout(tail_entered, timeout: 5)).to eq(:post_export)
+        expect(joiner_result).to be_empty
+        expect(File.stat(OsCtld::RunState::SHUTDOWN_MARKER).mode & 0o777).to eq(0)
+        hook_gate << :continue
+        result = pop_with_timeout(owner_result, timeout: 5)
+        expect(result).to eq(status: true, output: nil)
+        expect(pop_with_timeout(joiner_result, timeout: 5)).to equal(result)
+        expect(owner_thread).to be_alive
+        expect(pool.manipulated_by).to be_nil
+        expect(snapshot_threads).not_to include(joiner_thread)
+        expect(OsCtld::Commands::Pool::Export).to have_received(:run).once
+      end
+    end
+
+    %i[deploy post_export].each do |failure_at|
+      it "shares a #{failure_at} failure after removal and leaves pending restart intent" do
+        entered = Queue.new
+        release = shutdown_gate
+        error = RuntimeError.new('export tail fixture failure')
+        if failure_at == :deploy
+          allow(OsCtld::SendReceive).to receive(:deploy) do
+            entered << :tail
+            pop_with_timeout(release, timeout: 5)
+            raise error
+          end
+        else
+          allow(OsCtld::Hook).to receive(:run) do |_pool, event|
+            next unless event == :post_export
+
+            entered << :tail
+            pop_with_timeout(release, timeout: 5)
+            raise error
+          end
+        end
+        owner_result, owner_thread = start_shutdown(OsCtld::Commands::Self::Shutdown.new({}, id: 301), keep_alive: true)
+        pop_with_timeout(entered, timeout: 5)
+        joiner_result, = start_shutdown(OsCtld::Commands::Self::Shutdown.new({}, id: 302))
+        pop_with_timeout(@joined, timeout: 5)
+        expect(OsCtld::DB::Pools.get).to be_empty
+        expect(joiner_result).to be_empty
+        release << :continue
+        expect(pop_with_timeout(owner_result, timeout: 5)).to equal(error)
+        expect(pop_with_timeout(joiner_result, timeout: 5)).to equal(error)
+        expect(owner_thread).to be_alive
+        expect(pool.manipulated_by).to be_nil
+        expect(File.stat(OsCtld::RunState::SHUTDOWN_MARKER).mode & 0o777).to eq(0)
+        # A genuinely later request sees the live, empty DB and may finish.
+        expect(OsCtld::Commands::Self::Shutdown.run).to eq(status: true, output: nil)
+      end
+    end
+
+    [false, true].each do |partial|
+      it "shares abort while waiting for import with partial acquisition #{partial}" do
+        blocked = partial ? OsCtld::Pool.new('importing') : pool
+        OsCtld::DB::Pools.add(blocked) if partial
+        holder = Struct.new(:manipulation_holder).new('pool_import')
+        retry_entered = Queue.new
+        resume = shutdown_gate
+        owner = OsCtld::Commands::Self::Shutdown.new({}, id: 401)
+        allow(owner).to receive(:sleep) do |_seconds|
+          retry_entered << :retry
+          pop_with_timeout(resume, timeout: 5)
+        end
+        blocked.acquire_manipulation_lock(holder)
+        begin
+          owner_result, = start_shutdown(owner)
+          pop_with_timeout(retry_entered, timeout: 5)
+          joiner_result, = start_shutdown(OsCtld::Commands::Self::Shutdown.new({}, id: 402))
+          pop_with_timeout(@joined, timeout: 5)
+          expect(pool.manipulated_by).to equal(owner) if partial
+          daemon.abort_shutdown
+          expect(daemon.shutdown?).to be(false)
+          late_result, = start_shutdown(OsCtld::Commands::Self::Shutdown.new({}, id: 403))
+          pop_with_timeout(@joined, timeout: 5)
+          expect(daemon.abort_shutdown?).to be(true)
+          expect(daemon.shutdown?).to be(false)
+          resume << :abort
+          error = pop_with_timeout(owner_result, timeout: 5)
+          expect(error).to be_a(OsCtld::CommandFailed)
+          expect(error.message).to eq('shutdown aborted')
+          expect(pop_with_timeout(joiner_result, timeout: 5)).to equal(error)
+          expect(pop_with_timeout(late_result, timeout: 5)).to equal(error)
+          expect(blocked.manipulated_by).to equal(holder)
+          expect(pool.manipulated_by).to be_nil if partial
+          expect(daemon.shutdown?).to be(false)
+        ensure
+          blocked.release_manipulation_lock if blocked.manipulated_by.equal?(holder)
+        end
+      end
+    end
+
+    it 'rejects confirmation when abort arrives during the final post-export hook' do
+      entered = Queue.new
+      release = shutdown_gate
+      allow(OsCtld::Hook).to receive(:run) do |_pool, event|
+        next unless event == :post_export
+
+        entered << :tail
+        pop_with_timeout(release, timeout: 5)
+      end
+      owner_result, = start_shutdown(OsCtld::Commands::Self::Shutdown.new({}, id: 501))
+      pop_with_timeout(entered, timeout: 5)
+      joiner_result, = start_shutdown(OsCtld::Commands::Self::Shutdown.new({}, id: 502))
+      pop_with_timeout(@joined, timeout: 5)
+      daemon.abort_shutdown
+      expect(daemon.shutdown?).to be(false)
+      # The unchanged CLI writes restart intent before sending a request.
+      File.new(OsCtld::RunState::SHUTDOWN_MARKER, 'w', 0o000).close
+      release << :continue
+      error = pop_with_timeout(owner_result, timeout: 5)
+      expect(error).to be_a(OsCtld::CommandFailed)
+      expect(pop_with_timeout(joiner_result, timeout: 5)).to equal(error)
+      expect(pool.manipulated_by).to be_nil
+      expect(daemon.shutdown?).to be(false)
+      expect(OsCtld::Commands::Self::Shutdown.run).to eq(status: true, output: nil)
+    end
+
+    %i[pool container].each do |kind|
+      it "releases partial #{kind} acquisition when the next acquisition raises" do
+        error = RuntimeError.new('acquisition fixture failure')
+        second = OsCtld::Pool.new('second')
+        first = kind == :pool ? pool : OsCtld::Pool.new('first_container')
+        if kind == :pool
+          OsCtld::DB::Pools.add(second)
+        else
+          allow(OsCtld::DB::Containers).to receive(:get).and_return([first, second])
+        end
+        allow(second).to receive(:acquire_manipulation_lock).and_raise(error)
+        expect { OsCtld::Commands::Self::Shutdown.run }.to(raise_error { |e| expect(e).to equal(error) })
+        expect(pool.manipulated_by).to be_nil
+        expect(first.manipulated_by).to be_nil
+        expect(second.manipulated_by).to be_nil
+        expect(File.stat(OsCtld::RunState::SHUTDOWN_MARKER).mode & 0o777).to eq(0)
+      end
+    end
+
+    [false, true].each do |foreign_hold|
+      it "skips a container lock already released or transferred, foreign hold #{foreign_hold}" do
+        ct = OsCtld::Pool.new('container')
+        allow(OsCtld::DB::Containers).to receive(:get).and_return([ct])
+        transfer = shutdown_gate
+        acquired = Queue.new
+        release = shutdown_gate
+        foreign = Object.new
+        if foreign_hold
+          @shutdown_threads << Thread.new do
+            pop_with_timeout(transfer, timeout: 5)
+            ct.acquire_manipulation_lock(foreign)
+            acquired << :held
+            begin
+              pop_with_timeout(release, timeout: 5)
+            ensure
+              ct.release_manipulation_lock
+            end
+          end
+        end
+        error = RuntimeError.new('export fixture failure')
+        allow(pool).to receive(:begin_export) do
+          ct.release_manipulation_lock
+          if foreign_hold
+            transfer << :transfer
+            pop_with_timeout(acquired, timeout: 5)
+          end
+          raise error
+        end
+        expect { OsCtld::Commands::Self::Shutdown.run }.to(raise_error { |e| expect(e).to equal(error) })
+        expect(pool.manipulated_by).to be_nil
+        expect(ct.manipulated_by).to equal(foreign_hold ? foreign : nil)
+      end
+    end
+
+    [false, true].each do |primary_failure|
+      it "finishes all cleanup and preserves the original error, primary failure #{primary_failure}" do
+        original = RuntimeError.new('export fixture failure')
+        cleanup = RuntimeError.new('cleanup fixture failure')
+        allow(OsCtld::SendReceive).to receive(:deploy).and_raise(original) if primary_failure
+        allow(pool).to receive(:release_manipulation_lock).and_wrap_original do |method|
+          method.call
+          raise cleanup
+        end
+        expect { OsCtld::Commands::Self::Shutdown.run }
+          .to(raise_error { |e| expect(e).to equal(primary_failure ? original : cleanup) })
+        expect(pool.manipulated_by).to be_nil
+        expect(File.stat(OsCtld::RunState::SHUTDOWN_MARKER).mode & 0o777).to eq(0)
+      end
     end
   end
 

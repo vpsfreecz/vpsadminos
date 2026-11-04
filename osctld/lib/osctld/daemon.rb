@@ -88,6 +88,9 @@ module OsCtld
       @started_at = Time.now
       @initialized = false
       @stopping = false
+      @shutdown_mutex = Mutex.new
+      @shutdown_cv = ConditionVariable.new
+      @shutdown_operation = nil
 
       Thread.abort_on_exception = true
       CGroup.init(setup_host_mount: true)
@@ -248,35 +251,99 @@ module OsCtld
       RunState::DAEMON_HOOK_DIR
     end
 
+    # Internal command entry point. Joined callers retain this operation's
+    # outcome even if a later request starts before they wake up.
+    def run_shutdown(&block)
+      result = error = operation = nil
+      owner = completed = false
+
+      # Admission and publication must survive interruption; resource work and
+      # its lock cleanup run outside the guard.
+      Thread.handle_interrupt(Exception => :never) do
+        @shutdown_mutex.synchronize do
+          if @shutdown_operation && !@shutdown_operation[:done]
+            operation = @shutdown_operation
+          else
+            owner = true
+            operation = { done: false, result: nil, error: nil }
+            @shutdown_operation = operation
+            begin_shutdown_locked
+          end
+        end
+
+        if owner
+          result = Thread.handle_interrupt(Exception => :immediate, &block)
+          completed = true
+        else
+          Thread.handle_interrupt(Exception => :on_blocking) do
+            @shutdown_mutex.synchronize do
+              @shutdown_cv.wait(@shutdown_mutex) until operation[:done]
+            end
+          end
+          result = operation[:result]
+          error = operation[:error]
+        end
+      rescue Exception => e # rubocop:disable Lint/RescueException -- Publish interruptions to joined callers too.
+        error = e
+      ensure
+        if owner
+          error ||= CommandFailed.new('shutdown aborted') unless completed
+
+          @shutdown_mutex.synchronize do
+            if @abort_shutdown
+              # A joined CLI may have recreated its pre-request marker
+              # after abort. It must not restore pending restart intent.
+              remove_shutdown_marker
+              error ||= CommandFailed.new('shutdown aborted')
+            end
+            if error.nil?
+              confirm_shutdown_locked
+            end
+          rescue Exception => e # rubocop:disable Lint/RescueException -- Preserve interruption and cleanup outcomes.
+            error ||= e
+          ensure
+            operation[:result] = result
+            operation[:error] = error
+            operation[:done] = true
+            @shutdown_cv.broadcast
+          end
+
+          # A nonlocal block exit is not successful completion either.
+          raise error if !completed && $!.nil?
+        end
+      end
+
+      raise error if error
+
+      result
+    end
+
     def begin_shutdown
-      @abort_shutdown = false
-      File.new(RunState::SHUTDOWN_MARKER, 'w', 0o000).close
+      @shutdown_mutex.synchronize { begin_shutdown_locked }
     end
 
     def abort_shutdown
-      @abort_shutdown = true
+      @shutdown_mutex.synchronize do
+        @abort_shutdown = true
 
-      begin
-        File.unlink(RunState::SHUTDOWN_MARKER)
-      rescue Errno::ENOENT
-        # ignore
+        remove_shutdown_marker
       end
     end
 
     def confirm_shutdown
-      unless File.exist?(RunState::SHUTDOWN_MARKER)
-        File.new(RunState::SHUTDOWN_MARKER, 'w', 0o100).close
-      end
+      @shutdown_mutex.synchronize do
+        raise CommandFailed, 'shutdown aborted' if @abort_shutdown
 
-      File.chmod(0o100, RunState::SHUTDOWN_MARKER)
+        confirm_shutdown_locked
+      end
     end
 
     def shutdown?
-      File.exist?(RunState::SHUTDOWN_MARKER)
+      @shutdown_mutex.synchronize { File.exist?(RunState::SHUTDOWN_MARKER) }
     end
 
     def abort_shutdown?
-      @abort_shutdown
+      @shutdown_mutex.synchronize { @abort_shutdown }
     end
 
     def log_type
@@ -284,6 +351,25 @@ module OsCtld
     end
 
     protected
+
+    def begin_shutdown_locked
+      @abort_shutdown = false
+      File.new(RunState::SHUTDOWN_MARKER, 'w', 0o000).close
+    end
+
+    def remove_shutdown_marker
+      File.unlink(RunState::SHUTDOWN_MARKER)
+    rescue Errno::ENOENT
+      # ignore
+    end
+
+    def confirm_shutdown_locked
+      unless File.exist?(RunState::SHUTDOWN_MARKER)
+        File.new(RunState::SHUTDOWN_MARKER, 'w', 0o100).close
+      end
+
+      File.chmod(0o100, RunState::SHUTDOWN_MARKER)
+    end
 
     def run_pre_stop_hooks
       Hook.run(self, :pre_stop)
