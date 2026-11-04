@@ -166,10 +166,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.org" ];
-      sha256 = "0q3p89l2s8laj7vzh5x68wh6x9rb6gh3b6ar57lax73zl0zx3zhj";
+      sha256 = "1ygg9kl8whlwfg2h674s46x6dc6m158gi1c2zpr05vwipp7a5lcf";
       type = "gem";
     };
-    version = "1.3.2";
+    version = "1.3.3";
   };
   redcarpet = {
     groups = [ "default" ];
