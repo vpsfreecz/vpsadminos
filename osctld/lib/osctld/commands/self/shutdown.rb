@@ -5,21 +5,23 @@ module OsCtld
     handle :self_shutdown
 
     def execute
+      Daemon.get.run_shutdown { execute_shutdown }
+    end
+
+    protected
+
+    def execute_shutdown
+      grabbed_pools = []
+      grabbed_cts = []
       wall_msg =
         if opts[:wall]
           opts[:message] || 'System is shutting down'
         end
 
-      # Make sure that osctld crash/restart will not stop the shutdown
-      Daemon.get.begin_shutdown
-
       # Grab manipulation locks of all pools
-      grabbed_pools = grab_pools
+      grab_pools(grabbed_pools)
 
-      if check_abort?
-        release_grabbed(grabbed_pools)
-        error!('shutdown aborted')
-      end
+      check_abort!
 
       # Disable all pools
       DB::Pools.get.each do |pool|
@@ -29,13 +31,9 @@ module OsCtld
       check_abort!
 
       # Grab manipulation locks of all containers
-      grabbed_cts = grab_all_cts
+      grab_all_cts(grabbed_cts)
 
-      if check_abort?
-        release_grabbed(grabbed_cts)
-        release_grabbed(grabbed_pools)
-        error!('shutdown aborted')
-      end
+      check_abort!
 
       # Stop containers from all pools
       stop_pools = DB::Pools.get
@@ -57,20 +55,12 @@ module OsCtld
           pool.wait_for_autostop
         end
 
-        if check_abort?
-          release_grabbed(grabbed_cts)
-          release_grabbed(grabbed_pools)
-          error!('shutdown aborted')
-        end
+        check_abort!
       end
 
       # Export pools one by one
       DB::Pools.get.each do |pool|
-        if check_abort?
-          release_grabbed(grabbed_cts)
-          release_grabbed(grabbed_pools)
-          error!('shutdown aborted')
-        end
+        check_abort!
 
         progress("Exporting pool #{pool.name}")
 
@@ -85,18 +75,26 @@ module OsCtld
         )
       end
 
-      # Confirm the shutdown for anyone waiting for it, i.e. osctl shutdown
-      Daemon.get.confirm_shutdown
-
       ok
+    ensure
+      original_error = $!
+      cleanup_error = nil
+
+      # The operation, not the lifetime of its setup/client thread, owns these
+      # holds. Nested export may already have released some container locks.
+      Thread.handle_interrupt(Exception => :never) do
+        [grabbed_cts, grabbed_pools].each do |grabbed|
+          release_grabbed(grabbed)
+        rescue Exception => e # rubocop:disable Lint/RescueException -- Preserve interruption and cleanup outcomes.
+          cleanup_error ||= e
+        end
+      end
+      raise cleanup_error if cleanup_error && original_error.nil?
     end
 
-    protected
-
-    def grab_pools
+    def grab_pools(grabbed)
       progress('Grabbing pools')
       pools = DB::Pools.get
-      grabbed = []
 
       loop do
         break if check_abort?
@@ -105,8 +103,10 @@ module OsCtld
           break if check_abort?
 
           begin
-            pool.acquire_manipulation_lock(self)
-            grabbed << pool
+            Thread.handle_interrupt(Exception => :never) do
+              pool.acquire_manipulation_lock(self)
+              grabbed << pool
+            end
             true
           rescue ResourceLocked => e
             progress(e.message)
@@ -122,10 +122,9 @@ module OsCtld
       grabbed
     end
 
-    def grab_all_cts
+    def grab_all_cts(grabbed)
       progress('Grabbing all containers')
       cts = DB::Containers.get
-      grabbed = []
 
       loop do
         break if check_abort?
@@ -134,8 +133,10 @@ module OsCtld
           break if check_abort?
 
           begin
-            ct.acquire_manipulation_lock(self)
-            grabbed << ct
+            Thread.handle_interrupt(Exception => :never) do
+              ct.acquire_manipulation_lock(self)
+              grabbed << ct
+            end
             true
           rescue ResourceLocked => e
             progress(e.message)
@@ -152,10 +153,13 @@ module OsCtld
     end
 
     def release_grabbed(grabbed)
-      grabbed.each do |v|
-        # The locks may have already been released by Commands::Pool::Export
-        v.release_manipulation_lock if v.manipulated_by == self
+      error = nil
+      grabbed.reverse_each do |v|
+        v.release_manipulation_lock if v.manipulated_by.equal?(self)
+      rescue Exception => e # rubocop:disable Lint/RescueException -- Preserve interruption and cleanup outcomes.
+        error ||= e
       end
+      raise error if error
     end
 
     def check_abort!
