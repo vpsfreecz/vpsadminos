@@ -13,6 +13,8 @@ self: super: {
 
   ksvcmon = super.callPackage ../packages/ksvcmon { };
 
+  osctl-repo-server = super.callPackage ../packages/osctl-repo-server { };
+
   libfastjson = super.libfastjson.overrideAttrs (oldAttrs: {
     postPatch = (oldAttrs.postPatch or "") + ''
       substituteInPlace Makefile.am \

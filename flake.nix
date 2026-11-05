@@ -428,6 +428,7 @@
             template-impermanence-unstable =
               templateUnstableImpermanenceSystem.config.system.build.impermanenceTarball;
             ctptywrapper = pkgsWithOverlays.ctptywrapper;
+            osctl-repo-server = pkgsWithOverlays.osctl-repo-server;
             test-runner = import ./test-runner/nix/package.nix {
               pkgs = pkgsWithOverlays;
             };
@@ -573,6 +574,17 @@
               gotools
             ];
             shellHook = devShellPrompt "ctstartmenu";
+          };
+
+          osctl-repo-server = pkgsBase.mkShell {
+            name = "osctl-repo-server";
+            packages = with pkgsBase; [
+              go
+              stdenv.cc
+              pkg-config
+              nixfmt
+            ];
+            shellHook = devShellPrompt "osctl-repo-server";
           };
 
           converter = mkRubyBundlerShell {
