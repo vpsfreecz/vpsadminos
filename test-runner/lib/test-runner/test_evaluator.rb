@@ -80,6 +80,10 @@ module TestRunner
 
         m.destroy_disks if opts[:recreate_disks]
 
+        if m.is_a?(OsVm::VpsadminosMachine) && test_config['imageRepository']
+          m.image_repository_url = test_config.fetch('imageRepository').fetch('url')
+        end
+
         instance_variable_set(var, m)
 
         define_singleton_method(name) do

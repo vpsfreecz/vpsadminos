@@ -20,6 +20,13 @@ RSpec.describe OsCtld::Config do
       expect(config.enable_lock_registry?).to be(false)
       expect(config.writeout_dirtied_pages?).to be(true)
       expect(config.ct_wrapper).to eq('osctld-ct-wrapper')
+      expect(config.default_repository_url).to eq('https://images.vpsadminos.org')
+    end
+  end
+
+  it 'configures the initial repository for new pools without changing existing state' do
+    build_config('default_repository_url' => 'https://images.example/runs/sealed') do |config|
+      expect(config.default_repository_url).to eq('https://images.example/runs/sealed')
     end
   end
 

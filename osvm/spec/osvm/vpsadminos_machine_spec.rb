@@ -3,6 +3,24 @@
 require 'spec_helper'
 
 RSpec.describe OsVm::VpsadminosMachine do
+  it 'requires the exact sealed repository before a caller can use an active pool' do
+    with_tmpdir do |dir|
+      machine = build_vpsadminos_machine(dir:)
+      machine.image_repository_url = 'https://images.example/runs/sealed'
+      stub_booted_machine(machine)
+      allow(machine).to receive(:execute).and_return([0, "active\n"])
+      allow(machine).to receive(:wait_until_succeeds)
+      allow(machine).to receive(:osctl_json).and_return(
+        [{ 'name' => 'default', 'url' => machine.image_repository_url, 'enabled' => true }]
+      )
+      expect(machine.wait_for_osctl_pool('runtime')).to eq(machine)
+      allow(machine).to receive(:osctl_json).and_return(
+        [{ 'name' => 'default', 'url' => 'https://images.vpsadminos.org', 'enabled' => true }]
+      )
+      expect { machine.wait_for_osctl_pool('runtime') }.to raise_error(/does not use sealed/)
+    end
+  end
+
   def stub_booted_machine(machine)
     allow(machine).to receive_messages(
       running?: true,

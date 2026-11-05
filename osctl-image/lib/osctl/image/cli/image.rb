@@ -8,6 +8,38 @@ module OsCtl::Image
 
     FIELDS = %i[name distribution version arch vendor variant].freeze
 
+    def capture
+      require_args!('image', 'descriptor.json')
+      AssignedConfig.capture(build_scripts_path, args[0], source: opts[:source]).save(args[1])
+    end
+
+    def assigned
+      require_args!('descriptor.json')
+      descriptor = AssignedConfig.load(args[0])
+      result = { 'assignment' => descriptor.data, 'status' => 'failed', 'files' => [] }
+      FileUtils.mkdir_p(opts['output-dir'])
+      descriptor.with_scripts(build_scripts_path) do |scripts|
+        image = OsCtl::Image::Image.new(scripts, descriptor.data.fetch('name'))
+        build_opts = {
+          output_dir: opts['output-dir'], build_dataset: opts['build-dataset'],
+          vpsadminos_dir: vpsadminos_dir, rebuild: true, keep_failed: false,
+          ip_allocator: IpAllocator.new('10.100.10.0/24')
+        }
+        results = Operations::Test::Image.run(scripts, image, TestList.new(scripts), build_opts)
+        raise OperationError, 'assigned image tests failed' unless process_test_results(results).empty?
+
+        build = Operations::Image::Build.new(scripts, image, build_opts)
+        result['files'] = { 'tar' => build.output_tar, 'zfs' => build.output_stream }.filter_map do |format, path|
+          next unless path
+
+          AssignedResult.verify(path, format, descriptor.tuple)
+        end
+        result['status'] = 'verified'
+      end
+    ensure
+      File.write(opts[:result], "#{JSON.pretty_generate(result)}\n") if result
+    end
+
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS
@@ -217,8 +249,7 @@ module OsCtl::Image
     end
 
     def process_test_results(results)
-      succeded = results.select(&:success?)
-      failed = results.reject(&:success?)
+      succeded, failed = results.partition(&:success?)
 
       puts "#{results.length} tests run, #{succeded.length} succeeded, " \
            "#{failed.length} failed"

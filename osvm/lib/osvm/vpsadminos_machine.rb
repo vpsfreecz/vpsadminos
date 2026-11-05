@@ -1,8 +1,11 @@
 require 'json'
+require 'shellwords'
 
 module OsVm
   # vpsAdminOS-specific machine driver
   class VpsadminosMachine < Machine
+    attr_accessor :image_repository_url
+
     # osctl command without `osctl`, output is returned as JSON
     # @param cmd [String]
     # @return [Hash]
@@ -63,7 +66,10 @@ module OsVm
         end
 
         remaining_time!(deadline, timeout_message.call)
-        return self if status == 0 && last_state == 'active'
+        if status == 0 && last_state == 'active'
+          assert_image_repository(name) if image_repository_url
+          return self
+        end
 
         sleep_with_deadline(1, deadline, timeout_message.call)
       end
@@ -154,6 +160,22 @@ module OsVm
     end
 
     protected
+
+    def assert_image_repository(pool)
+      expected = Shellwords.escape(image_repository_url)
+      pool_arg = Shellwords.escape(pool)
+      # Declarative setup runs after pool-active. Wait for its exact URL, then
+      # assert no unintentional fallback before the caller creates containers.
+      wait_until_succeeds("test \"$(osctl --pool #{pool_arg} repo show -H -o url default)\" = #{expected}")
+      repos = osctl_json("--pool #{pool_arg} repo ls")
+      default = repos.find { |repo| repo['name'] == 'default' }
+      unless default && default['url'] == image_repository_url && default['enabled']
+        raise "pool #{pool} does not use sealed image repository #{image_repository_url}"
+      end
+
+      unexpected = repos.any? { |repo| repo['name'] != 'default' && repo['enabled'] }
+      raise "pool #{pool} has unintended fallback image repositories" if unexpected
+    end
 
     def service_check_command(name)
       "sv check #{name}"

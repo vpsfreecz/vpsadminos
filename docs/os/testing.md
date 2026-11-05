@@ -786,6 +786,33 @@ import ../make-test.nix ({ pkgs }: {
 Groups and examples are evaluated in random order unless configured otherwise.
 
 ## Temporary config changes
+For a sealed image repository view, pass a test-config Nix file with:
+
+```nix
+{
+  imageRepository = {
+    url = "https://images.example/runs/run-key";
+    generation = "sealed-generation";
+  };
+}
+```
+
+The common framework injects this URL as the daemon's initial default repository
+and configures declarative test pools to match. With a daemon supporting
+`default_repository_url`, runtime-created pools receive the URL during
+initialization, before an install command returns. Older pinned daemon versions
+retain their existing runtime-pool behavior; the framework option does not add
+this capability to them. The machine
+driver waits for repository setup after pool-active and checks the exact URL and
+absence of unexpected fallback repositories. Use fresh test state so a cached
+old image cannot conceal a repository error. Explicit custom-repository fixtures
+remain separate. Without `imageRepository`, existing test behavior is unchanged.
+
+`osctld.settings.default_repository_url` changes only creation of a missing
+default repository. Its default is `https://images.vpsadminos.org`; loading a
+persisted or custom repository preserves that repository's URL. Test readiness
+fails if imported state does not match the requested sealed view.
+
 It is possible to change all test machine configurations by creating
 `os/configs/tests.nix` file, e.g. to change a kernel version used in tests:
 

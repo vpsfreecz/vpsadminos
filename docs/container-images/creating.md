@@ -101,6 +101,34 @@ repositories.
 Containers managed by `osctl-image` can be seen using `osctl-image ct ls`
 and deleted with `osctl-image ct del`.
 
+## Assigned builds
+
+Automation can capture an image's configuration before building it:
+
+```shell
+osctl-image capture --source "$REV" "$IMAGE" assignment.json
+osctl-image assigned --build-dataset tank/image-builds \
+  --output-dir /tank/exports --result result.json assignment.json
+```
+
+`IMAGE` is a configured name from `osctl-image ls`; `REV` is the full source
+commit. Capture runs in the build VM when the image
+is assigned. The descriptor records its image name, selected variant, configuration
+and digest. The assigned command uses a private copy of the scripts with that
+captured configuration. Builds, tests and later retries therefore keep the same
+identity when a date-derived release crosses midnight. The supported captured
+attributes include `SPIN` and `SPINVER` used by openSUSE scripts; extend the capture
+interface when adding another image-specific configuration attribute.
+
+The assigned command rebuilds the image and runs its existing image tests with
+failed-container retention disabled. It checks each exported archive's tuple
+against the assignment before writing a verified result containing paths, sizes
+and SHA-256 digests. A failed command leaves a failed result rather than a
+publication receipt. Retries consume the saved assignment, not a new capture.
+
+The [image pipeline](image-pipeline.md) schedules assigned builds in reusable VM
+workers and sends successful results to the repository service.
+
 [image-scripts/]: https://github.com/vpsfreecz/vpsadminos/tree/staging/image-scripts
 [osctl-image(8)]: https://man.vpsadminos.org/man8/osctl-image.8.html
 [repositories]: repositories.md

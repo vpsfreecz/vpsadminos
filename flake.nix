@@ -429,6 +429,7 @@
               templateUnstableImpermanenceSystem.config.system.build.impermanenceTarball;
             ctptywrapper = pkgsWithOverlays.ctptywrapper;
             osctl-repo-server = pkgsWithOverlays.osctl-repo-server;
+            osvm = pkgsWithOverlays.osvm;
             test-runner = import ./test-runner/nix/package.nix {
               pkgs = pkgsWithOverlays;
             };
