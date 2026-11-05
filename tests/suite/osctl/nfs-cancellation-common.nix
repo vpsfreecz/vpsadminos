@@ -810,9 +810,49 @@ in
               timeout: 30,
             )
             # Race the blocked mount with a host-side terminal write.
+            shutdown_writer = <<~'RUBY'
+              path = '/sys/fs/nfs/net/nfs_client/shutdown_tree'
+              clock = -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+              started = clock.call
+              deadline = started + 30
+              busy_count = 0
+              outcome = 'failure'
+              begin
+                loop do
+                  raise Errno::EBUSY, 'NFS shutdown retry deadline exhausted' if clock.call >= deadline
+
+                  control = nil
+                  busy = false
+                  begin
+                    control = File.open(path, 'w')
+                    written = control.syswrite("1\n")
+                  rescue Errno::EBUSY
+                    busy = true
+                    busy_count += 1
+                  ensure
+                    control&.close
+                  end
+                  if busy
+                    remaining = deadline - clock.call
+                    raise Errno::EBUSY, 'NFS shutdown retry deadline exhausted' if remaining <= 0
+
+                    sleep([0.05, remaining].min)
+                    next
+                  end
+
+                  raise IOError, "partial NFS shutdown write: #{written.inspect}" unless written == 2
+                  raise IOError, 'NFS shutdown barrier readback is not 1' unless File.read(path) == "1\n"
+
+                  outcome = 'success'
+                  break
+                end
+              ensure
+                warn "NFS shutdown busy_count=#{busy_count} elapsed=#{(clock.call - started).round(3)} outcome=#{outcome}"
+              end
+            RUBY
+            shutdown_command = "${pkgs.ruby_vpsadminos}/bin/ruby -e #{Shellwords.escape(shutdown_writer)}"
             machine.succeeds(
-              "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
-                "echo 1 > /sys/fs/nfs/net/nfs_client/shutdown_tree'",
+              "#{control} #{Shellwords.escape("mount --make-rslave /; mount -t sysfs sysfs /sys; #{shutdown_command}")}",
             )
             machine.wait_until_succeeds(
               "osctl ct exec nfs1 true && test -z \"$(osctl ct exec nfs1 pidof mount.nfs || true)\"",
