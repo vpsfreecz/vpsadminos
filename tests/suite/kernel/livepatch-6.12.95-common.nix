@@ -17,6 +17,15 @@ assert predecessorModuleEnv != "";
 let
   lib = pkgs.lib;
   qualifying = qualification != null;
+  loaderHostDiagnostic =
+    qualifying
+    && qualification.id == "amd-scale-aged-v5"
+    && qualification.vendor == "amd"
+    && qualification.predecessor == "v5"
+    && qualification.cpus == 128
+    && qualification.memory == 16384
+    && qualification.tasks == 100000
+    && qualification.ageSeconds == 300;
   taskPopulation = pkgs.stdenv.mkDerivation {
     pname = "livepatch-task-population";
     version = "1";
@@ -424,6 +433,12 @@ let
         cpu.cores = lib.mkForce qualification.cpus;
         cpu.threads = lib.mkForce 1;
         cpu.sockets = lib.mkForce 1;
+        extraQemuOptions = lib.mkIf loaderHostDiagnostic (
+          lib.mkAfter [
+            "-name"
+            "debug-threads=on"
+          ]
+        );
       };
       services.live-patches.enable = false;
       services.nfs.server = {

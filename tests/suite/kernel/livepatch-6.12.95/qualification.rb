@@ -1,6 +1,10 @@
 # Included inside the ordinary main suite's example group. Its boot, exact
 # fixture checks, target modules, helpers and kernel-health checks are shared.
 require 'shellwords'
+require 'base64'
+require 'digest'
+require 'stringio'
+require 'zlib'
 
 QUAL_STATE = '/run/livepatch-qualification'.freeze
 QUAL_TRACE = '/sys/kernel/tracing/instances/livepatch_qualification'.freeze
@@ -476,6 +480,528 @@ def qualification_release_dying(shell: nil)
   puts 'scheduler dying observer released; workload drained or never started'
 end
 
+# This private instance uses existing tracepoints, never a new kernel probe.
+QUAL_LOADER_TRACE = '/sys/kernel/tracing/instances/livepatch_qualification_loader'.freeze
+QUAL_LOADER_EVENTS = {
+  'csd/csd_queue_cpu' => %w[cpu callsite func csd],
+  'csd/csd_function_entry' => %w[func csd],
+  'csd/csd_function_exit' => %w[func csd],
+  'ipi/ipi_send_cpu' => %w[cpu callsite callback],
+  'ipi/ipi_send_cpumask' => %w[cpumask callsite callback]
+}.freeze
+QUAL_LOADER_RAW_LIMIT = 64 * 1024 * 1024
+QUAL_LOADER_COMPRESSED_LIMIT = 2 * 1024 * 1024
+QUAL_LOADER_METADATA_LIMIT = 128 * 1024
+
+def qualification_loader_selected?
+  qualification_dying_selected? && QUALIFICATION_AGE_SECONDS == 300
+end
+
+def qualification_loader_mapping(cpuinfo, ready)
+  # Linux proc.c labels logical processor and APIC identity separately. QEMU
+  # 10.2.4 x86-common.c assigns cpu_index from the APIC slot; the fixed topology
+  # gives APIC slots 0..127. Never infer guest logical CPU == QEMU CPU index.
+  guests = cpuinfo.split(/\n\s*\n/).map do |block|
+    fields = block.lines.filter_map do |line|
+      key, value = line.split(':', 2).map(&:strip)
+      [key, value] if %w[processor apicid].include?(key) || ['initial apicid', 'physical id', 'core id', 'cpu cores', 'siblings'].include?(key)
+    end
+    raise 'duplicate guest CPU identity fields' unless fields.map(&:first).uniq.length == fields.length
+
+    fields.to_h.transform_values { |value| Integer(value, 10) }
+  end
+  raise 'missing guest logical/APIC identities' unless guests.length == 128 &&
+                                                       guests.map { |g| g.fetch('processor') }.sort == (0...128).to_a &&
+                                                       guests.map { |g| g.fetch('apicid') }.sort == (0...128).to_a
+
+  header, *threads = ready.lines.map(&:split)
+  unless header&.length == 4 && header[0] == 'qemu' && header[1..2].all? { |v| /\A[1-9][0-9]*\z/.match?(v) } &&
+         header[3] == '/nix/store/kanckc6ljipqzjsrvj4aqaf87a4rhswr-qemu-host-cpu-only-for-vm-tests-10.2.4/bin/qemu-system-x86_64'
+    raise 'missing bound host QEMU identity'
+  end
+  raise 'missing host vCPU identities' unless threads.length == 128 && threads.all? do |row|
+    row.length == 4 && row[0] == 'vcpu' && row[1..3].all? { |value| /\A[0-9]+\z/.match?(value) }
+  end
+
+  indices = threads.to_h { |_, index, tid, start| [Integer(index), [Integer(tid), Integer(start)]] }
+  unless indices.keys.sort == (0...128).to_a && indices.values.map(&:first).uniq.length == 128 &&
+         indices.values.flatten.all? { |value| value > 0 }
+    raise 'ambiguous host vCPU identity'
+  end
+
+  guests.sort_by { |g| g.fetch('processor') }.map do |g|
+    apic = g.fetch('apicid')
+    unless g.fetch('initial apicid') == apic && g.fetch('physical id') == 0 && g.fetch('core id') == apic &&
+           g.fetch('cpu cores') == 128 && g.fetch('siblings') == 128
+      raise 'guest topology does not match frozen QEMU mapping'
+    end
+
+    tid, start = indices.fetch(apic)
+    "guest_cpu=#{g.fetch('processor')} apic=#{apic} qemu_index=#{apic} tid=#{tid} start=#{start}"
+  end
+end
+
+def qualification_loader_host_file(name)
+  path = File.join(@qualification_loader.fetch(:host), name)
+  raise "unsafe host evidence #{name}" unless File.file?(path) && !File.symlink?(path) && File.size(path) <= 65_536
+
+  File.read(path, 65_537)
+end
+
+def qualification_prepare_loader
+  return unless qualification_loader_selected?
+  raise 'loader diagnostic already prepared or uncertain' if @qualification_loader
+
+  state = @qualification_loader = {
+    host: File.join(ENV.fetch('TEST_RUNNER_STATE_DIR'), 'loader-host'), instance: :none,
+    pending: false, enabled: [], recording: :unknown, prepared: false, released: false, release_attempted: false
+  }
+  begin
+    machine.succeeds('test "$(uname -r)" = 6.12.95.5', timeout: 10)
+    machine.succeeds(
+      'test "$(sha256sum /sys/kernel/notes | cut -d\' \' -f1)" = ' \
+      '1e4432629c0f1a1e9c6b175495217859279f98ded2beca091834ec059e42108a', timeout: 10
+    )
+    raise 'host evidence directory missing or symlinked' unless File.directory?(state[:host]) && !File.symlink?(state[:host])
+
+    machine.succeeds('for tool in bash head gzip base64; do command -v "$tool" >/dev/null || exit; done', timeout: 10, shell: :diagnostics)
+    probe = machine.succeeds("printf %s loader-codec-probe | #{qualification_loader_export_command('/dev/stdin')}", timeout: 10, shell: :diagnostics)[1]
+    raise 'loader codec round trip unavailable' unless qualification_loader_decode(probe).first == 'loader-codec-probe'
+
+    state[:handshake_send] = [Time.now.to_f, Process.clock_gettime(Process::CLOCK_MONOTONIC)]
+    File.write(File.join(state[:host], 'request.txt'), "guest ready wall=#{state[:handshake_send][0]}\n", mode: 'wx')
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
+    until File.file?(File.join(state[:host], 'ready.txt'))
+      if File.file?(File.join(state[:host], 'status.txt'))
+        status = qualification_loader_host_file('status.txt')
+        raise status if status.start_with?('INCOMPLETE:')
+      end
+      raise 'host readiness acknowledgement unavailable' if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+      sleep 0.1
+    end
+    ready = qualification_loader_host_file('ready.txt')
+    state[:handshake_reply] = [Time.now.to_f, Process.clock_gettime(Process::CLOCK_MONOTONIC)]
+    qualification_loader_bracket('host-request-ready', state[:handshake_send], state[:handshake_reply])
+    puts 'loader host baseline: required_vcpu_threads=128 cpu_units=proc_stat_ticks CLK_TCK=UNAVAILABLE; switches supplemental; runtime/wait/slices=UNAVAILABLE; no runnable-wait or starvation inference'
+    info = machine.succeeds('cat /proc/cpuinfo', timeout: 10)[1]
+    mapping = qualification_loader_mapping(info, ready)
+    puts "loader host ready:\n#{ready}loader guest mapping:\n#{mapping.join("\n")}"
+    File.write(File.join(state[:host], 'guest-map.txt'), "#{mapping.join("\n")}\n", mode: 'wx')
+    raise 'host sampler not sampling' unless qualification_loader_host_file('status.txt').strip == 'sampling'
+
+    funcs = %w[do_flush_tlb_all do_kernel_range_flush].map { |name| symbol_address(machine, name) }
+    callback = symbol_address(machine, 'generic_smp_call_function_single_interrupt')
+    state[:symbols] = %w[do_flush_tlb_all do_kernel_range_flush generic_smp_call_function_single_interrupt].zip(funcs + [callback]).to_h
+    state[:filters] = {}
+    machine.succeeds("test ! -e #{QUAL_LOADER_TRACE}", timeout: 10)
+    state[:instance] = :possible
+    machine.succeeds("mkdir #{QUAL_LOADER_TRACE}", timeout: 10)
+    state[:instance] = :owned
+    machine.succeeds("test \"$(cat #{QUAL_LOADER_TRACE}/current_tracer)\" = nop", timeout: 10)
+    machine.succeeds("echo 0 > #{QUAL_LOADER_TRACE}/tracing_on && test \"$(cat #{QUAL_LOADER_TRACE}/tracing_on)\" = 0", timeout: 10)
+    state[:recording] = :off
+    ["echo global > #{QUAL_LOADER_TRACE}/trace_clock", "echo 64 > #{QUAL_LOADER_TRACE}/buffer_size_kb",
+     "echo 0 > #{QUAL_LOADER_TRACE}/options/overwrite", "echo ffffffff,ffffffff,ffffffff,ffffffff > #{QUAL_LOADER_TRACE}/tracing_cpumask",
+     "echo > #{QUAL_LOADER_TRACE}/trace"].each { |command| machine.succeeds(command, timeout: 10) }
+    QUAL_LOADER_EVENTS.each do |name, fields|
+      event = "#{QUAL_LOADER_TRACE}/events/#{name}"
+      format = machine.succeeds("cat #{event}/format", timeout: 10)[1]
+      fields.each { |field| raise "unsupported #{name} field #{field}" unless /field:[^;]*\b#{field};/.match?(format) }
+      filter = name.start_with?('csd/') ? funcs.map { |address| "func == #{address}" }.join(' || ') : "callback == #{callback}"
+      machine.succeeds("echo #{Shellwords.escape(filter)} > #{event}/filter", timeout: 10)
+      raise "filter readback mismatch #{name}" unless machine.succeeds("cat #{event}/filter", timeout: 10)[1].strip == filter
+
+      state[:filters][name] = filter
+      state[:pending] = true
+      machine.succeeds("echo 1 > #{event}/enable && test \"$(cat #{event}/enable)\" = 1", timeout: 10)
+      state[:enabled] << name
+      state[:pending] = false
+    end
+    machine.succeeds("test \"$(cat #{QUAL_LOADER_TRACE}/tracing_on)\" = 0 && " \
+                     "test \"$(cat #{QUAL_LOADER_TRACE}/current_tracer)\" = nop", timeout: 10)
+    state[:prepared] = true
+    puts 'loader diagnostic prepared global nop OFF; five filtered native events enabled before workload'
+  ensure
+    unless state[:prepared]
+      puts "loader host handshake send=#{state[:handshake_send].inspect} reply=#{state[:handshake_reply].inspect}; missing relation=UNAVAILABLE" unless state[:handshake_reply]
+      warn 'loader diagnostic INCOMPLETE: early preparation failed'
+      begin
+        qualification_release_loader(drained: !@qualification_workload_started, shell: :diagnostics)
+      rescue StandardError => e
+        warn "loader diagnostic INCOMPLETE: #{e.message}"
+      end
+    end
+  end
+end
+
+# These are labelled command intervals, never a cross-clock point conversion.
+def qualification_loader_bracket(label, sent, received, guest: nil)
+  valid = [sent, received].all? do |pair|
+    pair.is_a?(Array) && pair.length == 2 && pair.all? { |v| v.is_a?(Numeric) && v.to_f.finite? }
+  end
+  valid &&= received[0] >= sent[0] && received[1] >= sent[1]
+  relation = valid ? 'interval_only' : 'UNAVAILABLE'
+  puts "loader bracket label=#{label} clock_views=runner-EPOCHREALTIME/runner-CLOCK_MONOTONIC send=#{sent.inspect} reply=#{received.inspect} guest_view=guest-uptime/trace-global guest=#{guest.inspect}; relation=#{relation} forward_wall_changes=uncalibrated"
+  raise 'loader clock relation UNAVAILABLE: missing, invalid or regressing command bracket' unless valid
+end
+
+def qualification_loader_clock(label, shell: nil)
+  before = [Time.now.to_f, Process.clock_gettime(Process::CLOCK_MONOTONIC)]
+  body = "printf 'loader clock=#{label} uptime=%s\\n' \"$up\""
+  output = machine.succeeds("read up idle < /proc/uptime && #{body} > #{QUAL_LOADER_TRACE}/trace_marker && #{body}", timeout: 10, shell: shell)[1]
+  raise 'missing guest clock bracket' unless /\Aloader clock=#{Regexp.escape(label)} uptime=[0-9]+\.[0-9]+\n\z/.match?(output)
+
+  qualification_loader_bracket(label, before, [Time.now.to_f, Process.clock_gettime(Process::CLOCK_MONOTONIC)], guest: output.strip)
+end
+
+def qualification_loader_command(attempt)
+  return "LC_ALL=C insmod #{CORRECTED_MODULE} 2>&1" unless @qualification_loader
+
+  script = 'set -C; read up idle < /proc/uptime; ' \
+           "printf 'loader attempt=#{attempt} pid=%s uptime=%s\\n' \"$$\" \"$up\" > #{QUAL_STATE}/loader-attempt-#{attempt}; " \
+           "cat #{QUAL_STATE}/loader-attempt-#{attempt} >| #{QUAL_LOADER_TRACE}/trace_marker; " \
+           "export LC_ALL=C; exec insmod #{CORRECTED_MODULE} 2>&1"
+  "sh -ec #{Shellwords.escape(script)}"
+end
+
+def qualification_freeze_loader
+  state = @qualification_loader
+  return if state[:freeze_attempted]
+
+  state[:freeze_attempted] = true
+  state[:recording] = :possible
+  sent = [Time.now.to_f, Process.clock_gettime(Process::CLOCK_MONOTONIC)]
+  output = machine.succeeds(
+    "echo 0 > #{QUAL_LOADER_TRACE}/tracing_on && test \"$(cat #{QUAL_LOADER_TRACE}/tracing_on)\" = 0 && " \
+    "read up idle < /proc/uptime && printf 'loader frozen uptime=%s\\n' \"$up\"", timeout: 10, shell: :diagnostics
+  )[1]
+  state[:recording] = :off
+  raise 'missing frozen guest clock' unless /\Aloader frozen uptime=[0-9]+\.[0-9]+\n\z/.match?(output)
+
+  qualification_loader_bracket('freeze', sent, [Time.now.to_f, Process.clock_gettime(Process::CLOCK_MONOTONIC)], guest: output.strip)
+end
+
+def qualification_stop_loader_observer
+  state = @qualification_loader
+  return unless state && state[:observer]
+
+  state[:stop] = true
+  state[:observer].join
+  state[:observer] = nil
+end
+
+def qualification_loader_records(trace)
+  raise 'missing window clock marker' unless /tracing_mark_write: loader clock=begin uptime=[0-9.]+/.match?(trace)
+  raise 'missing activation marker' unless /tracing_mark_write: loader attempt=1 pid=[1-9][0-9]* uptime=[0-9.]+/.match?(trace)
+  raise 'trace reports lost events' if /LOST.*EVENT|buffer full/i.match?(trace)
+
+  counts = Hash.new(0)
+  pending = {}
+  unknown = 0
+  attempt = nil
+  trace.each_line do |line|
+    if (marker = /tracing_mark_write: loader attempt=(\d+) pid=(\d+) uptime=[0-9.]+/.match(line))
+      attempt = marker.captures.map { |value| Integer(value) }
+    end
+    match = /-(\d+)\s+\[(\d+)\].*?\s(\d+\.\d+): (csd_queue_cpu|csd_function_entry|csd_function_exit|ipi_send_cpu|ipi_send_cpumask): (.*)/.match(line)
+    unless match
+      raise 'unsupported loader event header' if /(?:csd_queue_cpu|csd_function_entry|csd_function_exit|ipi_send_cpu|ipi_send_cpumask):/.match?(line)
+
+      next
+    end
+
+    pid, cpu, time, event, body = match.captures
+    raise 'invalid loader event header' unless Integer(cpu) < 128 && Integer(pid) >= 0 && Float(time) >= 0
+
+    if event.start_with?('csd_')
+      raise 'unbound CSD callback/token' unless /func=(?:do_flush_tlb_all|do_kernel_range_flush),? csd=\s*(?:[0-9a-f]{16}|\(null\))\s*$/.match?(body)
+
+      func = body[/func=([^, ]+)/, 1]
+      token = body[/csd=\s*(\S+)/, 1]
+      if event == 'csd_queue_cpu'
+        target = /\Acpu=(\d+) callsite=\S+ func=/.match(body)
+        raise 'missing CSD queue target/callsite' unless target && Integer(target[1]) < 128
+
+        key = [func, token, Integer(target[1])]
+        raise 'overlapping CSD token reuse; history incomplete' if pending.has_key?(key)
+
+        pending[key] = { entered: false, attempt: attempt && attempt[1] == Integer(pid) ? attempt[0] : nil }
+      elsif %w[0000000000000000 (null)].include?(token)
+        counts['local_null'] += 1
+      else
+        key = [func, token, Integer(cpu)]
+        operation = pending[key]
+        if event == 'csd_function_entry' && operation && !operation[:entered]
+          operation[:entered] = true
+        elsif event == 'csd_function_exit' && operation && operation[:entered]
+          pending.delete(key)
+          counts['completed'] += 1
+        else
+          unknown += 1
+        end
+      end
+    else
+      raise 'missing IPI dispatch identity' unless /\A(?:cpu=\d+|cpumask=[0-9a-f,]+) callsite=\S+ callback=generic_smp_call_function_single_interrupt(?:\+\S+)?\s*$/.match?(body)
+    end
+    counts[event] += 1
+  end
+  raise 'no bound CSD progress records' if counts.values.sum == 0 || counts.keys.none? { |name| name.start_with?('csd_') }
+
+  puts "loader CSD at freeze queued_without_entry=#{pending.values.count { |v| !v[:entered] }} entered_without_exit=#{pending.values.count { |v| v[:entered] }} unassociated_origin=#{pending.values.count { |v| v[:attempt].nil? }} unknown_prior_history=#{unknown}"
+  counts
+end
+
+# One framed, bounded export through the ordinary diagnostic shell. A footer
+# is written only after every pipeline stage succeeds; caps are not EOF.
+def qualification_loader_export_command(path)
+  script = "printf 'LP95_GZIP_BEGIN\\n'; head -c #{QUAL_LOADER_RAW_LIMIT + 1} #{Shellwords.escape(path)} | " \
+           "gzip -1 -c | head -c #{QUAL_LOADER_COMPRESSED_LIMIT + 1} | base64 -w0; printf '\\nLP95_GZIP_END\\n'"
+  "bash -e -o pipefail -c #{Shellwords.escape(script)}"
+end
+
+def qualification_loader_decode(output)
+  encoded_limit = 4 * ((QUAL_LOADER_COMPRESSED_LIMIT + 3) / 3)
+  prefix = "LP95_GZIP_BEGIN\n"
+  suffix = "\nLP95_GZIP_END\n"
+  raise 'loader encoded payload cap exceeded' if output.bytesize > encoded_limit + prefix.bytesize + suffix.bytesize
+  raise 'loader payload framing unavailable' unless output.start_with?(prefix) && output.end_with?(suffix)
+
+  compressed = Base64.strict_decode64(output.byteslice(prefix.bytesize, output.bytesize - prefix.bytesize - suffix.bytesize))
+  raise 'loader compressed payload cap exceeded' if compressed.bytesize > QUAL_LOADER_COMPRESSED_LIMIT
+
+  input = StringIO.new(compressed)
+  reader = Zlib::GzipReader.new(input)
+  native = +''.b
+  loop do
+    chunk = reader.read([65_536, QUAL_LOADER_RAW_LIMIT + 1 - native.bytesize].min)
+    break if chunk.nil? || chunk.empty?
+
+    native << chunk
+    raise 'loader decoded payload cap exceeded' if native.bytesize > QUAL_LOADER_RAW_LIMIT
+  end
+  raise 'loader gzip stream incomplete or has trailing data' unless reader.eof? && reader.unused.to_s.empty? && input.eof?
+
+  reader.finish
+  [native, compressed.bytesize]
+ensure
+  reader.close if reader && !reader.closed?
+end
+
+def qualification_loader_attempt_rows(attempts)
+  rows = attempts.lines.map do |line|
+    match = /\Aloader attempt=([1-9][0-9]*) pid=([1-9][0-9]*) uptime=([0-9]+\.[0-9]+)\n\z/.match(line)
+    raise 'malformed actual attempt PID file' unless match
+
+    match.captures
+  end
+  raise 'missing actual attempt PID files' unless rows.map { |row| Integer(row[0]) }.sort == (1..rows.length).to_a && !rows.empty?
+
+  rows
+end
+
+def qualification_loader_buffer_stats(stats)
+  blocks = stats.split(/^CPU=/).drop(1)
+  raise 'missing CPU buffer statistics' unless blocks.map { |block| Integer(block.lines.first, 10) }.sort == (0...128).to_a
+
+  blocks.each do |block|
+    losses = block.scan(/^(?:commit overrun|overrun|dropped events):\s*(\d+)\s*$/).flatten
+    bytes = block[/^bytes:\s*(\d+)\s*$/, 1]
+    raise 'lossy, saturated or missing loader statistics' unless losses.length == 3 && losses.all? { |v| Integer(v) == 0 } && bytes && Integer(bytes) < 65_536
+  end
+end
+
+def qualification_loader_metadata_items
+  state = @qualification_loader
+  identity = "printf 'kernel '; uname -r; printf 'system '; readlink -f /run/current-system; " \
+             "printf 'notes '; sha256sum /sys/kernel/notes; printf 'module '; sha256sum #{CORRECTED_MODULE}; " \
+             "printf 'sites '; sha256sum /etc/livepatch-test/sites.json"
+  names = state.fetch(:symbols).keys.map { |name| "$3 == \"#{name}\"" }.join(' || ')
+  callbacks = "awk '$2 !~ /^[Uu]$/ && NF == 3 && (#{names}) { print $3, \"0x\" $1 }' /proc/kallsyms"
+  items = [['attempts', "cat #{QUAL_STATE}/loader-attempt-*", nil], ['identity', identity, nil], ['callbacks', callbacks, nil]]
+  { 'tracing_on' => '0', 'current_tracer' => 'nop', 'trace_clock' => :global,
+    'tracing_cpumask' => 'ffffffff,ffffffff,ffffffff,ffffffff', 'buffer_size_kb' => '64', 'options/overwrite' => '0' }.each do |name, expected|
+    items << [name, "cat #{QUAL_LOADER_TRACE}/#{name}", expected]
+  end
+  QUAL_LOADER_EVENTS.each_key do |name|
+    items << ["#{name}/enable", "cat #{QUAL_LOADER_TRACE}/events/#{name}/enable", '1']
+    items << ["#{name}/filter", "cat #{QUAL_LOADER_TRACE}/events/#{name}/filter", state.fetch(:filters).fetch(name)]
+  end
+  # Missing one CPU remains explicit while independent CPU blocks are retained.
+  items << ['buffers', "for cpu in $(seq 0 127); do echo CPU=$cpu; cat #{QUAL_LOADER_TRACE}/per_cpu/cpu$cpu/stats || echo UNAVAILABLE; done", nil]
+  items
+end
+
+def qualification_loader_validate_metadata(name, output, expected)
+  case name
+  when 'attempts'
+    qualification_loader_attempt_rows(output)
+  when 'identity'
+    lines = output.lines.map(&:split)
+    raise 'loader kernel/source/notes/module/sites identity unavailable' unless lines.length == 5 &&
+                                                                                lines[0].length == 2 && /\A6\.12\.95\.[57]\z/.match?(lines[0][1]) &&
+                                                                                lines[0][0] == 'kernel' && lines[1].length == 2 && lines[1][0] == 'system' && lines[1][1].start_with?('/nix/store/') &&
+                                                                                lines[2] == ['notes', '1e4432629c0f1a1e9c6b175495217859279f98ded2beca091834ec059e42108a', '/sys/kernel/notes'] &&
+                                                                                lines[3] == ['module', CORRECTED_SHA256, CORRECTED_MODULE] &&
+                                                                                lines[4] == ['sites', SITES_SHA256, '/etc/livepatch-test/sites.json']
+  when 'callbacks'
+    rows = output.lines.map(&:split)
+    raise 'loader callback identities changed or ambiguous' unless rows.length == 3 && rows.all? { |row| row.length == 2 } && rows.to_h == @qualification_loader.fetch(:symbols)
+  when 'buffers'
+    qualification_loader_buffer_stats(output)
+  else
+    valid = expected == :global ? output.split.include?('[global]') : output.strip == expected
+    raise "loader #{name} readback mismatch" unless valid
+  end
+end
+
+def qualification_capture_loader(prior_errors: [])
+  state = @qualification_loader
+  errors = []
+  data = {}
+  directory = state.fetch(:host)
+  metadata_path = File.join(directory, 'metadata.txt')
+  native_path = File.join(directory, 'native.log')
+  native = compressed_size = nil
+  raise 'loader evidence directory missing or symlinked' unless File.directory?(directory) && !File.symlink?(directory)
+
+  # Flush every bounded item before attempting the large transport. Neither an
+  # item failure nor a later payload failure erases earlier evidence.
+  File.open(metadata_path, 'wx') do |file|
+    file.write("recording=#{state[:recording]} first_fault=#{state[:fault].to_s.byteslice(0, 512).inspect} prior_errors=#{prior_errors.map { |e| e.byteslice(0, 512) }.inspect}\n")
+    qualification_loader_metadata_items.each do |name, command, expected|
+      script = "{ #{command}; } | head -c #{QUAL_LOADER_METADATA_LIMIT + 1}"
+      output = machine.succeeds("bash -e -o pipefail -c #{Shellwords.escape(script)}", timeout: 10, shell: :diagnostics)[1]
+      entry = "\n=== #{name} ===\n#{output}\n"
+      # Reserve bounded space for unavailable-item records, within 128 KiB.
+      raise '128KiB loader metadata cap exceeded' if file.pos + entry.bytesize > QUAL_LOADER_METADATA_LIMIT - 16_384
+
+      file.write(entry)
+      file.flush
+      data[name] = output
+      qualification_loader_validate_metadata(name, output, expected)
+    rescue StandardError => e
+      error = "#{name}: #{e.class}: #{e.message}".byteslice(0, 512)
+      errors << error
+      file.write("\n=== #{name} UNAVAILABLE ===\n#{error}\n")
+      file.flush
+    end
+  end
+  errors << 'loader freeze not acknowledged' unless state[:recording] == :off
+  errors << state[:observer_error] if state[:observer_error]
+  begin
+    output = machine.succeeds(qualification_loader_export_command("#{QUAL_LOADER_TRACE}/trace"), timeout: 10, shell: :diagnostics)[1]
+    native, compressed_size = qualification_loader_decode(output)
+    File.write(native_path, native, mode: 'wx')
+    if errors.empty? && prior_errors.empty?
+      attempt_rows = qualification_loader_attempt_rows(data.fetch('attempts'))
+      markers = native.scan(/tracing_mark_write: loader attempt=(\d+) pid=(\d+) uptime=([0-9.]+)/)
+      raise 'attempt file/trace PID disagreement' unless markers.all? { |row| attempt_rows.include?(row) }
+
+      counts = qualification_loader_records(native)
+      puts "loader records #{counts.inspect}; tokens may be reused; queue is not dispatch/delivery; local CSD may be NULL; target PID is interrupted context"
+    end
+  rescue StandardError => e
+    errors << "native: #{e.class}: #{e.message.byteslice(0, 512)}"
+  end
+  begin
+    host_status = qualification_loader_host_file('status.txt').strip
+    raise "host sampler coverage incomplete: #{host_status}" unless host_status == 'sampling'
+  rescue StandardError => e
+    errors << e.message.byteslice(0, 512)
+  end
+  status = errors.empty? && prior_errors.empty? ? 'COMPLETE' : 'INCOMPLETE'
+  File.write(File.join(directory, 'native-status.txt'),
+             "#{status} transport=#{native ? 'complete' : 'incomplete'} compressed_bytes=#{compressed_size || 'UNAVAILABLE'} " \
+             "native_bytes=#{native&.bytesize || 'UNAVAILABLE'} sha256=#{native ? Digest::SHA256.hexdigest(native) : 'UNAVAILABLE'}\n" \
+             "#{(prior_errors + errors).join("\n")}\n", mode: 'wx')
+  puts "loader native #{status}: #{native_path}; metadata=#{metadata_path}; compressed_bytes=#{compressed_size || 'UNAVAILABLE'} native_bytes=#{native&.bytesize || 'UNAVAILABLE'}"
+  raise errors.join('; ') unless errors.empty?
+end
+
+def qualification_observe_loader
+  return yield unless @qualification_loader
+
+  state = @qualification_loader
+  raise 'loader early preparation unacknowledged' unless state[:prepared]
+
+  begin
+    cursor = machine.console_output.bytesize
+    state[:recording] = :possible
+    machine.succeeds("echo 1 > #{QUAL_LOADER_TRACE}/tracing_on && test \"$(cat #{QUAL_LOADER_TRACE}/tracing_on)\" = 1", timeout: 10)
+    state[:recording] = :on
+    qualification_loader_clock('begin')
+    state[:stop] = false
+    state[:observer] = Thread.new do
+      loop do
+        text = machine.console_output.b
+        fresh = text.byteslice(cursor..).to_s
+        if (fault = fresh[/[^\n]*watchdog: BUG: soft lockup[^\n]*/])
+          state[:fault] = fault
+          puts "loader first softlockup observed wall=#{Time.now.to_f} mono=#{Process.clock_gettime(Process::CLOCK_MONOTONIC)} line=#{fault.inspect}"
+          qualification_freeze_loader
+          break
+        end
+        newline = fresh.rindex("\n")
+        cursor += newline + 1 if newline
+        break if state[:stop]
+
+        sleep 0.25
+      end
+    rescue StandardError => e
+      state[:observer_error] = e.message
+    end
+    yield
+  ensure
+    qualification_finish_loader
+  end
+end
+
+def qualification_finish_loader
+  state = @qualification_loader
+  return unless state && !state[:finished]
+
+  state[:finished] = true
+  original = $!
+  failures = []
+  [-> { qualification_stop_loader_observer },
+   -> { qualification_loader_clock('end', shell: :diagnostics) unless state[:freeze_attempted] },
+   -> { qualification_freeze_loader },
+   -> { qualification_capture_loader(prior_errors: failures) },
+   -> { File.write(File.join(state[:host], 'window-complete.txt'), "window closed wall=#{Time.now.to_f} recording=#{state[:recording]}\n") }].each do |step|
+    step.call
+  rescue StandardError => e
+    failures << e.message
+  end
+  return if failures.empty?
+
+  message = "loader diagnostic INCOMPLETE: #{failures.join('; ')}"
+  warn message
+  raise message unless original
+end
+
+def qualification_release_loader(drained:, shell: nil)
+  state = @qualification_loader
+  return unless state && !state[:released]
+  return if state[:instance] == :none
+
+  raise 'loader release already attempted' if state[:release_attempted]
+
+  state[:release_attempted] = true
+  raise 'loader workload drain unconfirmed; retained for VM teardown' unless drained
+  raise 'loader effects unconfirmed; no destructive operation' unless state[:instance] == :owned && !state[:pending] && state[:recording] == :off
+
+  state[:enabled].reverse_each do |name|
+    state[:pending] = true
+    machine.succeeds("echo 0 > #{QUAL_LOADER_TRACE}/events/#{name}/enable && test \"$(cat #{QUAL_LOADER_TRACE}/events/#{name}/enable)\" = 0", timeout: 10, shell: shell)
+    state[:pending] = false
+  end
+  state[:instance] = :possible
+  machine.succeeds("rmdir #{QUAL_LOADER_TRACE} && test ! -e #{QUAL_LOADER_TRACE}", timeout: 10, shell: shell)
+  state[:released] = true
+  puts 'loader observer released after confirmed drain or before workload'
+end
+
 def qualification_failed_activation(previous_name)
   hold = '/sys/module/livepatch_test_pernet_hold/parameters/hold'
   held = '/sys/module/livepatch_test_pernet_hold/parameters/held'
@@ -500,6 +1026,10 @@ def qualification_failed_activation(previous_name)
 end
 
 def qualification_activate(previous_name)
+  qualification_observe_loader { qualification_activate_attempts(previous_name) }
+end
+
+def qualification_activate_attempts(previous_name)
   started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
   deadline = started + QUALIFICATION_TRANSITION_SECONDS
   attempts = 0
@@ -509,10 +1039,14 @@ def qualification_activate(previous_name)
 
     attempts += 1
     begin
-      status, output = machine.execute("LC_ALL=C insmod #{CORRECTED_MODULE} 2>&1", timeout: remaining)
+      sent = [Time.now.to_f, Process.clock_gettime(Process::CLOCK_MONOTONIC)]
+      status, output = machine.execute(qualification_loader_command(attempts), timeout: remaining)
+      qualification_loader_bracket("attempt=#{attempts}", sent, [Time.now.to_f, Process.clock_gettime(Process::CLOCK_MONOTONIC)]) if @qualification_loader
     rescue StandardError => e
       # Activation can time out before wait_for_patch is reached. Use its
       # existing bounded reporter before the after-hook releases the workload.
+      puts "loader attempt=#{attempts} reply=UNAVAILABLE send=#{sent.inspect} error_observed=#{[Time.now.to_f, Process.clock_gettime(Process::CLOCK_MONOTONIC)].inspect}; command may remain active" if @qualification_loader
+      qualification_finish_loader
       capture_failed_patch_transition(machine, CORRECTED_NAME, 1)
       raise e
     end
@@ -633,11 +1167,19 @@ ensure
       warn "scheduler diagnostic INCOMPLETE: #{e.message}"
     end
   end
+  begin
+    qualification_release_loader(drained: !@qualification_workload_started || @qualification_workload_drained, shell: :diagnostics)
+  rescue StandardError => e
+    raise if @qualification_completed
+
+    warn "loader diagnostic INCOMPLETE: #{e.message}"
+  end
 end
 
 it 'qualifies the exact predecessor at the declared task, CPU, age and memory envelope' do
   @qualification_completed = false
   @qualification_dying = nil
+  @qualification_loader = nil
   @qualification_workload_started = false
   @qualification_workload_drained = false
   # A wedged cgroup migration can also prevent post-failure shell diagnostics.
@@ -667,6 +1209,7 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
   machine.succeeds("insmod #{previous_module}")
   wait_for_patch(machine, previous_name, 1)
   qualification_prepare_dying
+  qualification_prepare_loader
 
   @qualification_workload_started = true
   prepare_transition_state(machine)
@@ -809,6 +1352,7 @@ it 'qualifies the exact predecessor at the declared task, CPU, age and memory en
   stop_stress(machine)
   @qualification_workload_drained = true
   qualification_release_dying
+  qualification_release_loader(drained: true)
   consume_transition_state(machine)
   machine.succeeds('ip link del klp_qual_tap')
   groups.each { |group| machine.succeeds("rmdir #{group}") }

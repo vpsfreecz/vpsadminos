@@ -511,7 +511,58 @@ jobs:
             args+=(--no-prebuild)
           fi
 
-          ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"
+          # Temporary loader evidence; no process-name discovery or scheduler writes.
+          mkdir "$TEST_RUNNER_STATE_DIR/loader-host"
+          origin_wall_begin=${EPOCHREALTIME-}
+          origin_failure() {
+            printf 'INCOMPLETE: %s\n' "$1" > "$TEST_RUNNER_STATE_DIR/loader-host/status.txt"
+            printf 'INCOMPLETE: %s\n' "$1" >&2
+            exit 1
+          }
+          IFS=' ' read -r -n 128 origin_uptime origin_idle < /proc/uptime \
+            || origin_failure 'wrapper runner-proc-uptime unavailable'
+          origin_wall_end=${EPOCHREALTIME-}
+          [[ "$origin_uptime" =~ ^[0-9]{1,10}\.[0-9]{2}$ ]] \
+            || origin_failure 'invalid wrapper runner-proc-uptime'
+          [[ "$origin_wall_begin" =~ ^[0-9]{1,10}\.[0-9]{6}$ && "$origin_wall_end" =~ ^[0-9]{1,10}\.[0-9]{6}$ ]] \
+            || origin_failure 'invalid wrapper EPOCHREALTIME'
+          ((10#${origin_wall_end/./} >= 10#${origin_wall_begin/./})) \
+            || origin_failure 'wrapper EPOCHREALTIME regressed'
+          printf 'origin=wrapper_before_children uptime=%s uptime_view=runner-proc-uptime wall_view=runner-EPOCHREALTIME wall_begin=%s wall_end=%s\n' \
+            "$origin_uptime" "$origin_wall_begin" "$origin_wall_end" \
+            > "$TEST_RUNNER_STATE_DIR/loader-host/origin.txt"
+          read -r job_stat < "/proc/$$/stat"
+          job_fields=( ${job_stat##*) } )
+          bash tests/suite/kernel/livepatch-6.12.95/loader_host_sched.sh \
+            "$TEST_RUNNER_STATE_DIR" "$$" "${job_fields[19]}" "$origin_uptime" &
+          sampler_pid=$!
+          stop_sampler() {
+            original_status=$?
+            trap - EXIT
+            if ! printf 'stop\n' > "$TEST_RUNNER_STATE_DIR/loader-host/stop"; then
+              echo 'Loader sampler stop marker unavailable' >&2
+              if ((original_status == 0)); then original_status=1; fi
+            fi
+            wait "$sampler_pid" || true
+            if ((original_status == 0)) && ! grep -q '^complete:' \
+              "$TEST_RUNNER_STATE_DIR/loader-host/status.txt"; then
+              echo 'Loader host evidence INCOMPLETE; inspect sampler status' >&2
+              original_status=1
+            fi
+            exit "$original_status"
+          }
+          trap stop_sampler EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          (
+            read -r child_stat < "/proc/$BASHPID/stat"
+            child_fields=( ${child_stat##*) } )
+            printf '%s %s\n' "$BASHPID" "${child_fields[19]}" \
+              > "$TEST_RUNNER_STATE_DIR/loader-host/test-child.tmp"
+            mv -T "$TEST_RUNNER_STATE_DIR/loader-host/test-child.tmp" \
+              "$TEST_RUNNER_STATE_DIR/loader-host/test-child.txt"
+            exec ./test-runner.sh "${args[@]}"
+          ) | tee "$TEST_RUNNER_STATE_DIR/test.log"
 
       # Keep producer module checksums available even when every case passes.
       - name: Upload full test logs
