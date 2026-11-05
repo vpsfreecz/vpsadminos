@@ -1,170 +1,203 @@
-name: Build and test changed container images
-
-env:
-  VPSADMINOS_CONFIG: >-
-    ${{ (github.ref == 'refs/heads/snajpa-6.18' || github.head_ref == 'snajpa-6.18') && format('{0}/os/configs/unstable.nix', github.workspace) || '' }}
-
+name: Container image pipeline
 on:
+  push:
+    branches: [staging]
+    paths:
+      - image-scripts/**
+      - osctl-image/**
+      - osvm/**
+      - os/lib/nixos-container/**
+      - os/configs/image-repository.nix
+      - tests/distributions.nix
+      - tests/image-repository-requirements.nix
+      - tools/image-pipeline*
+      - tools/image_pipeline/**
+      - tools/spec/**
+      - .github/workflows/image-scripts.yml
+      - .github/workflows/scripts/changed-image-scripts.rb
+  schedule:
+    - cron: '0 4 * * 0'
   workflow_dispatch:
     inputs:
-      stop_on_failure:
-        description: Stop scheduling after the first unexpected result
+      images:
+        description: 'all or comma-separated configured image names'
+        default: all
         required: true
+        type: string
+      full_ci:
+        description: 'Run the full integration suite after a complete sealed view is ready'
         default: false
+        required: true
         type: boolean
-  push:
-    paths:
-      - .github/workflows/image-scripts.yml
-      - .github/workflows/scripts/changed-image-scripts.rb
-      - .github/workflows/scripts/test-image-script-common.sh
-      - image-scripts/**
-      - os/lib/nixos-container/**
-  pull_request:
-    paths:
-      - .github/workflows/image-scripts.yml
-      - .github/workflows/scripts/changed-image-scripts.rb
-      - .github/workflows/scripts/test-image-script-common.sh
-      - image-scripts/**
-      - os/lib/nixos-container/**
-
+permissions:
+  contents: read
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   build:
-    name: Build OS and populate binary cache
+    # P0 must configure this protected environment and admit trusted revisions
+    # before enabling persistent privileged runner execution.
+    environment: container-image-builder
+    if: github.repository == 'vpsfreecz/vpsadminos'
     runs-on: self-hosted
-    timeout-minutes: 180
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Determine branch name
-        id: vars
-        run: |
-          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
-
-      - name: Build toplevel closure
-        run: |
-          make toplevel
-          echo "BUILD_OUT=$(readlink -f os/result/toplevel)" >> "$GITHUB_ENV"
-
-      - name: Copy toplevel closure to binary cache
-        env:
-          VPSADMINOS_CACHE_SSH_KEY: ${{ secrets.VPSADMINOS_CACHE_SSH_KEY }}
-        run: |
-          install -m 600 -D <(echo "$VPSADMINOS_CACHE_SSH_KEY") .ssh/cache_id
-          NIX_SSHOPTS="-i .ssh/cache_id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" nix-copy-closure --to push@cache.int.vpsadminos.org "$BUILD_OUT"
-
-      - name: Add new profile generation
-        env:
-          BRANCH: ${{ steps.vars.outputs.branch }}
-        run: |
-          ssh -i .ssh/cache_id \
-              -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              push@cache.int.vpsadminos.org \
-              sudo push-ci-generation "$BRANCH" "$BUILD_OUT"
-  
-  detect:
-    name: Detect changed image scripts
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 1440
     outputs:
-      images: ${{ steps.set.outputs.images }}
+      ci_ready: ${{ steps.summary.outputs.ci_ready }}
+      metadata: ${{ steps.summary.outputs.metadata }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: Test common image script helpers
-        run: .github/workflows/scripts/test-image-script-common.sh
-
-      - id: set
-        shell: bash
+      - name: Prepare trusted run and source inputs
+        env:
+          EVENT: ${{ github.event_name }}
+          IMAGES: ${{ inputs.images || 'all' }}
+          WORKERS: ${{ vars.IMAGE_WORKERS }}
+          MEMORY_MIB: ${{ vars.IMAGE_WORKER_MEMORY_MIB }}
+          WORKER_CPUS: ${{ vars.IMAGE_WORKER_CPUS }}
+          DISK_SIZE: ${{ vars.IMAGE_WORKER_DISK_SIZE }}
+          MAX_MEMORY: ${{ vars.IMAGE_MEMORY_MIB }}
+          MAX_CPUS: ${{ vars.IMAGE_CPUS }}
+          LEASE: ${{ vars.IMAGE_RUN_LEASE_SECONDS }}
         run: |
-          BASE_SHA=$(jq -r '.before // .pull_request.base.sha // ""' "$GITHUB_EVENT_PATH")
-          HEAD_SHA=$GITHUB_SHA
-          DEFAULT_BRANCH=$(jq -r '.repository.default_branch // ""' "$GITHUB_EVENT_PATH")
-          CURRENT_BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
-
-          images=$(
-            BASE_SHA="$BASE_SHA" \
-            HEAD_SHA="$HEAD_SHA" \
-            DEFAULT_BRANCH="$DEFAULT_BRANCH" \
-            CURRENT_BRANCH="$CURRENT_BRANCH" \
-            ruby .github/workflows/scripts/changed-image-scripts.rb
-          )
-          echo "Detected images: $images"
-          echo "images=$images" >> "$GITHUB_OUTPUT"
-
-  test:
-    name: Build and test changed images
-    needs: detect
-    if: ${{ needs.detect.outputs.images != '' }}
+          set -euo pipefail
+          for value in "$WORKERS" "$MEMORY_MIB" "$WORKER_CPUS" "$MAX_MEMORY" "$MAX_CPUS" "$LEASE"; do
+            [[ "$value" =~ ^[1-9][0-9]*$ ]] || { echo 'Missing measured runner admission'; exit 1; }
+          done
+          [[ "$DISK_SIZE" =~ ^[1-9][0-9]*[GMT]$ ]] || exit 1
+          state=$(mktemp -d "$RUNNER_TEMP/image-pipeline.XXXXXXXX")
+          echo "PIPELINE_STATE=$state" >> "$GITHUB_ENV"
+          echo "PIPELINE_IMAGES=$IMAGES" >> "$GITHUB_ENV"
+          nix flake metadata --json > "$state/inputs.json"
+          nix eval --impure --json --file tools/image-pipeline-plan.nix > "$state/plan.json"
+          if [[ "$EVENT" == push ]]; then
+            base=$(jq -r .before "$GITHUB_EVENT_PATH")
+            if git diff --name-only "$base" "$GITHUB_SHA" | rg -q '^(osctl-image/|osvm/|tools/|os/configs/image-repository.nix|tests/(distributions|image-repository-requirements).nix|.github/)'; then
+              selected=all
+            else
+              selected=$(BASE_SHA="$base" HEAD_SHA="$GITHUB_SHA" DEFAULT_BRANCH=staging CURRENT_BRANCH=staging ruby .github/workflows/scripts/changed-image-scripts.rb)
+            fi
+            echo "PIPELINE_IMAGES=$selected" >> "$GITHUB_ENV"
+          fi
+          # This is the declared worker closure. Required kernels are built by
+          # the cache builder as in ordinary CI, never incidentally on a laptop.
+          nix build --impure --file tools/image-pipeline.nix --arg memoryMiB "$MEMORY_MIB" --arg cpus "$WORKER_CPUS" --argstr diskSize "$DISK_SIZE" --out-link "$state/worker-config"
+          nix build .#osvm --out-link "$state/osvm"
+      - name: Build and verify selected images in warm workers
+        env:
+          PRODUCER_KEY: ${{ secrets.IMAGE_PRODUCER_SSH_KEY }}
+          PRODUCER_HOST_KEY: ${{ vars.IMAGE_SSH_HOST_KEY }}
+          PRODUCER_TARGET: ${{ vars.IMAGE_PRODUCER_TARGET }}
+          IMAGE_URL: ${{ vars.IMAGE_REPOSITORY_URL }}
+          WORKERS: ${{ vars.IMAGE_WORKERS }}
+          MEMORY_MIB: ${{ vars.IMAGE_MEMORY_MIB }}
+          CPUS: ${{ vars.IMAGE_CPUS }}
+          LEASE: ${{ vars.IMAGE_RUN_LEASE_SECONDS }}
+          FULL_CI: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+        run: |
+          set -euo pipefail
+          ci_args=()
+          if [[ "$FULL_CI" == true ]]; then ci_args+=(--full-ci); fi
+          install -m 700 -d "$PIPELINE_STATE/ssh"
+          printf '%s\n' "$PRODUCER_KEY" > "$PIPELINE_STATE/ssh/key"
+          chmod 600 "$PIPELINE_STATE/ssh/key"
+          printf '%s\n' "$PRODUCER_HOST_KEY" > "$PIPELINE_STATE/ssh/known_hosts"
+          export IMAGE_SSH_KNOWN_HOSTS="$PIPELINE_STATE/ssh/known_hosts"
+          # SSH config is outside the source shared into guests; the forced
+          # command on this key selects the producer socket only.
+          export SSH_AUTH_SOCK=
+          eval "$(ssh-agent -s)"
+          trap 'ssh-agent -k >/dev/null; rm -f "$PIPELINE_STATE/ssh/key"' EXIT
+          ssh-add "$PIPELINE_STATE/ssh/key"
+          "$PIPELINE_STATE/osvm/bin/osvm" script tools/image-pipeline.rb \
+            --machine-config "$PIPELINE_STATE/worker-config" --plan "$PIPELINE_STATE/plan.json" \
+            --source-dir "$GITHUB_WORKSPACE" --state-dir "$PIPELINE_STATE/run" \
+            --workers "$WORKERS" --max-memory-mib "$MEMORY_MIB" --max-cpus "$CPUS" \
+            --producer "$PRODUCER_TARGET" --url "$IMAGE_URL" --images "$PIPELINE_IMAGES" \
+            --run-id "github-$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
+            --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF" --input-graph "$PIPELINE_STATE/inputs.json" \
+            --lease-seconds "$LEASE" "${ci_args[@]}"
+      - name: Record complete and partial outcomes
+        id: summary
+        if: always()
+        run: |
+          if [[ -f "$PIPELINE_STATE/run/run.json" ]]; then
+            echo 'metadata=true' >> "$GITHUB_OUTPUT"
+            if jq -e '.full_ci.requested == true and .full_ci.ready == true' "$PIPELINE_STATE/run/run.json" >/dev/null; then
+              echo 'ci_ready=true' >> "$GITHUB_OUTPUT"
+            elif jq -e '.full_ci.requested == true' "$PIPELINE_STATE/run/run.json" >/dev/null; then
+              jq -r '"Full CI unavailable: " + .full_ci.reason' "$PIPELINE_STATE/run/run.json" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo 'Full CI not requested; per-image verification and publication are independent.' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo 'No candidate metadata; full CI and publication skipped.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Retain source and result metadata
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: image-pipeline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.PIPELINE_STATE }}/inputs.json
+            ${{ env.PIPELINE_STATE }}/plan.json
+            ${{ env.PIPELINE_STATE }}/run/run.json
+            ${{ env.PIPELINE_STATE }}/run/test-config.json
+            ${{ env.PIPELINE_STATE }}/run/producer/*.json
+            ${{ env.PIPELINE_STATE }}/run/worker-*/exports/**/*.json
+            ${{ env.PIPELINE_STATE }}/run/worker-*/exports/**/*.log
+          retention-days: 14
+  publish:
+    needs: build
+    if: >-
+      always() && !cancelled() && needs.build.outputs.metadata == 'true' &&
+      github.repository == 'vpsfreecz/vpsadminos' && github.ref == 'refs/heads/staging'
+    environment: container-image-publisher
     runs-on: self-hosted
-    timeout-minutes: 86400
     steps:
       - uses: actions/checkout@v7
-
-      - name: Prepare test state
-        id: prepare-tests
-        uses: ./.github/actions/prepare-test-state
-
-      - name: Build and test images
-        id: run-tests
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          name: image-pipeline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pipeline-metadata
+      - name: Publish independently verified default-source results
         env:
-          STOP_ON_FAILURE: ${{ github.event.inputs.stop_on_failure || 'false' }}
+          PUBLISHER_KEY: ${{ secrets.IMAGE_PUBLISHER_SSH_KEY }}
+          HOST_KEY: ${{ vars.IMAGE_SSH_HOST_KEY }}
+          TARGET: ${{ vars.IMAGE_PUBLISHER_TARGET }}
         run: |
-          set -o pipefail
-
-          args=(
-            test
-            --state-dir "$TEST_RUNNER_STATE_DIR"
-            -f
-            --jobs auto
-            "image-scripts/test@{${{ needs.detect.outputs.images }}}"
-          )
-
-          if [[ "$STOP_ON_FAILURE" == "true" ]]; then
-            args+=(--stop-on-failure)
-          fi
-
-          ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"
-
-      - name: Upload full test logs
-        id: upload-test-logs
-        if: >-
-          (failure() || cancelled()) &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/upload-test-logs
+          set -euo pipefail
+          key=$(mktemp "$RUNNER_TEMP/image-publisher.XXXXXXXX")
+          trap 'rm -f "$key" "${key}.known_hosts"; ssh-agent -k >/dev/null' EXIT
+          printf '%s\n' "$PUBLISHER_KEY" > "$key"
+          chmod 600 "$key"
+          eval "$(ssh-agent -s)"
+          ssh-add "$key"
+          export IMAGE_SSH_KNOWN_HOSTS="${key}.known_hosts"
+          printf '%s\n' "$HOST_KEY" > "$IMAGE_SSH_KNOWN_HOSTS"
+          summary=$(find pipeline-metadata -name run.json -print -quit)
+          ruby tools/image-pipeline-publish.rb --summary "$summary" --publisher "$TARGET" \
+            --source-dir "$GITHUB_WORKSPACE" --receipts "$RUNNER_TEMP/image-publication-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+  full-ci:
+    needs: build
+    if: always() && !cancelled() && needs.build.outputs.ci_ready == 'true'
+    environment: container-image-builder
+    runs-on: self-hosted
+    timeout-minutes: 1440
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
-          paths: |
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
-
-      - name: Evaluate test results
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/evaluate-test-results
-        with:
-          log-file: ${{ steps.prepare-tests.outputs.state-directory }}/test.log
-
-      - name: Summarise test logs
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/summarise-test-logs
-        with:
-          logs-root: ${{ steps.prepare-tests.outputs.state-directory }}
-
-      - name: Cleanup test state
-        if: always()
-        uses: ./.github/actions/cleanup-test-state
-        with:
-          state-directory: ${{ steps.prepare-tests.outputs.state-directory }}
-          prepare-outcome: ${{ steps.prepare-tests.outcome }}
-          test-outcome: ${{ steps.run-tests.outcome }}
-          upload-outcome: ${{ steps.upload-test-logs.outcome }}
+          name: image-pipeline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pipeline-metadata
+      - name: Test all distributions using the one sealed run
+        run: |
+          set -euo pipefail
+          cfg=$(find "$PWD/pipeline-metadata" -name test-config.json -print -quit)
+          test_cfg=$(mktemp "$RUNNER_TEMP/image-test-config.XXXXXXXX.nix")
+          printf 'import %s/tests/test-configs/ci.nix // builtins.fromJSON (builtins.readFile %s)\n' "$PWD" "$cfg" > "$test_cfg"
+          state=$(mktemp -d "$RUNNER_TEMP/image-full-ci.XXXXXXXX")
+          ./test-runner.sh test --test-config "$test_cfg" --state-dir "$state" --fresh --jobs auto -t ci

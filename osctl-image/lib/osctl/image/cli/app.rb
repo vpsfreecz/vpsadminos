@@ -25,6 +25,22 @@ module OsCtl::Image::Cli
       desc 'Path to vpsAdminOS checkout used by NixOS image scripts'
       flag 'vpsadminos-dir', arg_name: 'dir'
 
+      desc 'Capture an image configuration once for an assigned build'
+      arg_name '<image> <descriptor.json>'
+      command 'capture' do |c|
+        c.flag 'source', required: true, arg_name: 'Git revision'
+        c.action(&Command.run(Image, :capture))
+      end
+
+      desc 'Build and test one captured assignment without re-evaluating its configuration'
+      arg_name '<descriptor.json>'
+      command 'assigned' do |c|
+        c.flag 'output-dir', required: true, arg_name: 'dir'
+        c.flag 'build-dataset', required: true, arg_name: 'filesystem'
+        c.flag 'result', required: true, arg_name: 'result.json'
+        c.action(&Command.run(Image, :assigned))
+      end
+
       desc 'List available images'
       command 'ls' do |c|
         c.desc 'Select parameters to output'

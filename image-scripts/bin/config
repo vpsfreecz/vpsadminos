@@ -96,7 +96,7 @@ function do_image {
 				fi
 			done
 			;;
-		show)
+		show|capture)
 			local name="$2"
 
 			if [ "$name" == "" ] ; then
@@ -131,6 +131,17 @@ function do_image {
 			. "$dir/config.sh"
 
 			[ -z "$BUILD_VARIANT" ] && BUILD_VARIANT="$VARIANT"
+
+			if [ "$action" == capture ]; then
+				# Capture the supported config interface, including openSUSE helpers.
+				# The selected variant replaces the list declared by config.sh.
+				VARIANT="$BUILD_VARIANT"
+				local key
+				for key in BUILDER DISTNAME RELVER ARCH VENDOR VARIANT DATASETS SPIN SPINVER; do
+					printf '%s=%q\n' "$key" "${!key-}"
+				done
+				return
+			fi
 
 			echo "BUILDER=$BUILDER"
 			echo "DISTNAME=$DISTNAME"

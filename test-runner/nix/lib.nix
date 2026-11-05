@@ -18,6 +18,11 @@ let
       configuration
       testConfig
       ;
+    modules =
+      (suiteArgs.modules or [ ])
+      ++ l.optional (testConfig ? imageRepository) (
+        import ./image-repository.nix testConfig.imageRepository.url
+      );
   }
   // l.optionalAttrs (testFramework != null) {
     inherit testFramework;
@@ -31,7 +36,7 @@ let
     let
       testModule = import (suitePath + "/${test}.nix") (
         baseSuiteArgs
-        // suiteArgs
+        // builtins.removeAttrs suiteArgs [ "modules" ]
         // {
           testArgs = args;
         }
@@ -53,7 +58,7 @@ let
       let
         t = import (suitePath + "/${template}.nix") (
           baseSuiteArgs
-          // suiteArgs
+          // builtins.removeAttrs suiteArgs [ "modules" ]
           // {
             templateArgs = args;
           }

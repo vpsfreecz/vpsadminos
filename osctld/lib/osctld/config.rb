@@ -164,9 +164,16 @@ module OsCtld
     # @return [GarbageCollector]
     attr_reader :garbage_collector
 
+    # URL used only when a pool has no persisted default repository yet.
+    attr_reader :default_repository_url
+
     # @param path [String]
     def initialize(path)
       cfg = JSON.parse(File.read(path))
+      @default_repository_url = cfg.fetch('default_repository_url', 'https://images.vpsadminos.org')
+      unless @default_repository_url.is_a?(String) && @default_repository_url.match?(%r{\Ahttps?://[^\s]+\z})
+        raise ArgumentError, 'default_repository_url must be an HTTP(S) URL'
+      end
 
       @debug = cfg.fetch('debug', false)
       @apparmor_paths = cfg.fetch('apparmor_paths', [])

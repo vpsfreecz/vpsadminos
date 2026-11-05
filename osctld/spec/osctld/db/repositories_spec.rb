@@ -5,6 +5,14 @@ require 'osctld/db/repositories'
 RSpec.describe OsCtld::DB::Repositories do
   let(:pool) { Struct.new(:name, keyword_init: true).new(name: 'tank') }
 
+  before do
+    config = Struct.new(:default_repository_url).new('https://images.example/runs/sealed')
+    daemon = Struct.new(:config).new(config)
+    registry = Class.new
+    registry.define_singleton_method(:get) { daemon }
+    stub_const('OsCtld::Daemon', registry)
+  end
+
   it 'loads and starts the default repository when present' do
     repo = Struct.new(:start) do
       def start; end
@@ -39,7 +47,7 @@ RSpec.describe OsCtld::DB::Repositories do
     expect(OsCtld::Commands::Repository::Add).to have_received(:run).with(
       pool:,
       name: 'default',
-      url: 'https://images.vpsadminos.org'
+      url: 'https://images.example/runs/sealed'
     )
   end
 end

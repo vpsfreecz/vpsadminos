@@ -16,6 +16,7 @@ suites=(
   "osctld:osctld"
   "osup:osup"
   "osvm:osvm"
+  "image-pipeline:osvm"
   "svctl:svctl"
   "test-runner:test-runner"
 )
@@ -122,14 +123,18 @@ run_suite() {
         ensure_osctld_native
         ensure_ruby_lxc_native
         ;;
-      converter|osctl|osctl-exporter|osctl-exportfs|osctl-image|osctl-oomd|osctl-repo|osup|osvm|svctl)
+      converter|osctl|osctl-exporter|osctl-exportfs|osctl-image|osctl-oomd|osctl-repo|osup|osvm|image-pipeline|svctl)
         ensure_libosctl_native
         ;;
     esac
 
     export RUBYLIB="${workspace}/.native/ruby-lxc:${RUBYLIB:-}"
 
-    bundle exec rspec \
+    spec_args=()
+    if [ "$name" = "image-pipeline" ]; then
+      spec_args=("${workspace}/tools/spec")
+    fi
+    bundle exec rspec "${spec_args[@]}" \
       --format progress \
       --profile 10
   ) || rc=$?

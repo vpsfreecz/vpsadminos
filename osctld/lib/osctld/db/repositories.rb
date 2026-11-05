@@ -8,7 +8,7 @@ module OsCtld
       Commands::Repository::Add.run(
         pool:,
         name: 'default',
-        url: 'https://images.vpsadminos.org'
+        url: Daemon.get.config.default_repository_url
       )
     else
       add(repo)

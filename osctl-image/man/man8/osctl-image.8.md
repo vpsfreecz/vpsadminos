@@ -31,6 +31,16 @@ of `osctl-image` with image building programs.
   used from inside the vpsAdminOS repository.
 
 ## COMMANDS
+`capture --source` *revision* *image* *descriptor.json*
+  Resolve an image configuration once, including its selected variant. Record
+  the exact source commit and configuration digest for an assigned build.
+
+`assigned --build-dataset` *dataset* `--output-dir` *directory* `--result` *result.json* *descriptor.json*
+  Build and test one captured assignment using a private scripts copy. Do not
+  re-evaluate date-derived configuration. Rebuild on every attempt, disable
+  failed-container retention and validate exported tuples. Write verified
+  file paths, sizes and SHA-256 digests only after successful image tests.
+
 `ls` [*options*]
   List available images.
 
