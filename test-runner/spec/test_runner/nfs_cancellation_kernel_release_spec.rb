@@ -19,6 +19,7 @@ RSpec.describe 'NFS cancellation running kernel assertion' do # rubocop:disable 
           pkgs = {
             pkgsStatic.stdenv.mkDerivation = _: "/unused-dirty-init";
             writeScript = _: _: "/unused-dirty-init-script";
+            ruby = "/unused-ruby";
             lib.optionalString = condition: value: if condition then value else "";
           };
         }).testScript
