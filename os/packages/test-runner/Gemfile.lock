@@ -29,10 +29,10 @@ GEM
     reline (0.7.0)
       io-console (~> 0.5)
     require_all (2.0.0)
-    rspec-expectations (3.13.5)
+    rspec-expectations (3.13.6)
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
-    rspec-support (3.13.7)
+    rspec-support (3.13.8)
     syslog (0.4.0)
       logger
     test-runner (26.05.0)
