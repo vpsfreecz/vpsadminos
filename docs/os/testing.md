@@ -252,6 +252,27 @@ The REPL can be used to issue the same commands as in the test script. The test
 script itself can be run by calling method `test_script`. You can call method
 `breakpoint` from inside the test to open the REPL from any point of execution.
 
+### Explicit ZFS full suite
+
+OpenZFS full-suite execution is available as an explicit `test-runner` tag and is
+not part of default `-t ci` runs. Run these commands from the repository root.
+
+```bash
+# Full profile (long run)
+./run-zfs-full-suite.sh
+
+# Quicker profiles
+PROFILE=sanity ./run-zfs-full-suite.sh
+PROFILE=smoke ./run-zfs-full-suite.sh
+
+# Start multiple runs in parallel by using unique state dirs/run ids
+RUN_ID=zfs-full-a ./run-zfs-full-suite.sh
+RUN_ID=zfs-full-b ./run-zfs-full-suite.sh
+```
+
+The wrapper derives its default state directory from `RUN_ID`. Give each
+parallel run a unique `RUN_ID` and do not reuse a `STATE_DIR` override.
+
 ## Userspace upgrades between versions
 
 The ordinary `upgrade/impermanence-from-2abbe3cc1c10@v1` and `@v2` cases validate a

@@ -47,6 +47,8 @@ nav:
     - 'Downstream patch-series policy': 'os/patch-series-policy.md'
     - Testing: 'os/testing.md'
     - 'Test framework integration': 'os/test-framework-integration.md'
+- Maintainer operations:
+    - 'Automated flake updates': 'operations/flake-updates.md'
 - Services:
     - Docker: 'services/docker.md'
     - Snappy: 'services/snappy.md'

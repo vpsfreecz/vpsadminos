@@ -59,24 +59,6 @@ The QEMU runner creates two disk images - `sda.img` and `sdb.img` which are adde
 as QEMU ATA drives and can be used to create a mirrored ZFS pool that persists
 across reboots.
 
-## Explicit ZFS Full Suite
-
-OpenZFS full-suite execution is available as an explicit `test-runner` tag and is
-not part of default `-t ci` runs.
-
-```bash
-# Full profile (long run)
-./run-zfs-full-suite.sh
-
-# Quicker profiles
-PROFILE=sanity ./run-zfs-full-suite.sh
-PROFILE=smoke ./run-zfs-full-suite.sh
-
-# Start multiple runs in parallel by using unique state dirs/run ids
-RUN_ID=zfs-full-a ./run-zfs-full-suite.sh
-RUN_ID=zfs-full-b ./run-zfs-full-suite.sh
-```
-
 ## Usage
 
 ```bash
@@ -135,23 +117,22 @@ the kernel.
 
 ## Docs
 
+### User documentation
+
 * [vpsAdminOS documentation](https://vpsadminos.org)
 * [Manual pages](https://man.vpsadminos.org)
 * [Reference documentation](https://ref.vpsadminos.org)
 * https://linuxcontainers.org/
 
-## Automated flake updates
+### Development
 
-The `flake-update.yml` workflow updates all root inputs using an independently
-pinned confctl CI tool. It requires ancestry preservation across the changed
-lock graph and stops publication on rejection or unavailable evidence. It
-checks the final lock against a saved baseline after hooks and checks, then
-uses an ordinary non-force push. If the target branch advances, rerun from its
-new baseline instead of rebasing the old lock update. The CI tool does not
-become a runtime flake input.
+<a id="explicit-zfs-full-suite"></a>
 
-The workflow saves confctl's Git mirrors in `~/.cache/confctl` even when an
-update is rejected. Every update checks ancestry, whether the cache was
-restored or freshly cloned.
+* [Testing](docs/os/testing.md), including
+  [explicit ZFS full-suite runs](docs/os/testing.md#explicit-zfs-full-suite)
 
-See the [shared guard contract](https://github.com/vpsfreecz/confctl/blob/822c0e35dbe2549111912f539116b4225dfd3035/docs/flake-inputs.md#guarded-automated-updates) for supported sources and failure behavior.
+### Maintainer operations
+
+<a id="automated-flake-updates"></a>
+
+* [Automated flake updates](docs/operations/flake-updates.md)
