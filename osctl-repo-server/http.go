@@ -24,6 +24,7 @@ type HTTPOptions struct {
 	TrustedProxies []netip.Prefix
 	ClientIPHeader string
 	Observer       *HTTPObserver
+	Dashboard      DashboardReader
 }
 
 type repositoryHTTP struct {
@@ -32,6 +33,11 @@ type repositoryHTTP struct {
 }
 
 func NewHTTPHandler(reader Reader, options HTTPOptions) http.Handler {
+	if options.Dashboard == nil {
+		if store, ok := reader.(*Store); ok {
+			options.Dashboard = NewStoreDashboardReader(store, options.Repository, options.Instance, options.Observer)
+		}
+	}
 	return &repositoryHTTP{reader: reader, opts: options}
 }
 
@@ -88,6 +94,11 @@ func (h *repositoryHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		run, p = parts[0], "/"+parts[1]
 		e.Scope, e.RunKey = "run", bounded(run, 256)
 	}
+	if run == "" && strings.HasPrefix(p, "/dashboard/api/") {
+		e.Kind = "dashboard"
+		h.dashboardAPI(rw, r)
+		return
+	}
 	if p == "/" || p == "/dashboard.json" || strings.HasSuffix(p, "/") && strings.HasPrefix(p, "/v1/") {
 		e.Kind = "dashboard"
 		h.dashboard(rw, r, run, p)
@@ -95,20 +106,34 @@ func (h *repositoryHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if p == "/v1/INDEX.json" {
 		e.Kind = "index"
-		view, err := h.reader.Catalog(r.Context(), h.opts.Repository, run)
-		if err != nil {
-			h.readerError(rw, r, err)
-			return
+		var body []byte
+		var modified time.Time
+		var etag string
+		if store, ok := h.reader.(*Store); ok {
+			cached, err := store.catalogSnapshot(r.Context(), h.opts.Repository, run)
+			if err != nil {
+				h.readerError(rw, r, err)
+				return
+			}
+			body, modified, etag = cached.index, cached.view.Modified, cached.etag
+		} else {
+			view, err := h.reader.Catalog(r.Context(), h.opts.Repository, run)
+			if err != nil {
+				h.readerError(rw, r, err)
+				return
+			}
+			body, err = nativeIndex(view.Catalog)
+			if err != nil {
+				h.readerError(rw, r, err)
+				return
+			}
+			modified = view.Modified
+			sum := sha256.Sum256(body)
+			etag = fmt.Sprintf(`"%x"`, sum)
 		}
-		body, err := nativeIndex(view.Catalog)
-		if err != nil {
-			h.readerError(rw, r, err)
-			return
-		}
-		sum := sha256.Sum256(body)
 		rw.Header().Set("Content-Type", "application/json")
-		rw.Header().Set("ETag", fmt.Sprintf(`"%x"`, sum))
-		http.ServeContent(rw, conditionalRequest(r, run == ""), "INDEX.json", view.Modified, bytes.NewReader(body))
+		rw.Header().Set("ETag", etag)
+		http.ServeContent(rw, conditionalRequest(r, run == ""), "INDEX.json", modified, bytes.NewReader(body))
 		return
 	}
 	if !strings.HasPrefix(p, "/v1/") {

@@ -77,7 +77,7 @@ func run() error {
 	accessLog := flags.String("access-log", "", "private JSONL log path")
 	logBytes := flags.Int64("access-log-max-bytes", 0, "rotation byte limit")
 	logFiles := flags.Int("access-log-files", 0, "retained log files")
-	statsDays := flags.Int("stats-days", 0, "retained statistics days")
+	statsDays := flags.Int("stats-days", 365, "retained statistics days")
 	statsRows := flags.Int("stats-max-rows", 0, "bounded aggregate row count")
 	eventQueue := flags.Int("event-queue", 0, "bounded measurement queue")
 	clientHeader := flags.String("client-ip-header", "", "trusted edge client address header")

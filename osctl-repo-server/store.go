@@ -24,6 +24,10 @@ import (
 
 type Store struct {
 	db           *sql.DB
+	reads        *sql.DB
+	cacheMu      sync.Mutex
+	catalogs     map[string]*cachedCatalog
+	cacheBytes   int
 	mu           sync.Mutex
 	options      Options
 	lock         *os.File
@@ -74,6 +78,29 @@ func OpenStore(options Options) (*Store, error) {
 		lock.Close()
 		return nil, problem("conflict", "another service owns storage")
 	}
+	// Inspect existing state read-only before enabling WAL or startup cleanup.
+	databasePath := filepath.Join(root, "catalog.sqlite")
+	if _, err := os.Stat(databasePath); err == nil {
+		probe, err := sql.Open("sqlite3", "file:"+url.PathEscape(databasePath)+"?mode=ro")
+		if err != nil {
+			lock.Close()
+			return nil, err
+		}
+		var version int
+		err = probe.QueryRow("PRAGMA user_version").Scan(&version)
+		probe.Close()
+		if err != nil {
+			lock.Close()
+			return nil, err
+		}
+		if version > 2 || version < 0 {
+			lock.Close()
+			return nil, problem("invalid", "unsupported database schema")
+		}
+	} else if !os.IsNotExist(err) {
+		lock.Close()
+		return nil, err
+	}
 	dsn := "file:" + url.PathEscape(filepath.Join(root, "catalog.sqlite")) + "?_foreign_keys=on&_journal_mode=WAL&_synchronous=FULL&_busy_timeout=5000"
 	db, e := sql.Open("sqlite3", dsn)
 	if e != nil {
@@ -81,19 +108,33 @@ func OpenStore(options Options) (*Store, error) {
 		return nil, e
 	}
 	db.SetMaxOpenConns(1)
-	s := &Store{db: db, options: options, lock: lock, activeFiles: map[string]bool{}}
+	s := &Store{db: db, options: options, lock: lock, activeFiles: map[string]bool{}, catalogs: map[string]*cachedCatalog{}}
 	var version int
 	if e = db.QueryRow("PRAGMA user_version").Scan(&version); e == nil {
-		if version == 0 {
-			e = initializeSchema(db)
-		} else if version != 1 {
+		if version < 0 || version > 2 {
 			e = problem("invalid", "unsupported database schema")
+		} else {
+			if version == 0 {
+				e = initializeSchema(db)
+				version = 1
+			}
+			if e == nil && version == 1 {
+				e = migrateSchema1(context.Background(), db)
+			}
 		}
 	}
 	if e != nil {
 		s.Close()
 		return nil, e
 	}
+	reads, err := sql.Open("sqlite3", "file:"+url.PathEscape(filepath.Join(root, "catalog.sqlite"))+"?mode=ro&_foreign_keys=on&_busy_timeout=5000&_query_only=on")
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	reads.SetMaxOpenConns(2)
+	reads.SetMaxIdleConns(2)
+	s.reads = reads
 	if e = os.Chmod(filepath.Join(root, "catalog.sqlite"), 0600); e != nil {
 		s.Close()
 		return nil, e
@@ -132,6 +173,9 @@ func initializeSchema(db *sql.DB) error {
 func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.reads != nil {
+		_ = s.reads.Close()
+	}
 	e := s.db.Close()
 	if s.lock != nil {
 		s.lock.Close()
@@ -288,22 +332,30 @@ func (s *Store) catalog(ctx context.Context, q querier, repo, key string) (Catal
 	return loadCatalog(ctx, q, gen)
 }
 func (s *Store) Catalog(ctx context.Context, repo, key string) (CatalogView, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.catalog(ctx, s.db, repo, key)
+	c, e := s.catalogSnapshot(ctx, repo, key)
+	if e != nil {
+		return CatalogView{}, e
+	}
+	return c.view, nil
 }
 func (s *Store) OpenFile(ctx context.Context, repo, key, path string) (*OpenedFile, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	v, e := s.catalog(ctx, s.db, repo, key)
+	cached, e := s.catalogSnapshot(ctx, repo, key)
 	if e != nil {
 		return nil, e
 	}
-	im, format, e := resolve(v.Catalog, path)
+	v := cached.view
+	im, format, e := cached.resolve(path)
 	if e != nil {
 		return nil, e
 	}
 	ref := im.Files[format]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Recheck current visibility under admission before opening an inode.
+	if err := s.catalogVisible(ctx, s.db, repo, key, v.Generation); err != nil {
+		return nil, err
+	}
+
 	var stored, state string
 	e = s.db.QueryRowContext(ctx, "SELECT path,state FROM files WHERE id=?", ref.ID).Scan(&stored, &state)
 	if e != nil {
@@ -324,14 +376,17 @@ func (s *Store) OpenFile(ctx context.Context, repo, key, path string) (*OpenedFi
 	return &OpenedFile{File: f, Ref: ref, Tuple: im.Tuple, Path: path, View: v}, nil
 }
 func (s *Store) Storage(ctx context.Context, repo string) (StorageSummary, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	tx, err := s.reads.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return StorageSummary{}, err
+	}
+	defer tx.Rollback()
 	var v StorageSummary
-	e := s.db.QueryRowContext(ctx, "SELECT COALESCE(SUM(size),0),COUNT(*) FROM files").Scan(&v.Bytes, &v.Files)
+	e := tx.QueryRowContext(ctx, "SELECT COALESCE(SUM(size),0),COUNT(*) FROM files").Scan(&v.Bytes, &v.Files)
 	if e != nil {
 		return v, e
 	}
-	rows, e := s.db.QueryContext(ctx, "SELECT document FROM runs WHERE repository=? ORDER BY key", repo)
+	rows, e := tx.QueryContext(ctx, "SELECT document FROM runs WHERE repository=? ORDER BY key", repo)
 	if e != nil {
 		return v, e
 	}

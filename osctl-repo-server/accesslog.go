@@ -153,26 +153,50 @@ func (o *HTTPObserver) run() {
 	defer close(o.done)
 	defer o.log.Close()
 	o.refresh()
-	for e := range o.queue {
-		// Encoder retains its first writer error. Use a fresh one per event so
-		// a repaired file can accept subsequent complete records.
-		if err := json.NewEncoder(o.log).Encode(e); err != nil {
-			o.logFailures.Add(1)
+	lastRefresh := time.Now()
+	for first := range o.queue {
+		batch := []AccessEvent{first}
+	drain:
+		for len(batch) < 128 {
+			select {
+			case e, ok := <-o.queue:
+				if !ok {
+					break drain
+				}
+				batch = append(batch, e)
+			default:
+				break drain
+			}
+		}
+		for _, e := range batch {
+			if err := json.NewEncoder(o.log).Encode(e); err != nil {
+				o.logFailures.Add(1)
+			}
 		}
 		if o.store != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			err := o.store.RecordHTTP(ctx, e, o.opts.StatsDays, o.opts.StatsMaxRows)
-			cancel()
-			if err != nil {
-				o.statsFailures.Add(1)
+			if store, ok := o.store.(interface {
+				RecordHTTPBatch(context.Context, []AccessEvent, int, int) error
+			}); ok {
+				if err := store.RecordHTTPBatch(ctx, batch, o.opts.StatsDays, o.opts.StatsMaxRows); err != nil {
+					o.statsFailures.Add(uint64(len(batch)))
+				}
+			} else {
+				for _, e := range batch {
+					if err := o.store.RecordHTTP(ctx, e, o.opts.StatsDays, o.opts.StatsMaxRows); err != nil {
+						o.statsFailures.Add(1)
+					}
+				}
 			}
+			cancel()
 		}
-		// Refresh once the current burst drains, rather than querying on the
-		// request path or after every request under load.
-		if len(o.queue) == 0 {
+		if time.Since(lastRefresh) >= time.Second || len(o.queue) == 0 {
 			o.refresh()
+			lastRefresh = time.Now()
 		}
 	}
+	o.refresh()
+
 }
 
 type accessLog struct {
