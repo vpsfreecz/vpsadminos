@@ -94,6 +94,9 @@ func (h *repositoryHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		run, p = parts[0], "/"+parts[1]
 		e.Scope, e.RunKey = "run", bounded(run, 256)
 	}
+	if run == "" && dashboardAssets(rw, r) {
+		return
+	}
 	if run == "" && strings.HasPrefix(p, "/dashboard/api/") {
 		e.Kind = "dashboard"
 		h.dashboardAPI(rw, r)

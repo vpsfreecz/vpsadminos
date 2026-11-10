@@ -2,7 +2,6 @@ package reposerver
 
 import (
 	"encoding/json"
-	"html/template"
 	"net/http"
 	"net/url"
 	"sort"
@@ -39,6 +38,10 @@ type publicDashboard struct {
 }
 
 func (h *repositoryHTTP) dashboard(w http.ResponseWriter, r *http.Request, run, p string) {
+	if (p == "/" || p == "/v1/") && run == "" && h.opts.Dashboard != nil {
+		h.dashboardHTML(w, r)
+		return
+	}
 	view, err := h.reader.Catalog(r.Context(), h.opts.Repository, run)
 	if err != nil {
 		h.readerError(w, r, err)
@@ -94,7 +97,7 @@ func (h *repositoryHTTP) dashboard(w http.ResponseWriter, r *http.Request, run, 
 		d.Measurement = h.opts.Observer.Health()
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 	var body []byte
 	if p == "/dashboard.json" {
 		w.Header().Set("Content-Type", "application/json")
@@ -102,7 +105,7 @@ func (h *repositoryHTTP) dashboard(w http.ResponseWriter, r *http.Request, run, 
 	} else {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		var b strings.Builder
-		err = dashboardTemplate.Execute(&b, d)
+		err = dashboardTemplate.Execute(&b, legacyDashboardPage(d, r))
 		body = []byte(b.String())
 	}
 	if err != nil {
@@ -152,15 +155,3 @@ func escapedTuplePath(t Tuple) string {
 func strconvLen(n int) string { // keep the response length identical for GET/HEAD
 	return strconv.Itoa(n)
 }
-
-var dashboardTemplate = template.Must(template.New("dashboard").Parse(`<!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Container images</title><style>body{font:16px system-ui;max-width:90rem;margin:2rem auto;padding:0 1rem;color:#18212b}table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{text-align:left;padding:.5rem;border-bottom:1px solid #ccd3db}small{color:#425263}a{color:#075eb3}h1,h2{margin-top:2rem}</style>
-<h1>Container images</h1><p>Repository {{.Repository}} · Instance {{.Instance}} · {{.Scope}} generation <code>{{.Generation}}</code></p>
-<h2>Images</h2><table><thead><tr><th>Distribution</th><th>Version</th><th>Vendor / variant</th><th>Architecture</th><th>Tags</th><th>Files</th></tr></thead><tbody>
-{{range .Images}}<tr><td>{{.Distribution}}</td><td>{{.Version}}</td><td>{{.Vendor}} / {{.Variant}}</td><td>{{.Arch}}</td><td>{{range .Tags}}{{.}} {{end}}</td><td>{{range .Downloads}}<a href="{{.URL}}">{{.Format}}</a> ({{.Bytes}} bytes) {{end}}</td></tr>{{else}}<tr><td colspan="6">No images in this view.</td></tr>{{end}}</tbody></table>
-<h2>Builds and storage</h2><p>{{.StorageFiles}} files · {{.StorageBytes}} bytes{{with .NextExpiry}} · Next run expiry {{.UTC.Format "2006-01-02 15:04:05 UTC"}}{{end}}</p>
-<p>Runs: {{range $state,$count:=.RunStates}}{{$state}} {{$count}}; {{else}}none{{end}}<br>Image work: {{range $state,$count:=.ItemStates}}{{$state}} {{$count}}; {{else}}none{{end}}</p>
-<h2>Daily HTTP requests</h2><p>Counts describe requests and bytes written by this instance. HEAD, INDEX, ranges, cache validation and retries are separate requests. They do not measure people or completed container imports.</p>
-<p>Measurement gaps: {{.Measurement.Dropped}} dropped events, {{.Measurement.LogFailures}} log failures, {{.Measurement.StatsFailures}} statistics failures.</p>
-<table><thead><tr><th>UTC day</th><th>Scope / kind</th><th>Image / format</th><th>Method / status</th><th>Outcome</th><th>Requests</th><th>Bytes</th></tr></thead><tbody>{{range .Statistics}}<tr><td>{{.Day}}</td><td>{{.Scope}} / {{.Kind}}</td><td>{{.Tuple.Distribution}} {{.Tuple.Version}} {{.Tuple.Variant}} {{.Format}}</td><td>{{.Method}} / {{.Status}}</td><td>{{.Outcome}}</td><td>{{.Requests}}</td><td>{{.Bytes}}</td></tr>{{else}}<tr><td colspan="7">No request measurements available.</td></tr>{{end}}</tbody></table></html>`))

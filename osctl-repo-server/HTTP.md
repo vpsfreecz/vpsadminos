@@ -23,7 +23,8 @@ Public date checks return a conservative 200 because HTTP dates cannot distingui
 same-second replacement or rollback. Public date-based If-Range also returns the
 complete current file; strong ETags can validate or select a range safely.
 
-`/`, `/v1/` and catalog directories provide a small HTML listing/dashboard.
+`/` and `/v1/` provide the vpsAdminOS image dashboard. Catalog directories and
+sealed-run directories retain their image links.
 `/dashboard.json` provides its aggregate data without requester fields. Dashboard
 responses use no-store; repository responses require revalidation. Keep every
 artifact route through the handler, including aliases, rather than adding a
@@ -31,13 +32,49 @@ static fallback that exposes files pruned from the public catalog.
 
 ## Public statistics
 
-The dashboard shows repository/instance/generation, image links, storage totals,
-aggregate run/work-item states and next expiry. It never serializes raw run/source
-records or work-item messages. Daily counters group by UTC day, public/run scope,
+The dashboard identifies vpsAdminOS and links to the project, documentation and
+source. Images are grouped by distribution, architecture, vendor/variant, then
+version. Each ordinary navigation link loads at most 50 groups or versions;
+next-page links retain the selection. Downloads keep their canonical file URLs.
+The initial HTML does not embed the complete catalog or fetch the legacy
+`/dashboard.json` response. The legacy JSON response remains complete.
+
+Usage starts with the last seven UTC days of public image traffic. Today,
+Last 7 days, Last 30 days and Last 365 days links use rolling day windows, with
+the exact start/end, latest measurement and retained-history coverage shown.
+Distribution, architecture and exact image/variant links narrow the totals.
+Ranked rows are paged; daily totals cover the whole selection and contain at
+most 365 rows. Expired cursors ask the reader to restart rather than mixing
+pages. Unavailable measurements show an error rather than successful zero totals.
+Short retention or unknown completeness is shown as incomplete history.
+
+Completed full-image responses count completed GET 200 image requests. Ranges
+count GET 206 separately. Transferred bytes count response-body bytes written for
+image GET 200/206 requests, including interrupted transfers and multipart range
+framing. HTTP headers, HEAD, 304, catalog/dashboard and error-page bytes are
+excluded. Retries remain separate requests. These counts
+do not identify people or prove successful container imports.
+
+Repository status is secondary and collapsed. It explains available versions,
+unique retained files, retained payload size, image work and staging expiry.
+Retained payload bytes do not report filesystem capacity or free space. An
+opaque catalog snapshot ID appears only in collapsed technical details, labelled
+as catalog state rather than a Git commit. The public page excludes requester
+IP/UA, private paths, raw run/source records and work-item messages.
+
+The responsive layout uses local CSS and a small local theme script, with a
+same-origin-only script/style CSP. System mode follows the operating system's
+light/dark preference; Light and Dark override it. Only that preference is
+saved in local storage, and storage failure does not prevent switching themes.
+Ordinary links, pagination and native disclosure controls work without
+JavaScript. Keyboard focus remains visible. File/storage/transfer sizes use
+1024-based IEC units with exact integer bytes in titles and JSON.
+
+Legacy daily counters group by UTC day, public/run scope,
 request kind, resolved tuple/format, method, status and response outcome. They have
 a configured day window and row cap. Request paths, run IDs, IPs and User-Agents
-are not aggregate dimensions. The SQLite table belongs to the new initial schema;
-there is no deployed predecessor or additional statistics database.
+are not aggregate dimensions. Statistics share the repository database; schema
+upgrade and recovery requirements are documented in [README](README.md).
 
 Counts describe requests and bytes written by this instance. HEAD, INDEX/listing,
 206 ranges, 304 validation, errors and retries remain separate events. Retries and
