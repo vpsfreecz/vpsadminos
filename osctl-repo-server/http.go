@@ -111,6 +111,11 @@ func (h *repositoryHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.dashboardAPI(rw, r)
 		return
 	}
+	if run == "" && (p == "/usage" || p == "/images" || p == "/status") {
+		e.Kind = "dashboard"
+		h.dashboard(rw, r, run, p)
+		return
+	}
 	if p == "/" || p == "/dashboard.json" || strings.HasSuffix(p, "/") && strings.HasPrefix(p, "/v1/") {
 		e.Kind = "dashboard"
 		h.dashboard(rw, r, run, p)

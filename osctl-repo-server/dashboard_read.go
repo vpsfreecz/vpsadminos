@@ -45,14 +45,17 @@ type DashboardOverview struct {
 }
 
 type DashboardDownload struct {
-	Format string `json:"format"`
-	URL    string `json:"url"`
-	Bytes  int64  `json:"bytes"`
+	Format       string     `json:"format"`
+	URL          string     `json:"url"`
+	Bytes        int64      `json:"bytes"`
+	LastModified *time.Time `json:"last_modified"`
 }
 
 type CatalogRow struct {
 	Tuple
 	ImageVersions int64               `json:"image_versions"`
+	Bytes         int64               `json:"bytes"`
+	LastModified  *time.Time          `json:"last_modified"`
 	Tags          []string            `json:"tags,omitempty"`
 	Downloads     []DashboardDownload `json:"downloads,omitempty"`
 }
@@ -62,6 +65,7 @@ type CatalogPage struct {
 	Generation string       `json:"generation"`
 	GroupBy    string       `json:"group_by"`
 	Rows       []CatalogRow `json:"rows"`
+	Ancestors  []CatalogRow `json:"ancestors"`
 	NextCursor string       `json:"next_cursor,omitempty"`
 }
 

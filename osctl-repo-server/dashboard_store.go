@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -132,7 +133,10 @@ func (s *Store) catalogSnapshot(ctx context.Context, repo, key string) (*cachedC
 			}
 		}
 	}
-	c.hierarchy = catalogHierarchy(view.Catalog)
+	c.hierarchy, e = catalogHierarchy(view.Catalog)
+	if e != nil {
+		return nil, e
+	}
 	c.index, e = nativeIndex(view.Catalog)
 	if e != nil {
 		return nil, e
@@ -360,7 +364,8 @@ func (d *StoreDashboardReader) DashboardCatalog(ctx context.Context, q CatalogQu
 	if c.Offset > len(rows) {
 		return CatalogPage{}, problem("invalid", "invalid cursor offset")
 	}
-	v := CatalogPage{DashboardMetadata: d.metadata(), Generation: cached.view.Generation, GroupBy: q.GroupBy, Rows: []CatalogRow{}}
+	v := CatalogPage{DashboardMetadata: d.metadata(), Generation: cached.view.Generation, GroupBy: q.GroupBy,
+		Rows: []CatalogRow{}, Ancestors: catalogAncestors(cached.hierarchy, q)}
 	end := c.Offset + limit
 	if end > len(rows) {
 		end = len(rows)
@@ -376,9 +381,71 @@ func (d *StoreDashboardReader) DashboardCatalog(ctx context.Context, q CatalogQu
 func hierarchyKey(q CatalogQuery) string {
 	return strings.Join([]string{q.GroupBy, q.Distribution, q.Arch, q.Vendor, q.Variant}, "/")
 }
-func catalogHierarchy(c Catalog) map[string][]CatalogRow {
-	groups := map[string]map[string]*CatalogRow{}
+
+func catalogAncestors(hierarchy map[string][]CatalogRow, q CatalogQuery) []CatalogRow {
+	depth := 0
+	switch q.GroupBy {
+	case "arch":
+		depth = 1
+	case "variant":
+		depth = 2
+	case "version":
+		depth = 3
+	}
+	parents := []struct {
+		query CatalogQuery
+		tuple Tuple
+	}{
+		{CatalogQuery{GroupBy: "distribution"}, Tuple{Distribution: q.Distribution}},
+		{CatalogQuery{GroupBy: "arch", Distribution: q.Distribution}, Tuple{Distribution: q.Distribution, Arch: q.Arch}},
+		{CatalogQuery{GroupBy: "variant", Distribution: q.Distribution, Arch: q.Arch}, Tuple{Distribution: q.Distribution, Arch: q.Arch, Vendor: q.Vendor, Variant: q.Variant}},
+	}
+	ancestors := []CatalogRow{}
+	for _, parent := range parents[:depth] {
+		rows := hierarchy[hierarchyKey(parent.query)]
+		key := parent.tuple.Key()
+		index := sort.Search(len(rows), func(i int) bool { return rows[i].Key() >= key })
+		if index < len(rows) && rows[index].Key() == key {
+			ancestors = append(ancestors, rows[index])
+		}
+	}
+	return ancestors
+}
+
+func catalogHierarchy(c Catalog) (map[string][]CatalogRow, error) {
+	type hierarchyRow struct {
+		CatalogRow
+		modifiedKnown bool
+	}
+	groups := map[string]map[string]*hierarchyRow{}
 	for _, im := range c.Images {
+		// Count canonical tuple/format entries, even when distinct paths share
+		// a file identity. Alias paths do not contribute logical listing bytes.
+		var imageBytes int64
+		var modified time.Time
+		modifiedKnown := len(im.Files) > 0
+		downloads := []DashboardDownload{}
+		for _, format := range sortedKeys(im.Files) {
+			ref := im.Files[format]
+			if ref.Size < 0 || ref.Size > math.MaxInt64-imageBytes {
+				return nil, problem("integrity", "catalog listed bytes exceed supported range")
+			}
+			imageBytes += ref.Size
+			var lastModified *time.Time
+			if ref.Modified.IsZero() {
+				modifiedKnown = false
+			} else {
+				utc := ref.Modified.UTC()
+				lastModified = &utc
+				if modified.IsZero() || utc.After(modified) {
+					modified = utc
+				}
+			}
+			downloads = append(downloads, DashboardDownload{
+				Format: format, URL: "/v1/" + escapedTuplePath(im.Tuple) + "/" + filename(format),
+				Bytes: ref.Size, LastModified: lastModified,
+			})
+		}
 		entries := []struct {
 			q CatalogQuery
 			t Tuple
@@ -391,30 +458,38 @@ func catalogHierarchy(c Catalog) map[string][]CatalogRow {
 		for _, entry := range entries {
 			key := hierarchyKey(entry.q)
 			if groups[key] == nil {
-				groups[key] = map[string]*CatalogRow{}
+				groups[key] = map[string]*hierarchyRow{}
 			}
 			row := groups[key][entry.t.Key()]
 			if row == nil {
-				row = &CatalogRow{Tuple: entry.t}
+				row = &hierarchyRow{CatalogRow: CatalogRow{Tuple: entry.t}, modifiedKnown: true}
 				groups[key][entry.t.Key()] = row
 			}
 			row.ImageVersions++
+			if imageBytes > math.MaxInt64-row.Bytes {
+				return nil, problem("integrity", "catalog listed bytes exceed supported range")
+			}
+			row.Bytes += imageBytes
+			row.modifiedKnown = row.modifiedKnown && modifiedKnown
+			if modifiedKnown && (row.LastModified == nil || modified.After(*row.LastModified)) {
+				row.LastModified = &modified
+			}
 			if entry.q.GroupBy == "version" {
 				row.Tags = append([]string{}, im.Tags...)
 				sort.Strings(row.Tags)
-				row.Downloads = []DashboardDownload{}
-				for _, format := range sortedKeys(im.Files) {
-					ref := im.Files[format]
-					row.Downloads = append(row.Downloads, DashboardDownload{format, "/v1/" + escapedTuplePath(im.Tuple) + "/" + filename(format), ref.Size})
-				}
+				row.Downloads = downloads
 			}
 		}
 	}
 	out := map[string][]CatalogRow{}
 	for group, rows := range groups {
 		for _, key := range sortedKeys(rows) {
-			out[group] = append(out[group], *rows[key])
+			row := rows[key]
+			if !row.modifiedKnown {
+				row.LastModified = nil
+			}
+			out[group] = append(out[group], row.CatalogRow)
 		}
 	}
-	return out
+	return out, nil
 }
