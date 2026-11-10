@@ -37,7 +37,18 @@ type dashboardUsageRow struct {
 	Label, URL string
 }
 
+type dashboardTreeNode struct {
+	Label, URL, ParentURL, UsageURL, Query string
+	ImageVersions                          int64
+	Tags                                   []string
+	Downloads                              []DashboardDownload
+	Children                               []dashboardTreeNode
+	Expanded, More                         bool
+}
+
 type dashboardPage struct {
+	Name, Purpose                             string
+	Enhanced                                  bool
 	Overview                                  DashboardOverview
 	Usage                                     UsagePage
 	CatalogRows                               []dashboardCatalogRow
@@ -48,6 +59,8 @@ type dashboardPage struct {
 	CatalogError, UsageError, UsageGroupLabel string
 	WorkSummary, RunSummary                   string
 	CatalogRowLabel                           string
+	Tree                                      []dashboardTreeNode
+	CatalogQuery                              string
 }
 
 func iecBytes(n int64) string {
@@ -139,7 +152,11 @@ func usagePageQuery(q url.Values) UsageQuery {
 }
 
 func newDashboardPage(overview DashboardOverview, catalog CatalogPage, usage UsagePage, q url.Values) dashboardPage {
-	d := dashboardPage{Overview: overview, Usage: usage, UsageGroupLabel: "Downloads by distribution", CatalogRowLabel: "distributions"}
+	d := dashboardPage{Overview: overview, Usage: usage, UsageGroupLabel: "Usage by distribution", CatalogRowLabel: "distributions"}
+	d.Name, d.Purpose, d.Enhanced = overview.DisplayName, overview.Purpose, true
+	if d.Name == "" {
+		d.Name = overview.Repository
+	}
 	cq, uq := catalogPageQuery(q), usagePageQuery(q)
 	switch catalog.GroupBy {
 	case "arch":
@@ -195,7 +212,7 @@ func newDashboardPage(overview DashboardOverview, catalog CatalogPage, usage Usa
 		next.Set("catalog_cursor", catalog.NextCursor)
 		d.CatalogNext = dashboardURL(next, "images")
 	}
-	for _, period := range []struct{ value, label string }{{"today", "Today"}, {"7d", "Last 7 days"}, {"30d", "Last 30 days"}, {"365d", "Last 365 days"}} {
+	for _, period := range []struct{ value, label string }{{"today", "Today"}, {"7d", "7 days"}, {"30d", "30 days"}, {"90d", "90 days"}, {"180d", "180 days"}, {"365d", "365 days"}} {
 		next := copyDashboardQuery(base)
 		next.Del("usage_cursor")
 		next.Set("period", period.value)
@@ -222,10 +239,10 @@ func newDashboardPage(overview DashboardOverview, catalog CatalogPage, usage Usa
 		d.UsageCrumbs = append(d.UsageCrumbs, dashboardLink{Label: uq.Vendor + " / " + uq.Variant + " " + uq.Version, URL: dashboardURL(restart, "usage")})
 	}
 	if usage.GroupBy == "arch" {
-		d.UsageGroupLabel = "Downloads by architecture"
+		d.UsageGroupLabel = "Usage by architecture"
 	}
 	if usage.GroupBy == "image" {
-		d.UsageGroupLabel = "Downloads by image and variant"
+		d.UsageGroupLabel = "Usage by image and variant"
 	}
 	for _, row := range usage.Rows {
 		view := dashboardUsageRow{UsageRow: row}
@@ -256,7 +273,80 @@ func newDashboardPage(overview DashboardOverview, catalog CatalogPage, usage Usa
 	}
 	d.WorkSummary = fmt.Sprintf("%d queued or running, %d verified, %d failed or cancelled", overview.ItemStates["queued"]+overview.ItemStates["running"], overview.ItemStates["verified"], overview.ItemStates["failed"]+overview.ItemStates["cancelled"])
 	d.RunSummary = fmt.Sprintf("%d open, %d finished, %d available snapshots", overview.RunStates["open"], overview.RunStates["finished"], overview.RunStates["sealed"])
+	d.Tree, d.CatalogQuery = dashboardTree(d, q)
 	return d
+}
+
+func catalogAPIQuery(c CatalogQuery) url.Values {
+	q := url.Values{"group_by": {c.GroupBy}, "limit": {"50"}}
+	for k, v := range map[string]string{"distribution": c.Distribution, "arch": c.Arch, "vendor": c.Vendor, "variant": c.Variant, "cursor": c.Cursor} {
+		if v != "" {
+			q.Set(k, v)
+		}
+	}
+	return q
+}
+
+func catalogUsageURL(base url.Values, row Tuple) string {
+	q := copyDashboardQuery(base)
+	for _, k := range []string{"distribution", "arch", "vendor", "variant", "version", "usage_cursor"} {
+		q.Del(k)
+	}
+	for k, v := range map[string]string{"distribution": row.Distribution, "arch": row.Arch, "vendor": row.Vendor, "variant": row.Variant, "version": row.Version} {
+		if v != "" {
+			q.Set(k, v)
+		}
+	}
+	return dashboardURL(q, "usage")
+}
+
+func dashboardTree(d dashboardPage, q url.Values) ([]dashboardTreeNode, string) {
+	cq := catalogPageQuery(q)
+	query := catalogAPIQuery(cq)
+	nodes := []dashboardTreeNode{}
+	for _, row := range d.CatalogRows {
+		n := dashboardTreeNode{Label: row.Label, URL: row.URL, UsageURL: catalogUsageURL(q, row.Tuple), ImageVersions: row.ImageVersions, Tags: row.Tags, Downloads: row.Downloads}
+		if row.URL != "" {
+			child, _ := url.Parse(row.URL)
+			n.Query = catalogAPIQuery(catalogPageQuery(child.Query())).Encode()
+			n.ParentURL = dashboardURL(copyDashboardQuery(q), "images")
+		}
+		nodes = append(nodes, n)
+	}
+	if d.CatalogNext != "" {
+		next, _ := url.Parse(d.CatalogNext)
+		nq := catalogAPIQuery(catalogPageQuery(next.Query()))
+		nodes = append(nodes, dashboardTreeNode{More: true, Label: "More", URL: d.CatalogNext, Query: nq.Encode()})
+	}
+	base := copyDashboardQuery(q)
+	for _, k := range []string{"catalog_distribution", "catalog_arch", "catalog_vendor", "catalog_variant", "catalog_cursor"} {
+		base.Del(k)
+	}
+	parents := []dashboardTreeNode{}
+	for _, part := range []struct {
+		values map[string]string
+		label  string
+	}{{map[string]string{"catalog_distribution": cq.Distribution}, cq.Distribution}, {map[string]string{"catalog_arch": cq.Arch}, cq.Arch}, {map[string]string{"catalog_vendor": cq.Vendor, "catalog_variant": cq.Variant}, cq.Vendor + " / " + cq.Variant}} {
+		valid := true
+		for _, v := range part.values {
+			if v == "" {
+				valid = false
+			}
+		}
+		if !valid {
+			break
+		}
+		parent := dashboardURL(base, "images")
+		for k, v := range part.values {
+			base.Set(k, v)
+		}
+		parents = append(parents, dashboardTreeNode{Label: part.label, URL: dashboardURL(base, "images"), ParentURL: parent, Query: catalogAPIQuery(catalogPageQuery(base)).Encode(), Expanded: true})
+	}
+	for i := len(parents) - 1; i >= 0; i-- {
+		parents[i].Children = nodes
+		nodes = []dashboardTreeNode{parents[i]}
+	}
+	return nodes, query.Encode()
 }
 
 func dashboardReadError(err error) (string, int) {
@@ -266,10 +356,10 @@ func dashboardReadError(err error) (string, int) {
 		case "invalid":
 			return "This selection is invalid. Choose a group or period again.", http.StatusBadRequest
 		case "conflict", "expired":
-			return "This page changed while you were browsing. Refresh to continue browsing.", http.StatusConflict
+			return "This selection has expired or changed. Refresh to continue.", http.StatusConflict
 		}
 	}
-	return "Measurements or catalog data are temporarily unavailable. Please try again.", http.StatusServiceUnavailable
+	return "Measurements or catalog data are temporarily unavailable. Try again.", http.StatusServiceUnavailable
 }
 
 func (h *repositoryHTTP) dashboardHTML(w http.ResponseWriter, r *http.Request) {
@@ -310,6 +400,7 @@ func legacyDashboardPage(old publicDashboard, r *http.Request) dashboardPage {
 		overview.ItemStates[k] = int64(v)
 	}
 	d := newDashboardPage(overview, CatalogPage{GroupBy: "version"}, UsagePage{}, url.Values{})
+	d.Enhanced = false
 	d.CatalogRowLabel = "versions"
 	d.UsageError = "Usage summaries are unavailable for this view."
 	offset, _ := strconv.Atoi(r.URL.Query().Get("catalog_offset"))
@@ -335,6 +426,10 @@ func legacyDashboardPage(old publicDashboard, r *http.Request) dashboardPage {
 	}
 	d.CatalogRestart = r.URL.Path + "#images"
 	d.CatalogCrumbs = []dashboardLink{{Label: "Image versions", URL: d.CatalogRestart}}
+	d.Tree = nil
+	for _, row := range d.CatalogRows {
+		d.Tree = append(d.Tree, dashboardTreeNode{Label: row.Label, Downloads: row.Downloads, Tags: row.Tags})
+	}
 	return d
 }
 
@@ -345,7 +440,7 @@ func writeDashboardPage(w http.ResponseWriter, r *http.Request, d dashboardPage,
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Length", strconv.Itoa(b.Len()))
 	w.WriteHeader(status)

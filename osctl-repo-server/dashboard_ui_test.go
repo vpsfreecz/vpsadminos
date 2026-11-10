@@ -3,10 +3,12 @@ package reposerver
 import (
 	"context"
 	"fmt"
+	"html"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -68,7 +70,7 @@ func TestDashboardUIBoundsAndNoLegacyRead(t *testing.T) {
 	if strings.Count(body, "class=\"tree-link\"") != 50 || len(body) > 256<<10 {
 		t.Fatalf("unexpected rendered size: %d bytes", len(body))
 	}
-	for _, want := range []string{"vpsAdminOS container images", "Repository status", "Available history is incomplete", "12 GiB", "Last 365 days", "opaque-next-page", "Skip to content", "Completed full-image responses"} {
+	for _, want := range []string{"Repository status", "Available history is incomplete", "12 GiB", "365 days", "90 days", "180 days", "opaque-next-page", "Skip to content", "Completed full-image responses"} {
 		if !strings.Contains(body, want) {
 			t.Fatal("missing", want)
 		}
@@ -89,6 +91,64 @@ func TestDashboardUIBoundsAndNoLegacyRead(t *testing.T) {
 		t.Fatal("HEAD mismatch", head.Header(), head.Body.Len())
 	}
 	t.Logf("10,000-version fixture: 50 initial rows + 365 bounded daily rows, %d HTML bytes", len(body))
+}
+
+func TestDashboardUIOperatorIdentityAndUsageFirst(t *testing.T) {
+	f := &uiDashboardFixture{versions: 5000}
+	h := NewHTTPHandler(newFixtureReader(t), HTTPOptions{Repository: "stable-key", DisplayName: "CI <North>", Purpose: "Shared <em>build cache</em>", Dashboard: f})
+	got := requestHTTP(h, "GET", "/", nil)
+	body := got.Body.String()
+	if got.Code != 200 || !strings.Contains(body, "<h1>CI &lt;North&gt;</h1>") || !strings.Contains(body, "Shared &lt;em&gt;build cache&lt;/em&gt;") {
+		t.Fatal(got.Code, body)
+	}
+	if strings.Index(body, "<section id=\"usage\"") > strings.Index(body, "<section id=\"images\"") {
+		t.Fatal("usage not first")
+	}
+	for _, removed := range []string{"Download container images for vpsAdminOS", "Open a group", "Showing ", "Next page", "<select"} {
+		if strings.Contains(body, removed) {
+			t.Fatal("unwanted dominant/paging copy", removed)
+		}
+	}
+	for _, theme := range []string{"system", "light", "dark"} {
+		if !strings.Contains(body, "data-theme-choice=\""+theme+"\"") || !strings.Contains(body, "aria-label=\""+strings.ToUpper(theme[:1])+theme[1:]+" theme\"") {
+			t.Fatal("missing accessible icon", theme)
+		}
+	}
+	h = NewHTTPHandler(newFixtureReader(t), HTTPOptions{Repository: "stable-key", Dashboard: f})
+	body = requestHTTP(h, "GET", "/", nil).Body.String()
+	if !strings.Contains(body, "<h1>stable-key</h1>") || strings.Contains(body, "class=\"purpose\"") {
+		t.Fatal("empty identity fallback/description")
+	}
+}
+
+func TestDashboardUITreeAncestorsAndLongPeriods(t *testing.T) {
+	q := url.Values{"catalog_distribution": {"debian"}, "catalog_arch": {"x86_64"}, "catalog_vendor": {"vpsadminos"}, "catalog_variant": {"minimal"}, "period": {"180d"}, "distribution": {"alpine"}}
+	d := newDashboardPage(DashboardOverview{}, CatalogPage{GroupBy: "version", Rows: []CatalogRow{{Tuple: Tuple{Distribution: "debian", Arch: "x86_64", Vendor: "vpsadminos", Variant: "minimal", Version: "13"}, Tags: []string{"stable"}}}}, UsagePage{Period: "180d"}, q)
+	branch := d.Tree
+	for _, want := range []string{"debian", "x86_64", "vpsadminos / minimal"} {
+		if len(branch) != 1 || branch[0].Label != want || !branch[0].Expanded {
+			t.Fatal("ancestor lost", want, branch)
+		}
+		url, _ := url.Parse(branch[0].URL)
+		if url.Query().Get("distribution") != "alpine" || url.Query().Get("period") != "180d" {
+			t.Fatal("catalog expansion changed usage", url)
+		}
+		branch = branch[0].Children
+	}
+	if len(branch) != 1 || branch[0].Label != "13" {
+		t.Fatal("selected leaf lost", branch)
+	}
+	seen := map[string]bool{}
+	for _, period := range d.Periods {
+		u, _ := url.Parse(period.URL)
+		seen[u.Query().Get("period")] = true
+		if period.Selected && u.Query().Get("period") != "180d" {
+			t.Fatal("wrong selected period")
+		}
+	}
+	if !seen["90d"] || !seen["180d"] || len(seen) != 6 {
+		t.Fatal(seen)
+	}
 }
 
 func TestDashboardUINavigationAndFilters(t *testing.T) {
@@ -133,8 +193,8 @@ func TestDashboardUIEscapingAndErrors(t *testing.T) {
 	f := &uiDashboardFixture{catalogError: &Error{Code: "conflict", Message: "private database path"}}
 	h := NewHTTPHandler(newFixtureReader(t), HTTPOptions{Dashboard: f})
 	got := requestHTTP(h, "GET", "/?catalog_cursor=old", nil)
-	if got.Code != 409 || !strings.Contains(got.Body.String(), "page changed") || strings.Contains(got.Body.String(), "private database") {
-		t.Fatal(got.Code, got.Body.String())
+	if got.Code != 409 || !strings.Contains(got.Body.String(), "expired or changed") || strings.Contains(got.Body.String(), "private database") {
+		t.Fatal("cursor conflict status or safe message", got.Code)
 	}
 	f.catalogError = nil
 	f.usageError = fmt.Errorf("private sqlite path")
@@ -150,22 +210,47 @@ func TestDashboardUIEscapingAndErrors(t *testing.T) {
 }
 
 func TestDashboardUILegacyDirectoryPagination(t *testing.T) {
-	old := publicDashboard{}
-	for i := 0; i < 65; i++ {
-		old.Images = append(old.Images, catalogRow{Tuple: Tuple{Distribution: "debian", Version: fmt.Sprintf("%d", i)}, Downloads: []downloadLink{{Format: "tar", URL: fmt.Sprintf("/v1/image-%d", i)}}})
-	}
-	first := legacyDashboardPage(old, httptest.NewRequest("GET", "/runs/key/v1/", nil))
-	if len(first.CatalogRows) != 50 || first.CatalogNext != "/runs/key/v1/?catalog_offset=50#images" {
-		t.Fatal(len(first.CatalogRows), first.CatalogNext)
-	}
-	// Browsers keep the fragment locally; it is never sent in the HTTP target.
-	nextURL, err := url.Parse(first.CatalogNext)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second := legacyDashboardPage(old, httptest.NewRequest("GET", nextURL.RequestURI(), nil))
-	if len(second.CatalogRows) != 15 || second.CatalogRows[0].Version != "50" || second.CatalogNext != "" {
-		t.Fatal(len(second.CatalogRows), second.CatalogNext)
+	for _, base := range []string{"/v1/", "/v1/vendor/minimal/x86_64/debian/", "/runs/sealed-key/v1/"} {
+		t.Run(base, func(t *testing.T) {
+			old := publicDashboard{}
+			for i := 0; i < 65; i++ {
+				old.Images = append(old.Images, catalogRow{Tuple: Tuple{Distribution: "debian", Version: fmt.Sprintf("%d", i)}, Downloads: []downloadLink{{Format: "tar", URL: fmt.Sprintf("%simage-%d", base, i)}}})
+			}
+			render := func(target string) string {
+				r := httptest.NewRequest("GET", target, nil)
+				w := httptest.NewRecorder()
+				writeDashboardPage(w, r, legacyDashboardPage(old, r), 200)
+				if w.Code != 200 {
+					t.Fatalf("render status %d", w.Code)
+				}
+				return w.Body.String()
+			}
+			first := render(base)
+			match := regexp.MustCompile(`<a href="([^"]+)">More</a>`).FindStringSubmatch(first)
+			if len(match) != 2 {
+				t.Fatal("rendered first page lacks More")
+			}
+			nextURL, err := url.Parse(html.UnescapeString(match[1]))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if nextURL.Path != base || nextURL.Query().Get("catalog_offset") != "50" {
+				t.Fatal("More substituted listing scope", nextURL)
+			}
+			if strings.Count(first, `<li data-catalog-node>`) != 50 || strings.Contains(first, fmt.Sprintf(`href="%simage-50"`, base)) {
+				t.Fatal("incorrect first page bounds")
+			}
+			// Fragments stay in the browser and never enter the HTTP target.
+			second := render(nextURL.RequestURI())
+			if strings.Count(second, `<li data-catalog-node>`) != 15 || regexp.MustCompile(`<a href="[^"]+">More</a>`).MatchString(second) {
+				t.Fatal("incorrect final page bounds or redundant More")
+			}
+			for i := 50; i < 65; i++ {
+				if !strings.Contains(second, fmt.Sprintf(`href="%simage-%d"`, base, i)) {
+					t.Fatalf("image %d unreachable in original scope", i)
+				}
+			}
+		})
 	}
 }
 
@@ -210,6 +295,11 @@ func TestDashboardUIRenderArtifact(t *testing.T) {
 		t.Fatal(err)
 	}
 	files := map[string]string{"index.html": strings.ReplaceAll(w.Body.String(), "/dashboard/assets/", "./"), "style.css": dashboardCSS, "theme.js": dashboardJS}
+	q := url.Values{"catalog_distribution": {"distribution-000"}, "catalog_arch": {"x86_64"}, "catalog_vendor": {"vpsadminos"}, "catalog_variant": {"minimal"}}
+	contextCatalog, _ := f.DashboardCatalog(context.Background(), catalogPageQuery(q))
+	contextWriter := httptest.NewRecorder()
+	writeDashboardPage(contextWriter, httptest.NewRequest("GET", "/", nil), newDashboardPage(o, contextCatalog, u, q), 200)
+	files["context.html"] = strings.ReplaceAll(contextWriter.Body.String(), "/dashboard/assets/", "./")
 	for name, body := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0600); err != nil {
 			t.Fatal(err)

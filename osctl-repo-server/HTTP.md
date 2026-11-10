@@ -23,8 +23,8 @@ Public date checks return a conservative 200 because HTTP dates cannot distingui
 same-second replacement or rollback. Public date-based If-Range also returns the
 complete current file; strong ETags can validate or select a range safely.
 
-`/` and `/v1/` provide the vpsAdminOS image dashboard. Catalog directories and
-sealed-run directories retain their image links.
+`/` and `/v1/` show repository usage, contents and status. Catalog directories
+and sealed-run directories retain their image links for native clients.
 `/dashboard.json` provides its aggregate data without requester fields. Dashboard
 responses use no-store; repository responses require revalidation. Keep every
 artifact route through the handler, including aliases, rather than adding a
@@ -32,20 +32,38 @@ static fallback that exposes files pruned from the public catalog.
 
 ## Public statistics
 
-The dashboard identifies vpsAdminOS and links to the project, documentation and
-source. Images are grouped by distribution, architecture, vendor/variant, then
-version. Each ordinary navigation link loads at most 50 groups or versions;
-next-page links retain the selection. Downloads keep their canonical file URLs.
+The dashboard uses the configured repository display name and optional purpose.
+Empty display name falls back to the stable repository ID; empty purpose is
+omitted. Both are escaped plain text. The serving program and project links are
+in the footer; presentation configuration does not rename the repository key.
+Usage is the first panel, followed by images and expandable repository status.
+
+Images are grouped by distribution, architecture, vendor/variant, then version.
+With JavaScript, expanding a row loads only that branch through the bounded
+catalog API and keeps its ancestors visible. Collapsing it removes its children.
+More appears only when another page exists. The active control retains focus and
+scroll position. Usage links select statistics independently of tree expansion.
+File URLs appear in each version's Files disclosure.
+
+Ordinary links retain no-JavaScript server navigation. The URL records selected
+ancestors and usage filters for reload/back/forward. Usage changes replace only
+the usage panel from the same bounded server-rendered HTML, preserving the shared
+escaping boundary. Pending requests are cancelled and older responses cannot
+overwrite a newer selection. Replaced catalog cursors refresh only the affected
+branch. Status links open the disclosure and focus its summary, including an
+initial or restored status fragment.
 The initial HTML does not embed the complete catalog or fetch the legacy
 `/dashboard.json` response. The legacy JSON response remains complete.
 
-Usage starts with the last seven UTC days of public image traffic. Today,
-Last 7 days, Last 30 days and Last 365 days links use rolling day windows, with
-the exact start/end, latest measurement and retained-history coverage shown.
+Usage starts with the last seven UTC days of public image traffic. Today and
+7, 30, 90, 180 and 365 day links use rolling day windows. The page shows the
+exact start/end, latest measurement and retained-history coverage.
 Distribution, architecture and exact image/variant links narrow the totals.
-Ranked rows are paged; daily totals cover the whole selection and contain at
-most 365 rows. Expired cursors ask the reader to restart rather than mixing
-pages. Unavailable measurements show an error rather than successful zero totals.
+Ranked rows are paged. Totals, daily counters and ranked rows share an immutable
+snapshot computed once per selection; later pages reuse it. Daily counters contain
+at most 365 rows. Expired or evicted cursors ask the reader to restart. See
+[usage query bounds](README.md) for cache limits and query deadlines.
+Unavailable measurements show an error rather than successful zero totals.
 Short retention or unknown completeness is shown as incomplete history.
 
 Completed full-image responses count completed GET 200 image requests. Ranges
@@ -62,10 +80,12 @@ opaque catalog snapshot ID appears only in collapsed technical details, labelled
 as catalog state rather than a Git commit. The public page excludes requester
 IP/UA, private paths, raw run/source records and work-item messages.
 
-The responsive layout uses local CSS and a small local theme script, with a
-same-origin-only script/style CSP. System mode follows the operating system's
-light/dark preference; Light and Dark override it. Only that preference is
-saved in local storage, and storage failure does not prevent switching themes.
+The responsive layout uses local CSS and a small local enhancement script, with
+a same-origin-only script/style/connect CSP. Three icon buttons select System,
+Light and Dark, with accessible labels, pressed state and visible focus. System
+follows the operating system's light/dark preference; Light and Dark override it.
+Only that preference is saved in local storage, and storage failure does not
+prevent switching themes.
 Ordinary links, pagination and native disclosure controls work without
 JavaScript. Keyboard focus remains visible. File/storage/transfer sizes use
 1024-based IEC units with exact integer bytes in titles and JSON.
