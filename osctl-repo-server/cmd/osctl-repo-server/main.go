@@ -15,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	reposerver "github.com/vpsfreecz/vpsadminos/osctl-repo-server"
 )
@@ -32,6 +34,20 @@ func groupID(name string) (int, error) {
 		return 0, e
 	}
 	return strconv.Atoi(group.Gid)
+}
+func validatePresentationText(flagName, value string, maxCharacters int) error {
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("--%s must be valid UTF-8", flagName)
+	}
+	if utf8.RuneCountInString(value) > maxCharacters {
+		return fmt.Errorf("--%s must contain at most %d characters", flagName, maxCharacters)
+	}
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			return fmt.Errorf("--%s must not contain control characters", flagName)
+		}
+	}
+	return nil
 }
 func main() {
 	if e := run(); e != nil {
@@ -61,6 +77,8 @@ func run() error {
 	root := flags.String("root", "", "private storage directory")
 	listen := flags.String("listen", "", "HTTP listen address")
 	repository := flags.String("repository", "", "repository ID")
+	displayName := flags.String("display-name", "", "repository display name (up to 128 characters; defaults to repository ID)")
+	purpose := flags.String("purpose", "", "repository purpose as plain text (up to 512 characters)")
 	instance := flags.String("instance", "", "instance ID")
 	producer := flags.String("producer-socket", "", "producer socket")
 	publisher := flags.String("publisher-socket", "", "publisher socket")
@@ -88,6 +106,12 @@ func run() error {
 	}
 	if flags.NArg() != 0 || *listen == "" || *repository == "" || *instance == "" {
 		return errors.New("explicit listen/repository/instance required")
+	}
+	if e := validatePresentationText("display-name", *displayName, 128); e != nil {
+		return e
+	}
+	if e := validatePresentationText("purpose", *purpose, 512); e != nil {
+		return e
 	}
 	proxies := []netip.Prefix{}
 	for _, value := range proxyArgs {
@@ -126,7 +150,7 @@ func run() error {
 		return e
 	}
 	defer control.Close()
-	server := &http.Server{Addr: *listen, Handler: reposerver.NewHTTPHandler(store, reposerver.HTTPOptions{Repository: *repository, Instance: *instance, TrustedProxies: proxies, ClientIPHeader: *clientHeader, Observer: observer}), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	server := &http.Server{Addr: *listen, Handler: reposerver.NewHTTPHandler(store, reposerver.HTTPOptions{Repository: *repository, Instance: *instance, DisplayName: *displayName, Purpose: *purpose, TrustedProxies: proxies, ClientIPHeader: *clientHeader, Observer: observer}), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	done := make(chan error, 1)
