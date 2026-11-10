@@ -21,6 +21,8 @@ import (
 type HTTPOptions struct {
 	Repository     string
 	Instance       string
+	DisplayName    string
+	Purpose        string
 	TrustedProxies []netip.Prefix
 	ClientIPHeader string
 	Observer       *HTTPObserver
@@ -37,6 +39,13 @@ func NewHTTPHandler(reader Reader, options HTTPOptions) http.Handler {
 		if store, ok := reader.(*Store); ok {
 			options.Dashboard = NewStoreDashboardReader(store, options.Repository, options.Instance, options.Observer)
 		}
+	}
+	if options.Dashboard != nil {
+		name := options.DisplayName
+		if name == "" {
+			name = options.Repository
+		}
+		options.Dashboard = configuredDashboardReader{DashboardReader: options.Dashboard, displayName: name, purpose: options.Purpose}
 	}
 	return &repositoryHTTP{reader: reader, opts: options}
 }

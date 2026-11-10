@@ -3,6 +3,7 @@ package reposerver
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -94,4 +95,181 @@ func BenchmarkDashboardScale(b *testing.B) {
 	}
 	b.ReportMetric(float64(cold.Microseconds()), "cold-index-us")
 	b.ReportMetric(float64(len(snapshot.index)), "index-bytes")
+}
+
+// Prepared only: the lead runs this after committed review. Every subcase uses
+// one million unique daily keys across all 365 days, including unpublished tuples.
+// go test -run '^$' -bench '^BenchmarkDashboardUsageDense365$' -benchtime=1x -count=1
+func BenchmarkDashboardUsageDense365(b *testing.B) {
+	for _, groupCount := range []int{10000, 100000, 1000000} {
+		b.Run(fmt.Sprintf("groups-%d", groupCount), func(b *testing.B) {
+			now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+			opts := legacyOptions(b.TempDir())
+			opts.Now = func() time.Time { return now }
+			s, err := OpenStore(opts)
+			if err != nil {
+				b.Fatal(err)
+			}
+			defer s.Close()
+			tx, err := s.db.Begin()
+			if err != nil {
+				b.Fatal(err)
+			}
+			stmt, err := tx.Prepare(`INSERT INTO http_daily(repository,instance,day,dimensions,requests,bytes,scope,kind,distribution,arch,vendor,variant,version,format,method,outcome,status) VALUES('dense','one',?,?,?,?,'public','artifact',?,?,?,?,?,?,?, ?,?)`)
+			if err != nil {
+				b.Fatal(err)
+			}
+			// One independent oracle per persisted row is unnecessary. Keep only
+			// per-day and per-image sums; no catalog is used to restrict history.
+			imageTotals := map[Tuple]UsageCounters{}
+			dayTotals := map[string]UsageCounters{}
+			filteredDays := map[string]UsageCounters{}
+			var expected UsageCounters
+			add := func(a UsageCounters, c UsageCounters) UsageCounters {
+				return UsageCounters{FullDownloads: a.FullDownloads + c.FullDownloads, RangeRequests: a.RangeRequests + c.RangeRequests, TransferredBytes: a.TransferredBytes + c.TransferredBytes, InterruptedRequests: a.InterruptedRequests + c.InterruptedRequests, ErrorRequests: a.ErrorRequests + c.ErrorRequests}
+			}
+			for i := 0; i < 1000000; i++ {
+				group, sample := i%groupCount, i/groupCount
+				tuple := Tuple{Distribution: fmt.Sprintf("dist-%04d", group/100), Arch: []string{"x86_64", "aarch64"}[group%2], Vendor: "vendor", Variant: "minimal", Version: fmt.Sprint(group % 100)}
+				day := now.AddDate(0, 0, -(group*101+sample*37)%365).Format("2006-01-02")
+				status, outcome, method := 200, "complete", "GET"
+				switch (group + sample) % 8 {
+				case 1:
+					status = 206
+				case 2:
+					outcome = "interrupted"
+				case 3:
+					status = 404
+				case 4:
+					method = "HEAD"
+				case 5:
+					status = 500
+				case 6:
+					status, outcome = 206, "interrupted"
+				case 7:
+					status = 304
+				}
+				n, bytes := int64(i%5+1), int64(i%5+1)*int64(group%4096+100)
+				format := []string{"tar", "zfs"}[(group+sample)%2]
+				dim := string(encode(AggregateKey{Scope: "public", Kind: "artifact", Tuple: tuple, Format: format, Method: method, Status: status, Outcome: outcome}))
+				if _, err = stmt.Exec(day, dim, n, bytes, tuple.Distribution, tuple.Arch, tuple.Vendor, tuple.Variant, tuple.Version, format, method, outcome, status); err != nil {
+					b.Fatal(err)
+				}
+				counts := UsageCounters{}
+				if method == "GET" && status == 200 && outcome == "complete" {
+					counts.FullDownloads = n
+				}
+				if method == "GET" && status == 206 {
+					counts.RangeRequests = n
+				}
+				if method == "GET" && (status == 200 || status == 206) {
+					counts.TransferredBytes = bytes
+				}
+				if outcome == "interrupted" {
+					counts.InterruptedRequests = n
+				}
+				if status >= 400 {
+					counts.ErrorRequests = n
+				}
+				expected = add(expected, counts)
+				dayTotals[day] = add(dayTotals[day], counts)
+				if group == 0 {
+					filteredDays[day] = add(filteredDays[day], counts)
+				}
+				if groupCount <= 100000 {
+					imageTotals[tuple] = add(imageTotals[tuple], counts)
+				}
+			}
+			stmt.Close()
+			if _, err = tx.Exec("INSERT INTO http_measurement VALUES('dense','one',365,1,?)", timestamp(now)); err != nil {
+				b.Fatal(err)
+			}
+			if err = tx.Commit(); err != nil {
+				b.Fatal(err)
+			}
+			var rows, days int
+			if err = s.db.QueryRow("SELECT count(*),count(DISTINCT day) FROM http_daily").Scan(&rows, &days); err != nil || rows != 1000000 || days != 365 {
+				b.Fatal(rows, days, err)
+			}
+			queries := []UsageQuery{{Period: "365d", GroupBy: "distribution", Limit: 50}, {Period: "365d", GroupBy: "arch", Limit: 50}, {Period: "365d", GroupBy: "image", Limit: 50}, {Period: "365d", GroupBy: "image", Distribution: "dist-0000", Arch: "x86_64", Vendor: "vendor", Variant: "minimal", Version: "0", Limit: 50}}
+			if groupCount == 1000000 {
+				queries = queries[2:3]
+			}
+			for _, q := range queries {
+				reader := NewStoreDashboardReader(s, "dense", "one", nil)
+				start := time.Now()
+				page, err := reader.DashboardUsage(context.Background(), q)
+				elapsed := time.Since(start)
+				if groupCount == 1000000 {
+					if err == nil || !strings.HasPrefix(err.Error(), "bounded:") {
+						b.Fatalf("pathological cardinality must refuse explicitly: %v", err)
+					}
+					b.Logf("million-group refusal: %s; no truncated result", elapsed)
+					continue
+				}
+				if err != nil || elapsed > 2*time.Second {
+					b.Fatalf("dense cold %s %+v: %v", elapsed, q, err)
+				}
+				if q.Distribution == "" {
+					if page.Totals != expected || len(page.Days) != 365 {
+						b.Fatal(page.Totals, expected)
+					}
+					for _, day := range page.Days {
+						if day.UsageCounters != dayTotals[day.Day] {
+							b.Fatal("daily oracle mismatch", day)
+						}
+					}
+				}
+				oracle := map[Tuple]UsageCounters{}
+				var filtered UsageCounters
+				for tuple, counts := range imageTotals {
+					if q.Distribution != "" && (tuple.Distribution != q.Distribution || tuple.Arch != q.Arch || tuple.Vendor != q.Vendor || tuple.Variant != q.Variant || tuple.Version != q.Version) {
+						continue
+					}
+					filtered = add(filtered, counts)
+					key := tuple
+					if q.GroupBy == "distribution" {
+						key = Tuple{Distribution: tuple.Distribution}
+					}
+					if q.GroupBy == "arch" {
+						key = Tuple{Distribution: tuple.Distribution, Arch: tuple.Arch}
+					}
+					oracle[key] = add(oracle[key], counts)
+				}
+				if page.Totals != filtered {
+					b.Fatal("filtered total mismatch", page.Totals, filtered)
+				}
+				if q.Distribution != "" {
+					for _, day := range page.Days {
+						if day.UsageCounters != filteredDays[day.Day] {
+							b.Fatal("filtered daily oracle mismatch", day)
+						}
+					}
+				}
+				snapshot := reader.usage.entries[0]
+				if len(snapshot.page.Rows) != len(oracle) {
+					b.Fatal("missing retained historical groups", len(snapshot.page.Rows), len(oracle))
+				}
+				for _, row := range snapshot.page.Rows {
+					if row.UsageCounters != oracle[row.Tuple] {
+						b.Fatal("group oracle mismatch", row)
+					}
+				}
+				start = time.Now()
+				warm, e := reader.DashboardUsage(context.Background(), q)
+				if e != nil || time.Since(start) > 500*time.Millisecond || warm.Totals != page.Totals || len(reader.usage.entries) != 1 {
+					b.Fatal("warm dense snapshot", e)
+				}
+				if page.NextCursor != "" {
+					q.Cursor = page.NextCursor
+					start = time.Now()
+					next, e := reader.DashboardUsage(context.Background(), q)
+					if e != nil || time.Since(start) > 500*time.Millisecond || next.Totals != page.Totals || len(reader.usage.entries) != 1 {
+						b.Fatal("next dense snapshot", e)
+					}
+				}
+				b.Logf("%d groups, %s filter=%s: cold=%s retained=%d bytes", groupCount, q.GroupBy, q.Distribution, elapsed, snapshot.bytes)
+			}
+		})
+	}
 }

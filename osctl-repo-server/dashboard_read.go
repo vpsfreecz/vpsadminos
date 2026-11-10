@@ -32,6 +32,8 @@ type DashboardMetadata struct {
 
 type DashboardOverview struct {
 	DashboardMetadata
+	DisplayName   string            `json:"display_name"`
+	Purpose       string            `json:"purpose"`
 	Generation    string            `json:"generation"`
 	ImageVersions int64             `json:"image_versions"`
 	StorageFiles  int64             `json:"storage_files"`

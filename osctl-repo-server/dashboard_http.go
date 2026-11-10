@@ -1,6 +1,7 @@
 package reposerver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,6 +9,19 @@ import (
 	"strconv"
 	"strings"
 )
+
+// Configure the existing overview method once so HTML and API callers use the
+// same presentation identity, independently of the stable repository key.
+type configuredDashboardReader struct {
+	DashboardReader
+	displayName, purpose string
+}
+
+func (d configuredDashboardReader) DashboardOverview(ctx context.Context) (DashboardOverview, error) {
+	v, err := d.DashboardReader.DashboardOverview(ctx)
+	v.DisplayName, v.Purpose = d.displayName, d.purpose
+	return v, err
+}
 
 func (h *repositoryHTTP) dashboardAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
@@ -61,6 +75,8 @@ func (h *repositoryHTTP) dashboardAPI(w http.ResponseWriter, r *http.Request) {
 				message = e.Message
 			case "conflict":
 				status = 409
+				message = e.Message
+			case "bounded":
 				message = e.Message
 			}
 		}

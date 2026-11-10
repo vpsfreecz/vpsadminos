@@ -159,6 +159,14 @@ catalog and usage queries without changing the legacy Reader, control protocol,
 v1 paths or the complete `dashboard.json` response. The new GET/HEAD JSON endpoints
 are `/dashboard/api/overview`, `/dashboard/api/catalog` and `/dashboard/api/usage`.
 
+`HTTPOptions.DisplayName` and `Purpose` set the repository name and description
+in the overview API and HTML dashboard. An empty name uses the stable repository
+ID; an empty purpose omits the description. These settings leave storage IDs,
+control requests and native v1 paths unchanged. The overview adds `display_name`
+and `purpose`; legacy `dashboard.json` remains unchanged. For custom builds,
+static nginx serving and optional managed serving, see
+[container image repositories](../docs/container-images/repositories.md).
+
 Catalog hierarchy pages traverse distribution, architecture, vendor/variant,
 then version. Each level requires exactly its parent selectors. Default page
 size is 50, maximum 100. Invalid filters/cursors are 400; replaced catalog or
@@ -170,21 +178,36 @@ The summary cache lasts at most two seconds. Every artifact lookup rechecks the
 selected public mapping or run lease before opening under the reference boundary;
 cached entries cannot authorize an expired run or replaced public file.
 
-Usage periods `today`, `7d`, `30d` and `365d` run from UTC midnight to the
-time of the request:
-today is a partial day; the others include N-1 preceding UTC days. These are
-rolling daily windows, not calendar months/years. SQL aggregates indexed typed
+Usage periods are `today`, `7d`, `30d`, `90d`, `180d` and `365d`. Today starts
+at UTC midnight; the other periods include the preceding N-1 UTC days. Each
+window ends at its snapshot time. These are rolling daily windows rather than
+calendar months or years. SQL aggregates indexed typed
 daily dimensions; totals and daily buckets cover the entire exact filter,
-independently of the ranked row page. Usage cursors bind window, filters, ordering
-and the committed statistics revision, so refresh invalidates stale pages.
+independently of the ranked row page. A short read transaction materializes exact
+totals, daily counters and all ranked groups once, then closes before serving
+pages. The reader retains at most four immutable snapshots and 64 MiB of results,
+with conservative per-row/string accounting checked during the scan. A selection
+over that limit fails explicitly rather than dropping groups or rescanning for
+each page. Historical image versions remain part of usage even after they leave
+the public catalog.
+
+First pages can reuse a snapshot for 30 seconds. A cursor selects that same
+window, filters, ordering and snapshot for up to two minutes after creation.
+New image requests do not change its rows or totals. The end and last-measurement
+times show when the snapshot was taken. Measurement
+health may refresh independently. Retention changes, a UTC date change, expiry
+or bounded eviction require a pagination restart (409). A refreshed first page
+can coexist with an older cursor while space permits. One cold materializer per
+reader coalesces concurrent selection requests; its two-second deadline includes
+admission and read queries. Cached pages do not regroup history, retain a SQL
+transaction or hold the payload/writer lock.
 
 Only public artifact responses enter usage. Full downloads are completed GET
 200 responses, not successful imports or unique people. GET 206 range responses
 are counted separately. Transferred bytes count response-body bytes written for
 image GET 200/206 requests, including partial interrupted transfers and multipart
 range framing. HTTP headers, HEAD, 304, INDEX, dashboard and error-page bytes are
-excluded. Interruptions and errors have
-separate request counters. Retries are new requests. UTC day assignment remains
+excluded. Interruptions and errors have separate request counters. Retries are new requests. UTC day assignment remains
 the original request-start timestamp. Legacy aggregate categories and counters
 remain exact and readable through `dashboard.json`.
 

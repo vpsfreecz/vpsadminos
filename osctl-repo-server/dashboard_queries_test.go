@@ -16,6 +16,77 @@ import (
 	"time"
 )
 
+func TestDashboardConfiguredIdentity(t *testing.T) {
+	s, _ := testStore(t)
+	begin(t, s, "identity", "image")
+	reader := NewStoreDashboardReader(s, "test", "identity", nil)
+	for _, identity := range []struct{ name, purpose string }{
+		{"Member images <custom>", "A purpose with <script>markup</script> & Unicode: obrazy"},
+		{"", ""},
+	} {
+		h := NewHTTPHandler(s, HTTPOptions{Repository: "test", Instance: "identity", Dashboard: reader, DisplayName: identity.name, Purpose: identity.purpose})
+		response := requestHTTP(h, "GET", "/dashboard/api/overview", nil)
+		var got DashboardOverview
+		if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &got) != nil {
+			t.Fatal(response.Code, response.Body.String())
+		}
+		want := identity.name
+		if want == "" {
+			want = "test"
+		}
+		if got.DisplayName != want || got.Purpose != identity.purpose || got.Repository != "test" {
+			t.Fatal(got)
+		}
+		if strings.Contains(response.Body.String(), "<script>") {
+			t.Fatal("unescaped presentation text")
+		}
+		// The HTML path uses this same configured existing overview method.
+		overview, err := h.(*repositoryHTTP).opts.Dashboard.DashboardOverview(context.Background())
+		if err != nil || overview.DisplayName != got.DisplayName || overview.Purpose != got.Purpose {
+			t.Fatal(overview, err)
+		}
+		original, err := reader.DashboardOverview(context.Background())
+		if err != nil || original.DisplayName != "" || original.Purpose != "" {
+			t.Fatal("configured identity leaked into shared reader", original, err)
+		}
+		legacy := requestHTTP(h, "GET", "/dashboard.json", nil)
+		if legacy.Code != 200 || strings.Contains(legacy.Body.String(), `"display_name"`) || strings.Contains(legacy.Body.String(), `"purpose"`) {
+			t.Fatal("legacy dashboard changed", legacy.Code, legacy.Body.String())
+		}
+	}
+}
+
+func TestDashboardUsageExtendedPeriodsUTC(t *testing.T) {
+	s, clock := testStore(t)
+	*clock = time.Date(2026, 11, 10, 0, 30, 0, 0, time.UTC)
+	midnight := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
+	tuple := Tuple{Vendor: "vendor", Variant: "minimal", Arch: "x86_64", Distribution: "alpine", Version: "1"}
+	var events []AccessEvent
+	for _, when := range []time.Time{*clock, midnight.AddDate(0, 0, -89), midnight.AddDate(0, 0, -89).Add(-time.Nanosecond), midnight.AddDate(0, 0, -179), midnight.AddDate(0, 0, -179).Add(-time.Nanosecond)} {
+		events = append(events, AccessEvent{Repository: "test", Instance: "periods", Timestamp: when, Scope: "public", Kind: "artifact", Tuple: &tuple, Method: "GET", Status: 200, Outcome: "complete", Bytes: 10})
+	}
+	if err := s.RecordHTTPBatch(context.Background(), events, 365, 100); err != nil {
+		t.Fatal(err)
+	}
+	reader := NewStoreDashboardReader(s, "test", "periods", nil)
+	for _, tc := range []struct {
+		period string
+		days   int
+		count  int64
+	}{{"90d", 90, 2}, {"180d", 180, 4}} {
+		got, err := reader.DashboardUsage(context.Background(), UsageQuery{Period: tc.period})
+		if err != nil || len(got.Days) != tc.days || !got.Start.Equal(midnight.AddDate(0, 0, -tc.days+1)) || !got.End.Equal(*clock) || got.Totals != (UsageCounters{FullDownloads: tc.count, TransferredBytes: tc.count * 10}) || got.Days[0].FullDownloads != 1 {
+			t.Fatal(tc, got, err)
+		}
+		h := NewHTTPHandler(s, HTTPOptions{Repository: "test", Instance: "periods"})
+		response := requestHTTP(h, "GET", "/dashboard/api/usage?period="+tc.period, nil)
+		var api UsagePage
+		if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &api) != nil || api.Totals != got.Totals {
+			t.Fatal(response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestDashboardUsageSemanticsAndCoverage(t *testing.T) {
 	s, clock := testStore(t)
 	now := time.Date(2026, 11, 10, 0, 30, 0, 0, time.UTC)
@@ -113,8 +184,12 @@ func TestDashboardUsagePaginationRevisionAndFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 	q.Distribution = ""
+	if unchanged, e := r.DashboardUsage(context.Background(), q); e != nil || unchanged.Totals != first.Totals {
+		t.Fatal(unchanged, e)
+	}
+	*clock = clock.Add(2 * time.Minute)
 	if _, err = r.DashboardUsage(context.Background(), q); err == nil || !strings.HasPrefix(err.Error(), "conflict:") {
-		t.Fatal(err)
+		t.Fatal("expired snapshot accepted", err)
 	}
 	for _, q := range []UsageQuery{{Period: "hour"}, {GroupBy: "SQL"}, {Limit: 101}, {Distribution: "../private"}, {Cursor: "!"}} {
 		if _, err = r.DashboardUsage(context.Background(), q); err == nil {
@@ -403,7 +478,8 @@ func TestUsageHTTPPaginationSurvivesItsOwnMeasurement(t *testing.T) {
 		}
 	}
 	firstObserver := observer()
-	h := NewHTTPHandler(s, HTTPOptions{Repository: "test", Instance: "pagination", Observer: firstObserver})
+	dashboard := NewStoreDashboardReader(s, "test", "pagination", nil)
+	h := NewHTTPHandler(s, HTTPOptions{Repository: "test", Instance: "pagination", Observer: firstObserver, Dashboard: dashboard})
 	first := requestHTTP(h, "GET", "/dashboard/api/usage?limit=1", nil)
 	var page UsagePage
 	if first.Code != 200 || json.Unmarshal(first.Body.Bytes(), &page) != nil || page.NextCursor == "" {
@@ -423,7 +499,7 @@ func TestUsageHTTPPaginationSurvivesItsOwnMeasurement(t *testing.T) {
 	firstObserver.Observe(runEvent)
 	drain(firstObserver)
 	secondObserver := observer()
-	h = NewHTTPHandler(s, HTTPOptions{Repository: "test", Instance: "pagination", Observer: secondObserver})
+	h = NewHTTPHandler(s, HTTPOptions{Repository: "test", Instance: "pagination", Observer: secondObserver, Dashboard: dashboard})
 	second := requestHTTP(h, "GET", "/dashboard/api/usage?limit=1&cursor="+page.NextCursor, nil)
 	var next UsagePage
 	if second.Code != 200 || json.Unmarshal(second.Body.Bytes(), &next) != nil || len(next.Rows) != 1 || next.Rows[0].Distribution != "debian" || next.Totals != page.Totals || !next.End.Equal(page.End) {
@@ -441,9 +517,9 @@ func TestUsageHTTPPaginationSurvivesItsOwnMeasurement(t *testing.T) {
 	actual := observer()
 	actual.Observe(events[0])
 	drain(actual)
-	h = NewHTTPHandler(s, HTTPOptions{Repository: "test", Instance: "pagination"})
-	if got := requestHTTP(h, "GET", "/dashboard/api/usage?limit=1&cursor="+page.NextCursor, nil); got.Code != 409 {
-		t.Fatal("usage update did not invalidate", got.Code, got.Body.String())
+	h = NewHTTPHandler(s, HTTPOptions{Repository: "test", Instance: "pagination", Dashboard: dashboard})
+	if got := requestHTTP(h, "GET", "/dashboard/api/usage?limit=1&cursor="+page.NextCursor, nil); got.Code != 200 {
+		t.Fatal("usage update invalidated retained snapshot", got.Code, got.Body.String())
 	}
 	fresh := requestHTTP(h, "GET", "/dashboard/api/usage?limit=1", nil)
 	if fresh.Code != 200 || json.Unmarshal(fresh.Body.Bytes(), &page) != nil {

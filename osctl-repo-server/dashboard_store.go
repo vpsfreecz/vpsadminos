@@ -174,6 +174,7 @@ type StoreDashboardReader struct {
 	summaryMu            chan struct{}
 	summary              DashboardOverview
 	summaryUntil         time.Time
+	usage                usageResultCache
 }
 
 func NewStoreDashboardReader(s *Store, repository, instance string, observer *HTTPObserver) *StoreDashboardReader {
@@ -270,6 +271,17 @@ func parseCursor(raw, kind, binding, revision string) (dashboardCursor, error) {
 	if raw == "" {
 		return dashboardCursor{Kind: kind, Binding: binding, Revision: revision}, nil
 	}
+	c, e := decodeDashboardCursor(raw, kind, binding)
+	if e != nil {
+		return c, e
+	}
+	if c.Revision != revision {
+		return c, problem("conflict", "snapshot changed; restart pagination")
+	}
+	return c, nil
+}
+
+func decodeDashboardCursor(raw, kind, binding string) (dashboardCursor, error) {
 	var c dashboardCursor
 	b, e := base64.RawURLEncoding.DecodeString(raw)
 	if e != nil || len(b) > 2048 {
@@ -283,9 +295,6 @@ func parseCursor(raw, kind, binding, revision string) (dashboardCursor, error) {
 	var trailing any
 	if dec.Decode(&trailing) != io.EOF {
 		return c, problem("invalid", "invalid cursor")
-	}
-	if c.Revision != revision {
-		return c, problem("conflict", "snapshot changed; restart pagination")
 	}
 	return c, nil
 }

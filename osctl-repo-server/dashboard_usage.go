@@ -43,8 +43,8 @@ func (d *StoreDashboardReader) DashboardUsage(ctx context.Context, q UsageQuery)
 	if q.GroupBy == "" {
 		q.GroupBy = "distribution"
 	}
-	periods := map[string]int{"today": 1, "7d": 7, "30d": 30, "365d": 365}
-	days, ok := periods[q.Period]
+	periods := map[string]int{"today": 1, "7d": 7, "30d": 30, "90d": 90, "180d": 180, "365d": 365}
+	_, ok := periods[q.Period]
 	if !ok {
 		return UsagePage{}, problem("invalid", "unknown period")
 	}
@@ -58,54 +58,44 @@ func (d *StoreDashboardReader) DashboardUsage(ctx context.Context, q UsageQuery)
 	if err = validFilters(q.Distribution, q.Arch, q.Vendor, q.Variant, q.Version); err != nil {
 		return UsagePage{}, err
 	}
+	q.Limit = limit
+	return d.cachedUsage(ctx, q)
+}
+
+func (d *StoreDashboardReader) materializeUsage(ctx context.Context, q UsageQuery, now time.Time) (UsagePage, int, error) {
+	days := map[string]int{"today": 1, "7d": 7, "30d": 30, "90d": 90, "180d": 180, "365d": 365}[q.Period]
 	tx, err := d.store.reads.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return UsagePage{}, err
+		return UsagePage{}, 0, err
 	}
 	defer tx.Rollback()
-	now := d.store.now()
 	retention := 365
 	var revision int64
 	var updated string
 	err = tx.QueryRowContext(ctx, "SELECT retention_days,revision,updated_at FROM http_measurement WHERE repository=? AND instance=?", d.repository, d.instance).Scan(&retention, &revision, &updated)
 	if err != nil && err != sql.ErrNoRows {
-		return UsagePage{}, err
+		return UsagePage{}, 0, err
 	}
 	if d.observer != nil {
 		retention = d.observer.opts.StatsDays
-	}
-	binding := q
-	binding.Cursor = ""
-	binding.Limit = limit
-	c, err := parseCursor(q.Cursor, "usage", cursorBinding(binding), fmt.Sprint(revision))
-	if err != nil {
-		return UsagePage{}, err
-	}
-	if q.Cursor != "" {
-		if c.End.IsZero() || c.End.After(now) || c.End.UTC().Format("2006-01-02") != now.Format("2006-01-02") {
-			return UsagePage{}, problem("conflict", "usage window changed; restart pagination")
-		}
-		now = c.End
-	} else {
-		c.End = now
 	}
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -days+1)
 	v := UsagePage{DashboardMetadata: d.metadata(), Period: q.Period, GroupBy: q.GroupBy, Start: start, End: now, Coverage: UsageCoverage{RetentionDays: retention, Measurement: d.health()}, Rows: []UsageRow{}, Days: []UsageDay{}}
 	if updated != "" {
 		t, e := time.Parse(time.RFC3339Nano, updated)
 		if e != nil {
-			return v, e
+			return v, 0, e
 		}
 		v.UpdatedAt = &t
 	}
 	var earliest sql.NullString
 	if err = tx.QueryRowContext(ctx, "SELECT min(day) FROM http_daily WHERE repository=? AND instance=?", d.repository, d.instance).Scan(&earliest); err != nil {
-		return v, err
+		return v, 0, err
 	}
 	if earliest.Valid {
 		t, e := time.Parse("2006-01-02", earliest.String)
 		if e != nil {
-			return v, e
+			return v, 0, e
 		}
 		v.Coverage.RetainedFrom = &t
 	}
@@ -120,7 +110,7 @@ func (d *StoreDashboardReader) DashboardUsage(ctx context.Context, q UsageQuery)
 	}
 	rows, err := tx.QueryContext(ctx, "SELECT day,"+usageSums+" FROM http_daily WHERE "+where+" GROUP BY day ORDER BY day", args...)
 	if err != nil {
-		return v, err
+		return v, 0, err
 	}
 	observed := map[string]UsageCounters{}
 	for rows.Next() {
@@ -129,20 +119,20 @@ func (d *StoreDashboardReader) DashboardUsage(ctx context.Context, q UsageQuery)
 		a := append([]any{&day}, counterArgs(&counters)...)
 		if err = rows.Scan(a...); err != nil {
 			rows.Close()
-			return v, err
+			return v, 0, err
 		}
 		observed[day] = counters
 		// Daily rows cover the full filter, independently of the page limit.
 		// Reuse them rather than scanning the same measurements for totals.
 		if err = addUsageCounters(&v.Totals, counters); err != nil {
 			rows.Close()
-			return v, err
+			return v, 0, err
 		}
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return v, err
+		return v, 0, err
 	}
 	for date := start; !date.After(now); date = date.AddDate(0, 0, 1) {
 		day := date.Format("2006-01-02")
@@ -156,12 +146,13 @@ func (d *StoreDashboardReader) DashboardUsage(ctx context.Context, q UsageQuery)
 		dimensions = []string{"distribution", "arch", "vendor", "variant", "version"}
 	}
 	fields := strings.Join(dimensions, ",")
-	query := "SELECT " + fields + "," + usageSums + " FROM http_daily WHERE " + where + " GROUP BY " + fields + " ORDER BY " + fmt.Sprint(len(dimensions)+1) + " DESC," + fields + " LIMIT ? OFFSET ?"
-	paged := append(append([]any{}, args...), limit+1, c.Offset)
-	rows, err = tx.QueryContext(ctx, query, paged...)
+	query := "SELECT " + fields + "," + usageSums + " FROM http_daily WHERE " + where + " GROUP BY " + fields + " ORDER BY " + fmt.Sprint(len(dimensions)+1) + " DESC," + fields
+	rows, err = tx.QueryContext(ctx, query, args...)
 	if err != nil {
-		return v, err
+		return v, 0, err
 	}
+	// Account for slice capacity, counters, strings and per-result metadata.
+	memory := 2048 + len(v.Days)*128
 	for rows.Next() {
 		var row UsageRow
 		dest := []any{&row.Distribution}
@@ -174,22 +165,22 @@ func (d *StoreDashboardReader) DashboardUsage(ctx context.Context, q UsageQuery)
 		dest = append(dest, counterArgs(&row.UsageCounters)...)
 		if err = rows.Scan(dest...); err != nil {
 			rows.Close()
-			return v, err
+			return v, 0, err
+		}
+		memory += 512 + 2*(len(row.Distribution)+len(row.Arch)+len(row.Vendor)+len(row.Variant)+len(row.Version))
+		if memory > usageCacheMaxBytes {
+			rows.Close()
+			return v, 0, problem("bounded", "Usage selection exceeds the 64 MiB snapshot limit; narrow the filters")
 		}
 		v.Rows = append(v.Rows, row)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return v, err
-	}
-	if len(v.Rows) > limit {
-		v.Rows = v.Rows[:limit]
-		c.Offset += limit
-		v.NextCursor = encodeCursor(c)
+		return v, 0, err
 	}
 	if err = tx.Commit(); err != nil {
-		return v, err
+		return v, 0, err
 	}
-	return v, nil
+	return v, memory, nil
 }
