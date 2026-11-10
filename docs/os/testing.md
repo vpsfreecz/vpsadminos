@@ -375,16 +375,28 @@ checks, transition deadlines and failure recovery rules. A passing run applies
 to its recorded module and boot identities; it does not lift quarantine or
 permit a forced transition reversal.
 
-## Livepatch Intel CI distribution
+## Stable-kernel NFS cancellation CI
 
-The existing `livepatch-intel` selector includes cumulative .95 NFS cancellation.
-Native .110 NFS cancellation belongs to the existing
-`livepatch-qualification-intel-representative-v6` selector, after that row's v6
-qualification. Both rows use `intel-kvm` and execute their scripts serially.
-This avoids placing both long NFS groups in one 350-minute step. The ordinary
-`ci` selector still includes both groups; their machines, examples, 25 forced
-stop/restart cycles and per-example deadlines are unchanged. No matrix row or
-longer step deadline is added.
+The `osctl/nfs-cancellation` test is part of the ordinary `ci` selector. It
+reads `stableKernelVersion` and the matching kernel record from
+`os/packages/linux/available-kernels.nix`, then boots that kernel through the
+normal vpsAdminOS stable-kernel package path. It has no separate kernel
+revision, archive hash, ZFS pin or version-specific test registration. Updating
+the stable kernel moves this regression to the new stable kernel automatically.
+
+Before running examples, the guest verifies the actual kernel release and source
+revision. The suite covers NFSv3 and NFSv4 cancellation, per-server callback
+lifetime, namespace-wide terminal cancellation, NLM shutdown, sibling-client
+isolation, processless descendants, restart and admission behavior, and 25
+forced stop/restart cycles. The teardown regression creates a private sysfs view
+and opens the shutdown control with initial-user-namespace authority. Its helper
+verifies and enters the user namespace that owns the container mount namespace,
+clones the mount tree without cross-owner locks, drops the NFS mount in the
+private slave clone, and re-enters the held original mount namespace for the
+final unmount.
+
+The test uses the existing machines and per-example deadlines. It does not run
+in the livepatch qualification selectors.
 
 ## Livepatch CPU hotplug diagnostics
 

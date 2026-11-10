@@ -1,22 +1,29 @@
 import ../../make-test.nix (
   { pkgs }:
+  let
+    availableKernels = import ../../../os/packages/linux/available-kernels.nix {
+      inherit (pkgs) lib;
+    };
+    inherit (availableKernels) stableKernelVersion;
+    stableKernel = availableKernels.kernels.${stableKernelVersion};
+  in
   import ./nfs-cancellation-common.nix {
     inherit pkgs;
     name = "osctl-nfs-cancellation";
     description = ''
-      Hard NFS retry, forced container teardown and client isolation
+      Stable-kernel NFS cancellation, teardown lifetime and client isolation
     '';
+    expectedKernelRelease = stableKernelVersion;
+    expectedKernelRevision = stableKernel.rev;
     machine = import ../../machines/vpsadminos/with-tank.nix {
       inherit pkgs;
       config =
-        { ... }:
+        { lib, ... }:
         {
-          # Default cancellation run: the .95 boot kernel plus livepatch_7,
-          # which provides the terminal cancellation ABI under test.
-          imports = [ ../../configs/vpsadminos/livepatch-6.12.95-boot-base.nix ];
+          boot.kernelVersion = lib.mkForce stableKernelVersion;
           services.nfs.server.enable = true;
           osctl.exportfs.enable = true;
-          services.live-patches.enable = true;
+          services.live-patches.enable = false;
         };
     };
   }

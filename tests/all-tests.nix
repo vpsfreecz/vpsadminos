@@ -129,7 +129,6 @@ let
         "kernel/livepatch-tun-intel"
         "kernel/livepatch-sctp-baseline"
         "kernel/livepatch-inet-frag"
-        "osctl/nfs-cancellation-baseline"
         {
           template = "kernel/livepatch-qualification";
           instances = livepatchQualificationInstances;
@@ -276,7 +275,6 @@ let
           "osctl/ct-send-recv"
           "osctl/ct-uid-gid"
           "osctl/nfs-cancellation"
-          "osctl/nfs-cancellation-native110"
           "osctl/pool/export-cleanup"
           "osctl-exportfs/mount"
           "osctld/direct-start"

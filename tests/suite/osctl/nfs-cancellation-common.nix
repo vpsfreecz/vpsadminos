@@ -1,11 +1,46 @@
+let
+  partialInitExample = "releases a server after post-publication RPC auth setup fails";
+  legacyNlmExample = "shuts down a legacy server before the first NLM lock";
+  exampleFilterEnv = builtins.getEnv "VPSADMINOS_NFS_CANCELLATION_EXAMPLE_FILTER";
+  exampleFilter =
+    if
+      builtins.elem exampleFilterEnv [
+        partialInitExample
+        legacyNlmExample
+      ]
+    then
+      exampleFilterEnv
+    else
+      "";
+in
 {
   pkgs,
   machine,
   name,
   description,
-  baseline ? false,
+  expectedKernelRelease,
+  expectedKernelRevision,
 }:
 let
+  nfsRetryOptions = "timeo=300,retrans=2";
+  utilLinux = pkgs.util-linux;
+  kmod = pkgs.kmod;
+  blockedNfsAuthModprobe = pkgs.writeShellScript "nfs-blocked-modprobe" ''
+    set -eu
+    printf '%s\n' "$*" >> /run/nfs-failed-modprobe-invocations
+    if [ "$#" -ne 3 ] || [ "$1" != -q ] || [ "$2" != -- ] || [ "$3" != rpc-auth-gss-390003 ]; then
+      printf '%s\n' "$*" > /run/nfs-failed-modprobe-rejected
+      exit 1
+    fi
+    printf '%s\n' "$$" > /run/nfs-failed-modprobe-helper.pid
+    printf '%s\n' "$3" > /run/nfs-failed-modprobe-request
+    i=0
+    while [ ! -e /run/nfs-failed-modprobe-release ] && [ "$i" -lt 300 ]; do
+      ${pkgs.coreutils}/bin/sleep 0.1
+      i=$((i + 1))
+    done
+    exit 1
+  '';
   dirtyInitProgram = pkgs.pkgsStatic.stdenv.mkDerivation {
     name = "nfs-dirty-init";
     src = ./nfs-cancellation;
@@ -27,47 +62,76 @@ let
     ip route replace default via 192.168.1.1 dev eth0
     mkdir -p /mnt/nfs
     rm -f /root/nfs-init-ready /root/nfs-init-written /root/nfs-init-control
-    mount -t nfs -o "vers=$1,proto=tcp,timeo=10,retrans=2,nolock" \
+    mount -t nfs -o "vers=$1,proto=tcp,${nfsRetryOptions},nolock" \
       10.0.0.10:/srv/nfs-cancellation /mnt/nfs
     exec /sbin/nfs-dirty-init-program "/mnt/nfs/dirty-init-$1"
   '';
+  shutdownUnmountProgram = pkgs.pkgsStatic.stdenv.mkDerivation {
+    name = "nfs-shutdown-unmount";
+    src = ./nfs-cancellation;
+    dontConfigure = true;
+    buildPhase = ''
+      "$CC" -std=gnu11 -O2 -Wall -Wextra -Werror \
+        -o shutdown-unmount shutdown-unmount.c
+    '';
+    installPhase = ''
+      install -Dm755 shutdown-unmount "$out/bin/shutdown-unmount"
+    '';
+  };
+  kernelRelease = expectedKernelRelease;
 in
 {
   inherit name description;
-  tags =
-    if baseline then
-      [ "livepatch-amd" ]
-    else
-      [
-        "ci"
-        # Keep both unchanged NFS groups within the existing 350-minute steps.
-        # Native NFS follows representative-v6 on the same intel-kvm class;
-        # the main Intel row retains cumulative .95 NFS coverage.
-        (
-          if name == "osctl-nfs-cancellation-native110" then
-            "livepatch-qualification-intel-representative-v6"
-          else
-            "livepatch-intel"
-        )
-      ];
-  inherit machine;
+  tags = [ "ci" ];
+  machine = machine // {
+    modules = (machine.modules or [ ]) ++ [
+      {
+        system.extraDependencies = [
+          utilLinux
+          kmod
+          blockedNfsAuthModprobe
+        ];
+      }
+    ];
+  };
 
   testScript = ''
+    require 'shellwords'
+
+    nfs_cancellation_example_filter = ${builtins.toJSON exampleFilter}
+    unless nfs_cancellation_example_filter.empty?
+      define_singleton_method(:it) do |message, pending: false, skip: false, &block|
+        example(
+          message,
+          pending: pending,
+          skip: skip || message != nfs_cancellation_example_filter,
+          &block
+        )
+      end
+    end
+
     before(:suite) do
       machine.start
       machine.wait_for_osctl_pool("tank")
       machine.wait_until_online
       # The suite name is not runtime proof of the configured kernel target.
       # Retain the actual release in the normal shell transcript as well.
-      # Active v7 appends .7 to uname; only the unpatched baseline stays .95.
-      machine.succeeds('test "$(uname -r)" = ${
-        if baseline then
-          "6.12.95"
-        else if name == "osctl-nfs-cancellation-native110" then
-          "6.12.110"
-        else
-          "6.12.95.7"
-      } && uname -r')
+      # The canonical stable fixture passes its exact selected release.
+      machine.succeeds('test "$(uname -r)" = ${kernelRelease} && uname -r')
+      machine.succeeds(
+        'test -x ${utilLinux}/bin/nsenter && ' \
+          'test -x ${utilLinux}/bin/unshare',
+      )
+      machine.succeeds(
+        "grep -F '" \
+          '"kernelSourceRevision":"${expectedKernelRevision}"' \
+          "' /etc/vpsadminos/security-evidence.json",
+      )
+      machine.push_file(
+        "${shutdownUnmountProgram}/bin/shutdown-unmount",
+        '/run/nfs-shutdown-unmount',
+        preserve: true,
+      )
       # A port-selected gateway MAC makes stopping one container disrupt the
       # other client's TCP connection, independently of NFS cancellation.
       @nfs_bridge_mac = machine.succeeds(
@@ -75,10 +139,7 @@ in
           'cat /sys/class/net/lxcbr0/address',
       )[1].strip
 
-      ${pkgs.lib.optionalString baseline ''
-        assert_unpatched_baseline
-      ''}
-
+      nfs1_init_pid = nil
       %w[nfs1 nfs2].each_with_index do |ct, i|
         machine.all_succeed(
           "osctl ct new --distribution alpine #{ct}",
@@ -90,6 +151,20 @@ in
         )
         container_apk(machine, ct, 'update', name: "Update APK indexes in #{ct}")
         container_apk(machine, ct, 'add', 'nfs-utils', 'iproute2', 'util-linux', name: "Install NFS utilities in #{ct}")
+        if ct == 'nfs1'
+          nfs1_init_pid = Integer(
+            machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip,
+          )
+          helpers_ready = machine.succeeds(
+            "#{nfs_namespace_control(nfs1_init_pid, enter_mount: true)} " \
+              "'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+              "test -x /usr/bin/unshare; test -x /bin/sh; " \
+              "test -r /proc/1/ns/mnt; test -r /proc/1/root; " \
+              "test -x ./nfs-shutdown-unmount; " \
+              "echo NFS_CONTAINER_NAMESPACE_HELPERS_READY'",
+          )[1].strip
+          expect(helpers_ready).to eq('NFS_CONTAINER_NAMESPACE_HELPERS_READY')
+        end
         machine.all_succeed(
           "osctl ct exec #{ct} rc-update add rpcbind default",
           "osctl ct exec #{ct} rc-update add rpc.statd default",
@@ -99,20 +174,40 @@ in
         )
       end
 
+      cancellation_abi = machine.succeeds(
+        "#{nfs_namespace_control(nfs1_init_pid)} " \
+          "'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+          "for control in shutdown shutdown_tree; do " \
+          "test \"$(stat -c %a /sys/fs/nfs/net/nfs_client/$control)\" = 600; " \
+          "test \"$(cat /sys/fs/nfs/net/nfs_client/$control)\" = 0; " \
+          "done; echo NFS_CANCELLATION_ABI_READY'",
+      )[1].strip
+      expect(cancellation_abi).to eq('NFS_CANCELLATION_ABI_READY')
+
       machine.all_succeed(
-        "mkdir -p /srv/nfs-cancellation",
-        "chmod 0777 /srv/nfs-cancellation",
+        "mkdir -p /srv/nfs-cancellation /srv/nfs-cancellation-auth-null",
+        "chmod 0777 /srv/nfs-cancellation /srv/nfs-cancellation-auth-null",
         "osctl-exportfs server new --address 10.0.0.10 " \
           "--nfs-versions 3,4,4.0,4.1,4.2 server1",
         "osctl-exportfs export add --directory /srv/nfs-cancellation " \
           "--host 192.168.1.0/24 --options fsid=1234,rw,no_root_squash server1",
+        "osctl-exportfs export add --directory /srv/nfs-cancellation-auth-null " \
+          "--host 192.168.1.0/24 " \
+          "--options fsid=1235,rw,no_root_squash," \
+          "sec=sys:krb5 server1",
         "osctl-exportfs server start server1",
       )
       machine.wait_until_succeeds("test -s /run/osctl/exportfs/servers/server1/pid")
       # NFSD implies enabled 4.0 from +4; it only prints disabled -4.0.
       machine.wait_until_succeeds(
-        "nsenter -t $(cat /run/osctl/exportfs/servers/server1/pid) -m -n " \
+        "${utilLinux}/bin/nsenter " \
+          "-t $(cat /run/osctl/exportfs/servers/server1/pid) -m -n " \
           "cat /proc/fs/nfsd/versions | grep -Fx '+3 +4 +4.1 +4.2'",
+      )
+      machine.succeeds(
+        "${utilLinux}/bin/nsenter " \
+          "-t $(cat /run/osctl/exportfs/servers/server1/pid) -m -n " \
+          "${utilLinux}/bin/unshare --mount true",
       )
     end
 
@@ -122,6 +217,26 @@ in
         "iptables -#{operation} FORWARD -s 192.168.1.21 -d 10.0.0.10 #{action}",
         "iptables -#{operation} FORWARD -s 10.0.0.10 -d 192.168.1.21 #{action}",
       )
+    end
+
+    def nfs_namespace_control(init_pid, enter_mount: false, trace: false)
+      shell_options = trace ? '-exc' : '-ec'
+
+      if enter_mount
+        "PATH=/usr/sbin:/usr/bin:/sbin:/bin " \
+          "${utilLinux}/bin/nsenter -t #{init_pid} " \
+          "--user --setuid 0 --setgid 0 --keep-caps --net --mount " \
+          "--root --wd=/run -- " \
+          "/usr/bin/unshare --mount /bin/sh #{shell_options}"
+      else
+        "${utilLinux}/bin/nsenter -t #{init_pid} --net " \
+          "${utilLinux}/bin/unshare --mount sh #{shell_options}"
+      end
+    end
+
+    def nfs_namespace_path_control(netns)
+      "${utilLinux}/bin/nsenter --net=#{netns} " \
+        "${utilLinux}/bin/unshare --mount sh -ec"
     end
 
     def with_nfs_lock_trace
@@ -165,47 +280,325 @@ in
     def mount_nfs(ct, version, path = '/mnt/nfs')
       machine.succeeds(
         "osctl ct exec #{ct} mount -t nfs " \
-          "-o vers=#{version},proto=tcp,timeo=10,retrans=2 " \
+          "-o vers=#{version},proto=tcp,${nfsRetryOptions} " \
           "10.0.0.10:/srv/nfs-cancellation #{path}",
       )
-      # Do not request soft: only the unpatched container policy forces it.
+      # Do not request a retry mode: assert the selected kernel source policy.
       options = machine.succeeds("osctl ct exec #{ct} cat /proc/mounts")[1]
         .lines.find { |line| line.split[1] == path }.split[3].split(',')
-      expect(options).to include('${if baseline then "soft" else "hard"}')
-      expect(options).not_to include('${if baseline then "hard" else "soft"}', 'softerr')
+      expect(options).to include('soft')
+      expect(options).not_to include('hard', 'softerr')
     end
 
-    ${pkgs.lib.optionalString baseline ''
-      def assert_unpatched_baseline
-        puts 'VULNERABLE BASELINE: frozen .95, no livepatch; not a v7 target pass'
-        machine.all_succeed(
-          'test "$(uname -r)" = 6.12.95',
-          'test -d /sys/kernel/livepatch',
-          'test -z "$(find /sys/kernel/livepatch -mindepth 1 -maxdepth 1 -print -quit)"',
-          'test -z "$(find /sys/module -maxdepth 1 -name "livepatch_[0-9]*" -print -quit)"',
-          'uname -a; cat /proc/modules; ls -la /sys/kernel/livepatch',
-        )
-      end
-
-      def baseline_writer_diagnostics
-        # Capture the blocked syscall/socket before restoring the route. Mount
-        # flags alone do not show which operation exhausted the test deadline.
-        [
-          "osctl ct exec nfs1 sh -c 'cat /root/nfs-writer.log; cat /root/nfs-done'",
-          "ps -eLo pid,tid,ppid,stat,wchan:32,comm,args",
-          "for p in $(pgrep -x dd); do echo WRITER:$p; " \
-            "cat /proc/$p/syscall /proc/$p/wchan /proc/$p/stack; ls -l /proc/$p/fd; done",
-          "osctl ct exec nfs1 ss -ntoi",
-          "dmesg | tail -n 100",
-        ].each do |command|
+    def with_restored_nfs_client(version, before_restore: [])
+      completed = false
+      begin
+        yield
+        completed = true
+      ensure
+        # Try every restore step. Keep an original test failure primary, but
+        # surface the first restore failure when the test body succeeded.
+        cleanup_error = nil
+        (before_restore + [
+          [
+            'stop',
+            lambda do
+              stop_nfs_client unless machine.succeeds(
+                "osctl ct show -H -o state nfs1",
+              )[1].strip == 'stopped'
+            end,
+          ],
+          ['start', -> { machine.succeeds("osctl ct start nfs1", timeout: 60) }],
+          ['remount', -> { mount_nfs('nfs1', version) }],
+        ]).each do |operation, cleanup|
           begin
-            machine.execute(command, timeout: 15)
-          rescue StandardError => e
-            warn "Baseline diagnostic failed: #{command}: #{e.message}"
+            cleanup.call
+          rescue StandardError, RSpec::Expectations::ExpectationNotMetError => e
+            cleanup_error ||= e
+            warn "NFS client #{operation} cleanup failed: #{e.class}: #{e.message}"
           end
         end
+        raise cleanup_error if completed && cleanup_error
       end
-    ''}
+    end
+
+    def transient_nfs_server_ids(init_pid)
+      control = nfs_namespace_control(init_pid)
+      output = machine.succeeds(
+        "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+          "find /sys/fs/nfs -mindepth 1 -maxdepth 1 -type d " \
+          "-name \"server-*\" -printf \"%f\\n\" | sort'",
+      )[1]
+      output.lines(chomp: true).reject(&:empty?)
+    end
+
+    def failed_nfs_mount_result_command
+      body =
+        "printf 'NFS_FAILED_MOUNT_STATUS='; " \
+        "if test -e /root/nfs-failed-mount-status; then " \
+        "cat /root/nfs-failed-mount-status; else echo missing; fi; " \
+        "echo NFS_FAILED_MOUNT_LOG_BEGIN; " \
+        "if test -e /root/nfs-failed-mount.log; then " \
+        "cat /root/nfs-failed-mount.log; else echo missing; fi; " \
+        "echo NFS_FAILED_MOUNT_LOG_END"
+      "osctl ct exec nfs1 sh -c #{Shellwords.escape(body)}"
+    end
+
+    def failed_nfs_mount_supervisor_command(
+      mount_command:,
+      pid_path: '/root/nfs-failed-mount.pid',
+      status_path: '/root/nfs-failed-mount-status',
+      log_path: '/root/nfs-failed-mount.log'
+    )
+      escaped_pid = Shellwords.escape(pid_path)
+      escaped_status = Shellwords.escape(status_path)
+      escaped_log = Shellwords.escape(log_path)
+      "set +e; #{mount_command} >#{escaped_log} 2>&1 & " \
+        "mount_pid=$!; printf '%s\\n' \"$mount_pid\" >#{escaped_pid}; " \
+        "wait \"$mount_pid\"; status=$?; " \
+        "printf '%s\\n' \"$status\" >#{escaped_status}"
+    end
+
+    def failed_nfs_mount_stop_body(
+      pid_path: '/root/nfs-failed-mount.pid',
+      status_path: '/root/nfs-failed-mount-status'
+    )
+      escaped_pid = Shellwords.escape(pid_path)
+      escaped_status = Shellwords.escape(status_path)
+      source = Shellwords.escape('10.0.0.10:/srv/nfs-cancellation-auth-null')
+      target = Shellwords.escape('/mnt/nfs-failed')
+      options = Shellwords.escape('sec=krb5,nolock,retry=0')
+      "if test ! -s #{escaped_status}; then set -e; " \
+        "test -s #{escaped_pid}; pid=$(cat #{escaped_pid}); " \
+        "case \"$pid\" in \"\"|*[!0-9]*) exit 1;; esac; " \
+        "cmdline=/proc/$pid/cmdline; test -r \"$cmdline\"; " \
+        "tr '\\0' '\\n' < \"$cmdline\" | " \
+        "grep -Eq '(^|/)mount[.]nfs$'; " \
+        "tr '\\0' '\\n' < \"$cmdline\" | grep -Fxq #{source}; " \
+        "tr '\\0' '\\n' < \"$cmdline\" | grep -Fxq #{target}; " \
+        "tr '\\0' '\\n' < \"$cmdline\" | grep -Eq '(^|,)vers=3(,|$)'; " \
+        "if tr '\\0' '\\n' < \"$cmdline\" | grep -Eq '(^|,)mountvers='; " \
+        "then exit 1; fi; " \
+        "tr '\\0' '\\n' < \"$cmdline\" | grep -Fq #{options}; " \
+        "kill \"$pid\"; fi"
+    end
+
+    def failed_nfs_mount_supervisor_done_body(
+      supervisor_pid_path: '/root/nfs-failed-mount-supervisor.pid',
+      status_path: '/root/nfs-failed-mount-status'
+    )
+      escaped_supervisor = Shellwords.escape(supervisor_pid_path)
+      escaped_status = Shellwords.escape(status_path)
+      "set -e; test -s #{escaped_status}; test -s #{escaped_supervisor}; " \
+        "supervisor=$(cat #{escaped_supervisor}); " \
+        "case \"$supervisor\" in \"\"|*[!0-9]*) exit 1;; esac; " \
+        "if kill -0 \"$supervisor\" 2>/dev/null; then exit 1; fi"
+    end
+
+    def failed_nfs_host_cleanup_body(
+      helper_pid_path: '/run/nfs-failed-modprobe-helper.pid',
+      control_paths: [
+        '/run/nfs-failed-modprobe-request',
+        '/run/nfs-failed-modprobe-release',
+        '/run/nfs-failed-modprobe-invocations',
+        '/run/nfs-failed-modprobe-rejected',
+        '/run/nfs-failed-modprobe-helper.pid'
+      ]
+    )
+      escaped_helper_pid = Shellwords.escape(helper_pid_path)
+      escaped_controls = control_paths.map { |path| Shellwords.escape(path) }.join(' ')
+      "set -e; if test -e #{escaped_helper_pid}; then " \
+        "helper=$(cat #{escaped_helper_pid}); " \
+        "case \"$helper\" in \"\"|*[!0-9]*) exit 1;; esac; " \
+        "if kill -0 \"$helper\" 2>/dev/null; then " \
+        "echo \"NFS modprobe helper still alive: $helper\" >&2; exit 1; fi; fi; " \
+        "rm -f #{escaped_controls}"
+    end
+
+    def failed_nfs_container_cleanup_body(
+      pid_paths: [
+        '/root/nfs-failed-mount.pid',
+        '/root/nfs-failed-mount-supervisor.pid'
+      ],
+      evidence_paths: [
+        '/root/nfs-failed-mount.pid',
+        '/root/nfs-failed-mount-supervisor.pid',
+        '/root/nfs-failed-mount-status',
+        '/root/nfs-failed-mount.log'
+      ],
+      mountpoint: '/mnt/nfs-failed'
+    )
+      escaped_pids = pid_paths.map { |path| Shellwords.escape(path) }.join(' ')
+      escaped_evidence = evidence_paths.map { |path| Shellwords.escape(path) }.join(' ')
+      escaped_mountpoint = Shellwords.escape(mountpoint)
+      "set -e; for path in #{escaped_pids}; do " \
+        "if test -e \"$path\"; then pid=$(cat \"$path\"); " \
+        "case \"$pid\" in \"\"|*[!0-9]*) exit 1;; esac; " \
+        "if kill -0 \"$pid\" 2>/dev/null; then " \
+        "echo \"NFS mount process still alive: $pid ($path)\" >&2; exit 1; fi; fi; " \
+        "done; rm -f #{escaped_evidence}; rmdir #{escaped_mountpoint}"
+    end
+
+    def emit_failed_nfs_mount_result(final: true)
+      machine.execute(failed_nfs_mount_result_command, timeout: 15)
+      @nfs_failed_mount_result_complete = true if final
+    end
+
+    def failed_nfs_auth_diagnostics(init_pid)
+      control = nfs_namespace_control(init_pid)
+      diagnostics = [
+        [
+          'mount process',
+          "pid=$(osctl ct exec nfs1 cat /root/nfs-failed-mount.pid 2>/dev/null || true); " \
+            "if test -n \"$pid\"; then echo NFS_FAILED_MOUNT_PID=$pid; " \
+            "else echo NFS_FAILED_MOUNT_PID=missing; fi; " \
+            "if test -n \"$pid\"; then proc=/proc/#{init_pid}/root/proc/$pid; " \
+            "if test -d \"$proc\"; then printf 'cmdline='; " \
+            "tr '\\0' ' ' < \"$proc/cmdline\"; echo; cat \"$proc/status\"; " \
+            "printf 'wchan='; cat \"$proc/wchan\"; " \
+            "printf 'syscall='; cat \"$proc/syscall\"; cat \"$proc/stack\"; " \
+            "else echo NFS_FAILED_MOUNT_PROC=missing; fi; fi",
+        ],
+        [
+          'transient servers',
+          "#{control} " \
+            "#{Shellwords.escape("mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+              "find /sys/fs/nfs -mindepth 1 -maxdepth 1 -type d " \
+              "-name 'server-*' -printf 'NFS_TRANSIENT_SERVER=%f\\n' | sort")}",
+        ],
+        [
+          'modprobe wrapper',
+          "printf 'NFS_MODPROBE='; cat /proc/sys/kernel/modprobe; " \
+            "stat -Lc 'NFS_WRAPPER mode=%a uid=%u gid=%g size=%s' " \
+            "${blockedNfsAuthModprobe}; " \
+            "if test -x ${blockedNfsAuthModprobe}; then " \
+            "echo NFS_WRAPPER_READABLE=yes; else echo NFS_WRAPPER_READABLE=no; fi; " \
+            "if test -e /run/nfs-failed-modprobe-invocations; then " \
+            "cat /run/nfs-failed-modprobe-invocations; fi; " \
+            "for marker in request release rejected; do " \
+            "path=/run/nfs-failed-modprobe-$marker; " \
+            "if test -e \"$path\"; then echo NFS_MODPROBE_MARKER_$marker=present; " \
+            "cat \"$path\"; else echo NFS_MODPROBE_MARKER_$marker=absent; fi; done",
+        ],
+      ]
+
+      diagnostics.each do |label, command|
+        machine.execute(command, timeout: 15)
+      rescue StandardError => e
+        warn "NFS auth diagnostic #{label} failed: #{e.class}: #{e.message}"
+      end
+
+      emit_failed_nfs_mount_result(final: false)
+    rescue StandardError => e
+      warn "NFS auth mount-result diagnostic failed: #{e.class}: #{e.message}"
+    end
+
+    def with_blocked_nfs_auth_module
+      original_modprobe = machine.succeeds('cat /proc/sys/kernel/modprobe')[1].strip
+      @nfs_failed_mount_result_complete = false
+      completed = false
+      begin
+        machine.all_succeed(
+          "grep -q '^auth_rpcgss ' /proc/modules",
+          "grep -q '^rpcsec_gss_krb5 ' /proc/modules",
+          "test -x ${blockedNfsAuthModprobe}",
+        )
+        machine.succeeds(
+          "rm -f /run/nfs-failed-modprobe-request " \
+            "/run/nfs-failed-modprobe-release " \
+            "/run/nfs-failed-modprobe-invocations " \
+            "/run/nfs-failed-modprobe-rejected " \
+            "/run/nfs-failed-modprobe-helper.pid",
+        )
+        machine.succeeds(
+          "${kmod}/bin/rmmod rpcsec_gss_krb5 && " \
+            "! grep -q '^rpcsec_gss_krb5 ' /proc/modules",
+        )
+        machine.succeeds(
+          "sysctl -qw kernel.modprobe=${blockedNfsAuthModprobe}",
+        )
+        yield
+        completed = true
+      ensure
+        cleanup_error = nil
+        [
+          ['release module request', -> { machine.succeeds('touch /run/nfs-failed-modprobe-release') }],
+          [
+            'stop unfinished mount',
+            lambda do
+              machine.succeeds(
+                "osctl ct exec nfs1 sh -c " \
+                  "#{Shellwords.escape(failed_nfs_mount_stop_body)}",
+              )
+            end,
+          ],
+          [
+            'wait for mount supervisor',
+            lambda do
+              machine.wait_until_succeeds(
+                "osctl ct exec nfs1 sh -c " \
+                  "#{Shellwords.escape(failed_nfs_mount_supervisor_done_body)}",
+                timeout: 15,
+              )
+            end,
+          ],
+          [
+            'emit failed mount result',
+            lambda do
+              emit_failed_nfs_mount_result unless @nfs_failed_mount_result_complete
+            end,
+          ],
+          [
+            'unmount failed target',
+            lambda do
+              machine.succeeds(
+                "osctl ct exec nfs1 sh -c " \
+                  "'if mountpoint -q /mnt/nfs-failed; then umount /mnt/nfs-failed; fi'",
+              )
+            end,
+          ],
+          [
+            'restore kernel.modprobe',
+            lambda do
+              machine.succeeds(
+                "sysctl -qw kernel.modprobe=#{Shellwords.escape(original_modprobe)}",
+              )
+            end,
+          ],
+          [
+            'restore KRB5 mechanism module',
+            lambda do
+              machine.succeeds(
+                "${kmod}/bin/modprobe rpcsec_gss_krb5 && " \
+                  "grep -q '^rpcsec_gss_krb5 ' /proc/modules",
+              )
+            end,
+          ],
+          [
+            'remove host failure controls',
+            -> { machine.succeeds(failed_nfs_host_cleanup_body) },
+          ],
+          [
+            'remove container failure controls',
+            lambda do
+              machine.succeeds(
+                "osctl ct exec nfs1 sh -ec " \
+                  "#{Shellwords.escape(failed_nfs_container_cleanup_body)}",
+              )
+            end,
+          ],
+        ].each do |operation, cleanup|
+          begin
+            cleanup.call
+          rescue StandardError => e
+            cleanup_error ||= e
+            warn "NFS failed-mount #{operation} cleanup failed: #{e.class}: #{e.message}"
+          end
+        end
+        @nfs_failed_mount_result_complete = nil
+        raise cleanup_error if completed && cleanup_error
+      end
+    end
 
     def start_writer(version, path = '/mnt/nfs')
       machine.all_succeed(
@@ -268,51 +661,140 @@ in
           mount_nfs('nfs2', version)
         end
 
-  ''
-  + (
-    if baseline then
-      ''
-        it "observes forced soft retry and absent cancellation controls without v7" do
-          assert_unpatched_baseline
-          init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          machine.succeeds("test \"$(readlink /proc/#{init_pid}/ns/user)\" != \"$(readlink /proc/1/ns/user)\"")
-          # The outer driver shell's errexit does not apply inside this shell.
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
-          machine.succeeds(
-            "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
-              "test -d /sys/fs/nfs/net/nfs_client; " \
-              "test ! -e /sys/fs/nfs/net/nfs_client/shutdown; " \
-              "test ! -e /sys/fs/nfs/net/nfs_client/shutdown_tree; " \
-              "find /sys/fs/nfs -maxdepth 5 -print'",
-          )
-          # NFSv4 soft RPCs suppress retransmission timeouts while TCP remains
-          # connected. Break the transport rather than merely blackholing it;
-          # use the same fault in the target's hard-retry/payload example.
-          isolate_client('I', reset: true)
-          begin
-            start_writer(version)
-            # The old forced-soft policy must fail I/O, unlike the target's
-            # continuing hard retry. A timeout is a failed control, not PASS.
-            machine.wait_until_succeeds("osctl ct exec nfs1 test -e /root/nfs-done", timeout: 90)
-            status = Integer(machine.succeeds("osctl ct exec nfs1 cat /root/nfs-done")[1].strip)
-            expect(status).to be > 0
-            output = machine.succeeds("osctl ct exec nfs1 cat /root/nfs-writer.log")[1]
-            expect(output).to match(/Input\/output error|I\/O error/)
-            machine.succeeds("osctl ct exec nfs2 sh -c 'echo live > /mnt/nfs/other-client'")
-          rescue StandardError, RSpec::Expectations::ExpectationNotMetError
-            baseline_writer_diagnostics
-            raise
-          ensure
-            isolate_client('D', reset: true)
+        it "drains an admitted shutdown writer before final unmount" do
+            init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
+            mount_id = machine.succeeds(
+              "osctl ct exec nfs1 awk '$5 == \"/mnt/nfs\" { print $3 }' /proc/self/mountinfo",
+            )[1].strip
+            expect(mount_id).to match(/\A\d+:\d+\z/)
+            payload = "teardown-race-#{version}"
+            machine.succeeds(
+              "osctl ct exec nfs2 sh -c 'printf %s #{payload} > /mnt/nfs/#{payload}'",
+            )
+            control = nfs_namespace_control(init_pid)
+
+            with_restored_nfs_client(version) do
+              output = machine.succeeds(
+                "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+                  "exec /run/nfs-shutdown-unmount " \
+                  "/sys/fs/nfs/#{mount_id}/shutdown #{init_pid} /mnt/nfs'",
+                timeout: 60,
+              )[1]
+              expect(output).to match(/\Ashutdown_writes=[1-9]\d* unmounted=1\n\z/)
+              machine.fails("osctl ct exec nfs1 mountpoint -q /mnt/nfs")
+              expect(machine.succeeds("osctl ct exec nfs2 cat /mnt/nfs/#{payload}")[1])
+                .to eq(payload)
+            end
           end
-          machine.succeeds("osctl ct exec nfs1 sh -c 'echo recovered > /mnt/nfs/recovered-#{version}'")
-          expect(machine.succeeds("cat /srv/nfs-cancellation/recovered-#{version}")[1].strip).to eq('recovered')
-          assert_unpatched_baseline
-        end
-      ''
-    else
-      ''
+
         if version == '3'
+          it "releases a server after post-publication RPC auth setup fails" do
+              init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
+              before_servers = transient_nfs_server_ids(init_pid)
+              dmesg_before = machine.succeeds('dmesg')[1]
+              control = nfs_namespace_control(init_pid)
+
+              with_blocked_nfs_auth_module do
+                mount_command =
+                  "/sbin/mount.nfs 10.0.0.10:/srv/nfs-cancellation-auth-null " \
+                  "/mnt/nfs-failed -o " \
+                  "vers=3,proto=tcp,${nfsRetryOptions},sec=krb5,nolock,retry=0"
+                supervisor = failed_nfs_mount_supervisor_command(mount_command: mount_command)
+                launch =
+                  "mkdir -p /mnt/nfs-failed; " \
+                  "rm -f /root/nfs-failed-mount.pid " \
+                  "/root/nfs-failed-mount-supervisor.pid /root/nfs-failed-mount-status " \
+                  "/root/nfs-failed-mount.log; " \
+                  "nohup sh -c #{Shellwords.escape(supervisor)} " \
+                  ">/dev/null 2>&1 </dev/null & " \
+                  "echo $! > /root/nfs-failed-mount-supervisor.pid"
+                machine.succeeds(
+                  "osctl ct exec nfs1 sh -c #{Shellwords.escape(launch)}",
+                )
+              begin
+                trigger = machine.succeeds(
+                  "i=0; while test \"$i\" -lt 300; do " \
+                    "if test -s /run/nfs-failed-modprobe-request; " \
+                    "then echo marker; exit 0; " \
+                    "elif osctl ct exec nfs1 test -s /root/nfs-failed-mount-status; " \
+                    "then echo status; exit 0; fi; " \
+                    "${pkgs.coreutils}/bin/sleep 0.1; i=$((i + 1)); done; exit 1",
+                  timeout: 35,
+                )[1].strip
+                rescue StandardError
+                  failed_nfs_auth_diagnostics(init_pid)
+                  raise
+                end
+                if trigger == 'status'
+                  emit_failed_nfs_mount_result
+                  status = machine.succeeds(
+                    'osctl ct exec nfs1 cat /root/nfs-failed-mount-status',
+                  )[1].strip
+                  raise "NFS auth trigger exited before module request with status #{status}"
+                end
+                expect(trigger).to eq('marker')
+              request = machine.succeeds(
+                "test ! -e /run/nfs-failed-modprobe-rejected; " \
+                  "test \"$(wc -l < /run/nfs-failed-modprobe-invocations)\" = 1; " \
+                  "cat /run/nfs-failed-modprobe-request",
+              )[1].strip
+                expect(request).to eq('rpc-auth-gss-390003')
+
+                new_servers = transient_nfs_server_ids(init_pid) - before_servers
+                expect(new_servers.length).to eq(1)
+                server_id = new_servers.fetch(0)
+                callback_body =
+                  "mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+                  "server=/sys/fs/nfs/#{server_id}; test \"$(cat \"$server/shutdown\")\" = 0; " \
+                  "result=$(/run/nfs-shutdown-unmount --expect-eagain \"$server/shutdown\"); " \
+                  "test \"$result\" = partial_callback=eagain; " \
+                  "test \"$(cat \"$server/shutdown\")\" = 0; " \
+                  "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown)\" = 0; " \
+                  "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown_tree)\" = 0; " \
+                  "printf '%s\\n' \"$result\""
+                callback_output = machine.succeeds(
+                  "#{control} #{Shellwords.escape(callback_body)}",
+                  timeout: 15,
+                )[1]
+                expect(callback_output).to eq("partial_callback=eagain\n")
+                puts "POST_PUBLICATION_NFSV3_FAILURE server=#{server_id} " \
+                  "request=#{request.strip} partial_callback=eagain"
+
+                machine.succeeds('touch /run/nfs-failed-modprobe-release')
+                machine.wait_until_succeeds(
+                  'osctl ct exec nfs1 test -s /root/nfs-failed-mount-status',
+                  timeout: 30,
+                )
+                status = Integer(
+                  machine.succeeds('osctl ct exec nfs1 cat /root/nfs-failed-mount-status')[1].strip,
+                )
+                expect(status).to be > 0
+                emit_failed_nfs_mount_result
+                machine.wait_until_succeeds(
+                  "#{control} " \
+                    "#{Shellwords.escape("mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+                      "test ! -e /sys/fs/nfs/#{server_id}")}",
+                  timeout: 30,
+                )
+                expect(transient_nfs_server_ids(init_pid) - before_servers).to be_empty
+                machine.fails('osctl ct exec nfs1 mountpoint -q /mnt/nfs-failed')
+
+                payload = 'post-publication-failure-survived'
+                machine.succeeds(
+                  "osctl ct exec nfs2 sh -c 'printf %s #{payload} > /mnt/nfs/#{payload}'",
+                )
+                expect(machine.succeeds("osctl ct exec nfs2 cat /mnt/nfs/#{payload}")[1])
+                  .to eq(payload)
+
+                dmesg_after = machine.succeeds('dmesg')[1]
+                expect(dmesg_after).to start_with(dmesg_before)
+                new_dmesg = dmesg_after.delete_prefix(dmesg_before)
+                expect(new_dmesg).not_to match(
+                  /BUG:|Oops:|KASAN|refcount_t:|list_del corruption|hung task/i,
+                )
+              end
+            end
+
           it "shuts down a legacy server before the first NLM lock" do
             # The v3 mount constructor binds its NLM RPC client eagerly.
             # Exercise the old per-server ABI with that idle client before
@@ -322,8 +804,8 @@ in
               "osctl ct exec nfs1 awk '$5 == \"/mnt/nfs\" { print $3 }' /proc/self/mountinfo",
             )[1].strip
             expect(mount_id).to match(/\A\d+:\d+\z/)
-            control = "nsenter -t #{init_pid} --net unshare --mount sh -exc"
-            begin
+            control = nfs_namespace_control(init_pid, trace: true)
+            with_restored_nfs_client(version) do
               machine.succeeds('echo legacy-data > /srv/nfs-cancellation/legacy-shutdown')
               machine.succeeds(
                 "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
@@ -339,32 +821,8 @@ in
               )
               expect(machine.succeeds('cat /srv/nfs-cancellation/other-client')[1].strip)
                 .to eq('legacy-survived')
-            ensure
-              stop_nfs_client
-              machine.succeeds("osctl ct start nfs1", timeout: 60)
-              mount_nfs('nfs1', version)
             end
           end
-        end
-
-        it "retries an outage beyond soft timeout and preserves the payload" do
-          isolate_client('I', reset: true)
-          begin
-            start_writer(version)
-            # The baseline proves soft I/O fails with this broken transport;
-            # a TCP blackhole alone does not bound NFSv4 soft RPC retries.
-            sleep(30)
-            machine.fails("osctl ct exec nfs1 test -e /root/nfs-done")
-            machine.succeeds("osctl ct exec nfs2 sh -c 'echo live > /mnt/nfs/other-client'")
-          ensure
-            isolate_client('D', reset: true)
-          end
-          machine.wait_until_succeeds("osctl ct exec nfs1 test -e /root/nfs-done", timeout: 120)
-          expect(machine.succeeds("osctl ct exec nfs1 cat /root/nfs-done")[1].strip).to eq('0')
-          machine.succeeds("osctl ct exec nfs1 cmp /root/nfs-payload /mnt/nfs/payload-#{version}")
-          local_hash = machine.succeeds("osctl ct exec nfs1 sha256sum /root/nfs-payload")[1].split.first
-          server_hash = machine.succeeds("sha256sum /srv/nfs-cancellation/payload-#{version}")[1].split.first
-          expect(server_hash).to eq(local_hash)
         end
 
         it "cancels shared mounts on forced stop without cancelling another container" do
@@ -401,7 +859,7 @@ in
           begin
             machine.succeeds(
               "osctl ct exec nfs1 sh -c 'nohup mount -t nfs " \
-                "-o vers=#{version},proto=tcp,port=2049,timeo=10,retrans=2,nolock " \
+                "-o vers=#{version},proto=tcp,port=2049,${nfsRetryOptions},nolock " \
                 "10.0.0.10:/srv/nfs-cancellation /mnt/nfs " \
                 ">/root/nfs-mount.log 2>&1 </dev/null &'",
             )
@@ -472,7 +930,8 @@ in
               # FIFO. Suite-end diagnostics run after cleanup and miss it.
               # The server mounts proc in its own PID namespace. Enter it too,
               # so /proc/self/net resolves for nfsstat instead of returning ENOENT.
-              nfs_server = "nsenter -t $(cat /run/osctl/exportfs/servers/server1/pid) -m -n -p"
+              nfs_server = "${utilLinux}/bin/nsenter " \
+                "-t $(cat /run/osctl/exportfs/servers/server1/pid) -m -n -p"
               transport_trace = '/sys/kernel/tracing/instances/nfs_cancellation_transport'
               commands = [
                 "echo 0 > #{trace}/tracing_on",
@@ -521,55 +980,58 @@ in
         it "cancels an NFS mount in a processless child network namespace" do
           held_net = "/run/nfs-child-#{version}"
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          machine.all_succeed(
-            "osctl ct exec nfs1 umount /mnt/nfs",
-            "osctl ct exec nfs1 mkdir -p /mnt/nfs-child",
-            "osctl ct exec nfs1 ip netns add nfstest",
-            "osctl ct exec nfs1 ip link set eth0 netns nfstest",
-            "osctl ct exec nfs1 ip -n nfstest link set lo up",
-            "osctl ct exec nfs1 ip -n nfstest link set eth0 up",
-            "osctl ct exec nfs1 ip -n nfstest addr replace 192.168.1.21/24 dev eth0",
-            "osctl ct exec nfs1 ip -n nfstest route replace default via 192.168.1.1 dev eth0",
-            "osctl ct exec nfs1 nsenter --net=/run/netns/nfstest mount -t nfs " \
-              "-o vers=#{version},proto=tcp,timeo=10,retrans=2,nolock " \
-              "10.0.0.10:/srv/nfs-cancellation /mnt/nfs-child",
-            "osctl ct exec nfs1 sh -c 'echo child-live > /mnt/nfs-child/child-live; sync'",
-            "touch #{held_net}",
-            "mount --bind /proc/#{init_pid}/root/run/netns/nfstest #{held_net}",
-          )
-          begin
+          restore = [
+            ['restore network', -> { isolate_client('D') }],
+            [
+              'release child network namespace',
+              lambda do
+                machine.succeeds(
+                  "if mountpoint -q #{held_net}; then umount #{held_net}; fi; rm -f #{held_net}",
+                )
+              end,
+            ],
+          ]
+          with_restored_nfs_client(version, before_restore: restore) do
+            machine.all_succeed(
+              "osctl ct exec nfs1 mkdir -p /mnt/nfs-child",
+              "osctl ct exec nfs1 ip netns add nfstest",
+              "osctl ct exec nfs1 ip link set eth0 netns nfstest",
+              "osctl ct exec nfs1 ip -n nfstest link set lo up",
+              "osctl ct exec nfs1 ip -n nfstest link set eth0 up",
+              "osctl ct exec nfs1 ip -n nfstest addr replace 192.168.1.21/24 dev eth0",
+              "osctl ct exec nfs1 ip -n nfstest route replace default via 192.168.1.1 dev eth0",
+              "osctl ct exec nfs1 nsenter --net=/run/netns/nfstest mount -t nfs " \
+                "-o vers=#{version},proto=tcp,${nfsRetryOptions},nolock " \
+                "10.0.0.10:/srv/nfs-cancellation /mnt/nfs-child",
+              "osctl ct exec nfs1 sh -c 'echo child-live > /mnt/nfs-child/child-live; sync'",
+              "touch #{held_net}",
+              "mount --bind /proc/#{init_pid}/root/run/netns/nfstest #{held_net}",
+            )
             # The host bind mount retains only a namespace reference, not
-            # a process which the cancellation scanner could discover.
+            # a process which the cancellation scanner could discover. Keep
+            # the root mount alive so its retained owner control can cancel
+            # blocked work in the otherwise undiscoverable child namespace.
             expect(machine.succeeds("osctl ct exec nfs1 ip netns pids nfstest")[1].strip).to be_empty
             isolate_client('I')
-            begin
-              start_writer(version, '/mnt/nfs-child')
-              sleep(5)
-              machine.fails("osctl ct exec nfs1 test -e /root/nfs-done")
-              stop_nfs_client
-              expect(machine.succeeds("osctl ct show -H -o state nfs1")[1].strip).to eq('stopped')
-              state = machine.succeeds(
-                "nsenter --net=#{held_net} unshare --mount sh -ec " \
-                  "'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
-                  "cat /sys/fs/nfs/net/nfs_client/shutdown'",
-              )[1].strip
-              expect(state).to eq('1')
-              # The child network namespace shares the root owner's
-              # barrier without ever being discovered by a process scan.
-              owner = "nsenter --net=#{held_net} unshare --mount sh -ec"
-              machine.succeeds(
-                "#{owner} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
-                  "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown_tree)\" = 1'",
-              )
-              machine.succeeds("osctl ct exec nfs2 sh -c 'echo child-survived > /mnt/nfs/other-client'")
-            ensure
-              isolate_client('D')
-            end
-          ensure
-            machine.succeeds("umount #{held_net}; rm -f #{held_net}")
+            start_writer(version, '/mnt/nfs-child')
+            sleep(5)
+            machine.fails("osctl ct exec nfs1 test -e /root/nfs-done")
+            stop_nfs_client
+            expect(machine.succeeds("osctl ct show -H -o state nfs1")[1].strip).to eq('stopped')
+            owner = nfs_namespace_path_control(held_net)
+            state = machine.succeeds(
+              "#{owner} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+                "cat /sys/fs/nfs/net/nfs_client/shutdown'",
+            )[1].strip
+            expect(state).to eq('1')
+            # The child network namespace shares the root owner's barrier
+            # without ever being discovered by a process scan.
+            machine.succeeds(
+              "#{owner} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
+                "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown_tree)\" = 1'",
+            )
+            machine.succeeds("osctl ct exec nfs2 sh -c 'echo child-survived > /mnt/nfs/other-client'")
           end
-          machine.succeeds("osctl ct start nfs1", timeout: 60)
-          mount_nfs('nfs1', version)
         end
 
         it "rejects new mounts and descendants after host terminal cancellation" do
@@ -578,7 +1040,7 @@ in
           machine.fails(
             "osctl ct exec nfs1 sh -c 'echo 1 > /sys/fs/nfs/net/nfs_client/shutdown_tree'",
           )
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
+          control = nfs_namespace_control(init_pid)
           machine.succeeds(
             "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
               "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown_tree)\" = 0; " \
@@ -587,7 +1049,7 @@ in
           # The server is online. Neither a fresh mount nor a repeat write
           # may reset the admission barrier in the existing namespace.
           mount_command = "osctl ct exec nfs1 mount -t nfs " \
-            "-o vers=#{version},proto=tcp,timeo=10,retrans=2,nolock " \
+            "-o vers=#{version},proto=tcp,${nfsRetryOptions},nolock " \
             "10.0.0.10:/srv/nfs-cancellation /mnt/nfs-again"
           machine.fails(mount_command, timeout: 15)
           machine.succeeds(
@@ -615,7 +1077,7 @@ in
               "/proc/#{init_pid}/root/proc/#{child_pid}/ns/net",
             ].each do |netns|
               state = machine.succeeds(
-                "nsenter --net=#{netns} unshare --mount sh -ec " \
+                "#{nfs_namespace_path_control(netns)} " \
                   "'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
                   "cat /sys/fs/nfs/net/nfs_client/shutdown " \
                   "/sys/fs/nfs/net/nfs_client/shutdown_tree'",
@@ -708,7 +1170,7 @@ in
         it "host cancellation controls are root-only with exact modes" do
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
           # Fail on setup and intermediate assertions, not just the last command.
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
+          control = nfs_namespace_control(init_pid)
 
           modes = machine.succeeds(
             "osctl ct exec nfs1 stat -c '%a' " \
@@ -790,7 +1252,7 @@ in
         it "rejects or safely joins a mount racing terminal cancellation" do
           machine.succeeds("osctl ct exec nfs1 umount /mnt/nfs")
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
+          control = nfs_namespace_control(init_pid)
           rules = [
             "FORWARD -s 192.168.1.21 -d 10.0.0.10 -p tcp --dport 2049 -j DROP",
             "FORWARD -s 10.0.0.10 -d 192.168.1.21 -p tcp --sport 2049 -j DROP",
@@ -799,7 +1261,7 @@ in
           begin
             machine.succeeds(
               "osctl ct exec nfs1 sh -c 'nohup mount -t nfs " \
-                "-o vers=#{version},proto=tcp,port=2049,timeo=10,retrans=2,nolock " \
+                "-o vers=#{version},proto=tcp,port=2049,${nfsRetryOptions},nolock " \
                 "10.0.0.10:/srv/nfs-cancellation /mnt/nfs " \
                 ">/root/nfs-mount.log 2>&1 </dev/null &'",
             )
@@ -863,7 +1325,7 @@ in
             rules.each { |rule| machine.succeeds("iptables -D #{rule} || true") }
             machine.fails(
               "osctl ct exec nfs1 mount -t nfs " \
-                "-o vers=#{version},proto=tcp,timeo=10,retrans=2,nolock " \
+                "-o vers=#{version},proto=tcp,${nfsRetryOptions},nolock " \
                 "10.0.0.10:/srv/nfs-cancellation /mnt/nfs-again",
               timeout: 15,
             )
@@ -879,7 +1341,7 @@ in
 
         it "repeated terminal cancellation is idempotent" do
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
+          control = nfs_namespace_control(init_pid)
           machine.succeeds(
             "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
               "echo 1 > /sys/fs/nfs/net/nfs_client/shutdown_tree'",
@@ -907,7 +1369,7 @@ in
           mount_nfs('nfs1', version)
           # A fresh incarnation starts from a zero cancellation state.
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
+          control = nfs_namespace_control(init_pid)
           machine.succeeds(
             "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
               "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown)\" = 0; " \
@@ -929,7 +1391,7 @@ in
           machine.succeeds("osctl ct start nfs1", timeout: 60)
           mount_nfs('nfs1', version)
           init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-          control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
+          control = nfs_namespace_control(init_pid)
           machine.succeeds(
             "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
               "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown)\" = 0; " \
@@ -958,7 +1420,7 @@ in
             machine.succeeds("osctl ct start nfs1", timeout: 60)
             mount_nfs('nfs1', version)
             init_pid = Integer(machine.succeeds("osctl ct show -H -o init_pid nfs1")[1].strip)
-            control = "nsenter -t #{init_pid} --net unshare --mount sh -ec"
+            control = nfs_namespace_control(init_pid)
             machine.succeeds(
               "#{control} 'mount --make-rslave /; mount -t sysfs sysfs /sys; " \
                 "test \"$(cat /sys/fs/nfs/net/nfs_client/shutdown)\" = 0; " \
@@ -970,16 +1432,16 @@ in
           end
         end
 
-      ''
-  )
-  + ''
         after(:context) do
           %w[nfs1 nfs2].each do |ct|
             # Preserve the original failure if an example could not restart
             # its container; cleanup must not replace it with an exec error.
             next unless machine.succeeds("osctl ct show -H -o state #{ct}")[1].strip == 'running'
 
-            machine.succeeds("osctl ct exec #{ct} umount /mnt/nfs")
+            machine.succeeds(
+              "osctl ct exec #{ct} sh -c " \
+                "'if mountpoint -q /mnt/nfs; then umount /mnt/nfs; fi'",
+            )
           end
           transport_trace = '/sys/kernel/tracing/instances/nfs_cancellation_transport'
           machine.all_succeed(
