@@ -32,21 +32,17 @@
 (() => {
   "use strict";
   document.addEventListener("DOMContentLoaded", () => {
-    const status = document.querySelector("#status");
-    const openStatus = () => {
-      if (location.hash !== "#status" || !status) return;
-      status.open = true; status.scrollIntoView(); status.querySelector("summary")?.focus({preventScroll: true});
-    };
-    if (status) {
-      window.addEventListener("hashchange", openStatus);
-      document.addEventListener("click", event => {
-        if (event.target.closest("a")?.getAttribute("href") === "#status") {
-          status.open = true; status.querySelector("summary")?.focus({preventScroll: true});
-        }
-      });
-      openStatus();
+    if (typeof location !== "undefined" && location.pathname === "/" && ["#usage", "#images", "#status"].includes(location.hash)) {
+      location.replace("/" + location.hash.slice(1) + location.search); return;
     }
-    if (!document.querySelector("[data-catalog-tree]")) return;
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") document.querySelectorAll(".history-warning").forEach(item => { if (item.open || item.matches(":hover, :focus-within")) { item.open = false; item.querySelector("summary")?.focus(); item.classList.add("dismissed"); } });
+    });
+    document.addEventListener("click", event => { event.target.closest(".history-warning")?.classList.remove("dismissed"); });
+    document.addEventListener("focusin", event => { event.target.closest(".history-warning")?.classList.remove("dismissed"); });
+    const images = document.querySelector("[data-catalog-tree]");
+    const usage = document.querySelector("#usage");
+    if (!images && !usage) return;
     const pending = new Map();
     let usageRequest, navigationRequest, usageSerial = 0;
     const catalogKeys = ["catalog_distribution", "catalog_arch", "catalog_vendor", "catalog_variant", "catalog_cursor"];
@@ -56,6 +52,15 @@
       if (text !== null) out.textContent = text;
       for (const [key, value] of Object.entries(attributes)) out.setAttribute(key, value);
       return out;
+    };
+    const bytes = value => {
+      let amount = Number(value), index = 0; const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+      while (amount >= 1024 && index < units.length - 1) { amount /= 1024; index++; }
+      return (index ? amount.toFixed(1).replace(/\.0$/, "") : String(amount)) + " " + units[index];
+    };
+    const modified = value => {
+      if (!value || !Number.isFinite(Date.parse(value))) return node("span", "—", {"aria-label": "Last modified unknown"});
+      const date = new Date(value); return node("time", date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC"), {datetime: date.toISOString()});
     };
     const currentURL = raw => {
       const out = new URL(raw, location.href);
@@ -67,11 +72,11 @@
       const requested = currentURL(raw), url = new URL(location.href);
       catalogKeys.forEach(key => url.searchParams.delete(key));
       catalogKeys.forEach(key => { if (requested.searchParams.has(key)) url.searchParams.set(key, requested.searchParams.get(key)); });
-      url.hash = "images"; return url;
+      url.pathname = "/images"; url.hash = ""; return url;
     };
     const navigate = (raw, focus, savePrevious = true) => {
       const url = currentURL(raw); if (savePrevious) remember();
-      history.pushState({dashboard: true, x: scrollX, y: scrollY, focus: focus || null}, "", url.search + url.hash);
+      history.pushState({dashboard: true, x: scrollX, y: scrollY, focus: focus || null}, "", url.pathname + url.search + url.hash);
     };
     const stableFocus = (control, x, y) => {
       if (control && control.isConnected) control.focus({preventScroll: true});
@@ -84,12 +89,12 @@
       for (const key of ["distribution", "arch", "vendor", "variant", "cursor"]) {
         if (query.get(key)) url.searchParams.set(`catalog_${key}`, query.get(key));
       }
-      url.hash = "images"; return url;
+      url.pathname = "/images"; url.hash = ""; return url;
     };
     const usageURL = tuple => {
       const url = new URL(location.href); usageKeys.forEach(key => url.searchParams.delete(key));
       for (const key of ["distribution", "arch", "vendor", "variant", "version"]) if (tuple[key]) url.searchParams.set(key, tuple[key]);
-      url.hash = "usage"; return url;
+      url.pathname = "/usage"; url.hash = ""; return url;
     };
     const branchRow = (row, group, parentQuery) => {
       const li = node("li", null, {"data-catalog-node": ""});
@@ -114,6 +119,9 @@
       }
       if (row.image_versions) actions.append(node("span", String(row.image_versions), {class: "tree-meta"}));
       actions.append(node("a", "Usage", {class: "tree-usage", href: usageURL(row).href, "data-usage-link": ""}));
+      const metadata = node("span", null, {class: "listing-metadata"});
+      const size = node("span", bytes(row.bytes), {title: `${row.bytes} bytes`});
+      metadata.append(size, modified(row.last_modified)); actions.append(metadata);
       line.append(name, actions); li.append(line);
       if (Array.isArray(row.downloads) && row.downloads.length) {
         const details = node("details", null, {class: "leaf-files"}), files = node("ul", null, {class: "file-list"});
@@ -121,7 +129,7 @@
         for (const file of row.downloads) {
           const url = currentURL(file.url);
           if (!url.pathname.startsWith("/v1/")) continue;
-          const item = node("li", null); item.append(node("a", file.format, {href: url.href})); files.append(item);
+          const item = node("li", null); item.append(node("a", file.format, {href: url.href}), " ", node("span", bytes(file.bytes), {title: `${file.bytes} bytes`}), " ", modified(file.last_modified)); files.append(item);
         }
         details.append(files); li.append(details);
       }
@@ -198,8 +206,7 @@
           const incoming = html.querySelector(`#${id}`), current = document.querySelector(`#${id}`);
           if (incoming && current) current.replaceWith(incoming);
         }
-        if (location.hash === "#status") openStatus();
-        else {
+        {
           const focus = Array.from(document.querySelectorAll("a")).find(link => link.href === history.state?.focus);
           focus?.focus({preventScroll: true});
           window.scrollTo(history.state?.x || 0, history.state?.y || 0);
@@ -208,13 +215,13 @@
     };
     const usageSelectionURL = raw => {
       const requested = currentURL(raw), url = new URL(location.href);
-      [...usageKeys, "period"].forEach(key => url.searchParams.delete(key));
+      [...usageKeys, "period", "options_distribution_cursor", "options_arch_cursor", "options_variant_cursor", "options_version_cursor"].forEach(key => url.searchParams.delete(key));
       [...usageKeys, "period"].forEach(key => { if (requested.searchParams.has(key)) url.searchParams.set(key, requested.searchParams.get(key)); });
-      url.hash = "usage";
+      url.pathname = "/usage"; url.hash = "";
       return url;
     };
-    const loadUsage = async control => {
-      const url = usageSelectionURL(control.href), panel = document.querySelector("#usage");
+    const loadUsage = async (control, raw = control.href) => {
+      const url = usageSelectionURL(raw), panel = document.querySelector("#usage");
       const x = scrollX, y = scrollY, serial = ++usageSerial;
       remember(control);
       usageRequest?.abort(); navigationRequest?.abort();
@@ -232,7 +239,7 @@
         if (request.signal.aborted || serial !== usageSerial) return;
         const incoming = html.querySelector("#usage");
         if (!incoming) throw Error("usage");
-        panel.replaceWith(incoming); navigate(usageSelectionURL(url), control.href, false);
+        panel.replaceWith(incoming); navigate(usageSelectionURL(url), control.href || null, false);
         const focus = control.isConnected ? control : Array.from(incoming.querySelectorAll("a")).find(link => link.href === url.href) || incoming.querySelector("h2");
         stableFocus(focus, x, y);
       } catch (error) {
@@ -245,7 +252,9 @@
     document.addEventListener("click", event => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const link = event.target.closest("a"); if (!link) return;
-      if (link.getAttribute("href") === "#status") return;
+      if (link.matches("[data-choice-page]")) return;
+      const destination = new URL(link.href, location.href);
+      if (destination.origin !== location.origin) return;
       if (link.matches("[data-catalog-toggle]")) {
         event.preventDefault(); navigationRequest?.abort();
         const holder = link.closest("li[data-catalog-node]"), list = listOf(holder);
@@ -255,9 +264,21 @@
           list.remove(); link.setAttribute("aria-expanded", "false"); navigate(catalogURL(link.dataset.parentUrl),link.href); stableFocus(link,x,y);
         } else loadBranch(link);
       } else if (link.matches("[data-catalog-more]")) { event.preventDefault(); loadBranch(link, true); }
-      else if (link.matches("[data-usage-link]") || link.closest("#usage")) { event.preventDefault(); loadUsage(link); }
+      else if (usage && destination.pathname === "/usage" && (link.matches("[data-usage-link]") || link.closest("#usage"))) { event.preventDefault(); loadUsage(link); }
+    });
+    document.addEventListener("change", event => {
+      const form = event.target.closest("[data-usage-form]"); if (!form) return;
+      const fields = ["distribution", "arch", "vendor", "variant", "version"];
+      const changed = fields.indexOf(event.target.name); if (changed < 0) return;
+      fields.slice(changed + 1).forEach(name => { const field = form.elements.namedItem(name); if (field) field.value = ""; });
+    });
+    document.addEventListener("submit", event => {
+      if (!event.target.matches("[data-usage-form]")) return;
+      event.preventDefault();
+      const url = new URL(event.target.action, location.href); url.search = new URLSearchParams(new FormData(event.target)).toString();
+      loadUsage(event.submitter || event.target.querySelector("button"), url.href);
     });
     window.addEventListener("popstate", restorePanels);
-    remember(); openStatus();
+    remember();
   });
 })();

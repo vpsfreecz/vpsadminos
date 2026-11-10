@@ -45,7 +45,7 @@ console.log("Theme icon buttons: persisted overrides, System fallback, invalid/b
 // the catalog URL selected after the request started.
 async function usageNavigationOverlap(catalogSearch) {
   const ready = [], handlers = {};
-  let address = new URL("https://repo.example/?catalog_distribution=old&period=7d#images"), resolveFetch, replaced = false;
+  let address = new URL("https://repo.example/usage?catalog_distribution=old&period=7d"), resolveFetch, replaced = false;
   const location = {get href() { return address.href; }, get origin() { return address.origin; }, get protocol() { return address.protocol; }, get hash() { return address.hash; }};
   const history = {state: null, replaceState(state, _, raw) { this.state = state; address = new URL(raw, address); },
     pushState(state, _, raw) { this.state = state; address = new URL(raw, address); }};
@@ -53,7 +53,7 @@ async function usageNavigationOverlap(catalogSearch) {
   const heading = element();
   const incoming = {querySelectorAll: () => [], querySelector: () => heading};
   const panel = {classList: {add() {}}, setAttribute() {}, removeAttribute() {}, querySelector: () => null, prepend() {}, replaceWith() { replaced = true; }};
-  const control = {href: "https://repo.example/?catalog_distribution=old&period=180d&distribution=alpine#usage", isConnected: false,
+  const control = {href: "https://repo.example/usage?catalog_distribution=old&period=180d&distribution=alpine", isConnected: false,
     getAttribute: () => "/?period=180d&distribution=alpine#usage", matches: selector => selector === "[data-usage-link]", closest: () => panel};
   const document = {documentElement: {dataset: {}}, activeElement: control,
     createElement: element, querySelector: selector => selector === "[data-catalog-tree]" ? {} : selector === "#usage" ? panel : null,
@@ -67,7 +67,7 @@ async function usageNavigationOverlap(catalogSearch) {
   handlers.click({button: 0, target: {closest: () => control}, preventDefault() {}});
   // This stands for a completed branch expansion or collapse, not a second
   // usage request: its catalog selection must survive the held response.
-  history.pushState({}, "", `/?${catalogSearch}&period=7d#images`);
+  history.pushState({}, "", `/usage?${catalogSearch}&period=7d`);
   resolveFetch({text: async () => "bounded usage HTML"});
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(replaced, true, "held usage response should update its panel");
@@ -84,3 +84,46 @@ async function usageNavigationOverlap(catalogSearch) {
   await usageNavigationOverlap("");
   console.log("Held usage completion preserves newer catalog expansion/collapse URL while applying usage fields PASS");
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+// Invoke the actual delegated draft-change handler on a native form. No usage
+// request or applied-summary mutation belongs to a draft selection change.
+{
+ const ready=[],handlers={};let fetches=0;
+ const names=["distribution","arch","vendor","variant","version"];
+ const fields=Object.fromEntries(names.map(name=>[name,{value:name+"-selected"}]));
+ const form={elements:{namedItem:name=>fields[name]}};
+ const document={documentElement:{dataset:{}},activeElement:null,
+  querySelector:selector=>selector==="#usage"?{}:null,
+  addEventListener(name,fn){if(name==="DOMContentLoaded")ready.push(fn);else handlers[name]=fn;}};
+ const location={href:"https://repo.example/usage?period=90d",pathname:"/usage",origin:"https://repo.example",protocol:"https:"};
+ vm.runInNewContext(source,{document,location,URL,URLSearchParams,history:{replaceState(){}},scrollX:0,scrollY:0,
+  window:{localStorage:{getItem:()=>null},addEventListener(){}},fetch(){fetches++;throw Error("unexpected draft fetch");}});
+ ready.forEach(fn=>fn());
+ handlers.change({target:{name:"arch",closest:()=>form}});
+ assert.equal(fields.distribution.value,"distribution-selected");assert.equal(fields.arch.value,"arch-selected");
+ for(const name of ["vendor","variant","version"])assert.equal(fields[name].value,"");
+ let prevented=false;
+ const link={href:"https://repo.example/images",matches:()=>false,closest:()=>null};
+ handlers.click({button:0,target:{closest:()=>link},preventDefault(){prevented=true;}});
+ assert.equal(prevented,false,"cross-page navigation must stay an ordinary link");
+ assert.equal(fetches,0,"draft changes must not fetch or replace displayed results");
+ console.log("Native filter dependent draft reset and ordinary cross-page navigation PASS");
+}
+
+// The warning uses native disclosure activation. Focus/click only clear a
+// dismissed overlay; they must not pre-toggle open before the UA default click.
+{
+ const ready=[],handlers={},classes=new Set();
+ const summary={focus(){handlers.focusin({target:{closest:()=>warning}});}};
+ const warning={open:false,classList:{add:name=>classes.add(name),remove:name=>classes.delete(name)},
+  matches:()=>true,querySelector:()=>summary};
+ const document={documentElement:{dataset:{}},querySelector:()=>null,querySelectorAll:()=>[warning],
+  addEventListener(name,fn){if(name==="DOMContentLoaded")ready.push(fn);else handlers[name]=fn;}};
+ vm.runInNewContext(source,{document,window:{localStorage:{getItem:()=>null}}});ready.forEach(fn=>fn());
+ handlers.focusin({target:{closest:()=>warning}});assert.equal(warning.open,false,"focus must not pre-toggle native details");
+ handlers.click({target:{closest:()=>warning}});assert.equal(warning.open,false,"click handler must leave native activation alone");
+ warning.open=true;handlers.keydown({key:"Escape"});
+ assert.equal(warning.open,false);assert(classes.has("dismissed"),"Escape must remain dismissed after focusin");
+ handlers.click({target:{closest:()=>warning}});assert.equal(classes.has("dismissed"),false);
+ console.log("History warning native activation untouched; Escape dismisses after focus settles PASS");
+}

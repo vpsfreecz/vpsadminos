@@ -2,6 +2,7 @@ package reposerver
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -44,6 +45,19 @@ type dashboardTreeNode struct {
 	Downloads                              []DashboardDownload
 	Children                               []dashboardTreeNode
 	Expanded, More                         bool
+	Bytes                                  int64
+	LastModified                           *time.Time
+	MetadataKnown                          bool
+}
+
+type dashboardChoice struct {
+	Value, Label string
+	Selected     bool
+}
+type dashboardFilter struct {
+	Name, Label string
+	Choices     []dashboardChoice
+	NextURL     string
 }
 
 type dashboardPage struct {
@@ -61,6 +75,13 @@ type dashboardPage struct {
 	CatalogRowLabel                           string
 	Tree                                      []dashboardTreeNode
 	CatalogQuery                              string
+	Page                                      string
+	UsageURL, ImagesURL, StatusURL            string
+	Filters                                   []dashboardFilter
+	Applied                                   []dashboardLink
+	ClearURL                                  string
+	SelectorError                             string
+	CurrentPeriod                             string
 }
 
 func iecBytes(n int64) string {
@@ -108,7 +129,10 @@ func dashboardAssets(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func dashboardURL(q url.Values, anchor string) string {
-	return "/?" + q.Encode() + "#" + anchor
+	if len(q) == 0 {
+		return "/" + anchor
+	}
+	return "/" + anchor + "?" + q.Encode()
 }
 
 func copyDashboardQuery(q url.Values) url.Values {
@@ -154,10 +178,12 @@ func usagePageQuery(q url.Values) UsageQuery {
 func newDashboardPage(overview DashboardOverview, catalog CatalogPage, usage UsagePage, q url.Values) dashboardPage {
 	d := dashboardPage{Overview: overview, Usage: usage, UsageGroupLabel: "Usage by distribution", CatalogRowLabel: "distributions"}
 	d.Name, d.Purpose, d.Enhanced = overview.DisplayName, overview.Purpose, true
+	d.Page = "usage"
 	if d.Name == "" {
 		d.Name = overview.Repository
 	}
 	cq, uq := catalogPageQuery(q), usagePageQuery(q)
+	d.CurrentPeriod = uq.Period
 	switch catalog.GroupBy {
 	case "arch":
 		d.CatalogRowLabel = "architectures"
@@ -257,6 +283,8 @@ func newDashboardPage(overview DashboardOverview, catalog CatalogPage, usage Usa
 			next.Set("arch", row.Arch)
 		case "image":
 			view.Label = strings.Join([]string{row.Distribution, row.Version, row.Arch, row.Vendor + "/" + row.Variant}, " · ")
+			next.Set("distribution", row.Distribution)
+			next.Set("arch", row.Arch)
 			next.Set("vendor", row.Vendor)
 			next.Set("variant", row.Variant)
 			next.Set("version", row.Version)
@@ -274,6 +302,39 @@ func newDashboardPage(overview DashboardOverview, catalog CatalogPage, usage Usa
 	d.WorkSummary = fmt.Sprintf("%d queued or running, %d verified, %d failed or cancelled", overview.ItemStates["queued"]+overview.ItemStates["running"], overview.ItemStates["verified"], overview.ItemStates["failed"]+overview.ItemStates["cancelled"])
 	d.RunSummary = fmt.Sprintf("%d open, %d finished, %d available snapshots", overview.RunStates["open"], overview.RunStates["finished"], overview.RunStates["sealed"])
 	d.Tree, d.CatalogQuery = dashboardTree(d, q)
+	var bindMetadata func([]dashboardTreeNode)
+	bindMetadata = func(nodes []dashboardTreeNode) {
+		for i := range nodes {
+			if nodes[i].Expanded {
+				location, _ := url.Parse(nodes[i].URL)
+				selected := catalogPageQuery(location.Query())
+				for _, row := range catalog.Ancestors {
+					if row.Distribution == selected.Distribution && row.Arch == selected.Arch && row.Vendor == selected.Vendor && row.Variant == selected.Variant {
+						nodes[i].Bytes, nodes[i].LastModified, nodes[i].ImageVersions, nodes[i].MetadataKnown = row.Bytes, row.LastModified, row.ImageVersions, true
+						break
+					}
+				}
+			}
+			bindMetadata(nodes[i].Children)
+		}
+	}
+	bindMetadata(d.Tree)
+	d.UsageURL, d.ImagesURL, d.StatusURL = dashboardURL(copyDashboardQuery(q), "usage"), dashboardURL(copyDashboardQuery(q), "images"), "/status"
+	if usage.Period != "" && usage.GroupBy != "" {
+		for _, part := range []struct{ label, value string }{{"Distribution", uq.Distribution}, {"Architecture", uq.Arch}, {"Vendor", uq.Vendor}, {"Variant", uq.Variant}, {"Version", uq.Version}, {"Grouping", usage.GroupBy}, {"Period", usage.Period}} {
+			value := part.value
+			if part.label == "Grouping" {
+				value = map[string]string{"distribution": "Distribution", "arch": "Architecture", "image": "Image and variant"}[value]
+			}
+			if part.label == "Period" {
+				value = map[string]string{"today": "Today", "7d": "7 days", "30d": "30 days", "90d": "90 days", "180d": "180 days", "365d": "365 days"}[value]
+			}
+			if value == "" {
+				value = "All"
+			}
+			d.Applied = append(d.Applied, dashboardLink{Label: part.label, URL: value})
+		}
+	}
 	return d
 }
 
@@ -305,7 +366,7 @@ func dashboardTree(d dashboardPage, q url.Values) ([]dashboardTreeNode, string) 
 	query := catalogAPIQuery(cq)
 	nodes := []dashboardTreeNode{}
 	for _, row := range d.CatalogRows {
-		n := dashboardTreeNode{Label: row.Label, URL: row.URL, UsageURL: catalogUsageURL(q, row.Tuple), ImageVersions: row.ImageVersions, Tags: row.Tags, Downloads: row.Downloads}
+		n := dashboardTreeNode{Label: row.Label, URL: row.URL, UsageURL: catalogUsageURL(q, row.Tuple), ImageVersions: row.ImageVersions, Tags: row.Tags, Downloads: row.Downloads, Bytes: row.Bytes, LastModified: row.LastModified, MetadataKnown: true}
 		if row.URL != "" {
 			child, _ := url.Parse(row.URL)
 			n.Query = catalogAPIQuery(catalogPageQuery(child.Query())).Encode()
@@ -362,6 +423,107 @@ func dashboardReadError(err error) (string, int) {
 	return "Measurements or catalog data are temporarily unavailable. Try again.", http.StatusServiceUnavailable
 }
 
+func dashboardSection(r *http.Request) string {
+	switch r.URL.Path {
+	case "/images", "/v1/":
+		return "images"
+	case "/status":
+		return "status"
+	case "/usage":
+		return "usage"
+	}
+	for _, k := range []string{"catalog_distribution", "catalog_arch", "catalog_vendor", "catalog_variant", "catalog_cursor", "catalog_offset"} {
+		if r.URL.Query().Has(k) {
+			return "images"
+		}
+	}
+	return "usage"
+}
+
+func dashboardFilters(ctx context.Context, provider DashboardReader, q url.Values) ([]dashboardFilter, string) {
+	fields := []struct{ name, label string }{{"distribution", "Distribution"}, {"arch", "Architecture"}, {"vendor", "Vendor"}, {"variant", "Variant"}, {"version", "Version"}}
+	choices := map[string][]string{}
+	nextPages := map[string]string{}
+	appendChoice := func(name, value string) {
+		if value == "" {
+			return
+		}
+		for _, old := range choices[name] {
+			if old == value {
+				return
+			}
+		}
+		choices[name] = append(choices[name], value)
+	}
+	selection := usagePageQuery(q)
+	levels := []CatalogQuery{{GroupBy: "distribution", Limit: 100}}
+	if selection.Distribution != "" {
+		levels = append(levels, CatalogQuery{GroupBy: "arch", Distribution: selection.Distribution, Limit: 100})
+	}
+	if selection.Distribution != "" && selection.Arch != "" {
+		levels = append(levels, CatalogQuery{GroupBy: "variant", Distribution: selection.Distribution, Arch: selection.Arch, Limit: 100})
+	}
+	if selection.Distribution != "" && selection.Arch != "" && selection.Vendor != "" && selection.Variant != "" {
+		levels = append(levels, CatalogQuery{GroupBy: "version", Distribution: selection.Distribution, Arch: selection.Arch, Vendor: selection.Vendor, Variant: selection.Variant, Limit: 100})
+	}
+	problem := ""
+	for _, level := range levels {
+		level.Cursor = q.Get("options_" + level.GroupBy + "_cursor")
+		page, err := provider.DashboardCatalog(ctx, level)
+		if err != nil {
+			problem = "Some filter choices could not be loaded. Selected values are retained."
+			continue
+		}
+		for _, row := range page.Rows {
+			switch level.GroupBy {
+			case "distribution":
+				appendChoice("distribution", row.Distribution)
+			case "arch":
+				appendChoice("arch", row.Arch)
+			case "variant":
+				appendChoice("vendor", row.Vendor)
+				if selection.Vendor == "" || selection.Vendor == row.Vendor {
+					appendChoice("variant", row.Variant)
+				}
+			case "version":
+				appendChoice("version", row.Version)
+			}
+		}
+		if page.NextCursor != "" {
+			next := copyDashboardQuery(q)
+			for _, group := range []string{"distribution", "arch", "variant", "version"} {
+				key := "options_" + group + "_cursor"
+				if v := q.Get(key); v != "" {
+					next.Set(key, v)
+				}
+			}
+			next.Set("options_"+level.GroupBy+"_cursor", page.NextCursor)
+			link := dashboardURL(next, "usage")
+			if level.GroupBy == "variant" {
+				nextPages["vendor"], nextPages["variant"] = link, link
+			} else {
+				nextPages[level.GroupBy] = link
+			}
+		}
+	}
+	filters := []dashboardFilter{}
+	for _, field := range fields {
+		selected := q.Get(field.name)
+		filter := dashboardFilter{Name: field.name, Label: field.label, NextURL: nextPages[field.name], Choices: []dashboardChoice{{Value: "", Label: "All", Selected: selected == ""}}}
+		found := selected == ""
+		for _, value := range choices[field.name] {
+			match := value == selected
+			found = found || match
+			filter.Choices = append(filter.Choices, dashboardChoice{Value: value, Label: value, Selected: match})
+		}
+		if !found {
+			filter.Choices = append(filter.Choices, dashboardChoice{Value: selected, Label: selected + " (not listed)", Selected: true})
+		}
+		filters = append(filters, filter)
+	}
+	return filters, problem
+}
+
 func (h *repositoryHTTP) dashboardHTML(w http.ResponseWriter, r *http.Request) {
 	provider := h.opts.Dashboard
 	overview, err := provider.DashboardOverview(r.Context())
@@ -372,9 +534,26 @@ func (h *repositoryHTTP) dashboardHTML(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	catalog, catalogErr := provider.DashboardCatalog(r.Context(), catalogPageQuery(q))
-	usage, usageErr := provider.DashboardUsage(r.Context(), usagePageQuery(q))
+	section := dashboardSection(r)
+	var catalog CatalogPage
+	var usage UsagePage
+	var catalogErr, usageErr error
+	if section == "images" {
+		catalog, catalogErr = provider.DashboardCatalog(r.Context(), catalogPageQuery(q))
+	}
+	if section == "usage" {
+		usage, usageErr = provider.DashboardUsage(r.Context(), usagePageQuery(q))
+	}
 	d := newDashboardPage(overview, catalog, usage, q)
+	d.Page = section
+	if section == "usage" {
+		d.Filters, d.SelectorError = dashboardFilters(r.Context(), provider, q)
+		clear := url.Values{}
+		if period := q.Get("period"); period != "" {
+			clear.Set("period", period)
+		}
+		d.ClearURL = dashboardURL(clear, "usage")
+	}
 	status := http.StatusOK
 	if catalogErr != nil {
 		d.CatalogError, status = dashboardReadError(catalogErr)
@@ -405,6 +584,7 @@ func legacyDashboardPage(old publicDashboard, r *http.Request) dashboardPage {
 	}
 	d := newDashboardPage(overview, CatalogPage{GroupBy: "version"}, UsagePage{}, url.Values{})
 	d.Enhanced = false
+	d.Page = "images"
 	d.CatalogRowLabel = "versions"
 	d.UsageError = "Usage summaries are unavailable for this view."
 	offset, _ := strconv.Atoi(r.URL.Query().Get("catalog_offset"))
@@ -420,7 +600,7 @@ func legacyDashboardPage(old publicDashboard, r *http.Request) dashboardPage {
 		}
 		item := CatalogRow{Tuple: row.Tuple, Tags: row.Tags, ImageVersions: 1}
 		for _, file := range row.Downloads {
-			item.Downloads = append(item.Downloads, DashboardDownload{Format: file.Format, URL: file.URL, Bytes: file.Bytes})
+			item.Downloads = append(item.Downloads, DashboardDownload{Format: file.Format, URL: file.URL, Bytes: file.Bytes, LastModified: file.LastModified})
 		}
 		d.CatalogRows = append(d.CatalogRows, dashboardCatalogRow{CatalogRow: item, Label: strings.Join([]string{row.Distribution, row.Version, row.Arch, row.Vendor + "/" + row.Variant}, " · ")})
 	}

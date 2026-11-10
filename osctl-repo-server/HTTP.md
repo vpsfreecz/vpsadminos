@@ -23,7 +23,8 @@ Public date checks return a conservative 200 because HTTP dates cannot distingui
 same-second replacement or rollback. Public date-based If-Range also returns the
 complete current file; strong ETags can validate or select a range safely.
 
-`/` and `/v1/` show repository usage, contents and status. Catalog directories
+`/usage`, `/images` and `/status` are separate server-rendered pages. `/` defaults
+to Usage; old root catalog selections and `/v1/` open Images. Catalog directories
 and sealed-run directories retain their image links for native clients.
 `/dashboard.json` provides its aggregate data without requester fields. Dashboard
 responses use no-store; repository responses require revalidation. Keep every
@@ -36,35 +37,52 @@ The dashboard uses the configured repository display name and optional purpose.
 Empty display name falls back to the stable repository ID; empty purpose is
 omitted. Both are escaped plain text. The serving program and project links are
 in the footer; presentation configuration does not rename the repository key.
-Usage is the first panel, followed by images and expandable repository status.
+The header links to Usage, Images and Status. Only the selected page body is
+rendered and read: common overview plus usage or catalog, while Status reads only
+the overview. Images and Status do not query usage.
 
 Images are grouped by distribution, architecture, vendor/variant, then version.
 With JavaScript, expanding a row loads only that branch through the bounded
 catalog API and keeps its ancestors visible. Collapsing it removes its children.
 More appears only when another page exists. The active control retains focus and
 scroll position. Usage links select statistics independently of tree expansion.
-File URLs appear in each version's Files disclosure.
+File URLs appear in each version's Files disclosure. Files and directories show
+logical bytes and UTC last-modified dates. Directory metadata remains visible
+when expanded; an unknown date is an em dash, and missing ancestor metadata is
+labelled unavailable.
 
 Ordinary links retain no-JavaScript server navigation. The URL records selected
 ancestors and usage filters for reload/back/forward. Usage changes replace only
 the usage panel from the same bounded server-rendered HTML, preserving the shared
 escaping boundary. Pending requests are cancelled and older responses cannot
 overwrite a newer selection. Replaced catalog cursors refresh only the affected
-branch. Status links open the disclosure and focus its summary, including an
-initial or restored status fragment.
+branch. Cross-page links use ordinary navigation. Old root usage/images/status
+fragments redirect to their page when JavaScript is available.
 The initial HTML does not embed the complete catalog or fetch the legacy
 `/dashboard.json` response. The legacy JSON response remains complete.
 
 Usage starts with the last seven UTC days of public image traffic. Today and
 7, 30, 90, 180 and 365 day links use rolling day windows. The page shows the
 exact start/end, latest measurement and retained-history coverage.
-Distribution, architecture and exact image/variant links narrow the totals.
-Ranked rows are paged. Totals, daily counters and ranked rows share an immutable
+Labelled Distribution, Architecture, Vendor, Variant and Version selects have
+explicit All values and Apply/Clear controls. Choices come from the current
+catalog, at most 100 per active hierarchy level, with More choices links when
+another page exists. Parent changes clear dependent draft choices with JavaScript;
+ordinary GET submissions also work. Selected values missing from the current
+page remain selectable, including retired images reached by complete tuple links
+or saved URLs. Options do not enumerate historical statistics.
+
+The applied summary describes all five filters, grouping and period for the
+successfully displayed result; draft changes do not relabel it. From/To give its
+UTC bounds. Ranked rows are paged. Totals, daily counters and ranked rows share an immutable
 snapshot computed once per selection; later pages reuse it. Daily counters contain
 at most 365 rows. Expired or evicted cursors ask the reader to restart. See
 [usage query bounds](README.md) for cache limits and query deadlines.
 Unavailable measurements show an error rather than successful zero totals.
-Short retention or unknown completeness is shown as incomplete history.
+Short retention or unknown completeness adds a warning icon beside From. Its
+closed disclosure explains retained start, retention and missing-record meaning
+on hover, keyboard focus/activation or touch. Escape dismisses it with JavaScript;
+its native disclosure remains usable without JavaScript.
 
 Completed full-image responses count completed GET 200 image requests. Ranges
 count GET 206 separately. Transferred bytes count response-body bytes written for
@@ -73,7 +91,7 @@ framing. HTTP headers, HEAD, 304, catalog/dashboard and error-page bytes are
 excluded. Retries remain separate requests. These counts
 do not identify people or prove successful container imports.
 
-Repository status is secondary and collapsed. It explains available versions,
+The separate Status page explains available versions,
 unique retained files, retained payload size, image work and staging expiry.
 Retained payload bytes do not report filesystem capacity or free space. An
 opaque catalog snapshot ID appears only in collapsed technical details, labelled
@@ -101,6 +119,26 @@ Counts describe requests and bytes written by this instance. HEAD, INDEX/listing
 overlapping ranges can repeat bytes; a full server response does not prove a
 completed client download or container import. NAT can share IPs, and clients
 choose User-Agent. These counters do not identify people or measure fleet totals.
+
+## Catalog API metadata
+
+`/dashboard/api/catalog` rows include integer `bytes` and nullable
+`last_modified`; each download includes the same nullable timestamp. `bytes`
+sums every descendant canonical tuple/format entry in the complete catalog
+before pagination. Defaults and tags do not add entries; distinct canonical
+paths sharing a file identity each contribute their listed size. These are
+logical listing totals, separate from unique retained storage bytes.
+
+A directory timestamp is the latest descendant file timestamp only when every
+descendant timestamp is known. Empty directories or any unknown timestamp yield
+`null`; known timestamps are RFC3339 in UTC. File values come from stored
+immutable metadata. Invalid or overflowing byte sums reject the snapshot without
+returning partial totals. Existing filters, limits and cursors are unchanged.
+
+`ancestors` contains at most three selected parent rows, in root-to-parent order,
+from the same complete immutable catalog generation as `rows`, independent of
+cursor and limit. At the root it is `[]`. Unmatched ancestors are omitted; no
+synthetic zero totals or publication timestamps stand in for missing metadata.
 
 ## Private access log schema
 

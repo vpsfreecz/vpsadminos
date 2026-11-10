@@ -11,9 +11,10 @@ import (
 )
 
 type downloadLink struct {
-	Format string `json:"format"`
-	URL    string `json:"url"`
-	Bytes  int64  `json:"bytes"`
+	Format       string     `json:"format"`
+	URL          string     `json:"url"`
+	Bytes        int64      `json:"bytes"`
+	LastModified *time.Time `json:"-"`
 }
 
 type catalogRow struct {
@@ -38,7 +39,7 @@ type publicDashboard struct {
 }
 
 func (h *repositoryHTTP) dashboard(w http.ResponseWriter, r *http.Request, run, p string) {
-	if (p == "/" || p == "/v1/") && run == "" && h.opts.Dashboard != nil {
+	if (p == "/" || p == "/v1/" || p == "/usage" || p == "/images" || p == "/status") && run == "" && h.opts.Dashboard != nil {
 		h.dashboardHTML(w, r)
 		return
 	}
@@ -79,7 +80,12 @@ func (h *repositoryHTTP) dashboard(w http.ResponseWriter, r *http.Request, run, 
 			if strings.HasPrefix(p, "/v1/") && !strings.HasPrefix("/v1/"+tuplePath(img.Tuple)+"/"+formatFilename(format), filter) {
 				continue
 			}
-			row.Downloads = append(row.Downloads, downloadLink{format, u, ref.Size})
+			var modified *time.Time
+			if !ref.Modified.IsZero() {
+				value := ref.Modified.UTC()
+				modified = &value
+			}
+			row.Downloads = append(row.Downloads, downloadLink{Format: format, URL: u, Bytes: ref.Size, LastModified: modified})
 		}
 		if len(row.Downloads) > 0 {
 			sort.Slice(row.Downloads, func(i, j int) bool { return row.Downloads[i].Format < row.Downloads[j].Format })

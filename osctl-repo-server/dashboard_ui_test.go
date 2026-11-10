@@ -16,24 +16,29 @@ import (
 )
 
 type uiDashboardFixture struct {
-	catalogQuery             CatalogQuery
-	usageQuery               UsageQuery
-	catalogError, usageError error
-	overviewError            error
-	versions                 int
+	catalogQuery              CatalogQuery
+	usageQuery                UsageQuery
+	catalogError, usageError  error
+	overviewError             error
+	versions                  int
+	catalogQueries            []CatalogQuery
+	usageCalls, overviewCalls int
 }
 
 func (f *uiDashboardFixture) DashboardOverview(context.Context) (DashboardOverview, error) {
+	f.overviewCalls++
 	return DashboardOverview{DashboardMetadata: DashboardMetadata{Repository: "public", Instance: "test", APIVersion: 1}, Generation: "opaque-catalog-id-not-source-sha", ImageVersions: int64(f.versions), StorageFiles: 24000, StorageBytes: 12 << 30, RunStates: map[string]int64{"open": 2, "finished": 3, "sealed": 4}, ItemStates: map[string]int64{"queued": 2, "running": 1, "verified": 42, "failed": 3}}, f.overviewError
 }
 
 func (f *uiDashboardFixture) DashboardCatalog(_ context.Context, q CatalogQuery) (CatalogPage, error) {
 	f.catalogQuery = q
+	f.catalogQueries = append(f.catalogQueries, q)
 	p := CatalogPage{GroupBy: q.GroupBy}
 	for i := 0; i < q.Limit; i++ {
-		row := CatalogRow{Tuple: Tuple{Distribution: fmt.Sprintf("distribution-%03d", i), Arch: "x86_64", Vendor: "vpsadminos", Variant: "minimal", Version: fmt.Sprintf("%d", i)}, ImageVersions: 200, Tags: []string{"latest", "stable"}}
+		modified := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+		row := CatalogRow{Tuple: Tuple{Distribution: fmt.Sprintf("distribution-%03d", i), Arch: "x86_64", Vendor: "vpsadminos", Variant: "minimal", Version: fmt.Sprintf("%d", i)}, ImageVersions: 200, Tags: []string{"latest", "stable"}, Bytes: 1536, LastModified: &modified}
 		if q.GroupBy == "version" {
-			row.Downloads = []DashboardDownload{{Format: "tar", URL: "/v1/vpsadminos/minimal/x86_64/debian/13/image-archive.tar", Bytes: 1536}}
+			row.Downloads = []DashboardDownload{{Format: "tar", URL: "/v1/vpsadminos/minimal/x86_64/debian/13/image-archive.tar", Bytes: 1536, LastModified: &modified}}
 		}
 		p.Rows = append(p.Rows, row)
 	}
@@ -45,6 +50,7 @@ func (f *uiDashboardFixture) DashboardCatalog(_ context.Context, q CatalogQuery)
 
 func (f *uiDashboardFixture) DashboardUsage(_ context.Context, q UsageQuery) (UsagePage, error) {
 	f.usageQuery = q
+	f.usageCalls++
 	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
 	from := now.AddDate(0, 0, -5)
 	p := UsagePage{Period: q.Period, GroupBy: q.GroupBy, Start: now.AddDate(0, 0, -6), End: now, UpdatedAt: &now, Coverage: UsageCoverage{RetainedFrom: &from, RetentionDays: 7, HistoryComplete: false}, Totals: UsageCounters{FullDownloads: 12000, RangeRequests: 300, TransferredBytes: 9 << 30, InterruptedRequests: 2, ErrorRequests: 1}}
@@ -60,18 +66,18 @@ func TestDashboardUIBoundsAndNoLegacyRead(t *testing.T) {
 	reader := newFixtureReader(t)
 	reader.err = &Error{Code: "integrity", Message: "legacy Reader must not be called for bounded UI"}
 	h := NewHTTPHandler(reader, HTTPOptions{Repository: "repo", Dashboard: f})
-	response := requestHTTP(h, "GET", "/", nil)
+	response := requestHTTP(h, "GET", "/images", nil)
 	if response.Code != 200 {
 		t.Fatal(response.Code, response.Body.String())
 	}
 	body := response.Body.String()
-	if f.catalogQuery.Limit != 50 || f.catalogQuery.GroupBy != "distribution" || f.usageQuery.Period != "7d" || f.usageQuery.Limit != 50 {
+	if f.catalogQuery.Limit != 50 || f.catalogQuery.GroupBy != "distribution" || f.usageCalls != 0 {
 		t.Fatalf("unbounded or wrong default query: %+v %+v", f.catalogQuery, f.usageQuery)
 	}
 	if strings.Count(body, "class=\"tree-link\"") != 50 || len(body) > 256<<10 {
 		t.Fatalf("unexpected rendered size: %d bytes", len(body))
 	}
-	for _, want := range []string{"Repository status", "Available history is incomplete", "12 GiB", "365 days", "90 days", "180 days", "opaque-next-page", "Skip to content", "Completed full-image responses"} {
+	for _, want := range []string{"Images", "1.5 KiB", "2026-11-10 12:00:00 UTC", "opaque-next-page", "Skip to content"} {
 		if !strings.Contains(body, want) {
 			t.Fatal("missing", want)
 		}
@@ -84,14 +90,13 @@ func TestDashboardUIBoundsAndNoLegacyRead(t *testing.T) {
 	if !strings.Contains(response.Header().Get("Content-Security-Policy"), "script-src 'self'") || response.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal(response.Header())
 	}
-	technical := strings.Index(body, "<details class=\"technical\">")
-	if technical < 0 || strings.Index(body, "opaque-catalog-id-not-source-sha") < technical {
+	if strings.Contains(body, "opaque-catalog-id-not-source-sha") {
 		t.Fatal("opaque catalog ID promoted outside technical details")
 	}
-	if head := requestHTTP(h, "HEAD", "/", nil); head.Code != 200 || head.Body.Len() != 0 || head.Header().Get("Content-Length") != response.Header().Get("Content-Length") {
+	if head := requestHTTP(h, "HEAD", "/images", nil); head.Code != 200 || head.Body.Len() != 0 || head.Header().Get("Content-Length") != response.Header().Get("Content-Length") {
 		t.Fatal("HEAD mismatch", head.Header(), head.Body.Len())
 	}
-	t.Logf("10,000-version fixture: 50 initial rows + 365 bounded daily rows, %d HTML bytes", len(body))
+	t.Logf("10,000-version fixture: 50 initial image rows only, %d HTML bytes", len(body))
 }
 
 func TestDashboardUIOperatorIdentityAndUsageFirst(t *testing.T) {
@@ -102,10 +107,10 @@ func TestDashboardUIOperatorIdentityAndUsageFirst(t *testing.T) {
 	if got.Code != 200 || !strings.Contains(body, "<h1>CI &lt;North&gt;</h1>") || !strings.Contains(body, "Shared &lt;em&gt;build cache&lt;/em&gt;") {
 		t.Fatal(got.Code, body)
 	}
-	if strings.Index(body, "<section id=\"usage\"") > strings.Index(body, "<section id=\"images\"") {
-		t.Fatal("usage not first")
+	if !strings.Contains(body, `<section id="usage"`) || strings.Contains(body, `<section id="images"`) || strings.Contains(body, `<section id="status"`) {
+		t.Fatal("usage not separate page")
 	}
-	for _, removed := range []string{"Download container images for vpsAdminOS", "Open a group", "Showing ", "Next page", "<select"} {
+	for _, removed := range []string{"Download container images for vpsAdminOS", "Open a group", "Showing ", "Next page"} {
 		if strings.Contains(body, removed) {
 			t.Fatal("unwanted dominant/paging copy", removed)
 		}
@@ -186,8 +191,9 @@ func TestDashboardUINavigationAndFilters(t *testing.T) {
 
 func TestDashboardUIEscapingAndErrors(t *testing.T) {
 	p := newDashboardPage(DashboardOverview{DashboardMetadata: DashboardMetadata{Repository: "<script>secret()</script>"}}, CatalogPage{GroupBy: "version", Rows: []CatalogRow{{Tuple: Tuple{Version: "<img src=x onerror=secret()>"}, Downloads: []DashboardDownload{{Format: "<script>", URL: "javascript:secret()", Bytes: 1024}}}}}, UsagePage{}, url.Values{})
+	p.Page = "images"
 	w := httptest.NewRecorder()
-	writeDashboardPage(w, httptest.NewRequest("GET", "/", nil), p, 200)
+	writeDashboardPage(w, httptest.NewRequest("GET", "/images", nil), p, 200)
 	if strings.Contains(w.Body.String(), "<script>secret") || strings.Contains(w.Body.String(), "<img src") || strings.Contains(w.Body.String(), "href=\"javascript:") {
 		t.Fatal("unescaped catalog data", w.Body.String())
 	}
@@ -248,7 +254,7 @@ func TestDashboardUIUsageDeadlineGuidance(t *testing.T) {
 	// The helper is specific to usage: a catalog deadline keeps its existing
 	// generic message even though the usage selection succeeds independently.
 	f := &uiDashboardFixture{catalogError: fmt.Errorf("private catalog context: %w", context.DeadlineExceeded)}
-	response := requestHTTP(NewHTTPHandler(newFixtureReader(t), HTTPOptions{Dashboard: f}), "GET", "/", nil)
+	response := requestHTTP(NewHTTPHandler(newFixtureReader(t), HTTPOptions{Dashboard: f}), "GET", "/images", nil)
 	want, _ := dashboardReadError(f.catalogError)
 	deadlineMessage, _ := usageDeadlineMessage(context.DeadlineExceeded)
 	if response.Code != 503 || !strings.Contains(response.Body.String(), html.EscapeString(want)) || strings.Contains(response.Body.String(), html.EscapeString(deadlineMessage)) {
@@ -345,8 +351,18 @@ func TestDashboardUIRenderArtifact(t *testing.T) {
 	q := url.Values{"catalog_distribution": {"distribution-000"}, "catalog_arch": {"x86_64"}, "catalog_vendor": {"vpsadminos"}, "catalog_variant": {"minimal"}}
 	contextCatalog, _ := f.DashboardCatalog(context.Background(), catalogPageQuery(q))
 	contextWriter := httptest.NewRecorder()
-	writeDashboardPage(contextWriter, httptest.NewRequest("GET", "/", nil), newDashboardPage(o, contextCatalog, u, q), 200)
+	contextPage := newDashboardPage(o, contextCatalog, u, q)
+	contextPage.Page = "images"
+	writeDashboardPage(contextWriter, httptest.NewRequest("GET", "/images", nil), contextPage, 200)
 	files["context.html"] = strings.ReplaceAll(contextWriter.Body.String(), "/dashboard/assets/", "./")
+	h := NewHTTPHandler(newFixtureReader(t), HTTPOptions{Repository: "repo", DisplayName: "Preview repository", Purpose: "Synthetic preview data", Dashboard: f})
+	for _, section := range []string{"usage", "images", "status"} {
+		rendered := requestHTTP(h, "GET", "/"+section, nil)
+		if rendered.Code != 200 {
+			t.Fatal(section, rendered.Code)
+		}
+		files[section+".html"] = strings.ReplaceAll(rendered.Body.String(), "/dashboard/assets/", "./")
+	}
 	for name, body := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0600); err != nil {
 			t.Fatal(err)
