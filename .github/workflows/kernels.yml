@@ -3,32 +3,52 @@ name: Build all kernel versions
 on:
   schedule:
     - cron: '5 3 * * *'
+  # GITHUB_TOKEN input updates do not trigger push workflows.
+  workflow_run:
+    workflows:
+      - Update flake inputs
+    types:
+      - completed
+    branches:
+      - staging
   push:
     branches:
      - staging
     paths:
       - .github/workflows/kernels.yml
+      - flake.nix
+      - flake.lock
       - os/packages/linux/**
   pull_request:
     branches:
      - staging
     paths:
       - .github/workflows/kernels.yml
+      - flake.nix
+      - flake.lock
       - os/packages/linux/**
 
 jobs:
   detect:
     name: Detect available kernel versions
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == 'staging')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       kernelVersions: ${{ steps.set.outputs.kernelVersions }}
+      sourceRev: ${{ steps.set.outputs.sourceRev }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          # The updater's head_sha predates its input update commit.
+          ref: ${{ github.event_name == 'workflow_run' && 'refs/heads/staging' || github.sha }}
 
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@v31.11.3
 
       - id: set
         shell: bash
@@ -36,6 +56,7 @@ jobs:
           kernelVersions=$(nix eval --json .#lib.kernelVersions)
           echo "Detected available kernels: $kernelVersions"
           echo "kernelVersions=$kernelVersions" >> "$GITHUB_OUTPUT"
+          echo "sourceRev=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
     name: Kernel ${{ matrix.kernel }}
@@ -47,7 +68,9 @@ jobs:
     timeout-minutes: 480
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.detect.outputs.sourceRev }}
 
       - name: Determine branch name
         id: vars
