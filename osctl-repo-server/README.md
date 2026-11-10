@@ -2,9 +2,10 @@
 
 One local owner serves v1 public and sealed run repositories. Immutable ordinary
 files hold image bytes; SQLite holds catalogs, run state and request receipts.
-The database upgrades supported schema 1 to schema 2 transactionally. Schema 1
-is deployed state and must be retained through upgrade and recovery. Public
-clients keep the existing HTTP repository protocol. Native local writers and
+The database upgrades supported schemas 1 and 2 to schema 3 through ordered
+transactional migrations. Both predecessor schemas have been deployed and remain
+supported through upgrade and recovery. Public clients keep the existing HTTP
+repository protocol. Native local writers and
 legacy rsync must be excluded before adopting their files.
 
 ## Control wire (version 1)
@@ -108,8 +109,8 @@ files in place, including adopted legacy paths.
 Admission reserves each complete pending stream against both the payload quota
 and filesystem headroom before reading it. Already-written pending bytes may be
 counted again conservatively until the stream commits/releases its reservation.
-Fresh databases initialize the retained schema-1 definition and then follow the
-same ordered schema-1-to-2 conversion as an existing database.
+Fresh databases initialize schema 1 and then follow the same ordered migrations
+through schemas 2 and 3 as an existing database.
 
 Sealing and publication validate catalog shape and references against the stored
 verified file identities, without rereading all unchanged payload bytes under
@@ -135,20 +136,40 @@ Unknown future versions are rejected before database mutation or cleanup.
 
 The conversion adds typed daily dimensions, indexes and small measurement
 metadata. It preserves every original daily dimension, request count and byte
-count, including categories outside the new usage subset. Catalogs, runs,
+count, including categories outside the usage subset. Catalogs, runs,
 receipts, replay identities, file IDs, payload references, provenance and GC
 references stay unchanged. Payload files are not rewritten. Invalid historical
 dimensions/dates or SQL conversion failure roll back every schema change and the
-version marker. Reopening schema 2 does not repeat conversion.
+version marker. Schema 2 then follows the separate upgrade below; reopening
+schema 3 repeats neither conversion.
+
+### Schema 2 to 3 expression index
+
+Schema 3 replaces the daily usage index with `http_daily_usage_expr`. After the
+repository/instance/scope/kind/day/tuple fields, it stores five CASE expressions
+used by the aggregate queries. The expressions in `usage_expressions.go` are frozen
+v1 definitions shared by SQL reads and migration DDL; future metric changes require
+a new expression version and migration. No catalog, daily counter, receipt or
+payload row is converted, and no summary tables or counter columns are added.
+Index creation, old-index removal and the version marker commit together; failure
+leaves schema 2 intact before startup cleanup or listeners.
+
+Building the index needs temporary space for both old and new indexes plus SQLite
+WAL/journal work. Updates to daily counters also maintain expression-index entries;
+this adds write and storage work. Measure migration time, space requirements and
+batch-write cost on representative state before an upgrade. The payload quota does not budget
+SQLite index/WAL space.
 
 Before starting the upgraded service, block new producer, publisher and
-administrator writes, then drain HTTP requests and telemetry. Stop the old owner, checkpoint SQLite, and
+administrator writes, then drain HTTP requests and telemetry. Stop the old owner,
+checkpoint SQLite, and
 retain a coherent pre-upgrade SQLite backup together with every referenced
 immutable payload, service configuration and private ownership/permissions.
 Verify recovery against a separate copy before selecting the upgraded owner.
-An old schema-1 binary rejects schema 2. Recovery means restoring the coherent
-pre-upgrade database and payload set, not changing `user_version` or resetting the
-database. Once new writes occur, prefer forward recovery or explicitly reconcile
+An old schema-1 binary rejects newer schemas, and an old schema-2 binary rejects
+schema 3. To restore an older binary, restore its coherent pre-upgrade database
+and payload set. Changing `user_version` or resetting the database is not recovery.
+Once new writes occur, prefer forward recovery or explicitly reconcile
 that newer state before restoring an older backup. Site-specific activation and
 recovery ordering belongs to the owning configuration repository.
 
@@ -198,9 +219,26 @@ times show when the snapshot was taken. Measurement
 health may refresh independently. Retention changes, a UTC date change, expiry
 or bounded eviction require a pagination restart (409). A refreshed first page
 can coexist with an older cursor while space permits. One cold materializer per
-reader coalesces concurrent selection requests; its two-second deadline includes
-admission and read queries. Cached pages do not regroup history, retain a SQL
-transaction or hold the payload/writer lock.
+reader coalesces concurrent selection requests. Its five-second deadline includes
+time waiting for admission and running read queries. Cached pages do not regroup history, retain a SQL
+transaction or hold the payload/writer lock. The finite cold budget allows an
+occasional loading interval while keeping reusable pages fast; it is not a disk,
+network or production-throughput guarantee.
+
+The scale regression requires complete results for one million unique daily rows
+over 365 days and 10,000 historical image groups. It checks all three groupings and
+an exact filter against the five-second limit, with a 500 ms target for cached
+pages. These fixture targets do not guarantee production latency or throughput.
+The test also exercises 100,000 image groups as a boundary where a query may reach
+the time limit even if its snapshot fits within 64 MiB. Time and memory are
+separate limits. The service attempts complete results within both limits,
+without a fixed 10,000-group admission cap or partial totals.
+
+When a usage query times out, it returns 503 and suggests a shorter period,
+narrower filter or later retry. A failed query leaves no partial snapshot.
+Caller cancellation and unrelated database faults retain their existing error
+handling. The dashboard does not retry automatically, and memory-limit errors
+remain distinct from timeouts.
 
 Only public artifact responses enter usage. Full downloads are completed GET
 200 responses, not successful imports or unique people. GET 206 range responses

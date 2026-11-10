@@ -381,7 +381,11 @@ func (h *repositoryHTTP) dashboardHTML(w http.ResponseWriter, r *http.Request) {
 	}
 	if usageErr != nil {
 		var usageStatus int
-		d.UsageError, usageStatus = dashboardReadError(usageErr)
+		if message, deadline := usageDeadlineMessage(usageErr); deadline {
+			d.UsageError, usageStatus = message, http.StatusServiceUnavailable
+		} else {
+			d.UsageError, usageStatus = dashboardReadError(usageErr)
+		}
 		if usageStatus > status {
 			status = usageStatus
 		}

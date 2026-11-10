@@ -2,6 +2,7 @@ package reposerver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"net/http/httptest"
@@ -206,6 +207,52 @@ func TestDashboardUIEscapingAndErrors(t *testing.T) {
 	got = requestHTTP(h, "GET", "/", nil)
 	if got.Code != 503 || !strings.Contains(got.Body.String(), "temporarily unavailable") || strings.Contains(got.Body.String(), "private overview") {
 		t.Fatal(got.Code, got.Body.String())
+	}
+}
+
+func TestDashboardUIUsageDeadlineGuidance(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		err      error
+		deadline bool
+	}{
+		{"deadline", context.DeadlineExceeded, true},
+		{"wrapped deadline", fmt.Errorf("private query context: %w", context.DeadlineExceeded), true},
+		{"caller cancelled", context.Canceled, false},
+		{"wrapped caller cancelled", fmt.Errorf("private query context: %w", context.Canceled), false},
+		{"cancelled with deadline", errors.Join(context.Canceled, context.DeadlineExceeded), false},
+		{"database failure", errors.New("private database path failed"), false},
+		{"deadline text only", errors.New("context deadline exceeded"), false},
+		{"memory refusal", problem("bounded", "private bounded-result refusal"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &uiDashboardFixture{usageError: tc.err}
+			h := NewHTTPHandler(newFixtureReader(t), HTTPOptions{Repository: "test", Dashboard: f})
+			response := requestHTTP(h, "GET", "/", nil)
+			want, _ := dashboardReadError(tc.err)
+			if tc.deadline {
+				var ok bool
+				want, ok = usageDeadlineMessage(tc.err)
+				if !ok {
+					t.Fatal("deadline helper did not classify wrapped usage deadline")
+				}
+			}
+			if response.Code != 503 || response.Header().Get("Cache-Control") != "no-store" || !strings.Contains(response.Body.String(), html.EscapeString(want)) {
+				t.Fatal("incorrect HTML usage error boundary", response.Code)
+			}
+			if strings.Contains(response.Body.String(), "private") || strings.Contains(response.Body.String(), "No measured public image traffic") {
+				t.Fatal("private error or fabricated empty success in HTML")
+			}
+		})
+	}
+	// The helper is specific to usage: a catalog deadline keeps its existing
+	// generic message even though the usage selection succeeds independently.
+	f := &uiDashboardFixture{catalogError: fmt.Errorf("private catalog context: %w", context.DeadlineExceeded)}
+	response := requestHTTP(NewHTTPHandler(newFixtureReader(t), HTTPOptions{Dashboard: f}), "GET", "/", nil)
+	want, _ := dashboardReadError(f.catalogError)
+	deadlineMessage, _ := usageDeadlineMessage(context.DeadlineExceeded)
+	if response.Code != 503 || !strings.Contains(response.Body.String(), html.EscapeString(want)) || strings.Contains(response.Body.String(), html.EscapeString(deadlineMessage)) {
+		t.Fatal("catalog error gained usage guidance", response.Code)
 	}
 }
 

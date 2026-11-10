@@ -11,6 +11,7 @@ const usageCacheMaxBytes = 64 << 20
 const usageCacheMaxEntries = 4
 const usageReuse = 30 * time.Second
 const usageLifetime = 2 * time.Minute
+const usageColdTimeout = 5 * time.Second
 
 type usageSnapshot struct {
 	id, selection string
@@ -50,7 +51,7 @@ func (c *usageResultCache) find(selection, token string, now time.Time) *usageSn
 
 func (d *StoreDashboardReader) cachedUsage(ctx context.Context, q UsageQuery) (UsagePage, error) {
 	// The same deadline includes read-pool admission and materializer admission.
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, usageColdTimeout)
 	defer cancel()
 	retention := 365
 	err := d.store.reads.QueryRowContext(ctx, "SELECT retention_days FROM http_measurement WHERE repository=? AND instance=?", d.repository, d.instance).Scan(&retention)

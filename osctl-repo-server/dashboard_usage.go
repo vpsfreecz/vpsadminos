@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-const usageSums = `coalesce(sum(CASE WHEN method='GET' AND status=200 AND outcome='complete' THEN requests ELSE 0 END),0),coalesce(sum(CASE WHEN method='GET' AND status=206 THEN requests ELSE 0 END),0),coalesce(sum(CASE WHEN method='GET' AND status IN (200,206) THEN bytes ELSE 0 END),0),coalesce(sum(CASE WHEN outcome='interrupted' THEN requests ELSE 0 END),0),coalesce(sum(CASE WHEN status>=400 THEN requests ELSE 0 END),0)`
-
 func counterArgs(c *UsageCounters) []any {
 	return []any{&c.FullDownloads, &c.RangeRequests, &c.TransferredBytes, &c.InterruptedRequests, &c.ErrorRequests}
 }

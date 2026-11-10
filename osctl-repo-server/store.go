@@ -93,7 +93,7 @@ func OpenStore(options Options) (*Store, error) {
 			lock.Close()
 			return nil, err
 		}
-		if version > 2 || version < 0 {
+		if version > 3 || version < 0 {
 			lock.Close()
 			return nil, problem("invalid", "unsupported database schema")
 		}
@@ -111,7 +111,7 @@ func OpenStore(options Options) (*Store, error) {
 	s := &Store{db: db, options: options, lock: lock, activeFiles: map[string]bool{}, catalogs: map[string]*cachedCatalog{}}
 	var version int
 	if e = db.QueryRow("PRAGMA user_version").Scan(&version); e == nil {
-		if version < 0 || version > 2 {
+		if version < 0 || version > 3 {
 			e = problem("invalid", "unsupported database schema")
 		} else {
 			if version == 0 {
@@ -120,6 +120,12 @@ func OpenStore(options Options) (*Store, error) {
 			}
 			if e == nil && version == 1 {
 				e = migrateSchema1(context.Background(), db)
+				if e == nil {
+					version = 2
+				}
+			}
+			if e == nil && version == 2 {
+				e = migrateSchema2(context.Background(), db)
 			}
 		}
 	}

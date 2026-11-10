@@ -85,3 +85,23 @@ func migrateSchema1(ctx context.Context, db *sql.DB) error {
 	}
 	return tx.Commit()
 }
+
+// Schema 2 is deployed. Add only the usage expression index; leave all original
+// rows and the supported schema-1 definition/upgrade unchanged.
+func migrateSchema2(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, usageIndexV3); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, "DROP INDEX http_daily_usage"); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, "PRAGMA user_version=3"); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

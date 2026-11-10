@@ -179,3 +179,70 @@ func TestUsageSnapshotCoalescesAndCancelsAdmission(t *testing.T) {
 		t.Fatal("cancelled admission poisoned refresh", err)
 	}
 }
+
+func TestUsageColdAdmissionLeavesWriterControlsAndStreamsProgressing(t *testing.T) {
+	r, _, full, other := downloadFixture(t)
+	reader := NewStoreDashboardReader(r.Store, "test", "progress", nil)
+	reader.usage.cold = make(chan struct{}, 1)
+	reader.usage.cold <- struct{}{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, err := reader.DashboardUsage(ctx, UsageQuery{Period: "365d"}); done <- err }()
+	downloadProgress(t, "batched indexed counter write", func(ctx context.Context) error {
+		tuple := Tuple{Vendor: "vendor", Variant: "minimal", Arch: "x86_64", Distribution: "debian", Version: "13"}
+		event := AccessEvent{Repository: "test", Instance: "progress", Timestamp: r.now(), Scope: "public", Kind: "artifact", Method: "GET", Status: 200, Outcome: "complete", Bytes: 7, Tuple: &tuple}
+		events := make([]AccessEvent, 128)
+		for i := range events {
+			events[i] = event
+		}
+		return r.RecordHTTPBatch(ctx, events, 365, 100)
+	})
+	downloadProgress(t, "short control during cold admission", func(ctx context.Context) error {
+		response := r.Execute(ctx, "producer", Request{RequestID: id(), Operation: "status", Repository: "test", Params: encode(map[string]any{})}, nil)
+		if !response.OK {
+			return response.Error
+		}
+		return nil
+	})
+	h := NewHTTPHandler(r, HTTPOptions{Repository: "test"})
+	for _, path := range []string{"/v1/INDEX.json", "/v1/vendor/minimal/x86_64/debian/13/image-archive.tar", "/v1/vendor/minimal/x86_64/debian/14/image-archive.tar"} {
+		downloadProgress(t, path, func(ctx context.Context) error {
+			headers := map[string]string{}
+			if strings.Contains(path, "/14/") {
+				headers["Range"] = "bytes=0-1023"
+			}
+			response := requestHTTP(h, "GET", path, headers)
+			if strings.Contains(path, "/13/") {
+				downloadBytes(t, response.Body.Bytes(), full)
+			}
+			if strings.Contains(path, "/14/") {
+				downloadBytes(t, response.Body.Bytes(), other[:1024])
+			}
+			if response.Code != 200 && response.Code != 206 {
+				t.Fatal(response.Code)
+			}
+			return nil
+		})
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cold admission did not cancel promptly")
+	}
+	<-reader.usage.cold
+	if r.reads.Stats().InUse != 0 {
+		t.Fatal("admission held read connection")
+	}
+	page, err := reader.DashboardUsage(context.Background(), UsageQuery{})
+	if err != nil || page.Totals.FullDownloads != 128 || page.Totals.TransferredBytes != 896 {
+		t.Fatal(page.Totals, err)
+	}
+	if usageColdTimeout != 5*time.Second {
+		t.Fatal("cold and admission budget changed", usageColdTimeout)
+	}
+}

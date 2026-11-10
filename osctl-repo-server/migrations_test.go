@@ -74,7 +74,7 @@ func TestSchema1MigrationPreservesStateAndCounters(t *testing.T) {
 	}
 	var version int
 	upgraded.db.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 2 {
+	if version != 3 {
 		t.Fatal(version)
 	}
 	upgraded.Close()
@@ -195,7 +195,7 @@ func TestSchema1InjectedSQLFailureRollsBack(t *testing.T) {
 
 // Optional retained binary proof: invalid observer settings deliberately remain
 // unset, so even a wrong binary cannot reach control/HTTP listener setup.
-func TestLegacyBinaryRejectsSchema2(t *testing.T) {
+func TestLegacyBinaryRejectsCurrentSchema(t *testing.T) {
 	binary := os.Getenv("LEGACY_REPO_SERVER_BINARY")
 	if binary == "" {
 		t.Skip("set retained schema-1 binary for exact predecessor refusal proof")

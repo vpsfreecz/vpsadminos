@@ -2,8 +2,10 @@ package reposerver
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -200,14 +202,23 @@ func BenchmarkDashboardUsageDense365(b *testing.B) {
 				start := time.Now()
 				page, err := reader.DashboardUsage(context.Background(), q)
 				elapsed := time.Since(start)
-				if groupCount == 1000000 {
-					if err == nil || !strings.HasPrefix(err.Error(), "bounded:") {
-						b.Fatalf("pathological cardinality must refuse explicitly: %v", err)
+				boundaryImage := groupCount == 100000 && q.GroupBy == "image" && q.Distribution == ""
+				if groupCount == 1000000 || boundaryImage && err != nil {
+					if !acceptedUsageRefusal(err) {
+						b.Fatalf("high-cardinality case returned an unexpected error: %v", err)
 					}
-					b.Logf("million-group refusal: %s; no truncated result", elapsed)
-					continue
+					releaseStart := time.Now()
+					for s.reads.Stats().InUse != 0 && time.Since(releaseStart) < 500*time.Millisecond {
+						time.Sleep(time.Millisecond)
+					}
+					released := time.Since(releaseStart)
+					if len(reader.usage.entries) != 0 || s.reads.Stats().InUse != 0 || len(reader.usage.cold) != 0 {
+						b.Fatal("refused query retained partial cache/transaction/admission")
+					}
+					b.Logf("%d-group bounded refusal: cold=%s cancellation_overshoot=%s release=%s error=%v; no partial snapshot; latency refusal is not a memory claim", groupCount, elapsed, max(time.Duration(0), elapsed-usageColdTimeout), released, err)
+					continue // The 100k exact-filter case MUST still complete below.
 				}
-				if err != nil || elapsed > 2*time.Second {
+				if err != nil || elapsed > usageColdTimeout {
 					b.Fatalf("dense cold %s %+v: %v", elapsed, q, err)
 				}
 				if q.Distribution == "" {
@@ -270,6 +281,56 @@ func BenchmarkDashboardUsageDense365(b *testing.B) {
 				}
 				b.Logf("%d groups, %s filter=%s: cold=%s retained=%d bytes", groupCount, q.GroupBy, q.Distribution, elapsed, snapshot.bytes)
 			}
+			if groupCount == 10000 {
+				// Measure real expression-index inserts and counter updates only
+				// after unchanged dense selection/oracle gates have completed.
+				events := make([]AccessEvent, 128)
+				for i := range events {
+					tuple := Tuple{Distribution: "write-cost", Arch: "x86_64", Vendor: "vendor", Variant: "minimal", Version: fmt.Sprint(i)}
+					events[i] = AccessEvent{Repository: "dense", Instance: "write-cost", Timestamp: now, Scope: "public", Kind: "artifact", Tuple: &tuple, Method: "GET", Status: 200, Outcome: "complete", Bytes: 7}
+				}
+				writeCtx, writeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				start := time.Now()
+				for i := 0; i < 16; i++ {
+					if err = s.RecordHTTPBatch(writeCtx, events, 365, 1000000); err != nil {
+						b.Fatal(err)
+					}
+				}
+				elapsed := time.Since(start)
+				writeCancel()
+				stats, e := s.HTTPStatistics(context.Background(), "dense", "write-cost")
+				var requests, bytes int64
+				for _, row := range stats {
+					requests += row.Requests
+					bytes += row.Bytes
+				}
+				if e != nil || requests != 2048 || bytes != 14336 {
+					b.Fatal("indexed batch counters", requests, bytes, e)
+				}
+				var pages, free, pageSize int64
+				if e = s.db.QueryRow("PRAGMA page_count").Scan(&pages); e != nil {
+					b.Fatal(e)
+				}
+				if e = s.db.QueryRow("PRAGMA freelist_count").Scan(&free); e != nil {
+					b.Fatal(e)
+				}
+				if e = s.db.QueryRow("PRAGMA page_size").Scan(&pageSize); e != nil {
+					b.Fatal(e)
+				}
+				walBytes := int64(0)
+				if info, e := os.Stat(filepath.Join(opts.Root, "catalog.sqlite-wal")); e == nil {
+					walBytes = info.Size()
+				} else if !os.IsNotExist(e) {
+					b.Fatal(e)
+				}
+				b.Logf("expression index: 16 batches x128 distinct counters=%s, DBpages=%d freepages=%d pagesize=%d WALbytes=%d (fixture cost, not production throughput)", elapsed, pages, free, pageSize, walBytes)
+			}
 		})
 	}
+}
+
+// A boundary never permits unrelated database failures or a matching error string.
+func acceptedUsageRefusal(err error) bool {
+	var failure *Error
+	return !errors.Is(err, context.Canceled) && (errors.Is(err, context.DeadlineExceeded) || errors.As(err, &failure) && failure.Code == "bounded")
 }

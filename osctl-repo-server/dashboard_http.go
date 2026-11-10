@@ -23,6 +23,15 @@ func (d configuredDashboardReader) DashboardOverview(ctx context.Context) (Dashb
 	return v, err
 }
 
+// Cancellation and storage failures must not be mistaken for an expensive
+// selection. Keep the existing 503 response shape and offer a manual next step.
+func usageDeadlineMessage(err error) (string, bool) {
+	if errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+		return "Usage took too long. Choose a shorter period or narrower filter, or try again later.", true
+	}
+	return "", false
+}
+
 func (h *repositoryHTTP) dashboardAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if h.opts.Dashboard == nil {
@@ -67,6 +76,11 @@ func (h *repositoryHTTP) dashboardAPI(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status := 503
 		message := "Dashboard unavailable"
+		if r.URL.Path == "/dashboard/api/usage" {
+			if help, ok := usageDeadlineMessage(err); ok {
+				message = help
+			}
+		}
 		var e *Error
 		if errors.As(err, &e) {
 			switch e.Code {
