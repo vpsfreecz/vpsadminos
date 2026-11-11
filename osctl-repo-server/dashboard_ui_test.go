@@ -52,12 +52,25 @@ func (f *uiDashboardFixture) DashboardUsage(_ context.Context, q UsageQuery) (Us
 	f.usageQuery = q
 	f.usageCalls++
 	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
-	from := now.AddDate(0, 0, -5)
-	p := UsagePage{Period: q.Period, GroupBy: q.GroupBy, Start: now.AddDate(0, 0, -6), End: now, UpdatedAt: &now, Coverage: UsageCoverage{RetainedFrom: &from, RetentionDays: 7, HistoryComplete: false}, Totals: UsageCounters{FullDownloads: 12000, RangeRequests: 300, TransferredBytes: 9 << 30, InterruptedRequests: 2, ErrorRequests: 1}}
-	p.Rows = []UsageRow{{Tuple: Tuple{Distribution: "debian", Arch: "x86_64", Vendor: "vpsadminos", Variant: "minimal", Version: "13"}, UsageCounters: p.Totals}}
-	for i := 0; i < 365; i++ {
-		p.Days = append(p.Days, UsageDay{Day: now.AddDate(0, 0, -i).Format("2006-01-02"), UsageCounters: UsageCounters{FullDownloads: 12, TransferredBytes: 1536}})
+	days := map[string]int{"today": 1, "7d": 7, "30d": 30, "90d": 90, "180d": 180, "365d": 365}[q.Period]
+	if days == 0 {
+		days = 7
 	}
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -days+1)
+	from := now.AddDate(0, 0, -5)
+	p := UsagePage{Period: q.Period, GroupBy: q.GroupBy, Start: start, End: now, UpdatedAt: &now, Coverage: UsageCoverage{RetainedFrom: &from, RetentionDays: 7, HistoryComplete: false}}
+	for i := 0; i < days; i++ {
+		date := start.AddDate(0, 0, i)
+		counters := UsageCounters{}
+		if date.Format("2006-01-02") >= from.Format("2006-01-02") {
+			counters = UsageCounters{FullDownloads: 12, RangeRequests: 3, TransferredBytes: 1536}
+		}
+		p.Days = append(p.Days, UsageDay{Day: date.Format("2006-01-02"), UsageCounters: counters})
+		if err := addUsageCounters(&p.Totals, counters); err != nil {
+			panic(err)
+		}
+	}
+	p.Rows = []UsageRow{{Tuple: Tuple{Distribution: "debian", Arch: "x86_64", Vendor: "vpsadminos", Variant: "minimal", Version: "13"}, UsageCounters: p.Totals}}
 	return p, f.usageError
 }
 
@@ -362,6 +375,14 @@ func TestDashboardUIRenderArtifact(t *testing.T) {
 			t.Fatal(section, rendered.Code)
 		}
 		files[section+".html"] = strings.ReplaceAll(rendered.Body.String(), "/dashboard/assets/", "./")
+	}
+	files["index.html"] = files["usage.html"]
+	for _, period := range []string{"today", "7d", "365d"} {
+		rendered := requestHTTP(h, "GET", "/usage?period="+period, nil)
+		if rendered.Code != 200 {
+			t.Fatal(period, rendered.Code)
+		}
+		files["usage-"+period+".html"] = strings.ReplaceAll(rendered.Body.String(), "/dashboard/assets/", "./")
 	}
 	for name, body := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0600); err != nil {

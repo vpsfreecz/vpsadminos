@@ -282,3 +282,40 @@
     remember();
   });
 })();
+
+// Day inspection is local to the already-rendered snapshot. Delegated handlers
+// keep working after usage replacement/popstate without extra requests or setup.
+(() => {
+  "use strict";
+  const graphFor = target => target.closest?.("[data-daily-graph]");
+  const inspect = (graph, index) => {
+    const points = Array.from(graph.querySelectorAll("rect[data-day]"));
+    if (!points.length) return;
+    index = Math.max(0, Math.min(points.length - 1, index));
+    graph.dataset.dayIndex = String(index);
+    points.forEach((point, i) => i === index ? point.setAttribute("data-selected", "") : point.removeAttribute("data-selected"));
+    const output = graph.closest("figure").querySelector("output");
+    output.textContent = points[index].querySelector("title").textContent; output.hidden = false;
+  };
+  document.addEventListener("focusin", event => {
+    const graph = graphFor(event.target); if (graph) inspect(graph, Number(graph.dataset.dayIndex || graph.querySelectorAll("rect[data-day]").length - 1));
+  });
+  document.addEventListener("keydown", event => {
+    const graph = graphFor(event.target); if (!graph) return;
+    const count = graph.querySelectorAll("rect[data-day]").length;
+    let index = Number(graph.dataset.dayIndex || count - 1);
+    if (event.key === "ArrowLeft") index--;
+    else if (event.key === "ArrowRight") index++;
+    else if (event.key === "Home") index = 0;
+    else if (event.key === "End") index = count - 1;
+    else return;
+    event.preventDefault(); inspect(graph, index);
+  });
+  const pointer = event => {
+    const graph = graphFor(event.target); if (!graph) return;
+    const box = graph.getBoundingClientRect(), count = graph.querySelectorAll("rect[data-day]").length;
+    if (box.width > 0) inspect(graph, Math.floor((event.clientX - box.left) / box.width * count));
+  };
+  document.addEventListener("pointermove", pointer);
+  document.addEventListener("pointerdown", pointer);
+})();

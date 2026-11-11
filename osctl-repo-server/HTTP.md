@@ -78,6 +78,28 @@ UTC bounds. Ranked rows are paged. Totals, daily counters and ranked rows share 
 snapshot computed once per selection; later pages reuse it. Daily counters contain
 at most 365 rows. Expired or evicted cursors ask the reader to restart. See
 [usage query bounds](README.md) for cache limits and query deadlines.
+Two daily bar graphs use that same full-selection snapshot: Transferred data
+shows response-body bytes and Downloads shows completed full-image responses.
+The graphs retain every UTC day (at most 365), independent of ranked pagination.
+The current UTC day ends at the snapshot time. Axes start at zero; transfer uses
+one IEC unit and downloads use response counts. Exact integer values are available
+in SVG titles and a local keyboard/pointer day readout, with one keyboard entry
+per graph. The labelled graphs and concise text equivalents work without
+JavaScript; no duplicate daily table is rendered.
+
+Days before the later retained start or retention cutoff are unmeasured. The
+backend zero-fills absent daily rows and has no per-day completeness flag, so
+incomplete or unknown history cannot establish measured zero: zero/missing slots
+show no recorded value. Positive counters remain recorded even when the retained
+start is unknown. Only complete known coverage permits measured-zero markers.
+Gaps are not interpolated. Malformed or negative graph data uses the existing
+unavailable response rather than fabricated success.
+
+The four metric cards show their labels and values. Transfer caveats are in the
+local native help disclosure attached to Transferred, available on hover, focus,
+activation and touch with the same Escape behavior as history help. The exact
+configured purpose spans the available header width without changing its text.
+
 Unavailable measurements show an error rather than successful zero totals.
 Short retention or unknown completeness adds a warning icon beside From. Its
 closed disclosure explains retained start, retention and missing-record meaning

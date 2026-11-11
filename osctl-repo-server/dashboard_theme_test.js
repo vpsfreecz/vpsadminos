@@ -2,7 +2,9 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
-const source = fs.readFileSync(`${__dirname}/dashboard.js`, "utf8");
+const appSource = fs.readFileSync(`${__dirname}/dashboard.js`, "utf8");
+// Existing isolated navigation fakes exercise the preceding independent handlers.
+const source = appSource.slice(0, appSource.indexOf("// Day inspection is local"));
 
 function page(saved, blocked = false) {
   const dataset = {}, ready = [];
@@ -126,4 +128,25 @@ async function usageNavigationOverlap(catalogSearch) {
  assert.equal(warning.open,false);assert(classes.has("dismissed"),"Escape must remain dismissed after focusin");
  handlers.click({target:{closest:()=>warning}});assert.equal(classes.has("dismissed"),false);
  console.log("History warning native activation untouched; Escape dismisses after focus settles PASS");
+}
+
+// Exercise the actual new delegated inspection handlers on replacement graphs.
+{
+ const listeners={};
+ const document={addEventListener(name,fn){listeners[name]=fn;}};
+ vm.runInNewContext(appSource.slice(appSource.indexOf("// Day inspection is local")),{document});
+ const makeGraph=()=>{
+  const output={hidden:true,textContent:""};
+  const points=["2026-01-01 UTC: No recorded value","2026-01-02 UTC: 9223372036854775807 bytes","2026-01-03 UTC: 0 bytes"].map(text=>({selected:false,setAttribute(){this.selected=true;},removeAttribute(){this.selected=false;},querySelector:()=>({textContent:text})}));
+  const graph={dataset:{},querySelectorAll:()=>points,closest:()=>({querySelector:()=>output}),getBoundingClientRect:()=>({left:10,width:300})};
+  const target={closest:()=>graph};return {graph,output,points,target};
+ };
+ const first=makeGraph();listeners.focusin({target:first.target});assert.equal(first.output.textContent,"2026-01-03 UTC: 0 bytes");
+ let prevented=false;listeners.keydown({target:first.target,key:"Home",preventDefault(){prevented=true;}});assert(prevented);assert.equal(first.output.textContent,"2026-01-01 UTC: No recorded value");
+ listeners.keydown({target:first.target,key:"ArrowRight",preventDefault(){}});assert.equal(first.output.textContent,"2026-01-02 UTC: 9223372036854775807 bytes");
+ listeners.pointerdown({target:first.target,clientX:310});assert.equal(first.graph.dataset.dayIndex,"2");
+ // New DOM from usage/popstate works with the same listeners, no reinit/fetch.
+ const replaced=makeGraph();listeners.pointermove({target:replaced.target,clientX:10});assert.equal(replaced.output.textContent,"2026-01-01 UTC: No recorded value");
+ assert.equal(replaced.output.hidden,false);assert.equal(first.graph.dataset.dayIndex,"2");
+ console.log("Delegated local graph keyboard/pointer inspection, exact values and replacement DOM PASS");
 }

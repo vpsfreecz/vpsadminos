@@ -65,6 +65,7 @@ type dashboardPage struct {
 	Enhanced                                  bool
 	Overview                                  DashboardOverview
 	Usage                                     UsagePage
+	Graphs                                    []dashboardGraph
 	CatalogRows                               []dashboardCatalogRow
 	UsageRows                                 []dashboardUsageRow
 	CatalogCrumbs, UsageCrumbs, Periods       []dashboardLink
@@ -547,6 +548,9 @@ func (h *repositoryHTTP) dashboardHTML(w http.ResponseWriter, r *http.Request) {
 	d := newDashboardPage(overview, catalog, usage, q)
 	d.Page = section
 	if section == "usage" {
+		if usageErr == nil {
+			d.Graphs, usageErr = dashboardGraphs(usage)
+		}
 		d.Filters, d.SelectorError = dashboardFilters(r.Context(), provider, q)
 		clear := url.Values{}
 		if period := q.Get("period"); period != "" {
