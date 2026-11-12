@@ -1,5 +1,5 @@
 require_relative '../spec_helper'
-require_relative '../../image_pipeline/pool'
+require_relative '../../lib/image_pipeline/pool'
 
 RSpec.describe ImagePipeline::Pool do
   it 'streams quick results while a long pipeline is active and reuses workers' do

@@ -2,9 +2,9 @@ require_relative '../spec_helper'
 require 'digest'
 require 'rbconfig'
 require 'yaml'
-require_relative '../../image_pipeline/coordinator'
-require_relative '../../image_pipeline/publisher'
-require_relative '../../image_pipeline/selection'
+require_relative '../../lib/image_pipeline/coordinator'
+require_relative '../../lib/image_pipeline/publisher'
+require_relative '../../lib/image_pipeline/selection'
 
 RSpec.describe ImagePipeline do
   describe 'suite repository readiness' do
@@ -241,10 +241,10 @@ RSpec.describe ImagePipeline do
         .to eq("${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}")
       expect(build.fetch('run')).to include('ci_args+=(--full-ci)', '"${ci_args[@]}"')
       runner = File.read(File.join(REPO_ROOT, '.github/workflows/scripts/run-rspec-all.sh'))
-      expect(runner).to include('"image-pipeline:osvm"', 'spec_args=("${workspace}/tools/spec")')
+      expect(runner).to include('"image-pipeline:osvm"', 'spec_args=("${workspace}/tools/image-pipeline/spec")')
       rspec = YAML.load_file(File.join(REPO_ROOT, '.github/workflows/rspec.yml'))
       rspec.fetch('on') { rspec.fetch(true) }.each_value do |trigger|
-        expect(trigger.fetch('paths')).to include('tools/spec/**', 'tools/image_pipeline/**')
+        expect(trigger.fetch('paths')).to include('tools/image-pipeline/**')
       end
     end
 
@@ -263,7 +263,7 @@ RSpec.describe ImagePipeline do
         state = File.join(dir, 'state')
         File.write(plan, JSON.generate('items' => items))
         File.write(graph, '{}')
-        output, status = Open3.capture2e(RbConfig.ruby, File.join(REPO_ROOT, 'tools/image-pipeline.rb'),
+        output, status = Open3.capture2e(RbConfig.ruby, File.join(REPO_ROOT, 'tools/image-pipeline/build.rb'),
                                          '--source-dir', REPO_ROOT, '--state-dir', state, '--plan', plan,
                                          '--input-graph', graph, '--event', 'push', '--ref', 'refs/heads/staging',
                                          '--images', 'devuan-4')

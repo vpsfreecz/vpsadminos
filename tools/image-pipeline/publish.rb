@@ -3,7 +3,7 @@ require 'json'
 require 'optparse'
 require 'digest'
 require 'fileutils'
-require_relative 'image_pipeline/publisher'
+require_relative 'lib/image_pipeline/publisher'
 
 options = {}
 OptionParser.new do |parser|

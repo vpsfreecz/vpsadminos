@@ -1,8 +1,8 @@
 let
-  source = builtins.getFlake (toString ../.);
+  source = builtins.getFlake (toString ../../.);
   lib = source.inputs.nixpkgs.lib;
   cfg =
-    (import ../os/configs/image-repository.nix {
+    (import ../../os/configs/image-repository.nix {
       config = { };
       pkgs = { };
       inherit lib;
@@ -49,7 +49,7 @@ in
     // rule
   ) cfg.garbageCollection;
   dependencies =
-    (import ../tests/image-repository-requirements.nix {
-      distributions = (import ../tests/distributions.nix { inherit lib; }).all;
+    (import ../../tests/image-repository-requirements.nix {
+      distributions = (import ../../tests/distributions.nix { inherit lib; }).all;
     }).all;
 }

@@ -1,5 +1,5 @@
 require_relative '../spec_helper'
-require_relative '../../image_pipeline/worker'
+require_relative '../../lib/image_pipeline/worker'
 
 RSpec.describe ImagePipeline::Worker do
   it 'keeps generic OsVm loading independent of image-specific policy' do
@@ -11,7 +11,7 @@ RSpec.describe ImagePipeline::Worker do
 
   it 'renders admitted CPU counts consistently from the evaluated worker closure for two and three CPUs', :nix do
     expression = <<~NIX
-      map (cpus: (import #{REPO_ROOT}/tools/image-pipeline.nix {
+      map (cpus: (import #{REPO_ROOT}/tools/image-pipeline/worker.nix {
         memoryMiB = 8192; inherit cpus; diskSize = "32G";
       }).text) [ 2 3 ]
     NIX

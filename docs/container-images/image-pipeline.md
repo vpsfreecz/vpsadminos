@@ -12,7 +12,7 @@ it does not withdraw previously published versions or change their retention.
 
 The tools-owned `ImagePipeline::Worker` and `ImagePipeline::Pool` use generic
 OsVm machine APIs; loading the OsVm gem does not load image pipeline policy.
-Their focused tests live in `tools/spec` and run in the existing RSpec CI job
+Their focused tests live in `tools/image-pipeline/spec` and run in the existing RSpec CI job
 using the OsVm bundle.
 
 Each run starts a bounded pool of fresh vpsAdminOS VMs on the trusted runner.
@@ -90,14 +90,14 @@ key as `IMAGE_SSH_HOST_KEY`; use separate producer/publisher SSH key secrets.
 Missing measured resource values fail admission. Choose finite run leases long
 enough for the build and full-CI consumers; an expired run must fail explicitly.
 
-`tools/image-pipeline-plan.nix` exports source selection/policy and the suite's
+`tools/image-pipeline/plan.nix` exports source selection/policy and the suite's
 repository dependencies from `tests/image-repository-requirements.nix`. Maintain
 that source-owned list with explicit suite fetch selectors, including pinned
 versions and variants; intentional custom-repository fixtures stay separate.
 Readiness checks exact vendor/variant/architecture and canonical versions or tags.
-`tools/image-pipeline.nix` exports the worker machine
-closure. `tools/image-pipeline.rb`, run through `osvm script`, owns the worker
-lifecycle and producer receipts. `tools/image-pipeline-publish.rb` consumes the
+`tools/image-pipeline/worker.nix` exports the worker machine
+closure. `tools/image-pipeline/build.rb`, run through `osvm script`, owns the worker
+lifecycle and producer receipts. `tools/image-pipeline/publish.rb` consumes the
 summary under publisher authority. Restricted SSH forced commands select the
 service role; they do not accept a role from JSON. See the
 [service control protocol](https://github.com/vpsfreecz/vpsadminos/tree/staging/osctl-repo-server).

@@ -84,7 +84,7 @@ module ImagePipeline
         preflight(view)
         test_config = { 'imageRepository' => { 'url' => url, 'generation' => view.fetch('generation') } }
         File.write(File.join(@state_dir, 'test-config.json'), "#{JSON.pretty_generate(test_config)}\n")
-        source = File.expand_path('../../tests/test-configs/ci.nix', __dir__)
+        source = File.expand_path('../../../../tests/test-configs/ci.nix', __dir__)
         File.write(File.join(@state_dir, 'test-config.nix'),
                    "import #{source} // builtins.fromJSON (builtins.readFile ./test-config.json)\n")
         @ci_ready = true

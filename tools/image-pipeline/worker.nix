@@ -8,9 +8,9 @@
 assert builtins.isInt memoryMiB && memoryMiB > 0;
 assert builtins.isInt cpus && cpus > 0;
 let
-  source = builtins.getFlake (toString ../.);
+  source = builtins.getFlake (toString ../../.);
 in
-(import ../tests/make-test.nix (_: {
+(import ../../tests/make-test.nix (_: {
   name = "image-pipeline-worker";
   description = "Run-owned container image worker";
   machine = {
@@ -22,7 +22,7 @@ in
       }
     ];
     config = {
-      imports = [ ../tests/configs/vpsadminos/pool-tank.nix ];
+      imports = [ ../../tests/configs/vpsadminos/pool-tank.nix ];
       boot.qemu.memory = memoryMiB;
       boot.qemu.cpus = cpus;
       boot.qemu.cpu = {

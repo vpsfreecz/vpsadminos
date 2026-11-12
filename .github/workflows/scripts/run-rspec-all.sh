@@ -132,7 +132,7 @@ run_suite() {
 
     spec_args=()
     if [ "$name" = "image-pipeline" ]; then
-      spec_args=("${workspace}/tools/spec")
+      spec_args=("${workspace}/tools/image-pipeline/spec")
     fi
     bundle exec rspec "${spec_args[@]}" \
       --format progress \

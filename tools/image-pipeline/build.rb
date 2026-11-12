@@ -3,8 +3,8 @@ require 'json'
 require 'optparse'
 require 'digest'
 require 'fileutils'
-require_relative 'image_pipeline/coordinator'
-require_relative 'image_pipeline/selection'
+require_relative 'lib/image_pipeline/coordinator'
+require_relative 'lib/image_pipeline/selection'
 
 options = {}
 OptionParser.new do |parser|
@@ -34,7 +34,7 @@ if plan.fetch('items').empty?
   warn 'No configured image changes; skipping candidate run'
   exit
 end
-require_relative 'image_pipeline/pool'
+require_relative 'lib/image_pipeline/pool'
 
 plan.fetch('items').each do |item|
   path = File.join(source_dir, 'image-scripts/images', item.fetch('name').split('#').first, 'config.sh')

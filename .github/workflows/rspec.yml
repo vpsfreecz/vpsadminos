@@ -23,9 +23,7 @@ on:
       - osctld/**
       - osup/**
       - osvm/**
-      - tools/image-pipeline*
-      - tools/image_pipeline/**
-      - tools/spec/**
+      - tools/image-pipeline/**
       - svctl/**
       - test-runner/**
   pull_request:
@@ -50,9 +48,7 @@ on:
       - osctld/**
       - osup/**
       - osvm/**
-      - tools/image-pipeline*
-      - tools/image_pipeline/**
-      - tools/spec/**
+      - tools/image-pipeline/**
       - svctl/**
       - test-runner/**
 

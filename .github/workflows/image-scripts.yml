@@ -10,9 +10,7 @@ on:
       - os/configs/image-repository.nix
       - tests/distributions.nix
       - tests/image-repository-requirements.nix
-      - tools/image-pipeline*
-      - tools/image_pipeline/**
-      - tools/spec/**
+      - tools/image-pipeline/**
       - .github/workflows/image-scripts.yml
       - .github/workflows/scripts/changed-image-scripts.rb
   schedule:
@@ -70,7 +68,7 @@ jobs:
           echo "PIPELINE_STATE=$state" >> "$GITHUB_ENV"
           echo "PIPELINE_IMAGES=$IMAGES" >> "$GITHUB_ENV"
           nix flake metadata --json > "$state/inputs.json"
-          nix eval --impure --json --file tools/image-pipeline-plan.nix > "$state/plan.json"
+          nix eval --impure --json --file tools/image-pipeline/plan.nix > "$state/plan.json"
           if [[ "$EVENT" == push ]]; then
             base=$(jq -r .before "$GITHUB_EVENT_PATH")
             if git diff --name-only "$base" "$GITHUB_SHA" | rg -q '^(osctl-image/|osvm/|tools/|os/configs/image-repository.nix|tests/(distributions|image-repository-requirements).nix|.github/)'; then
@@ -82,7 +80,7 @@ jobs:
           fi
           # This is the declared worker closure. Required kernels are built by
           # the cache builder as in ordinary CI, never incidentally on a laptop.
-          nix build --impure --file tools/image-pipeline.nix --arg memoryMiB "$MEMORY_MIB" --arg cpus "$WORKER_CPUS" --argstr diskSize "$DISK_SIZE" --out-link "$state/worker-config"
+          nix build --impure --file tools/image-pipeline/worker.nix --arg memoryMiB "$MEMORY_MIB" --arg cpus "$WORKER_CPUS" --argstr diskSize "$DISK_SIZE" --out-link "$state/worker-config"
           nix build .#osvm --out-link "$state/osvm"
       - name: Build and verify selected images in warm workers
         env:
@@ -110,7 +108,7 @@ jobs:
           eval "$(ssh-agent -s)"
           trap 'ssh-agent -k >/dev/null; rm -f "$PIPELINE_STATE/ssh/key"' EXIT
           ssh-add "$PIPELINE_STATE/ssh/key"
-          "$PIPELINE_STATE/osvm/bin/osvm" script tools/image-pipeline.rb \
+          "$PIPELINE_STATE/osvm/bin/osvm" script tools/image-pipeline/build.rb \
             --machine-config "$PIPELINE_STATE/worker-config" --plan "$PIPELINE_STATE/plan.json" \
             --source-dir "$GITHUB_WORKSPACE" --state-dir "$PIPELINE_STATE/run" \
             --workers "$WORKERS" --max-memory-mib "$MEMORY_MIB" --max-cpus "$CPUS" \
@@ -179,7 +177,7 @@ jobs:
           export IMAGE_SSH_KNOWN_HOSTS="${key}.known_hosts"
           printf '%s\n' "$HOST_KEY" > "$IMAGE_SSH_KNOWN_HOSTS"
           summary=$(find pipeline-metadata -name run.json -print -quit)
-          ruby tools/image-pipeline-publish.rb --summary "$summary" --publisher "$TARGET" \
+          ruby tools/image-pipeline/publish.rb --summary "$summary" --publisher "$TARGET" \
             --source-dir "$GITHUB_WORKSPACE" --receipts "$RUNNER_TEMP/image-publication-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
   full-ci:
     needs: build
