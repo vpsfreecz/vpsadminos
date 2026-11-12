@@ -82,13 +82,39 @@ CPU/RAM/shared-memory capacity, scratch disk headroom and service limits. Manual
 nondefault refs require the same trusted builder admission and cannot publish.
 Untrusted pull requests do not execute this workflow on persistent runners.
 
-Configure `IMAGE_WORKERS`, `IMAGE_WORKER_MEMORY_MIB`, `IMAGE_WORKER_CPUS`,
-`IMAGE_WORKER_DISK_SIZE`, aggregate `IMAGE_MEMORY_MIB` and `IMAGE_CPUS`,
-`IMAGE_RUN_LEASE_SECONDS`, `IMAGE_REPOSITORY_URL`, and role-specific
+Configure per-VM `IMAGE_WORKER_MEMORY_MIB`, `IMAGE_WORKER_CPUS`,
+`IMAGE_WORKER_DISK_SIZE`, run lease `IMAGE_RUN_LEASE_SECONDS`,
+`IMAGE_REPOSITORY_URL`, and role-specific
 `IMAGE_PRODUCER_TARGET`/`IMAGE_PUBLISHER_TARGET`. Supply the pinned public SSH host
 key as `IMAGE_SSH_HOST_KEY`; use separate producer/publisher SSH key secrets.
-Missing measured resource values fail admission. Choose finite run leases long
-enough for the build and full-CI consumers; an expired run must fail explicitly.
+Choose finite run leases long enough for the build and full-CI consumers;
+an expired run must fail explicitly.
+
+After source preparation and before creating a service run, the image driver uses
+the same checkout's `TestRunner::ResourcePool` to detect assigned and available
+memory, `/dev/shm` and CPUs. Each virtiofs worker needs shared memory equal to its
+configured RAM. Worker count fits all three resource capacities and the number of
+selected images. It defaults to `auto`; optional `IMAGE_WORKERS` limits the count,
+while `IMAGE_MEMORY_MIB` and `IMAGE_CPUS` optionally cap aggregate capacity.
+The corresponding CLI flags are `--workers N|auto`, `--max-memory-mib N` and
+`--max-cpus N`. Caps never replace missing detection or enlarge detected capacity.
+
+Existing `TEST_RUNNER_*` maximums, reserves and overcommit policy apply unchanged.
+Defaults reserve 8192 MiB each for memory and shared memory, reserve zero CPUs,
+and use memory/shared-memory/CPU factors 1/1/1.5. Unknown or exhausted capacity,
+or a worker that cannot fit, fails before producer `begin`; there is no unlimited
+or oversized-worker fallback. One fitting worker may process the queue serially.
+The pool size stays fixed for that job; the next job samples current resources
+again, so runner resource changes do not require GitHub inventory updates.
+Admission samples, policy, worker demand and count are recorded in `admission.json`
+and the final `run.json` workflow artifacts.
+
+The startup disk check compares free space on the state filesystem with the
+configured worker disks. This minimum check does not reserve space or account for
+exports, retained failures, Nix growth or other jobs. Measure and preserve that
+additional headroom before real workloads. Keep runner labels and trusted workflow
+admission scoped to the intended builders.
+Full integration CI keeps its existing independent test-runner admission policy.
 
 `tools/image-pipeline/plan.nix` exports source selection/policy and the suite's
 repository dependencies from `tests/image-repository-requirements.nix`. Maintain

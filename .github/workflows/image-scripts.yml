@@ -51,17 +51,14 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           IMAGES: ${{ inputs.images || 'all' }}
-          WORKERS: ${{ vars.IMAGE_WORKERS }}
           MEMORY_MIB: ${{ vars.IMAGE_WORKER_MEMORY_MIB }}
           WORKER_CPUS: ${{ vars.IMAGE_WORKER_CPUS }}
           DISK_SIZE: ${{ vars.IMAGE_WORKER_DISK_SIZE }}
-          MAX_MEMORY: ${{ vars.IMAGE_MEMORY_MIB }}
-          MAX_CPUS: ${{ vars.IMAGE_CPUS }}
           LEASE: ${{ vars.IMAGE_RUN_LEASE_SECONDS }}
         run: |
           set -euo pipefail
-          for value in "$WORKERS" "$MEMORY_MIB" "$WORKER_CPUS" "$MAX_MEMORY" "$MAX_CPUS" "$LEASE"; do
-            [[ "$value" =~ ^[1-9][0-9]*$ ]] || { echo 'Missing measured runner admission'; exit 1; }
+          for value in "$MEMORY_MIB" "$WORKER_CPUS" "$LEASE"; do
+            [[ "$value" =~ ^[1-9][0-9]*$ ]] || { echo 'Missing worker shape or run lease'; exit 1; }
           done
           [[ "$DISK_SIZE" =~ ^[1-9][0-9]*[GMT]$ ]] || exit 1
           state=$(mktemp -d "$RUNNER_TEMP/image-pipeline.XXXXXXXX")
@@ -97,6 +94,10 @@ jobs:
           set -euo pipefail
           ci_args=()
           if [[ "$FULL_CI" == true ]]; then ci_args+=(--full-ci); fi
+          admission_args=()
+          if [[ -n "$WORKERS" ]]; then admission_args+=(--workers "$WORKERS"); fi
+          if [[ -n "$MEMORY_MIB" ]]; then admission_args+=(--max-memory-mib "$MEMORY_MIB"); fi
+          if [[ -n "$CPUS" ]]; then admission_args+=(--max-cpus "$CPUS"); fi
           install -m 700 -d "$PIPELINE_STATE/ssh"
           printf '%s\n' "$PRODUCER_KEY" > "$PIPELINE_STATE/ssh/key"
           chmod 600 "$PIPELINE_STATE/ssh/key"
@@ -111,7 +112,7 @@ jobs:
           "$PIPELINE_STATE/osvm/bin/osvm" script tools/image-pipeline/build.rb \
             --machine-config "$PIPELINE_STATE/worker-config" --plan "$PIPELINE_STATE/plan.json" \
             --source-dir "$GITHUB_WORKSPACE" --state-dir "$PIPELINE_STATE/run" \
-            --workers "$WORKERS" --max-memory-mib "$MEMORY_MIB" --max-cpus "$CPUS" \
+            "${admission_args[@]}" \
             --producer "$PRODUCER_TARGET" --url "$IMAGE_URL" --images "$PIPELINE_IMAGES" \
             --run-id "github-$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
             --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF" --input-graph "$PIPELINE_STATE/inputs.json" \
@@ -140,6 +141,7 @@ jobs:
           path: |
             ${{ env.PIPELINE_STATE }}/inputs.json
             ${{ env.PIPELINE_STATE }}/plan.json
+            ${{ env.PIPELINE_STATE }}/run/admission.json
             ${{ env.PIPELINE_STATE }}/run/run.json
             ${{ env.PIPELINE_STATE }}/run/test-config.json
             ${{ env.PIPELINE_STATE }}/run/producer/*.json

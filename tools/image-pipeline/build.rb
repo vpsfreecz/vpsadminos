@@ -5,6 +5,7 @@ require 'digest'
 require 'fileutils'
 require_relative 'lib/image_pipeline/coordinator'
 require_relative 'lib/image_pipeline/selection'
+require_relative 'lib/image_pipeline/admission'
 
 options = {}
 OptionParser.new do |parser|
@@ -12,7 +13,8 @@ OptionParser.new do |parser|
     parser.on("--#{key} VALUE") { |value| options[key] = value }
   end
   parser.on('--full-ci') { options['full-ci'] = true }
-  %w[workers max-memory-mib max-cpus attempt lease-seconds].each do |key|
+  parser.on('--workers N|auto') { |value| options['workers'] = value }
+  %w[max-memory-mib max-cpus attempt lease-seconds].each do |key|
     parser.on("--#{key} N", Integer) { |value| options[key] = value }
   end
 end.parse!
@@ -52,16 +54,19 @@ raise 'source archive failed' unless statuses.all?(&:success?)
 
 File.write(File.join(snapshot, '.vpsadminos-git-rev'), "#{sha}\n")
 
+config = JSON.parse(File.read(options.fetch('machine-config'))).fetch('machines').fetch('machine')
+admission = ImagePipeline::Admission.new(config:, item_count: plan.fetch('items').length, state_dir: state,
+                                         workers: options['workers'], max_memory_mib: options['max-memory-mib'],
+                                         max_cpus: options['max-cpus'])
+File.write(File.join(state, 'admission.json'), "#{JSON.pretty_generate(admission.evidence)}\n")
+warn "Admitted #{admission.workers} image worker(s) from current runner resources"
+
 producer = ImagePipeline::Control.new(options.fetch('producer'), repository: 'vpsadminos',
                                                                  receipts: File.join(state, 'producer'))
 coordinator = ImagePipeline::Coordinator.new(control: producer, repository_url: options.fetch('url'),
                                              source:, plan:, state_dir: state, run_id: options.fetch('run-id'),
                                              attempt: options.fetch('attempt'), lease_seconds: options.fetch('lease-seconds'), full_ci:)
-summary = { 'source' => source, 'plan' => plan, 'run' => coordinator.run }
-config = JSON.parse(File.read(options.fetch('machine-config'))).fetch('machines').fetch('machine')
-workers = [options.fetch('workers'), options.fetch('max-memory-mib') / config.fetch('memory'),
-           options.fetch('max-cpus') / config.fetch('cpus')].min
-raise 'admitted capacity must support useful parallelism' unless workers >= [plan.fetch('items').length, 2].min
+summary = { 'source' => source, 'plan' => plan, 'run' => coordinator.run, 'admission' => admission.evidence }
 
 finished = Queue.new
 heartbeat = Thread.new do
@@ -80,7 +85,7 @@ begin
                                      bind: coordinator.method(:bind))
   end
   ImagePipeline::Pool.new(
-    plan.fetch('items'), workers:, factory:, result: coordinator.method(:result)
+    plan.fetch('items'), workers: admission.workers, factory:, result: coordinator.method(:result)
   ).run
 rescue StandardError => e
   summary['error'] = "#{e.class}: #{e.message}"
