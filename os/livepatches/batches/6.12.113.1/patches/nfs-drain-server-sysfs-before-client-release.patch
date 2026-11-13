@@ -1,0 +1,101 @@
+From 02beaa9040c47f489991bac14c0bdc00b7a737c9 Mon Sep 17 00:00:00 2001
+From: Jakub Skokan <jakub.skokan@havefun.cz>
+Date: Mon, 9 Nov 2026 23:58:17 +0100
+Subject: [PATCH] NFS: drain server sysfs before releasing client state v2
+
+The per-server shutdown attribute accesses the server's RPC clients and
+shared nfs_client. nfs_free_server() released those clients before removing
+the sysfs object, allowing a concurrent shutdown_store() to use freed state
+during final unmount.
+
+NFSv2/v3 initialization has the same lifetime requirement. It publishes the
+server sysfs object before starting lockd and creating the main RPC client,
+but its error path cleared and put server->nfs_client before common
+teardown. An admitted sysfs callback could therefore observe NULL or freed
+shared-client state. In all publication paths, the main RPC client can also
+retain its initial error-pointer value while the shutdown attribute is
+live.
+
+Withdraw the sysfs object and drain active callbacks before list removal,
+destroy callbacks, RPC shutdown, or the shared-client put. Once
+nfs_get_client() assigns server->nfs_client, retain that sole reference
+through later initialization failures and let nfs_free_server() release it
+after the drain. Treat NULL and error-valued RPC client pointers as
+unavailable in the common shutdown helper, while continuing to cancel every
+valid main, ACL, NLM, and shared client. Keep the final guarded
+kobject_put() late and preserve the existing destroy, list, and
+unpublished-kobject guards.
+
+This changes callback lifetime ordering and partial-initialization handling
+only. The sysfs ABI, NFS wire behavior, client sharing, and successful
+mount/unmount behavior remain unchanged. The patch is an independent fix
+against v6.12.116; reviewed v1 source is preserved at commit 94b072af9c09
+("NFS: drain sysfs callbacks before destroying server clients") and no
+upstream status is claimed.
+
+Development history:
+- v1: Withdraw and drain the per-server sysfs object before destroying
+  callback state during normal teardown.
+- v2: Retain the NFSv2/v3 client reference through post-publication
+  initialization failures so common teardown drains callbacks before
+  release, and make shutdown ignore an absent/error main RPC clone in every
+  publication path while continuing to cancel the valid shared client.
+
+Fixes: d9615d166c7e ("NFS: add sysfs shutdown knob")
+Signed-off-by: Jakub Skokan <jakub.skokan@havefun.cz>
+---
+ fs/nfs/client.c | 10 +++++-----
+ fs/nfs/sysfs.c  |  4 ++--
+ 2 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/fs/nfs/client.c b/fs/nfs/client.c
+index bb3f882d8c24..6c6a3d9da487 100644
+--- a/fs/nfs/client.c
++++ b/fs/nfs/client.c
+@@ -826,8 +826,6 @@ static int nfs_init_server(struct nfs_server *server,
+ 	return 0;
+ 
+ error:
+-	server->nfs_client = NULL;
+-	nfs_put_client(clp);
+ 	return error;
+ }
+ 
+@@ -1098,6 +1096,10 @@ static void delayed_free(struct rcu_head *p)
+  */
+ void nfs_free_server(struct nfs_server *server)
+ {
++	/* Drain sysfs callbacks before destroying the clients they access. */
++	if (server->kobj.state_initialized)
++		nfs_sysfs_remove_server(server);
++
+ 	nfs_server_remove_lists(server);
+ 
+ 	if (server->destroy != NULL)
+@@ -1110,10 +1112,8 @@ void nfs_free_server(struct nfs_server *server)
+ 
+ 	nfs_put_client(server->nfs_client);
+ 
+-	if (server->kobj.state_initialized) {
+-		nfs_sysfs_remove_server(server);
++	if (server->kobj.state_initialized)
+ 		kobject_put(&server->kobj);
+-	}
+ 	ida_free(&s_sysfs_ids, server->s_sysfs_id);
+ 
+ 	put_cred(server->cred);
+diff --git a/fs/nfs/sysfs.c b/fs/nfs/sysfs.c
+index f9e6c8340929..1a9abeed5e69 100644
+--- a/fs/nfs/sysfs.c
++++ b/fs/nfs/sysfs.c
+@@ -226,8 +226,8 @@ static bool shutdown_match_client(const struct rpc_task *task, const void *data)
+ 
+ static void shutdown_client(struct rpc_clnt *clnt)
+ {
+-	/* There is nothing to cancel if the client is absent. */
+-	if (!clnt)
++	/* There is nothing to cancel if the client is absent or unavailable. */
++	if (IS_ERR_OR_NULL(clnt))
+ 		return;
+ 	clnt->cl_shutdown = 1;
+ 	rpc_cancel_tasks(clnt, -EIO, shutdown_match_client, NULL);
