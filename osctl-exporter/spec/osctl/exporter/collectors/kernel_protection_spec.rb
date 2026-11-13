@@ -19,6 +19,13 @@ RSpec.describe OsCtl::Exporter::Collectors::KernelProtection do
     collect_with_registry_swap(registry, collector, build_disconnected_osctld_client)
   end
 
+  def write_livepatch_state(sysfs, mod, enabled: 1, transition: 0)
+    path = File.join(sysfs, mod)
+    FileUtils.mkdir_p(path)
+    File.write(File.join(path, 'enabled'), "#{enabled}\n")
+    File.write(File.join(path, 'transition'), "#{transition}\n")
+  end
+
   it 'exports required and attached BPF livepatch programs' do
     with_tmpdir do |dir|
       ebpf_config = File.join(dir, 'ebpf.json')
@@ -164,13 +171,8 @@ RSpec.describe OsCtl::Exporter::Collectors::KernelProtection do
                    'module' => 'livepatch_6_nfs_cancel', 'patchVersion' => 6,
                    'kernelNotes' => expected, 'kernelImage' => image
                  })
-      %w[livepatch_6 livepatch_6_nfs_cancel].each do |name|
-        path = File.join(sysfs, name)
-        FileUtils.mkdir_p(path)
-        File.write(File.join(path, 'enabled'), "1\n")
-        File.write(File.join(path, 'transition'), "0\n")
-      end
-      yield booted, running, expected
+      write_livepatch_state(sysfs, 'livepatch_6_nfs_cancel')
+      yield booted, running, expected, sysfs
     end
   end
 
@@ -181,20 +183,208 @@ RSpec.describe OsCtl::Exporter::Collectors::KernelProtection do
       expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
         { { module: 'livepatch_6_nfs_cancel', patch_version: '6' } => 1.0 }
       )
+      expect(metric_values(registry.get(:kernel_livepatch_transition))).to eq(
+        { { module: 'livepatch_6_nfs_cancel', patch_version: '6' } => 0.0 }
+      )
+    end
+  end
+
+  it 'prefers plural metadata and exports every required module with stable labels' do
+    with_livepatch_kernel_configs do |_booted, _running, _expected, sysfs|
+      cfg = JSON.parse(File.read(described_class::LIVEPATCH_CONFIG_PATH))
+      cfg.merge!(
+        'schemaVersion' => 2,
+        'module' => 'ignored_scalar',
+        'patchVersion' => 99,
+        'modules' => [
+          { 'module' => 'livepatch_6_nfs_cancel', 'patchVersion' => 1, 'patches' => ['nfs'] },
+          { 'module' => 'livepatch_6_followup', 'patchVersion' => 2, 'patches' => ['followup'] },
+          { 'module' => 'livepatch_6_missing', 'patchVersion' => 3, 'patches' => ['missing'] }
+        ]
+      )
+      write_json(described_class::LIVEPATCH_CONFIG_PATH, cfg)
+      write_livepatch_state(sysfs, 'livepatch_6_followup', transition: 1)
+      write_livepatch_state(sysfs, 'external_livepatch', enabled: 0)
+
+      collect
+
+      expected_labels = [
+        { module: 'livepatch_6_nfs_cancel', patch_version: '1' },
+        { module: 'livepatch_6_followup', patch_version: '2' },
+        { module: 'livepatch_6_missing', patch_version: '3' }
+      ]
+      required = metric_values(registry.get(:kernel_livepatch_required))
+      loaded = metric_values(registry.get(:kernel_livepatch_loaded))
+      transition = metric_values(registry.get(:kernel_livepatch_transition))
+
+      expect(required).to eq(expected_labels.to_h { |labels| [labels, 1.0] })
+      expect(loaded).to eq(
+        {
+          expected_labels[0] => 1.0,
+          expected_labels[1] => 0.0,
+          expected_labels[2] => 0.0,
+          { module: 'external_livepatch', patch_version: '' } => 0.0
+        }
+      )
+      expect(transition).to eq(
+        {
+          expected_labels[0] => 0.0,
+          expected_labels[1] => 1.0,
+          expected_labels[2] => 0.0,
+          { module: 'external_livepatch', patch_version: '' } => 0.0
+        }
+      )
+      expect(loaded.keys).to match_array(transition.keys)
+      expect(required.keys).to match_array(expected_labels)
+      expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+        { { component: 'livepatch' } => 1.0 }
+      )
     end
   end
 
   it 'monitors the booted generation after an OS switch before reboot' do
-    with_livepatch_kernel_configs do |booted, running, _expected|
+    with_livepatch_kernel_configs do |booted, running, _expected, sysfs|
       File.binwrite(running, "old-kernel\x00notes")
       write_json(booted, { 'module' => 'livepatch_6', 'patchVersion' => 6 })
+      write_livepatch_state(sysfs, 'livepatch_6')
       collect
 
       expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
-        { { module: 'livepatch_6', patch_version: '6' } => 1.0 }
+        {
+          { module: 'livepatch_6', patch_version: '6' } => 1.0,
+          { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 1.0
+        }
+      )
+      expect(metric_values(registry.get(:kernel_livepatch_transition))).to eq(
+        {
+          { module: 'livepatch_6', patch_version: '6' } => 0.0,
+          { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 0.0
+        }
       )
       expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
         { { component: 'livepatch' } => 1.0 }
+      )
+    end
+  end
+
+  it 'accepts plural booted metadata after a scalar current generation mismatch' do
+    with_livepatch_kernel_configs do |booted, running, _expected, sysfs|
+      File.binwrite(running, "old-kernel\x00notes")
+      write_json(
+        booted,
+        {
+          'schemaVersion' => 2,
+          'modules' => [
+            { 'module' => 'livepatch_6', 'patchVersion' => 6, 'patches' => ['nfs'] }
+          ]
+        }
+      )
+      write_livepatch_state(sysfs, 'livepatch_6')
+      collect
+
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
+        {
+          { module: 'livepatch_6', patch_version: '6' } => 1.0,
+          { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 1.0
+        }
+      )
+    end
+  end
+
+  it 'accepts scalar booted metadata after a plural current generation mismatch' do
+    with_livepatch_kernel_configs do |booted, running, _expected, sysfs|
+      cfg = JSON.parse(File.read(described_class::LIVEPATCH_CONFIG_PATH))
+      cfg.delete('module')
+      cfg.delete('patchVersion')
+      cfg.merge!(
+        'schemaVersion' => 2,
+        'modules' => [
+          { 'module' => 'livepatch_6_nfs_cancel', 'patchVersion' => 1, 'patches' => ['nfs'] }
+        ]
+      )
+      write_json(described_class::LIVEPATCH_CONFIG_PATH, cfg)
+      File.binwrite(running, "old-kernel\x00notes")
+      write_json(booted, { 'module' => 'livepatch_6', 'patchVersion' => 6 })
+      write_livepatch_state(sysfs, 'livepatch_6')
+
+      collect
+
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
+        {
+          { module: 'livepatch_6', patch_version: '6' } => 1.0,
+          { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 1.0
+        }
+      )
+    end
+  end
+
+  it 'rejects malformed plural metadata without partial module metrics' do
+    with_livepatch_kernel_configs do
+      cfg = JSON.parse(File.read(described_class::LIVEPATCH_CONFIG_PATH))
+      valid_entry = { 'module' => 'livepatch_6', 'patchVersion' => 1, 'patches' => [] }
+      invalid_lists = [
+        { 'modules' => [valid_entry] },
+        { 'schemaVersion' => '2', 'modules' => [] },
+        { 'schemaVersion' => 2.0, 'modules' => [valid_entry] },
+        { 'schemaVersion' => 2, 'modules' => [] },
+        { 'schemaVersion' => 2, 'modules' => 'livepatch_6' },
+        { 'schemaVersion' => 2, 'modules' => [nil] },
+        { 'schemaVersion' => 2, 'modules' => [{ 'patchVersion' => 1, 'patches' => [] }] },
+        { 'schemaVersion' => 2, 'modules' => [{ 'module' => '', 'patchVersion' => 1, 'patches' => [] }] },
+        { 'schemaVersion' => 2, 'modules' => [{ 'module' => 'livepatch_6', 'patches' => [] }] },
+        {
+          'schemaVersion' => 2,
+          'modules' => [{ 'module' => 'livepatch_6', 'patchVersion' => '1', 'patches' => [] }]
+        },
+        { 'schemaVersion' => 2, 'modules' => [{ 'module' => 'livepatch_6', 'patchVersion' => 0, 'patches' => [] }] },
+        {
+          'schemaVersion' => 2,
+          'modules' => [{ 'module' => 'livepatch_6', 'patchVersion' => 1, 'patches' => 'nfs' }]
+        },
+        { 'schemaVersion' => 2, 'modules' => [{ 'module' => 'livepatch_6', 'patchVersion' => 1 }] }
+      ]
+
+      invalid_lists.each do |invalid|
+        write_json(described_class::LIVEPATCH_CONFIG_PATH, cfg.merge(invalid))
+        collect
+
+        expect(metric_values(registry.get(:kernel_livepatch_required))).to be_empty
+        expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
+          { { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 1.0 }
+        )
+        expect(metric_values(registry.get(:kernel_livepatch_transition))).to eq(
+          { { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 0.0 }
+        )
+        expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+          { { component: 'livepatch' } => 0.0 }
+        )
+      end
+    end
+  end
+
+  it 'rejects duplicate plural module identities without partial metrics' do
+    with_livepatch_kernel_configs do
+      cfg = JSON.parse(File.read(described_class::LIVEPATCH_CONFIG_PATH))
+      cfg.merge!(
+        'schemaVersion' => 2,
+        'modules' => [
+          { 'module' => 'livepatch_6', 'patchVersion' => 1, 'patches' => [] },
+          { 'module' => 'livepatch_6', 'patchVersion' => 2, 'patches' => [] }
+        ]
+      )
+      write_json(described_class::LIVEPATCH_CONFIG_PATH, cfg)
+
+      collect
+
+      expect(metric_values(registry.get(:kernel_livepatch_required))).to be_empty
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
+        { { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 1.0 }
+      )
+      expect(metric_values(registry.get(:kernel_livepatch_transition))).to eq(
+        { { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 0.0 }
+      )
+      expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+        { { component: 'livepatch' } => 0.0 }
       )
     end
   end
@@ -205,7 +395,13 @@ RSpec.describe OsCtl::Exporter::Collectors::KernelProtection do
       write_json(booted, { 'module' => 'livepatch_6', 'patchVersion' => 6, 'kernelNotes' => expected })
       collect
 
-      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to be_empty
+      expect(metric_values(registry.get(:kernel_livepatch_required))).to be_empty
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
+        { { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 1.0 }
+      )
+      expect(metric_values(registry.get(:kernel_livepatch_transition))).to eq(
+        { { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 0.0 }
+      )
       expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
         { { component: 'livepatch' } => 0.0 }
       )
@@ -213,15 +409,19 @@ RSpec.describe OsCtl::Exporter::Collectors::KernelProtection do
   end
 
   it 'does not accept identical legacy notes for a different boot image' do
-    with_livepatch_kernel_configs do |booted, _running, _expected|
+    with_livepatch_kernel_configs do |booted, _running, _expected, sysfs|
       cfg = JSON.parse(File.read(described_class::LIVEPATCH_CONFIG_PATH))
       cfg['kernelImage'] = '/different-kernel-image'
       write_json(described_class::LIVEPATCH_CONFIG_PATH, cfg)
       write_json(booted, { 'module' => 'livepatch_6', 'patchVersion' => 6 })
+      write_livepatch_state(sysfs, 'livepatch_6')
       collect
 
       expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
-        { { module: 'livepatch_6', patch_version: '6' } => 1.0 }
+        {
+          { module: 'livepatch_6', patch_version: '6' } => 1.0,
+          { module: 'livepatch_6_nfs_cancel', patch_version: '' } => 1.0
+        }
       )
     end
   end
@@ -273,6 +473,9 @@ RSpec.describe OsCtl::Exporter::Collectors::KernelProtection do
       expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
         { labels => 1.0 }
       )
+      expect(metric_values(registry.get(:kernel_livepatch_transition))).to eq(
+        { labels => 0.0 }
+      )
       expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
         { { component: 'livepatch' } => 1.0 }
       )
@@ -282,6 +485,59 @@ RSpec.describe OsCtl::Exporter::Collectors::KernelProtection do
 
       expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq(
         { labels => 0.0 }
+      )
+      expect(metric_values(registry.get(:kernel_livepatch_transition))).to eq(
+        { labels => 1.0 }
+      )
+    end
+  end
+
+  it 'reports required modules missing from sysfs as unloaded and stable' do
+    with_livepatch_kernel_configs do |_booted, _running, _expected, sysfs|
+      FileUtils.rm_rf(File.join(sysfs, 'livepatch_6_nfs_cancel'))
+
+      collect
+
+      labels = { module: 'livepatch_6_nfs_cancel', patch_version: '6' }
+      expect(metric_values(registry.get(:kernel_livepatch_required))).to eq({ labels => 1.0 })
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to eq({ labels => 0.0 })
+      expect(metric_values(registry.get(:kernel_livepatch_transition))).to eq({ labels => 0.0 })
+      expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+        { { component: 'livepatch' } => 1.0 }
+      )
+    end
+  end
+
+  it 'fails monitoring without inventing state for invalid sysfs booleans' do
+    with_livepatch_kernel_configs do |_booted, _running, _expected, sysfs|
+      module_dir = File.join(sysfs, 'livepatch_6_nfs_cancel')
+      File.write(File.join(module_dir, 'transition'), "pending\n")
+
+      collect
+
+      labels = { module: 'livepatch_6_nfs_cancel', patch_version: '6' }
+      expect(metric_values(registry.get(:kernel_livepatch_required))).to eq({ labels => 1.0 })
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to be_empty
+      expect(metric_values(registry.get(:kernel_livepatch_transition))).to be_empty
+      expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+        { { component: 'livepatch' } => 0.0 }
+      )
+    end
+  end
+
+  it 'fails monitoring without inventing state for unreadable sysfs entries' do
+    with_livepatch_kernel_configs do |_booted, _running, _expected, sysfs|
+      module_dir = File.join(sysfs, 'livepatch_6_nfs_cancel')
+      File.unlink(File.join(module_dir, 'enabled'))
+
+      collect
+
+      labels = { module: 'livepatch_6_nfs_cancel', patch_version: '6' }
+      expect(metric_values(registry.get(:kernel_livepatch_required))).to eq({ labels => 1.0 })
+      expect(metric_values(registry.get(:kernel_livepatch_loaded))).to be_empty
+      expect(metric_values(registry.get(:kernel_livepatch_transition))).to be_empty
+      expect(metric_values(registry.get(:kernel_protection_monitoring_success))).to eq(
+        { { component: 'livepatch' } => 0.0 }
       )
     end
   end

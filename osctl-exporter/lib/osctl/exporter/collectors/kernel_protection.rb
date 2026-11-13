@@ -39,7 +39,14 @@ module OsCtl::Exporter
         :livepatch_loaded,
         :gauge,
         :kernel_livepatch_loaded,
-        docstring: 'Whether the required kernel livepatch module is enabled',
+        docstring: 'Whether the kernel livepatch module is enabled and stable',
+        labels: %i[module patch_version]
+      )
+      add_metric(
+        :livepatch_transition,
+        :gauge,
+        :kernel_livepatch_transition,
+        docstring: 'Whether the kernel livepatch module is transitioning',
         labels: %i[module patch_version]
       )
       add_metric(
@@ -93,26 +100,60 @@ module OsCtl::Exporter
     end
 
     def collect_livepatch
-      cfg = read_json_config(LIVEPATCH_CONFIG_PATH, 'livepatch')
+      cfg = read_livepatch_config(LIVEPATCH_CONFIG_PATH)
       return if cfg.nil?
 
-      unless livepatch_kernel_matches?(cfg)
-        # An OS switch does not replace the running kernel. The booted
-        # generation retains its matching livepatch requirements and module.
-        cfg = read_json_config(BOOTED_LIVEPATCH_CONFIG_PATH, 'livepatch')
-        raise ProbeError, 'Missing matching booted livepatch configuration' unless cfg && livepatch_kernel_matches?(cfg)
+      metadata_success = true
+      entries = []
+
+      begin
+        unless livepatch_kernel_matches?(cfg)
+          # An OS switch does not replace the running kernel. The booted
+          # generation retains its matching livepatch requirements and module.
+          cfg = read_livepatch_config(BOOTED_LIVEPATCH_CONFIG_PATH)
+          unless cfg && livepatch_kernel_matches?(cfg)
+            raise ProbeError, 'Missing matching booted livepatch configuration'
+          end
+        end
+
+        entries = livepatch_entries(cfg)
+      rescue StandardError
+        metadata_success = false
       end
 
-      labels = {
-        module: cfg.fetch('module'),
-        patch_version: cfg.fetch('patchVersion').to_s
-      }
+      entries.each do |entry|
+        @livepatch_required.set(1, labels: livepatch_labels(entry))
+      end
 
-      @livepatch_required.set(1, labels:)
-      @livepatch_loaded.set(livepatch_loaded?(cfg.fetch('module')) ? 1 : 0, labels:)
-      @monitoring_success.set(1, labels: { component: 'livepatch' })
+      labels_by_module = entries.to_h do |entry|
+        [entry.fetch('module'), livepatch_labels(entry)]
+      end
+      states, sysfs_readable, sysfs_success = livepatch_states
+
+      if sysfs_readable
+        (labels_by_module.keys | states.keys).sort.each do |mod|
+          labels = labels_by_module.fetch(mod, { module: mod, patch_version: '' })
+          state = states[mod]
+          next if states.has_key?(mod) && state.nil?
+
+          state ||= { enabled: false, transition: false }
+          @livepatch_loaded.set(state[:enabled] && !state[:transition] ? 1 : 0, labels:)
+          @livepatch_transition.set(state[:transition] ? 1 : 0, labels:)
+        end
+      end
+
+      success = metadata_success && sysfs_success
+      @monitoring_success.set(success ? 1 : 0, labels: { component: 'livepatch' })
     rescue StandardError
       @monitoring_success.set(0, labels: { component: 'livepatch' })
+    end
+
+    def read_livepatch_config(path)
+      return unless File.file?(path)
+
+      JSON.parse(File.read(path))
+    rescue JSON::ParserError, SystemCallError => e
+      raise ProbeError, e.message
     end
 
     def read_json_config(path, component)
@@ -135,6 +176,51 @@ module OsCtl::Exporter
 
       expected = File.binread(cfg.fetch('kernelNotes'))
       !expected.empty? && expected == File.binread(KERNEL_NOTES_PATH)
+    end
+
+    def livepatch_entries(cfg)
+      entries =
+        if cfg.has_key?('modules')
+          unless cfg['schemaVersion'].is_a?(Integer) && cfg['schemaVersion'] == 2
+            raise ProbeError, 'Unsupported livepatch monitor schema'
+          end
+          unless cfg['modules'].is_a?(Array) && !cfg['modules'].empty?
+            raise ProbeError, 'Invalid livepatch module list'
+          end
+
+          cfg['modules'].each do |entry|
+            unless entry.is_a?(Hash) && entry['patches'].is_a?(Array)
+              raise ProbeError, 'Invalid livepatch module entry'
+            end
+          end
+        else
+          [cfg]
+        end
+
+      modules = entries.map do |entry|
+        raise ProbeError, 'Invalid livepatch module entry' unless entry.is_a?(Hash)
+
+        mod = entry.fetch('module')
+        patch_version = entry.fetch('patchVersion')
+        unless mod.is_a?(String) && !mod.empty? && patch_version.is_a?(Integer) && patch_version > 0
+          raise ProbeError, 'Invalid livepatch module identity'
+        end
+
+        mod
+      end
+
+      raise ProbeError, 'Duplicate livepatch module' unless modules.uniq.length == modules.length
+
+      entries
+    rescue KeyError => e
+      raise ProbeError, e.message
+    end
+
+    def livepatch_labels(entry)
+      {
+        module: entry.fetch('module'),
+        patch_version: entry.fetch('patchVersion').to_s
+      }
     end
 
     def bpf_program_labels(program)
@@ -171,16 +257,36 @@ module OsCtl::Exporter
       raise ProbeError, e.message
     end
 
-    def livepatch_loaded?(mod)
-      mod_dir = File.join(LIVEPATCH_SYSFS, mod)
-      return false unless Dir.exist?(mod_dir)
+    def livepatch_states
+      return [{}, true, true] unless Dir.exist?(LIVEPATCH_SYSFS)
 
-      enabled = File.read(File.join(mod_dir, 'enabled')).strip
-      transition = File.read(File.join(mod_dir, 'transition')).strip
+      success = true
+      states = Dir.children(LIVEPATCH_SYSFS).sort.each_with_object({}) do |entry, ret|
+        mod_dir = File.join(LIVEPATCH_SYSFS, entry)
+        next unless File.directory?(mod_dir)
 
-      enabled == '1' && transition == '0'
+        begin
+          enabled = read_boolean_sysfs(File.join(mod_dir, 'enabled'))
+          transition = read_boolean_sysfs(File.join(mod_dir, 'transition'))
+          ret[entry] = { enabled:, transition: }
+        rescue ProbeError
+          success = false
+          ret[entry] = nil
+        end
+      end
+
+      [states, true, success]
     rescue SystemCallError
-      false
+      [{}, false, false]
+    end
+
+    def read_boolean_sysfs(path)
+      value = File.read(path).strip
+      raise ProbeError, "Invalid boolean value in #{path}" unless %w[0 1].include?(value)
+
+      value == '1'
+    rescue SystemCallError => e
+      raise ProbeError, e.message
     end
   end
 end
