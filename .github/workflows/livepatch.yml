@@ -1,0 +1,205 @@
+name: Generic livepatch qualification
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Discover livepatch qualification
+    runs-on: self-hosted
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      selected-sets: ${{ steps.plan.outputs.selected-sets }}
+      source-revision: ${{ steps.plan.outputs.source-revision }}
+
+    steps:
+      - uses: actions/checkout@v7
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: maintenance.auto
+          GIT_CONFIG_VALUE_0: "false"
+
+      - name: Prepare locked livepatch CI tools
+        run: tools/livepatch/prepare-ci-tools.sh
+
+      - name: Discover a count-closed qualification plan
+        id: plan
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/livepatch-discovery"
+          tools/livepatch/discover.sh \
+            --plan "$RUNNER_TEMP/livepatch-discovery/plan.json" \
+            --matrix "$RUNNER_TEMP/livepatch-discovery/matrix.json"
+          matrix=$(cat "$RUNNER_TEMP/livepatch-discovery/matrix.json")
+          test "${#matrix}" -lt 65536
+          {
+            printf 'matrix=%s\n' "$matrix"
+            printf 'selected-sets=%s\n' "$(jq -er '.selectedSets' "$RUNNER_TEMP/livepatch-discovery/plan.json")"
+            printf 'source-revision=%s\n' "$(jq -er '.sourceRevision' "$RUNNER_TEMP/livepatch-discovery/plan.json")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload the detailed qualification plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/livepatch-discovery
+          if-no-files-found: error
+          retention-days: 30
+
+  capture:
+    name: Build and capture the selected livepatch set
+    if: ${{ needs.discover.outputs.selected-sets != '0' }}
+    needs: discover
+    runs-on: self-hosted
+    outputs:
+      capture-sha256: ${{ steps.capture.outputs.sha256 }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.discover.outputs.source-revision }}
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: maintenance.auto
+          GIT_CONFIG_VALUE_0: "false"
+
+      - name: Prepare locked livepatch CI tools
+        run: tools/livepatch/prepare-ci-tools.sh
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/livepatch-input
+
+      - name: Capture one dynamic producer identity set
+        id: capture
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/livepatch-input/plan.json"
+          test "$(git rev-parse HEAD)" = "$(jq -er '.sourceRevision' "$plan")"
+          mkdir -p "$RUNNER_TEMP/livepatch-capture"
+          tools/livepatch/capture.sh \
+            --plan "$plan" \
+            --output "$RUNNER_TEMP/livepatch-capture/capture.json" \
+            --evidence-dir "$RUNNER_TEMP/livepatch-capture/evidence"
+          tools/livepatch/verify.sh \
+            --plan "$plan" \
+            --capture "$RUNNER_TEMP/livepatch-capture/capture.json" \
+            > "$RUNNER_TEMP/livepatch-capture/verification.json"
+          printf 'sha256=%s\n' \
+            "$(sha256sum "$RUNNER_TEMP/livepatch-capture/capture.json" | cut -d' ' -f1)" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Upload captured modules and realization evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/livepatch-capture
+          if-no-files-found: error
+          retention-days: 30
+
+  qualify:
+    name: Livepatch ${{ matrix.rowId }}
+    if: ${{ needs.discover.outputs.selected-sets != '0' }}
+    continue-on-error: false
+    needs:
+      - discover
+      - capture
+    runs-on:
+      group: vpsAdminOS runners
+      labels: ${{ matrix.runnerClass }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.discover.outputs.source-revision }}
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: maintenance.auto
+          GIT_CONFIG_VALUE_0: "false"
+
+      - name: Prepare locked livepatch CI tools
+        run: tools/livepatch/prepare-ci-tools.sh
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/livepatch-input
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/livepatch-input/capture
+
+      - name: Verify and run the selected stable row
+        id: run
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$(jq -er '.sourceRevision' "$RUNNER_TEMP/livepatch-input/plan.json")"
+          tools/livepatch/run-profile.sh \
+            --plan "$RUNNER_TEMP/livepatch-input/plan.json" \
+            --capture "$RUNNER_TEMP/livepatch-input/capture/capture.json" \
+            --row-id '${{ matrix.rowId }}' \
+            --state-dir "$RUNNER_TEMP/livepatch-profile-${{ matrix.rowId }}"
+
+      - name: Upload the uniform result and retained VM evidence
+        if: ${{ always() && steps.run.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: livepatch-result-${{ matrix.rowId }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/livepatch-profile-${{ matrix.rowId }}
+          if-no-files-found: error
+          retention-days: 30
+
+  results:
+    name: Close livepatch result counts
+    if: ${{ always() && needs.discover.outputs.selected-sets != '0' }}
+    needs:
+      - discover
+      - capture
+      - qualify
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.discover.outputs.source-revision }}
+
+      - name: Prepare locked livepatch CI tools
+        run: tools/livepatch/prepare-ci-tools.sh
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/livepatch-input
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: livepatch-result-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/livepatch-results
+
+      - name: Require one accepted receipt for every planned row
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/livepatch-input/plan.json"
+          tools/livepatch/verify.sh \
+            --plan "$plan" \
+            --results-dir "$RUNNER_TEMP/livepatch-results" \
+            --output "$RUNNER_TEMP/livepatch-results/consolidated.json"
+
+      - name: Upload the count-closed result set
+        uses: actions/upload-artifact@v7
+        with:
+          name: livepatch-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/livepatch-results
+          if-no-files-found: error
+          retention-days: 30
