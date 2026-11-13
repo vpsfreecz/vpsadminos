@@ -21,6 +21,8 @@ self: super: {
     '';
   });
 
+  osctl-rtnl-monitor = super.callPackage ../packages/osctl-rtnl-monitor { };
+
   prometheus-ebpf-exporter = super.callPackage ../packages/prometheus-ebpf-exporter { };
 
   lxc =
