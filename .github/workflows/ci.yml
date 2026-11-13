@@ -59,6 +59,7 @@ on:
   push:
     paths:
       - .github/workflows/ci.yml
+      - .github/workflows/livepatch.yml
       - flake.nix
       - ctstartmenu/**
       - libosctl/**
@@ -74,9 +75,11 @@ on:
       - svctl/**
       - test-runner/**
       - tests/**
+      - tools/livepatch/**
   pull_request:
     paths:
       - .github/workflows/ci.yml
+      - .github/workflows/livepatch.yml
       - flake.nix
       - ctstartmenu/**
       - libosctl/**
@@ -92,8 +95,14 @@ on:
       - svctl/**
       - test-runner/**
       - tests/**
+      - tools/livepatch/**
 
 jobs:
+  livepatch:
+    if: ${{ inputs.test_suite != 'zfs-full' && !inputs.test_pattern }}
+    uses: ./.github/workflows/livepatch.yml
+    secrets: inherit
+
   build:
     name: Build OS and populate binary cache
     runs-on: self-hosted

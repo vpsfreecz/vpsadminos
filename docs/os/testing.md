@@ -337,6 +337,23 @@ Deploying fixed userspace alone does not prove that old saved state is gone.
 Keep focused writer, import, refusal, race and GC unit regressions while their
 behavior is supported. They do not replace the real transition test.
 
+## Numbered livepatch qualification
+
+Numbered kernel livepatch releases use the catalog-driven process in
+[Kernel livepatch release process](livepatches/process.md). Maintainers discover
+one versioned plan, capture the selected target-bound producer once and verify
+that same capture in every consumer. The plan, capture and result contracts
+carry the detailed identity and coverage data; workflow job names and temporary
+artifact paths are not maintainer interfaces.
+
+The stable entry points are `tools/livepatch/discover.sh`,
+`tools/livepatch/capture.sh`, `tools/livepatch/verify.sh` and
+`tools/livepatch/run-profile.sh`. Generic test selection uses
+`kernel/livepatch-batch@<row-id>`, `kernel/livepatch-set@<row-id>` and
+`kernel/livepatch-fix@<row-id>`. The canonical process defines the exact
+commands, required AMD and Intel/KVM profiles, every-fix oracle coverage and
+whole-stack forward/reverse qualification.
+
 ## Current-build livepatch witnesses
 
 Livepatch CI tests the current normal Linux 6.12.95 module. The build job

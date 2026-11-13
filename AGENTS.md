@@ -35,6 +35,10 @@
 - Tests/scripts: snake_case filenames; gem/module names match their directories (`osctl-oomd`, `libosctl`, etc.).
 
 ## Testing Guidelines
+- Before adding or changing a numbered kernel livepatch, read the
+  [canonical release process](docs/os/livepatches/process.md), start target
+  documentation from its [template](docs/os/livepatches/template.md), and
+  follow the [downstream patch-series policy](docs/os/patch-series-policy.md).
 - Before adding, changing or retiring a userspace upgrade test, read the
   [userspace upgrade-test lifecycle policy](docs/os/testing.md#userspace-upgrade-test-lifecycle).
 - Add tests in `tests/suite/*.nix` and register them in `tests/all-tests.nix`; reuse machines from `tests/machines/*.nix` and configs from `tests/configs/`.

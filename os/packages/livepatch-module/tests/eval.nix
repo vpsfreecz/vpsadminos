@@ -147,7 +147,7 @@ let
     // {
       qualification = unit.qualification // {
         requiredGenericProfiles = [
-          "set/vendor-busy-held-transition"
+          "set/vendor-busy-transition"
           "set/vendor-failure-recovery"
           "set/vendor-lifecycle"
         ];
@@ -195,6 +195,8 @@ let
     plan = true;
     producerAttrs."6.12.113.1" = "synthetic-producer";
   };
+  qualificationGenericRows = builtins.filter (row: row.scope == "set") qualificationCoveragePlan.rows;
+  qualificationOracleRows = builtins.filter (row: row.scope == "fix") qualificationCoveragePlan.rows;
   projectCatalog = import ../../../livepatches/batches { inherit lib; };
   normalizedProjectCatalog = livepatchLib.normalizeCatalog {
     inherit builder target;
@@ -1016,6 +1018,16 @@ assert emptyCatalog == [ ];
 assert emptyQualificationPlan.selectedSets == 0;
 assert qualificationPlan.selectedSets == 1;
 assert builtins.length qualificationPlan.releases == 1;
+assert builtins.length qualificationCoveragePlan.rows == 10;
+assert builtins.length qualificationGenericRows == 6;
+assert builtins.length qualificationOracleRows == 4;
+assert qualificationCoveragePlan.counts.coverageTuples == 4;
+assert builtins.all (row: row.oracleIds == [ ]) qualificationGenericRows;
+assert builtins.all (row: row.oracleShard == "none") qualificationGenericRows;
+assert builtins.all (
+  row: row.validator == "builtin/generic-livepatch-safety-v1"
+) qualificationGenericRows;
+assert builtins.all (row: row.oracleIds != [ ]) qualificationOracleRows;
 assert
   (builtins.head qualificationCoveragePlan.sets).oracleIds == [
     "oracle-a"

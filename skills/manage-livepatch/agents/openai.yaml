@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Kernel Livepatch"
+  short_description: "Route vpsAdminOS livepatch maintenance"
+  default_prompt: "Use $manage-livepatch to follow the repository-owned process for creating, qualifying, operating, or retiring a numbered kernel livepatch release."

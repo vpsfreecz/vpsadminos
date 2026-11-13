@@ -104,6 +104,27 @@ let
 
   livepatchTestEnabled = builtins.getEnv "VPSADMINOS_ENABLE_LIVEPATCH_TEST" == "1";
   livepatchOnly = builtins.getEnv "VPSADMINOS_ONLY_LIVEPATCH_TEST" == "1";
+  genericLivepatchEnabled =
+    builtins.getEnv "VPSADMINOS_ENABLE_GENERIC_LIVEPATCH_QUALIFICATION" == "1";
+  genericLivepatchOnly = builtins.getEnv "VPSADMINOS_ONLY_GENERIC_LIVEPATCH_QUALIFICATION" == "1";
+  genericLivepatchPlanPath = builtins.getEnv "VPSADMINOS_LIVEPATCH_PLAN";
+  genericLivepatchPlan =
+    if genericLivepatchEnabled || genericLivepatchOnly then
+      builtins.fromJSON (builtins.readFile genericLivepatchPlanPath)
+    else
+      null;
+  genericLivepatchRows = if genericLivepatchPlan == null then [ ] else genericLivepatchPlan.rows;
+  genericLivepatchTemplates = [
+    "kernel/livepatch-batch"
+    "kernel/livepatch-fix"
+    "kernel/livepatch-set"
+  ];
+  genericLivepatchTests = map (template: {
+    inherit template;
+    instances = map (row: { inherit row; }) (
+      lib.filter (row: row.template == template) genericLivepatchRows
+    );
+  }) genericLivepatchTemplates;
   nfsTransitionTestEnabled =
     livepatchTestEnabled || builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE" != "";
   sctpHostileTestEnabled = nfsTransitionTestEnabled;
@@ -142,7 +163,9 @@ let
   localOnlyTests = lib.unique (schedProxyExecTests ++ schedProxyExecLockBadneighborTests);
 
   selectedTests =
-    if livepatchOnly then
+    if genericLivepatchOnly then
+      genericLivepatchTests
+    else if livepatchOnly then
       livepatchTests ++ nfsTransitionTests ++ sctpHostileTests
     else if schedProxyExecOnly || schedProxyExecLockBadneighborOnly then
       localOnlyTests
@@ -316,6 +339,7 @@ let
         ]
         ++ localOnlyTests
         ++ livepatchTests
+        ++ genericLivepatchTests
         ++ nfsTransitionTests
         ++ sctpHostileTests
       );
