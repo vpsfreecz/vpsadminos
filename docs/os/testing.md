@@ -354,44 +354,6 @@ The stable entry points are `tools/livepatch/discover.sh`,
 commands, required AMD and Intel/KVM profiles, every-fix oracle coverage and
 whole-stack forward/reverse qualification.
 
-## Current-build livepatch witnesses
-
-Livepatch CI tests the current normal Linux 6.12.95 module. The build job
-records the selected producer, source/input identity and module SHA-256 once.
-Every dependent row and guest checks that it received those bytes. These
-checksum comparisons detect a different or corrupted module; they do not
-establish deployment qualification. Released v5/v6 predecessors must still
-match their exact archived bytes. The boot kernel retains its separate image,
-notes, configuration and symbol-compatibility checks.
-
-Precise probes use a small set of sites resolved from that module's ELF
-symbols, livepatch relocations, inline DWARF and instructions. The site record
-is bound to the selected module digest. Missing or ambiguous sites, unsupported
-instruction/register widths and unsafe hold frames fail the affected test
-before it installs a probe. The test reports the failed constraint instead of
-skipping the witness or using an unchecked offset. Fixed boot offsets and
-structure member layouts have their own identity and ABI checks.
-
-FUSE holds the original finish helper at a validated entry boundary, after the
-selected caller unlocks its request and before the helper changes its copy
-state. Only the selected `fuse_ref_page` call's return address can count or
-acquire the hold. The test checks that the reliable unwinder can still see the
-original caller. An interior instruction cannot use an entry hold without
-satisfying its frame contract.
-
-The TCP witness observes the completed MTU size calculation in the current
-`tcp_mtu_probe` inline context. It requires the intended sender's wrapped
-reordering value, a positive MSS and a result greater than `UINT_MAX`, with
-nonzero observations and no missed events. The transfer also waits for the
-receiver's EOF and successful exit, then checks the exact length and contents
-of its 8 MiB payload. The arithmetic observation and receiver checks must both
-pass; a successful send alone satisfies neither requirement.
-
-These checks retain the existing callback counts, workload profiles, health
-checks, transition deadlines and failure recovery rules. A passing run applies
-to its recorded module and boot identities; it does not lift quarantine or
-permit a forced transition reversal.
-
 ## Stable-kernel NFS cancellation CI
 
 The `osctl/nfs-cancellation` test is part of the ordinary `ci` selector. It

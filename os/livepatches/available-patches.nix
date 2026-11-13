@@ -9,20 +9,6 @@ let
 
   availablePatches = [
     {
-      name = "bp-6.12.95-production";
-      buildPatches = [
-        "bp-6.12.95-production"
-        "bp-6.12.95-uname"
-      ];
-      filterFn = availableFor "6.12.95";
-      version = 7;
-      # No explicit `targets` list on purpose: kpatch-build then uses its
-      # default set (vmlinux + all modules), the only provably complete
-      # target set for the v7 payload (header fanout into other modules
-      # cannot be bounded by a list).  Matches the reviewed recut wiring;
-      # see the execution record sections 33-35.
-    }
-    {
       name = "bp-6.12.48-6.12.89-cumulative";
       filterFn = availableForRange "6.12.48" "6.12.89";
       version = 1;

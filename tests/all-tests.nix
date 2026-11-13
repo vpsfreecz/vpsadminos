@@ -30,63 +30,7 @@ let
 
   # Keep this list limited to kernels still running in the fleet. Repository
   # retention alone does not mean that a kernel needs current lifecycle CI.
-  livepatchLifecycleInstances = [
-    {
-      kernelVersion = "6.12.95";
-      predecessorVariant = "v5";
-    }
-    {
-      kernelVersion = "6.12.95";
-      predecessorVariant = "v6";
-    }
-    { kernelVersion = "6.12.110"; }
-  ];
-
-  livepatchQualificationInstances =
-    lib.concatMap
-      (
-        shape:
-        map (predecessor: shape // { inherit predecessor; }) [
-          "v5"
-          "v6"
-        ]
-      )
-      [
-        {
-          vendor = "amd";
-          profile = "scale-aged";
-        }
-        {
-          vendor = "amd";
-          profile = "low-memory";
-        }
-        {
-          vendor = "intel";
-          profile = "representative";
-        }
-        {
-          vendor = "amd";
-          profile = "retention";
-        }
-        {
-          vendor = "intel";
-          profile = "retention";
-        }
-      ]
-    ++
-      lib.concatMap
-        (
-          predecessor:
-          map (iteration: {
-            vendor = "amd";
-            profile = "fresh";
-            inherit predecessor iteration;
-          }) (lib.range 1 10)
-        )
-        [
-          "v5"
-          "v6"
-        ];
+  livepatchLifecycleInstances = [ { kernelVersion = "6.12.110"; } ];
 
   imageScripts =
     let
@@ -102,8 +46,6 @@ let
     in
     scriptsList;
 
-  livepatchTestEnabled = builtins.getEnv "VPSADMINOS_ENABLE_LIVEPATCH_TEST" == "1";
-  livepatchOnly = builtins.getEnv "VPSADMINOS_ONLY_LIVEPATCH_TEST" == "1";
   genericLivepatchEnabled =
     builtins.getEnv "VPSADMINOS_ENABLE_GENERIC_LIVEPATCH_QUALIFICATION" == "1";
   genericLivepatchOnly = builtins.getEnv "VPSADMINOS_ONLY_GENERIC_LIVEPATCH_QUALIFICATION" == "1";
@@ -125,9 +67,6 @@ let
       lib.filter (row: row.template == template) genericLivepatchRows
     );
   }) genericLivepatchTemplates;
-  nfsTransitionTestEnabled =
-    livepatchTestEnabled || builtins.getEnv "VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE" != "";
-  sctpHostileTestEnabled = nfsTransitionTestEnabled;
   schedProxyExecEnabled = builtins.getEnv "VPSADMINOS_ENABLE_SCHED_PROXY_EXEC_TEST" == "1";
   schedProxyExecOnly = builtins.getEnv "VPSADMINOS_ONLY_SCHED_PROXY_EXEC_TEST" == "1";
   schedProxyExecLockBadneighborEnabled =
@@ -142,31 +81,11 @@ let
       [ "kernel/sched-proxy-exec-lock-badneighbor" ]
     else
       [ ];
-  livepatchTests =
-    if livepatchTestEnabled then
-      [
-        "kernel/livepatch-6.12.95"
-        "kernel/livepatch-perf-v7"
-        "kernel/livepatch-tun-intel"
-        "kernel/livepatch-sctp-baseline"
-        "kernel/livepatch-inet-frag"
-        {
-          template = "kernel/livepatch-qualification";
-          instances = livepatchQualificationInstances;
-        }
-      ]
-    else
-      [ ];
-  nfsTransitionTests =
-    if nfsTransitionTestEnabled then [ "kernel/livepatch-nfs-transition" ] else [ ];
-  sctpHostileTests = if sctpHostileTestEnabled then [ "kernel/livepatch-sctp-hostile" ] else [ ];
   localOnlyTests = lib.unique (schedProxyExecTests ++ schedProxyExecLockBadneighborTests);
 
   selectedTests =
     if genericLivepatchOnly then
       genericLivepatchTests
-    else if livepatchOnly then
-      livepatchTests ++ nfsTransitionTests ++ sctpHostileTests
     else if schedProxyExecOnly || schedProxyExecLockBadneighborOnly then
       localOnlyTests
     else
@@ -262,7 +181,6 @@ let
             instances = livepatchLifecycleInstances;
           }
           "kernel/vpsadminos"
-          "kernel/livepatch-kernel-identity"
           "kernel/module-autoload"
           "kernel/cpu-view/cgroups-v1"
           "kernel/cpu-view/cgroups-v2"
@@ -338,10 +256,7 @@ let
           "zfs/ugidmap"
         ]
         ++ localOnlyTests
-        ++ livepatchTests
         ++ genericLivepatchTests
-        ++ nfsTransitionTests
-        ++ sctpHostileTests
       );
 in
 testLib.makeTests selectedTests

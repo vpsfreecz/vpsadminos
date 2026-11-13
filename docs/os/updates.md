@@ -157,6 +157,13 @@ container/pool label is unchanged between normal container starts.
 
 ## Kernel livepatch coverage
 
-Livepatch availability and vulnerability coverage are specific to the boot
-kernel. See [Linux 6.12.95 livepatch coverage](livepatches/6.12.95.md) for the
-currently maintained livepatch line.
+Livepatch availability and vulnerability coverage are specific to the exact
+boot kernel. Follow the [kernel livepatch release process](livepatches/process.md)
+and the target kernel's release page before activation.
+
+The former Linux 6.12.95 livepatch line is no longer built or managed by
+current configurations. Removing its source support does not unload a module
+that is already active. Keep its raw sysfs state visible, fail over or fence the
+host when required, and reboot into approved native code. Do not force-disable
+or remove the module. Retained system generations and store closures remain
+available for recovery.

@@ -25,22 +25,7 @@ let
 
   buildEnable = (patchVersion > 0) && cfg.enable;
 
-  # Boot ABI bytes are frozen separately from their producing recipe: a
-  # clean kernel rebuild generates a different signing certificate/build ID.
-  # The helper pins binary/toolchain inputs; it selects no new boot line.
-  # This lock belongs only to .95. Other supported kernels must retain their
-  # own development/configuration outputs and ordinary build toolchain.
-  useFrozenBootInputs = config.boot.kernelVersion == "6.12.95";
-  bootInputs = import ../../../packages/linux/boot-6.12.95.nix;
-  bootToolchain = bootInputs.toolchain;
-  kernel =
-    config.boot.kernelPackage
-    // optionalAttrs useFrozenBootInputs {
-      dev = bootInputs.kernel.dev.outPath;
-      configfile = {
-        outPath = bootInputs.kernel.configfile.outPath;
-      };
-    };
+  kernel = config.boot.kernelPackage;
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) { };
 
   livepatchLib = import ../../../livepatches/lib.nix { inherit lib; };
@@ -298,7 +283,7 @@ let
         ; # we dont get a newline between this and the next line; wtf
                 # actual command
                 #export ARCH_KCFLAGS="-gz=none"
-                if ! ${optionalString useFrozenBootInputs ''PATH="${bootToolchain}/bin:$PATH" ''}$kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
+                if ! $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
       + concatMapStrings (target: "-t ${escapeShellArg target} ") availablePatchTargets
       + concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList
       + ''
