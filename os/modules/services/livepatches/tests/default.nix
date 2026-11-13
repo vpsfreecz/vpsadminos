@@ -517,7 +517,11 @@ let
     }).config;
   emptyConfig = evalService { };
   nonTargetConfig = evalService { livepatchTest = syntheticLivepatchTest; };
-  legacyConfig = evalService {
+  aggregateConfig = evalService {
+    kernelVersion = "6.12.48";
+    livepatchTest = syntheticLivepatchTest;
+  };
+  retiredConfig = evalService {
     kernelVersion = "6.12.95";
     livepatchTest = syntheticLivepatchTest;
   };
@@ -597,16 +601,22 @@ assert !(nonTargetConfig.system.build ? livePatchManager);
 assert !(nonTargetConfig.environment.etc ? "vpsadminos/livepatch-monitor.json");
 assert nonTargetConfig.runit.services.live-patches.run == "sleep inf";
 assert nonTargetConfig.runit.services.live-patches.finish == "";
-assert !(legacyConfig.system.build ? livePatchModules);
-assert !(legacyConfig.system.build ? livePatchManager);
-assert legacyConfig.system.build ? livePatches;
-assert legacyConfig.runit.services.live-patches.run == "live-patches load && sleep inf";
-assert legacyConfig.runit.services.live-patches.finish == "live-patches unload";
+assert !(aggregateConfig.system.build ? livePatchModules);
+assert !(aggregateConfig.system.build ? livePatchManager);
+assert aggregateConfig.system.build ? livePatches;
+assert aggregateConfig.runit.services.live-patches.run == "live-patches load && sleep inf";
+assert aggregateConfig.runit.services.live-patches.finish == "live-patches unload";
 assert
   (builtins.fromJSON (
     builtins.unsafeDiscardStringContext
-      legacyConfig.environment.etc."vpsadminos/livepatch-monitor.json".text
+      aggregateConfig.environment.etc."vpsadminos/livepatch-monitor.json".text
   )).module != moduleName;
+assert !(retiredConfig.system.build ? livePatchModules);
+assert !(retiredConfig.system.build ? livePatchManager);
+assert !(retiredConfig.system.build ? livePatches);
+assert !(retiredConfig.environment.etc ? "vpsadminos/livepatch-monitor.json");
+assert retiredConfig.runit.services.live-patches.run == "sleep inf";
+assert retiredConfig.runit.services.live-patches.finish == "";
 assert genericConfig.runit.services.live-patches.run == "sleep inf";
 assert genericConfig.runit.services.live-patches.finish == "";
 assert genericConfig.environment.etc."vpsadminos/livepatch-monitor.json".text != "";

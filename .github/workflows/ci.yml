@@ -107,13 +107,6 @@ jobs:
     name: Build OS and populate binary cache
     runs-on: self-hosted
     timeout-minutes: 480
-    outputs:
-      livepatch_producer: ${{ steps.livepatch.outputs.producer }}
-      livepatch_module: ${{ steps.livepatch.outputs.module }}
-      livepatch_sha256: ${{ steps.livepatch.outputs.sha256 }}
-      livepatch_sites: ${{ steps.livepatch.outputs.sites }}
-      livepatch_source: ${{ steps.livepatch.outputs.source }}
-      livepatch_inputs: ${{ steps.livepatch.outputs.inputs }}
 
     steps:
       - uses: actions/checkout@v7
@@ -153,54 +146,14 @@ jobs:
         run: |
           make OUTPUT=ci-toplevel toplevel
           build_out=$(readlink -e os/result/toplevel)
-          livepatch_out=$(readlink -e "$build_out/livepatch-6.12.95")
           echo "BUILD_OUT=$build_out" >> "$GITHUB_ENV"
-          echo "LIVEPATCH_BUILD_OUT=$livepatch_out" >> "$GITHUB_ENV"
-
-      - name: Capture current livepatch identity and probe sites
-        id: livepatch
-        if: ${{ inputs.test_suite != 'zfs-full' && !inputs.test_pattern }}
-        run: |
-          set -euo pipefail
-          producer=$(nix eval --impure --raw --expr \
-            'toString (import ./tests/fixtures/livepatch {}).candidateProducer')
-          test "$producer" = "$LIVEPATCH_BUILD_OUT"
-          module=$(readlink -e "$producer/lib/modules/6.12.95/extra/livepatch_7.ko")
-          test "$module" = "$producer/lib/modules/6.12.95/extra/livepatch_7.ko"
-          sha256=$(sha256sum "$module" | cut -d' ' -f1)
-          sites=$(nix-build tests/fixtures/livepatch -A candidateSites \
-            --out-link "$RUNNER_TEMP/livepatch-sites-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}")
-          site_sha256=$(nix eval --impure --raw --expr \
-            "let s = builtins.fromJSON (builtins.readFile $sites/sites.json); in assert s.schema_version == 1; s.module_sha256")
-          test "$site_sha256" = "$sha256"
-          source=$(git rev-parse HEAD)
-          inputs=$(sha256sum flake.lock | cut -d' ' -f1)
-          printf 'Source: %s\nInput lock SHA256: %s\nProducer: %s\nModule: %s\nModule SHA256: %s\nProbe sites: %s\n' \
-            "$source" "$inputs" "$producer" "$module" "$sha256" "$sites"
-          {
-            printf 'producer=%s\nmodule=%s\nsha256=%s\nsites=%s\nsource=%s\ninputs=%s\n' \
-              "$producer" "$module" "$sha256" "$sites" "$source" "$inputs"
-          } >> "$GITHUB_OUTPUT"
-          printf 'LIVEPATCH_SITES_OUT=%s\n' "$sites" >> "$GITHUB_ENV"
-
-      - name: Upload production livepatch package
-        uses: actions/upload-artifact@v7
-        with:
-          name: production-livepatch-6.12.95-${{ github.run_id }}
-          path: ${{ env.LIVEPATCH_BUILD_OUT }}/
-          include-hidden-files: true
-          if-no-files-found: error
 
       - name: Copy toplevel closure to binary cache
         env:
           VPSADMINOS_CACHE_SSH_KEY: ${{ secrets.VPSADMINOS_CACHE_SSH_KEY }}
         run: |
           install -m 600 -D <(echo "$VPSADMINOS_CACHE_SSH_KEY") .ssh/cache_id
-          closures=("$BUILD_OUT")
-          if [[ -n "${LIVEPATCH_SITES_OUT:-}" ]]; then
-            closures+=("$LIVEPATCH_SITES_OUT")
-          fi
-          NIX_SSHOPTS="-i .ssh/cache_id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" nix-copy-closure --to push@cache.int.vpsadminos.org "${closures[@]}"
+          NIX_SSHOPTS="-i .ssh/cache_id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" nix-copy-closure --to push@cache.int.vpsadminos.org "$BUILD_OUT"
 
       - name: Add new profile generation
         env:
@@ -211,15 +164,6 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               push@cache.int.vpsadminos.org \
               sudo push-ci-generation "$BRANCH" "$BUILD_OUT"
-          if [[ -n "${LIVEPATCH_SITES_OUT:-}" ]]; then
-            # The sites are outside the toplevel closure. Retain the captured
-            # output in its own branch profile under the normal cache GC policy.
-            ssh -i .ssh/cache_id \
-                -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null \
-                push@cache.int.vpsadminos.org \
-                sudo push-ci-generation "$BRANCH-livepatch-sites" "$LIVEPATCH_SITES_OUT"
-          fi
 
   test:
     name: Run test suite
@@ -227,8 +171,7 @@ jobs:
     runs-on: self-hosted
     # Full ZTS takes about ten hours, plus closure construction. Leave time
     # for artifact upload before the job's 24-hour GITHUB_TOKEN lifetime.
-    # An unfiltered ci-unstable run can still be making progress after 3.5 hours;
-    # ordinary full CI also needs cold livepatch builds and the NFS guests.
+    # An unfiltered ci-unstable run can still be making progress after 3.5 hours.
     # Keep focused selectors at their original four-hour limit.
     timeout-minutes: ${{ inputs.test_suite == 'zfs-full' && 1380 || (inputs.test_suite == 'ci-unstable' && !inputs.test_pattern) && 420 || ((inputs.test_suite || 'ci') == 'ci' && !inputs.test_pattern) && 360 || 240 }}
 
@@ -392,202 +335,6 @@ jobs:
           always() &&
           ((!inputs.test_pattern && inputs.test_suite != 'zfs-full' && inputs.test_suite != 'ci-unstable') ||
           steps.upload-test-logs.outcome == 'success')
-        uses: ./.github/actions/cleanup-test-state
-        with:
-          state-directory: ${{ steps.prepare-tests.outputs.state-directory }}
-          prepare-outcome: ${{ steps.prepare-tests.outcome }}
-          test-outcome: ${{ steps.run-tests.outcome }}
-          upload-outcome: ${{ steps.upload-test-logs.outcome }}
-
-  livepatch-lifecycle:
-    name: Livepatch lifecycle (${{ matrix.label }})
-    # Whole CI retains these jobs; ZTS-only/focused runs do not repeat them.
-    if: ${{ inputs.test_suite != 'zfs-full' && !inputs.test_pattern }}
-    needs: build
-    runs-on:
-      group: vpsAdminOS runners
-      labels: "${{ matrix.runner }}"
-    timeout-minutes: 360
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd
-            tag: livepatch-amd
-          - vendor: intel
-            runner: intel-kvm
-            label: intel
-            tag: livepatch-intel
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-fresh
-            tag: livepatch-qualification-amd-fresh
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-scale-aged-v5
-            tag: livepatch-qualification-amd-scale-aged-v5
-            large: true
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-scale-aged-v6
-            tag: livepatch-qualification-amd-scale-aged-v6
-            large: true
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-low-memory-v5
-            tag: livepatch-qualification-amd-low-memory-v5
-          - vendor: amd
-            runner: amd-livepatch
-            label: amd-low-memory-v6
-            tag: livepatch-qualification-amd-low-memory-v6
-          - vendor: intel
-            runner: intel-kvm
-            label: intel-representative-v5
-            tag: livepatch-qualification-intel-representative-v5
-          - vendor: intel
-            runner: intel-kvm
-            label: intel-representative-v6
-            tag: livepatch-qualification-intel-representative-v6
-
-    steps:
-      - uses: actions/checkout@v7
-        # Keep checkout's fetch from starting a background repack.
-        env:
-          GIT_CONFIG_COUNT: "1"
-          GIT_CONFIG_KEY_0: maintenance.auto
-          GIT_CONFIG_VALUE_0: "false"
-
-      - name: Prepare test state
-        id: prepare-tests
-        uses: ./.github/actions/prepare-test-state
-
-      - name: Run livepatch lifecycle tests
-        id: run-tests
-        # Include main/security checks on AMD and perf on both vendors, using
-        # the existing tag selectors. Keep ten minutes for logs and cleanup.
-        timeout-minutes: 350
-        env:
-          VPSADMINOS_ENABLE_LIVEPATCH_TEST: "1"
-          CAPTURED_PRODUCER: ${{ needs.build.outputs.livepatch_producer }}
-          CAPTURED_MODULE: ${{ needs.build.outputs.livepatch_module }}
-          CAPTURED_SHA256: ${{ needs.build.outputs.livepatch_sha256 }}
-          CAPTURED_SITES: ${{ needs.build.outputs.livepatch_sites }}
-          CAPTURED_SOURCE: ${{ needs.build.outputs.livepatch_source }}
-          CAPTURED_INPUTS: ${{ needs.build.outputs.livepatch_inputs }}
-        run: |
-          set -euo pipefail
-
-          # Every row uses the normal producer captured by the build job.
-          # Hashes bind that selected build and its transfers, not an allowlist.
-          unset VPSADMINOS_LIVEPATCH_SINGLE_SERIES_MODULE \
-            VPSADMINOS_LIVEPATCH_MODULE_NAME VPSADMINOS_LIVEPATCH_EXAMPLE_FILTER \
-            VPSADMINOS_ONLY_LIVEPATCH_TEST
-          [[ "$CAPTURED_SHA256" =~ ^[0-9a-f]{64}$ ]]
-          test "$(git rev-parse HEAD)" = "$CAPTURED_SOURCE"
-          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$CAPTURED_INPUTS"
-          producer=$(nix eval --impure --raw --expr \
-            'toString (import ./tests/fixtures/livepatch {}).candidateProducer')
-          test "$producer" = "$CAPTURED_PRODUCER"
-          nix-store --realise "$CAPTURED_PRODUCER" "$CAPTURED_SITES" > /dev/null
-          module=$(readlink -e "$producer/lib/modules/6.12.95/extra/livepatch_7.ko")
-          test "$module" = "$CAPTURED_MODULE"
-          actual_sha256=$(sha256sum "$module" | cut -d' ' -f1)
-          if [[ "$actual_sha256" != "$CAPTURED_SHA256" ]]; then
-            printf 'Livepatch digest mismatch: expected %s, got %s (%s)\n' \
-              "$CAPTURED_SHA256" "$actual_sha256" "$module" >&2
-            exit 1
-          fi
-          site_sha256=$(nix eval --impure --raw --expr \
-            "let s = builtins.fromJSON (builtins.readFile $CAPTURED_SITES/sites.json); in assert s.schema_version == 1; s.module_sha256")
-          test "$site_sha256" = "$CAPTURED_SHA256"
-          printf 'Producer: %s\nModule: %s\nSHA256: %s\nSites: %s\nSource: %s\nInputs: %s\n' \
-            "$producer" "$module" "$CAPTURED_SHA256" "$CAPTURED_SITES" \
-            "$CAPTURED_SOURCE" "$CAPTURED_INPUTS" \
-            | tee "$TEST_RUNNER_STATE_DIR/livepatch-identity.txt"
-          printf '%s\n' "$CAPTURED_SHA256" > "$TEST_RUNNER_STATE_DIR/livepatch-corrected-sha256.txt"
-          cp "$CAPTURED_SITES/sites.json" "$TEST_RUNNER_STATE_DIR/livepatch-sites.json"
-          export VPSADMINOS_LIVEPATCH_CORRECTED_SHA256="$CAPTURED_SHA256"
-          export VPSADMINOS_LIVEPATCH_CORRECTED_SITES="$CAPTURED_SITES"
-          nix-build tests/fixtures/livepatch -A corrected \
-            --out-link "$TEST_RUNNER_STATE_DIR/livepatch-corrected" \
-            > "$TEST_RUNNER_STATE_DIR/livepatch-corrected-path.txt"
-          test "$(readlink -e "$(cat "$TEST_RUNNER_STATE_DIR/livepatch-corrected-path.txt")")" = "$module"
-          nix-build tests/fixtures/livepatch -A releasedV5 \
-            --out-link "$TEST_RUNNER_STATE_DIR/livepatch-released-v5" \
-            > "$TEST_RUNNER_STATE_DIR/livepatch-released-v5-path.txt"
-          nix-build tests/fixtures/livepatch -A shippedV6 \
-            --out-link "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6" \
-            > "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6-path.txt"
-          export VPSADMINOS_LIVEPATCH_CORRECTED_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-corrected-path.txt")"
-          export VPSADMINOS_LIVEPATCH_RELEASED_V5_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-released-v5-path.txt")"
-          export VPSADMINOS_LIVEPATCH_PREDECESSOR_MODULE="$(cat "$TEST_RUNNER_STATE_DIR/livepatch-predecessor-v6-path.txt")"
-
-          args=(
-            test
-            --state-dir "$TEST_RUNNER_STATE_DIR"
-            --fresh
-            --jobs 1
-            --tag "${{ matrix.tag }}"
-          )
-
-          if [[ "${{ matrix.large || false }}" == "true" ]]; then
-            # Step 25 requires 128 *guest* vCPUs. Admit one such VM using
-            # the normal runner's CPU-only oversubscription option. Keep
-            # memory admission unchanged; never pretend these are 128
-            # physical host CPUs or lower the guest/task requirements.
-            host_cpus=$(nproc)
-            cpu_factor=$(((128 + host_cpus - 1) / host_cpus))
-            printf '128 guest vCPUs on %s host-visible CPUs; factor=%s\n' \
-              "$host_cpus" "$cpu_factor"
-            args+=(--max-cpus 128 --cpu-overcommit "$cpu_factor")
-          fi
-
-          if [[ "$TEST_RUNNER_PREBUILD" == "true" ]]; then
-            args+=(--prebuild)
-          else
-            args+=(--no-prebuild)
-          fi
-
-          ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"
-
-      # Keep producer module checksums available even when every case passes.
-      - name: Upload full test logs
-        id: upload-test-logs
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/upload-test-logs
-        with:
-          name: os-test-logs-${{ github.run_id }}-${{ github.run_attempt }}-livepatch-${{ matrix.label }}
-          paths: |
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
-            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
-            ${{ steps.prepare-tests.outputs.state-directory }}/livepatch-sites.json
-
-      - name: Evaluate test results
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/evaluate-test-results
-        with:
-          log-file: ${{ steps.prepare-tests.outputs.state-directory }}/test.log
-
-      - name: Summarise test logs
-        if: >-
-          always() &&
-          steps.prepare-tests.outcome == 'success' &&
-          steps.run-tests.outcome != 'skipped'
-        uses: ./.github/actions/summarise-test-logs
-        with:
-          logs-root: ${{ steps.prepare-tests.outputs.state-directory }}
-
-      - name: Cleanup test state
-        if: always()
         uses: ./.github/actions/cleanup-test-state
         with:
           state-directory: ${{ steps.prepare-tests.outputs.state-directory }}

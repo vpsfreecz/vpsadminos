@@ -7,9 +7,8 @@
 let
   # Native 6.12.110 continuity tests boot the reviewed .110 candidate itself.
   # The pins mirror os/packages/linux/available-kernels.nix ("6.12.110" entry),
-  # and the shape mirrors the 6.12.95 boot-base config: the same-version safety
-  # net that a later staging pin could change is replaced by the exact reviewed
-  # source/ZFS revisions.
+  # replacing a moving same-version package selection with the exact reviewed
+  # source and ZFS revisions.
   mkKernel =
     zfsBuiltinPkg:
     pkgs.callPackage ../../../os/packages/linux {
