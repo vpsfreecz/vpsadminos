@@ -1,0 +1,170 @@
+diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
+--- a/kernel/bpf/core.c
++++ b/kernel/bpf/core.c
+@@ -40,0 +41,7 @@
++#include <linux/build_bug.h>
++#include <linux/errno.h>
++#include <linux/livepatch.h>
++#include <linux/string.h>
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch-build.h>
++#include "kpatch-macros.h"
+@@ -3237,0 +3245,158 @@
++
++#ifndef VPSADMINOS_LIVEPATCH_UNAME_BASE_RELEASE
++#error "missing vpsAdminOS livepatch uname base release"
++#endif
++#ifndef VPSADMINOS_LIVEPATCH_UNAME_RELEASE_ORDINAL
++#error "missing vpsAdminOS livepatch uname release ordinal"
++#endif
++#ifndef VPSADMINOS_LIVEPATCH_UNAME_PREDECESSOR_ORDINAL
++#error "missing vpsAdminOS livepatch uname predecessor ordinal"
++#endif
++#ifndef VPSADMINOS_LIVEPATCH_UNAME_STATE_ID
++#error "missing vpsAdminOS livepatch uname state ID"
++#endif
++#ifndef VPSADMINOS_LIVEPATCH_UNAME_STATE_VERSION
++#error "missing vpsAdminOS livepatch uname state version"
++#endif
++
++/*
++ * Release ordinals form a separate additive lineage.  State version describes
++ * this callback/data protocol, not the user-visible release level.
++ */
++#define VPSADMINOS_UNAME_LEVEL_STATE_ID		0x48573a1786d6fe85UL
++#define VPSADMINOS_UNAME_LEVEL_STATE_VERSION	1U
++
++#define __VPSADMINOS_UNAME_LEVEL_STRINGIFY(value)	#value
++#define VPSADMINOS_UNAME_LEVEL_STRINGIFY(value) \
++	__VPSADMINOS_UNAME_LEVEL_STRINGIFY(value)
++#define __VPSADMINOS_UNAME_LEVEL_SYMBOL(level, suffix) \
++	vpsadminos_uname_level_p##level##suffix
++#define _VPSADMINOS_UNAME_LEVEL_SYMBOL(level, suffix) \
++	__VPSADMINOS_UNAME_LEVEL_SYMBOL(level, suffix)
++#define VPSADMINOS_UNAME_FN(suffix) \
++	_VPSADMINOS_UNAME_LEVEL_SYMBOL( \
++		VPSADMINOS_LIVEPATCH_UNAME_RELEASE_ORDINAL, suffix)
++
++#define VPSADMINOS_UNAME_PUBLISHED_RELEASE \
++	VPSADMINOS_LIVEPATCH_UNAME_BASE_RELEASE "." \
++	VPSADMINOS_UNAME_LEVEL_STRINGIFY( \
++		VPSADMINOS_LIVEPATCH_UNAME_RELEASE_ORDINAL)
++
++#if VPSADMINOS_LIVEPATCH_UNAME_PREDECESSOR_ORDINAL == 0
++#define VPSADMINOS_UNAME_ROLLBACK_RELEASE \
++	VPSADMINOS_LIVEPATCH_UNAME_BASE_RELEASE
++#else
++#define VPSADMINOS_UNAME_ROLLBACK_RELEASE \
++	VPSADMINOS_LIVEPATCH_UNAME_BASE_RELEASE "." \
++	VPSADMINOS_UNAME_LEVEL_STRINGIFY( \
++		VPSADMINOS_LIVEPATCH_UNAME_PREDECESSOR_ORDINAL)
++#endif
++
++static_assert(VPSADMINOS_LIVEPATCH_UNAME_STATE_ID ==
++	      VPSADMINOS_UNAME_LEVEL_STATE_ID);
++static_assert(VPSADMINOS_LIVEPATCH_UNAME_STATE_VERSION ==
++	      VPSADMINOS_UNAME_LEVEL_STATE_VERSION);
++static_assert(VPSADMINOS_LIVEPATCH_UNAME_RELEASE_ORDINAL > 0);
++static_assert(VPSADMINOS_LIVEPATCH_UNAME_PREDECESSOR_ORDINAL + 1 ==
++	      VPSADMINOS_LIVEPATCH_UNAME_RELEASE_ORDINAL);
++static_assert((unsigned long)VPSADMINOS_LIVEPATCH_UNAME_RELEASE_ORDINAL ==
++	      VPSADMINOS_LIVEPATCH_UNAME_RELEASE_ORDINAL);
++static_assert((unsigned long)VPSADMINOS_LIVEPATCH_UNAME_PREDECESSOR_ORDINAL ==
++	      VPSADMINOS_LIVEPATCH_UNAME_PREDECESSOR_ORDINAL);
++static_assert(sizeof(VPSADMINOS_UNAME_PUBLISHED_RELEASE) <=
++	      __NEW_UTS_LEN + 1);
++static_assert(sizeof(VPSADMINOS_UNAME_ROLLBACK_RELEASE) <=
++	      __NEW_UTS_LEN + 1);
++
++static struct klp_state VPSADMINOS_UNAME_FN(_state)
++__section(".kpatch.system_states") __used
++__aligned(__alignof__(struct klp_state)) = {
++	.id = VPSADMINOS_UNAME_LEVEL_STATE_ID,
++	.version = VPSADMINOS_UNAME_LEVEL_STATE_VERSION,
++	.data = NULL,
++};
++
++static bool VPSADMINOS_UNAME_FN(_release_matches)(const char *expected)
++{
++	bool matches;
++
++	down_read(&uts_sem);
++	matches = !strcmp(init_uts_ns.name.release, expected);
++	up_read(&uts_sem);
++
++	return matches;
++}
++
++static bool VPSADMINOS_UNAME_FN(_predecessor_matches)(void)
++{
++	struct klp_state *prev_state;
++
++	prev_state = klp_get_prev_state(VPSADMINOS_UNAME_LEVEL_STATE_ID);
++#if VPSADMINOS_LIVEPATCH_UNAME_PREDECESSOR_ORDINAL == 0
++	return !prev_state;
++#else
++	return prev_state &&
++	       prev_state->version == VPSADMINOS_UNAME_LEVEL_STATE_VERSION &&
++	       (unsigned long)READ_ONCE(prev_state->data) ==
++		VPSADMINOS_LIVEPATCH_UNAME_PREDECESSOR_ORDINAL;
++#endif
++}
++
++static void VPSADMINOS_UNAME_FN(_publish)(const char *release, void *state_data)
++{
++	bool changed;
++
++	down_write(&uts_sem);
++	changed = strcmp(init_uts_ns.name.release, release);
++	if (changed)
++		strscpy(init_uts_ns.name.release, release,
++			sizeof(init_uts_ns.name.release));
++	WRITE_ONCE(VPSADMINOS_UNAME_FN(_state).data, state_data);
++	up_write(&uts_sem);
++
++	if (changed)
++		uts_proc_notify(UTS_PROC_OSRELEASE);
++}
++
++static int VPSADMINOS_UNAME_FN(_pre_patch)(struct klp_object *obj)
++{
++	bool release_matches;
++
++	(void)obj;
++
++	release_matches = VPSADMINOS_UNAME_FN(_release_matches)(VPSADMINOS_UNAME_ROLLBACK_RELEASE);
++	if (READ_ONCE(VPSADMINOS_UNAME_FN(_state).data) ||
++	    !VPSADMINOS_UNAME_FN(_predecessor_matches)() ||
++	    !release_matches)
++		return -ESTALE;
++
++	return 0;
++}
++
++KPATCH_PRE_PATCH_CALLBACK(VPSADMINOS_UNAME_FN(_pre_patch));
++
++static void VPSADMINOS_UNAME_FN(_post_patch)(struct klp_object *obj)
++{
++	void *state_data;
++
++	(void)obj;
++
++	state_data = (void *)(unsigned long)VPSADMINOS_LIVEPATCH_UNAME_RELEASE_ORDINAL;
++	VPSADMINOS_UNAME_FN(_publish)(VPSADMINOS_UNAME_PUBLISHED_RELEASE, state_data);
++}
++
++KPATCH_POST_PATCH_CALLBACK(VPSADMINOS_UNAME_FN(_post_patch));
++
++static void VPSADMINOS_UNAME_FN(_post_unpatch)(struct klp_object *obj)
++{
++	(void)obj;
++
++	if (WARN_ON_ONCE(!VPSADMINOS_UNAME_FN(_predecessor_matches)())) {
++		WRITE_ONCE(VPSADMINOS_UNAME_FN(_state).data, NULL);
++		return;
++	}
++
++	VPSADMINOS_UNAME_FN(_publish)(VPSADMINOS_UNAME_ROLLBACK_RELEASE, NULL);
++}
++
++KPATCH_POST_UNPATCH_CALLBACK(VPSADMINOS_UNAME_FN(_post_unpatch));
