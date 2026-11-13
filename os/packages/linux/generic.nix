@@ -219,6 +219,32 @@ let
     };
   }; # end of configfile derivation
 
+  # Evaluation-time livepatch target metadata. These values describe the
+  # resolved supported config, but are not inputs to configfile generation.
+  # Unsupported versions, platforms or config overrides deliberately omit
+  # them so exact target construction fails closed instead of guessing.
+  livepatchConfig =
+    lib.optionalAttrs
+      (
+        version == "6.12.113"
+        && stdenv.hostPlatform.system == "x86_64-linux"
+        && kernelArch == "x86_64"
+        && defconfig == null
+        && extraConfig == ""
+        && structuredExtraConfig == { }
+      )
+      {
+        CONFIG_SMP = "y";
+        CONFIG_PREEMPT_BUILD = "y";
+        CONFIG_PREEMPT_RT = "n";
+        CONFIG_MODULE_UNLOAD = "y";
+        CONFIG_MODVERSIONS = "y";
+        CONFIG_MODULE_SIG_FORCE = "n";
+        CONFIG_GCC_PLUGIN_RANDSTRUCT = "n";
+        CONFIG_RANDSTRUCT_FULL = "n";
+        CONFIG_RANDSTRUCT_PERFORMANCE = "n";
+      };
+
   configuredKernel = (callPackage ./manual-config.nix { }) {
     inherit
       version
@@ -237,7 +263,8 @@ let
     config = {
       CONFIG_MODULES = "y";
       CONFIG_FW_LOADER = "m";
-    };
+    }
+    // livepatchConfig;
   };
 
   # Apply these before extending the package interface. A caller-side
