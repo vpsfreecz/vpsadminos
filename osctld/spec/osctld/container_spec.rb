@@ -154,6 +154,99 @@ RSpec.describe OsCtld::Container do
     end
   end
 
+  describe '#start_block_reason' do
+    [
+      [:staged, false, false, :active, 'container is staged'],
+      [:error, false, false, :active, 'container is in error state'],
+      [:stopped, true, false, :active, 'container recovery cleanup is incomplete'],
+      [:stopped, false, true, :active, 'network interface cleanup is incomplete'],
+      [:stopped, false, false, :importing, 'wait for import to complete'],
+      [:stopped, false, false, :disabled, 'inspect pool status and osctld import/export logs'],
+      [:stopped, false, false, :exporting, 'inspect the pool operation']
+    ].each do |state, recovery_tainted, netif_tainted, pool_state, reason|
+      it "explains #{reason}" do
+        with_tmpdir do |dir|
+          ct = build_container(root: dir)
+          pool = Struct.new(:name, :state) do
+            def active?
+              state == :active
+            end
+          end.new('tank', pool_state)
+          netif = Struct.new(:name, :host_link_tainted?, :host_link_identity)
+                        .new('eth0', netif_tainted, ['veth0', 20, 21])
+          ct.instance_variable_set(:@pool, pool)
+          ct.instance_variable_set(:@state, state)
+          ct.instance_variable_set(:@recovery_tainted, recovery_tainted)
+          ct.instance_variable_set(:@netifs, OsCtld::NetInterface::Manager.new(ct, entries: [netif]))
+          allow(ct.netifs).to receive(:recovery_tainted?).and_return(netif_tainted)
+
+          allow(ct).to receive(:save_config)
+          allow(ct).to receive(:current_state)
+          expect(ct.can_start?).to be(false)
+          expect(ct.start_block_reason).to include('cannot start container tank:ct1:', reason)
+          if netif_tainted
+            expect(ct.start_block_reason).to include('"eth0"', '"veth0"', 'ifindex 20', 'IFB ifindex 21')
+          end
+          expect(ct).not_to have_received(:save_config)
+          expect(ct).not_to have_received(:current_state)
+        end
+      end
+    end
+
+    it 'preserves the complete gate truth table and first failing reason' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        pool = Struct.new(:name, :state) do
+          def active?
+            state == :active
+          end
+        end.new('tank', :active)
+        netif = Struct.new(:name, :host_link_tainted?).new('eth0', false)
+        ct.instance_variable_set(:@pool, pool)
+        ct.instance_variable_set(:@netifs, OsCtld::NetInterface::Manager.new(ct, entries: [netif]))
+
+        %i[staged error stopped starting running].product([false, true], [false, true], [false, true]) do |state, taint, netif_taint, active|
+          ct.instance_variable_set(:@state, state)
+          ct.instance_variable_set(:@recovery_tainted, taint)
+          netif[:host_link_tainted?] = netif_taint
+          allow(ct.netifs).to receive(:recovery_tainted?).and_return(netif_taint)
+          pool.state = active ? :active : :disabled
+          expected = state != :staged && state != :error && !taint && !netif_taint && active
+
+          expect(ct.can_start?).to be(expected)
+          reason = ct.start_block_reason
+          if expected
+            expect(reason).to be_nil
+          else
+            first = if state == :staged
+                      'container is staged'
+                    elsif state == :error
+                      'container is in error state'
+                    elsif taint
+                      'container recovery cleanup is incomplete'
+                    elsif netif_taint
+                      'network interface cleanup is incomplete'
+                    else
+                      'pool "tank" is disabled'
+                    end
+            expect(reason).to start_with("cannot start container tank:ct1: #{first}")
+          end
+        end
+      end
+    end
+
+    it 'does not invent a cleanup cause when aggregate taint has no interface detail' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.instance_variable_set(:@recovery_tainted, true)
+
+        expect(ct.start_block_reason).to include('container recovery cleanup is incomplete', 'osctld logs')
+        expect(ct.start_block_reason).not_to include('tainted interfaces:', 'ifindex', 'recorded host link')
+        expect(ct.start_block_reason).to include('osctl --pool tank ct recover cleanup ct1')
+      end
+    end
+  end
+
   describe 'initialization and paths' do
     it 'requires user and group when load is disabled' do
       with_tmpdir do |dir|

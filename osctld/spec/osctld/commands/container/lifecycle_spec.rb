@@ -91,15 +91,31 @@ RSpec.describe 'container lifecycle commands' do
     end
 
     it 'rejects starts when the container cannot start' do
-      container = Struct.new(:can_start?, :state).new(false, :stopped)
+      container = Struct.new(:start_block_reason, :state).new('container recovery cleanup is incomplete', :stopped)
       command = described_class.new({}, {})
 
       expect { command.send(:start_now, container) }
-        .to raise_error(OsCtld::CommandFailed, 'start not available')
+        .to raise_error(OsCtld::CommandFailed, 'container recovery cleanup is incomplete')
+    end
+
+    %i[starting running].product([false, true]).each do |state, force|
+      it "rejects tainted #{state} containers before preparation with force=#{force}" do
+        container = Struct.new(:start_block_reason, :state) do
+          def init_run_conf; end
+        end.new('container recovery cleanup is incomplete', state)
+        command = described_class.new({ force: }, {})
+
+        allow(command).to receive(:remove_accounting_cgroups)
+        allow(container).to receive(:init_run_conf)
+        expect { command.send(:start_now, container) }
+          .to raise_error(OsCtld::CommandFailed, 'container recovery cleanup is incomplete')
+        expect(command).not_to have_received(:remove_accounting_cgroups)
+        expect(container).not_to have_received(:init_run_conf)
+      end
     end
 
     it 'returns ok when the container is already running and force is not set' do
-      container = Struct.new(:can_start?, :state).new(true, :running)
+      container = Struct.new(:start_block_reason, :state).new(nil, :running)
       command = described_class.new({}, {})
 
       expect(command.send(:start_now, container)).to eq(status: true, output: nil)
@@ -112,7 +128,7 @@ RSpec.describe 'container lifecycle commands' do
       mounts = Struct.new(:prune).new(nil)
       allow(mounts).to receive(:prune)
       container = Struct.new(
-        :can_start?,
+        :start_block_reason,
         :state,
         :run_conf,
         :impermanence,
@@ -122,7 +138,7 @@ RSpec.describe 'container lifecycle commands' do
       ) do
         def init_run_conf; end
       end.new(
-        can_start?: true,
+        start_block_reason: nil,
         state: :stopped,
         run_conf:,
         impermanence: false,
@@ -348,9 +364,7 @@ RSpec.describe 'container lifecycle commands' do
           :prlimits,
           keyword_init: true
         ) do
-          def can_start?
-            true
-          end
+          def start_block_reason; end
 
           def init_run_conf; end
 
@@ -812,9 +826,46 @@ RSpec.describe 'container lifecycle commands' do
 
       expect(command.execute(ct)).to eq(status: true, output: nil)
     end
+
+    it 'preserves the shared start rejection after stopping' do
+      ct = Struct.new(:id, :pool) do
+        def manipulate(_holder, block:, &)
+          yield
+        end
+      end.new('ct1', Struct.new(:name).new('tank'))
+      message = 'cannot start container tank:ct1: container recovery cleanup is incomplete'
+      allow(OsCtld::Commands::Container::Stop).to receive(:run).and_return(status: true, output: nil)
+      allow(OsCtld::Commands::Container::Start).to receive(:run).and_return(status: false, message:)
+
+      expect { described_class.new({}, {}).execute(ct) }
+        .to raise_error(OsCtld::CommandFailed, message)
+      expect(OsCtld::Commands::Container::Start).to have_received(:run).with(
+        internal: { handler: nil, indirect: true }, pool: 'tank', id: 'ct1', force: true, wait: nil
+      )
+    end
   end
 
   describe OsCtld::Commands::Container::Boot do
+    before do
+      mount_entry = stub_const('OsCtld::Mount::Entry', Class.new do
+        def initialize(*); end
+      end)
+      allow(mount_entry).to receive(:new).and_call_original
+    end
+
+    it 'preserves the shared start rejection for custom boots' do
+      ct = Struct.new(:id, :pool).new('ct1', Struct.new(:name).new('tank'))
+      message = 'cannot start container tank:ct1: network interface cleanup is incomplete'
+      allow(OsCtld::Commands::Container::Start).to receive(:run).and_return(status: false, message:)
+
+      expect { described_class.new({}, {}).send(:start_ct, ct, nil) }
+        .to raise_error(OsCtld::CommandFailed, message)
+      expect(OsCtld::Commands::Container::Start).to have_received(:run).with(
+        internal: { handler: nil, indirect: true }, pool: 'tank', id: 'ct1', wait: nil,
+        queue: nil, priority: nil, debug: nil, mounts: [], custom_boot: true
+      )
+    end
+
     def build_boot_container(pool:, run_conf:, rootfs: '/rootfs')
       mounts = Struct.new(:entries) do
         def find_at(path)
@@ -874,13 +925,6 @@ RSpec.describe 'container lifecycle commands' do
         ct.events = []
         ct.new_run_conf_obj = run_conf
       end
-    end
-
-    before do
-      mount_entry = stub_const('OsCtld::Mount::Entry', Class.new do
-        def initialize(*); end
-      end)
-      allow(mount_entry).to receive(:new).and_call_original
     end
 
     it 'rejects rootfs mount conflicts with persistent mounts' do

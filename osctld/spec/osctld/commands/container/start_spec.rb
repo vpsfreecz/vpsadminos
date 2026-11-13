@@ -19,7 +19,7 @@ RSpec.describe OsCtld::Commands::Container::Start do
   def prepare_start(root, custom_boot: false)
     ct = build_run_config_container(root:, distribution: 'nixos')
     rc = OsCtld::Container::RunConfiguration.new(ct, load_conf: false)
-    ct.define_singleton_method(:can_start?) { true }
+    ct.define_singleton_method(:start_block_reason) { nil }
     ct.define_singleton_method(:state) { :stopped }
     ct.define_singleton_method(:impermanence) { OsCtld::Container::Impermanence.new({}) }
     ct.define_singleton_method(:run_conf) { rc }

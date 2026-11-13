@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'timeout'
 
 RSpec.describe OsCtl::Cli::Container do
   def cmd(args: [], opts: {}, gopts: {})
@@ -42,6 +43,87 @@ RSpec.describe OsCtl::Cli::Container do
 
   it 'requires an interface for host-link acknowledgment' do
     expect { cmd(args: ['ct1']).recover_forget_host_link }.to raise_error(GLI::BadCommandLine)
+  end
+
+  %i[start restart boot].product([false, true]).each do |operation, success|
+    it "finishes foreground #{operation} console cleanup before returning success=#{success}" do
+      events = []
+      message = 'cannot start container tank:ct1: container recovery cleanup is incomplete'
+      command = cmd(
+        args: ['ct1'],
+        opts: { foreground: true, 'from-file' => '/image.tar', 'zfs-property' => [] },
+        gopts: { pool: 'tank' }
+      )
+      console_socket = instance_double(UNIXSocket)
+      allow(console_socket).to receive(:shutdown).with(Socket::SHUT_RDWR) { events << :shutdown }
+      console = instance_double(OsCtl::Client, socket: console_socket)
+      allow(console).to receive(:close) { events << :closed }
+      allow(command).to receive(:osctld_resp).with(
+        :"ct_#{operation}", hash_including(id: 'ct1', pool: 'tank', wait: false)
+      ).and_return(client_response(status: success, message:))
+      allow(command).to receive(:open_console).with('ct1', 'tank', 0, false) do |*_args, &block|
+        block.call(console)
+        events << :restored
+      end
+      allow(described_class).to receive(:new).and_return(command)
+      app = OsCtl::Cli::App.get
+      errors = StringIO.new
+      allow(app).to receive(:stderr).and_return(errors)
+
+      expect(app.run(['ct', operation.to_s, '-F', 'ct1'])).to eq(success ? 0 : 1)
+      expect(events).to eq(success ? [:restored] : %i[shutdown closed restored])
+      expect(errors.string).to include(message) unless success
+      expect(errors.string).to eq('') if success
+    end
+  end
+
+  %i[start restart boot].each do |operation|
+    it "reaps the real foreground #{operation} console before reporting rejection" do
+      socket, peer = UNIXSocket.pair
+      input, input_writer = IO.pipe
+      original_stdin = $stdin
+      $stdin = input
+      child_pid = nil
+      events = []
+      message = 'cannot start container tank:ct1: container recovery cleanup is incomplete'
+      client = FakeClientHelpers::ClientDouble.new(
+        socket:, cmd_responses: { ct_console: [client_response(status: true)] }
+      )
+      command = cmd(
+        args: ['ct1'],
+        opts: { foreground: true, 'from-file' => '/image.tar', 'zfs-property' => [] },
+        gopts: { pool: 'tank' }
+      )
+      allow(command).to receive(:osctld_open).and_return(client)
+      allow(command).to receive(:osctld_resp)
+        .with(:"ct_#{operation}", anything)
+        .and_return(client_response(status: false, message:))
+      allow(command).to receive(:`).with('stty -g').and_return('saved-terminal')
+      allow(command).to receive(:`).with('stty raw -echo -icanon -isig') { events << :raw }
+      allow(command).to receive(:`).with('stty saved-terminal') { events << :restored }
+      allow(Process).to receive(:fork).and_wrap_original do |original, &block|
+        child_pid = original.call(&block)
+      end
+
+      expect do
+        Timeout.timeout(5) { capture_output { command.public_send(operation) } }
+      end.to raise_error(OsCtl::Client::Error, message)
+      expect(events).to eq(%i[raw restored])
+      expect(client).to be_closed
+      expect { Process.waitpid(child_pid, Process::WNOHANG) }.to raise_error(Errno::ECHILD)
+    ensure
+      $stdin = original_stdin
+      # A regression must fail without leaving its blocked console child behind.
+      begin
+        if child_pid && Process.waitpid(child_pid, Process::WNOHANG).nil?
+          Process.kill('KILL', child_pid)
+          Process.waitpid(child_pid)
+        end
+      rescue Errno::ECHILD
+        # The CLI already reaped the child.
+      end
+      [socket, peer, input, input_writer].each { |io| io&.close unless io&.closed? }
+    end
   end
 
   it 'initializes cgroup subsystems in bisect using the open client connection' do
