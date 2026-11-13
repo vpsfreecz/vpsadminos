@@ -1,5 +1,6 @@
 require 'libosctl'
 require 'digest'
+require 'shellwords'
 require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
@@ -411,9 +412,36 @@ module OsCtld
     end
 
     def can_start?
+      inclusively { start_blocker.nil? }
+    end
+
+    # Explain admission using recorded state only; never probe or repair resources.
+    # @return [String, nil]
+    def start_block_reason
       inclusively do
-        state != :staged && state != :error && !@recovery_tainted &&
-          !netifs.recovery_tainted? && pool.active?
+        blocker = start_blocker
+        return if blocker.nil?
+
+        reason = case blocker
+                 when :staged
+                   'container is staged; complete the creation or import operation before retrying'
+                 when :error
+                   'container is in error state; inspect container details, assets and osctld logs'
+                 when :recovery, :netifs
+                   start_recovery_block_reason(blocker)
+                 when :pool
+                   advice = case pool.state
+                            when :importing
+                              'wait for import to complete and inspect import errors if it stalls'
+                            when :disabled
+                              'inspect pool status and osctld import/export logs before retrying'
+                            else
+                              'inspect the pool operation before retrying'
+                            end
+                   "pool #{pool.name.inspect} is #{pool.state}; #{advice}"
+                 end
+
+        "cannot start container #{pool.name}:#{id}: #{reason}"
       end
     end
 
@@ -1025,6 +1053,38 @@ module OsCtld
     end
 
     protected
+
+    # Keep the original short-circuit order shared by the predicate and reason.
+    # Caller holds the container's inclusive lock.
+    def start_blocker
+      return :staged if @state == :staged
+      return :error if @state == :error
+      return :recovery if @recovery_tainted
+      return :netifs if netifs.recovery_tainted?
+      return :pool unless pool.active?
+
+      nil
+    end
+
+    def start_recovery_block_reason(blocker)
+      reason = blocker == :recovery ? 'container recovery cleanup is incomplete' : 'network interface cleanup is incomplete'
+      interfaces = netifs.filter_map do |netif|
+        next unless netif.respond_to?(:host_link_tainted?) && netif.host_link_tainted?
+
+        detail = netif.name.inspect
+        if netif.respond_to?(:host_link_identity)
+          name, ifindex, ifb_ifindex = netif.host_link_identity
+          detail += " (recorded host link #{name.inspect}, ifindex #{ifindex.inspect}"
+          detail += ", IFB ifindex #{ifb_ifindex}" if ifb_ifindex
+          detail += ')'
+        end
+        detail
+      end
+      reason += "; tainted interfaces: #{interfaces.join(', ')}" unless interfaces.empty?
+      cleanup = Shellwords.join(['osctl', '--pool', pool.name, 'ct', 'recover', 'cleanup', id])
+      reason + '; inspect container details and osctld logs; once stopped and leftover resources ' \
+               "are understood, run #{cleanup.inspect}; see man osctl before acknowledging an absent host link"
+    end
 
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution, :version, :arch,
                           :vendor, :variant, :autostart, :ephemeral, :hostname, :dns_resolvers,

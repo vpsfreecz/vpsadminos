@@ -269,7 +269,7 @@ import ../../make-test.nix (
           blocked_status, blocked_output = machine.execute('timeout 30 osctl ct start netfault', timeout: 40)
           expect(blocked_status).not_to eq(0)
           expect([124, 137]).not_to include(blocked_status)
-          expect(blocked_output).to include('start not available')
+          expect(blocked_output).to include('cannot start container tank:netfault: container recovery cleanup is incomplete')
         end
         machine.succeeds('timeout 30 osctl ct recover cleanup netfault', timeout: 40)
         info = machine.osctl_json('ct show netfault')

@@ -887,6 +887,13 @@ The following shortcuts are supported:
 `ct start` [*options*] *ctid*
   Start container *ctid*.
 
+  Start is refused when the container is staged, in an error state, marked
+  for incomplete recovery cleanup, has a cleanup-tainted network interface,
+  or belongs to an inactive pool. The error explains the first blocking
+  condition. Normal restart and custom boot use the same start checks;
+  `ct boot --force` does not bypass them. See the `ct recover` commands below
+  for recovery after incomplete cleanup.
+
     `-w`, `--wait` *seconds*|`infinity`
       How many seconds to wait for the container to enter state `running`.
       Defaults to `120` seconds. Set to `0` to return immediately.
@@ -899,6 +906,9 @@ The following shortcuts are supported:
       is configured to start a certain number of containers in parallel. Use
       this option to add the container to the queue. This is useful when you're
       manually starting a large number of containers.
+
+      With `--wait 0`, success acknowledges queueing only. A later start failure
+      cannot be returned by the command that has already finished.
 
     `-p`, `--priority` *n*
       Priority for the autostart queue. This option can be used together with
@@ -2633,6 +2643,9 @@ transfer and start again.
 `ct recover state` *ctid*
   Force `osctld` to check status of container *ctid*.
 
+  This is an active reconciliation command: a newly discovered stop can run
+  stop hooks and cleanup. It is not a read-only inspection command.
+
   `osctld` checks container status only on startup and then watches for events
   from `lxc-monitor`. If the container dies in a way that the monitor does not
   report anything, `osctld` will not notice the change on its own and this
@@ -2662,6 +2675,25 @@ transfer and start again.
   to container *ctid*. This is useful when the container's management process
   crashes for some reason and does not cleanup after itself. This operation
   can be used only on stopped containers, unless `--force` is used.
+
+  Full cleanup of a recovery-tainted container independently verifies that LXC
+  reports it stopped with no init PID, even with `--force`. Only a successful
+  full cleanup clears the aggregate recovery taint; partial cleanup does not.
+  Unrelated container configuration/runtime errors remain in place.
+
+  When start reports incomplete recovery cleanup, inspect `ct show`, `ct netif ls`,
+  relevant `ct assets` errors, and osctld logs for the selected pool and container.
+  The start error includes currently tainted interface records when available.
+  Recorded host-link names and ifindices are ownership records, not proof that
+  those links still exist. The aggregate recovery flag does not retain the
+  original cleanup failure; consult osctld logs for that detail.
+
+  After verifying that the container is stopped and understanding any leftover
+  resources, attempt full `ct recover cleanup` without force. If cleanup refuses
+  because a recorded host link is absent, use `ct recover forget-host-link` only
+  under the absence conditions described above, then retry full cleanup. Live,
+  replacement or reused links require diagnosis; do not delete them or edit
+  osctld state files to bypass the checks.
 
     `-f`, `--force`
       Force cleanup of an unstopped container.

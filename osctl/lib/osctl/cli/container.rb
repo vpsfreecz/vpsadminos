@@ -360,10 +360,7 @@ module OsCtl::Cli
       }
 
       if opts[:foreground]
-        open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
-          sock.close if osctld_resp(:ct_start, **cmd_opts).error?
-        end
-
+        start_with_console(:ct_start, cmd_opts)
         return
       end
 
@@ -440,10 +437,7 @@ module OsCtl::Cli
       }
 
       if opts[:foreground]
-        open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
-          sock.close if osctld_resp(:ct_restart, **cmd_opts).error?
-        end
-
+        start_with_console(:ct_restart, cmd_opts)
         return
       end
 
@@ -985,10 +979,7 @@ module OsCtl::Cli
       end
 
       if opts[:foreground]
-        open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
-          sock.close if osctld_resp(:ct_boot, **cmd_opts).error?
-        end
-
+        start_with_console(:ct_boot, cmd_opts)
         return
       end
 
@@ -1266,6 +1257,21 @@ module OsCtl::Cli
       else
         open_console_tty(ctid, pool, tty, &)
       end
+    end
+
+    def start_with_console(command, cmd_opts)
+      response = nil
+      open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
+        response = osctld_resp(command, **cmd_opts)
+        if response.error?
+          # The console child inherited this socket; close alone cannot wake it.
+          sock.socket.shutdown(Socket::SHUT_RDWR)
+          sock.close
+        end
+      end
+
+      # Let the console child exit and restore the terminal before reporting failure.
+      raise OsCtl::Client::Error, response.message if response&.error?
     end
 
     def open_console_tty(ctid, pool, tty)
