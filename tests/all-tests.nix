@@ -256,6 +256,7 @@ let
           "kernel/tmpfs/cgroups-v2"
           "kernel/uptime"
           "kernel/vpsadminos-selftests"
+          "osctl-rtnl-monitor"
           "osctl/ct-cat"
           "osctl/ct-chown-filecaps"
           "osctl/ct-console"
