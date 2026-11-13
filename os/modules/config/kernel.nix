@@ -196,6 +196,7 @@ in
       "asn1_encoder"
       "auth_rpcgss"
       "autofs4"
+      "batman_adv"
       "blowfish_common"
       "blowfish_generic"
       "br_netfilter"
