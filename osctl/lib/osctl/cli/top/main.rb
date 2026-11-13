@@ -5,7 +5,15 @@ module OsCtl::Cli
     def start
       validate_rate
 
-      model = Top::Model.new(enable_iostat: opts[:iostat])
+      if opts[:oomd] && !gopts[:json]
+        raise GLI::BadCommandLine, '--oomd requires JSON output (-j)'
+      end
+
+      model = if opts[:oomd]
+                Top::OomdModel.new
+              else
+                Top::Model.new(enable_iostat: opts[:iostat])
+              end
       model.setup
 
       kwargs = {}

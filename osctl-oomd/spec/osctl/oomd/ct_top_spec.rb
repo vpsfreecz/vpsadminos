@@ -35,4 +35,21 @@ RSpec.describe OsCtl::Oomd::CtTop do
     expect(logged.any? { |level, message| level == :info && message == "[ct-top] Started with pid #{child_pid}" }).to be(true)
     expect(logged.any? { |level, message| level == :info && message == '[ct-top] Exited with pid 7' }).to be(true)
   end
+
+  it 'selects only the lean path and invalidates malformed/oversized frames before the next bounded line' do
+    stub_const('OsCtl::Oomd::CtTop::MAX_FRAME_BYTES', 64)
+    reader = StringIO.new("#{'x' * 100}\nnot-json\n{\"oomd_schema\":1}\n")
+    writer = instance_double(IO, close: nil)
+    child = fork { exit 0 }
+    stop_error = Class.new(StandardError)
+    sampler = described_class.new(15, oomd: true)
+    allow(IO).to receive(:pipe).and_return([reader, writer])
+    allow(Process).to receive(:spawn).with('osctl', '-j', 'ct', 'top', '--rate', '15', '--oomd',
+                                           out: writer, close_others: true).and_return(child)
+    allow(sampler).to receive(:sleep).and_raise(stop_error)
+    yielded = []
+    expect { sampler.run { |data| yielded << data } }.to raise_error(stop_error)
+    expect(yielded).to eq([{}, {}, { 'oomd_schema' => 1 }])
+    expect(Process).to have_received(:spawn).once
+  end
 end

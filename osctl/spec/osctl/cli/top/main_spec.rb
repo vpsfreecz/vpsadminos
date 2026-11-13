@@ -40,4 +40,22 @@ RSpec.describe OsCtl::Cli::Top::Main do
       cmd(opts: { iostat: true, rate: Float::INFINITY, processes: false }).start
     end.to raise_error(GLI::BadCommandLine, 'rate must be a positive finite number')
   end
+
+  it 'selects lean acquisition before constructing any ordinary model' do
+    model = instance_double(OsCtl::Cli::Top::OomdModel, setup: nil)
+    exporter = instance_double(OsCtl::Cli::Top::JsonExporter, start: nil)
+    expect(OsCtl::Cli::Top::Model).not_to receive(:new)
+    allow(OsCtl::Cli::Top::OomdModel).to receive(:new).and_return(model)
+    allow(OsCtl::Cli::Top::JsonExporter).to receive(:new).with(model, 15).and_return(exporter)
+
+    cmd(opts: { oomd: true, iostat: true, rate: 15 }, gopts: { json: true }).start
+    expect(exporter).to have_received(:start)
+  end
+
+  it 'rejects the lean flag without JSON before acquiring data' do
+    expect(OsCtl::Cli::Top::OomdModel).not_to receive(:new)
+    expect do
+      cmd(opts: { oomd: true, rate: 15 }).start
+    end.to raise_error(GLI::BadCommandLine, '--oomd requires JSON output (-j)')
+  end
 end

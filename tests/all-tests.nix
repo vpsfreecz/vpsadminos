@@ -277,6 +277,7 @@ let
           "osctl/nfs-cancellation"
           "osctl/pool/export-cleanup"
           "osctl-exportfs/mount"
+          "rtnl-watchdog"
           "osctld/direct-start"
           "osctld/resilience"
           "osctld/restart"
