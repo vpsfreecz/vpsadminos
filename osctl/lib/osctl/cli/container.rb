@@ -375,6 +375,30 @@ module OsCtl::Cli
       attach
     end
 
+    def oomd_action(action)
+      require_args!('id')
+      %w[expected-init-pid expected-init-start-time].each do |flag|
+        value = opts[flag]
+        unless value.is_a?(Integer) && value > 0
+          raise GLI::BadCommandLine, "--#{flag} must be a positive integer"
+        end
+      end
+      osctld_fmt(
+        :"ct_oomd_#{action}",
+        cmd_opts: {
+          id: args[0], pool: gopts[:pool],
+          expected_init_pid: opts['expected-init-pid'],
+          expected_init_start_time: opts['expected-init-start-time'],
+          wait: 120
+        }
+      ) do |message|
+        next if gopts[:quiet]
+
+        puts message
+        $stdout.flush
+      end
+    end
+
     def stop
       require_args!('id')
 
