@@ -88,6 +88,7 @@ jobs:
           tools/livepatch/verify.sh \
             --plan "$plan" \
             --capture "$RUNNER_TEMP/livepatch-capture/capture.json" \
+            --evidence-dir "$RUNNER_TEMP/livepatch-capture/evidence" \
             > "$RUNNER_TEMP/livepatch-capture/verification.json"
           printf 'sha256=%s\n' \
             "$(sha256sum "$RUNNER_TEMP/livepatch-capture/capture.json" | cut -d' ' -f1)" \
@@ -147,6 +148,7 @@ jobs:
           tools/livepatch/run-profile.sh \
             --plan "$RUNNER_TEMP/livepatch-input/plan.json" \
             --capture "$RUNNER_TEMP/livepatch-input/capture/capture.json" \
+            --evidence-dir "$RUNNER_TEMP/livepatch-input/capture/evidence" \
             --row-id '${{ matrix.rowId }}' \
             --state-dir "$RUNNER_TEMP/livepatch-profile-${{ matrix.rowId }}"
 

@@ -28,6 +28,11 @@ tools/livepatch/verify.sh --plan livepatch-plan.json --capture livepatch-capture
 tools/livepatch/run-profile.sh --plan livepatch-plan.json --capture livepatch-capture.json --row-id ID --state-dir DIR
 ```
 
+Keep `livepatch-capture.json` beside `livepatch-evidence`. For any other
+evidence location, pass the same exact `--evidence-dir` to direct verification
+and profile execution. The [canonical process](../../docs/os/livepatches/process.md)
+defines relocation and refusal behavior.
+
 Generic test selectors are `kernel/livepatch-batch@<row-id>`,
 `kernel/livepatch-set@<row-id>` and `kernel/livepatch-fix@<row-id>`.
 

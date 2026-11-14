@@ -13,12 +13,13 @@ bash_path=$BASH
 }
 
 usage() {
-  echo "usage: tools/livepatch/run-profile.sh --plan FILE --capture FILE --row-id ID --state-dir DIR" >&2
+  echo "usage: tools/livepatch/run-profile.sh --plan FILE --capture FILE [--evidence-dir DIR] --row-id ID --state-dir DIR" >&2
   exit 2
 }
 
 plan=
 capture=
+evidence_dir=
 row_id=
 state_dir=
 while (($#)); do
@@ -26,6 +27,11 @@ while (($#)); do
     --capture)
       (($# >= 2)) || usage
       capture=$2
+      shift 2
+      ;;
+    --evidence-dir)
+      (($# >= 2)) || usage
+      evidence_dir=$2
       shift 2
       ;;
     --plan)
@@ -48,12 +54,23 @@ while (($#)); do
 done
 
 [[ -n "$plan" && -n "$capture" && -n "$row_id" && -n "$state_dir" ]] || usage
+if [[ -n "$evidence_dir" ]]; then
+  [[ -d "$evidence_dir" && ! -L "$evidence_dir" ]] || {
+    echo "capture evidence must be a non-symlink directory" >&2
+    exit 1
+  }
+  evidence_dir=$(readlink -e -- "$evidence_dir")
+fi
 [[ ! -e "$state_dir" && ! -L "$state_dir" ]] || {
   echo "refusing pre-existing state directory: $state_dir" >&2
   exit 1
 }
 
-tools/livepatch/verify.sh --plan "$plan" --capture "$capture" >/dev/null
+verify_args=(--plan "$plan" --capture "$capture")
+if [[ -n "$evidence_dir" ]]; then
+  verify_args+=(--evidence-dir "$evidence_dir")
+fi
+tools/livepatch/verify.sh "${verify_args[@]}" >/dev/null
 row=$(jq -cer --arg rowId "$row_id" '[.rows[] | select(.rowId == $rowId)] | if length == 1 then .[0] else error("row selection is not unique") end' "$plan")
 adapter=$(jq -er '.testAdapter' <<<"$row")
 case "$adapter" in
@@ -130,8 +147,7 @@ fi
 
 mv -T -- "$result_tmp" "$state_dir/result.json"
 tools/livepatch/verify.sh \
-  --plan "$plan" \
-  --capture "$capture" \
+  "${verify_args[@]}" \
   --row-id "$row_id" \
   --result "$state_dir/result.json" \
   >"$state_dir/verification.json"

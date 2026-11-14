@@ -1302,6 +1302,13 @@
                   ${qualificationResultVerifier} \
                   > generic-safety.log
 
+                ${pkgs.bash}/bin/bash ${./tools/livepatch/tests/verify-capture.sh} \
+                  ${pkgs.bash}/bin/bash \
+                  ${qualificationResultVerifier} \
+                  ${./tools/livepatch/capture.sh} \
+                  ${./tools/livepatch/run-profile.sh} \
+                  > verify-capture.log
+
                 ${pkgs.bash}/bin/bash ${./tools/livepatch/tests/ci-tool-closure.sh} \
                   ${./.} "$livepatchCiTools" > ci-tool-closure.log
 
@@ -1311,6 +1318,7 @@
                 cp "$two" "$out/plan-two.json"
                 cp generic-safety-hypervisor.log "$out/generic-safety-hypervisor.log"
                 cp generic-safety.log "$out/generic-safety.log"
+                cp verify-capture.log "$out/verify-capture.log"
                 cp ci-tool-closure.log "$out/ci-tool-closure.log"
               '';
           qemu-disk-lifecycle = import ./tests/qemu-disk-lifecycle-check.nix {

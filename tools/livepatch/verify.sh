@@ -4,8 +4,8 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-usage: tools/livepatch/verify.sh --plan FILE --capture FILE
-       tools/livepatch/verify.sh --plan FILE --capture FILE --row-id ID --result FILE
+usage: tools/livepatch/verify.sh --plan FILE --capture FILE [--evidence-dir DIR]
+       tools/livepatch/verify.sh --plan FILE --capture FILE [--evidence-dir DIR] --row-id ID --result FILE
        tools/livepatch/verify.sh --plan FILE --results-dir DIR --output FILE
 EOF
   exit 2
@@ -13,6 +13,7 @@ EOF
 
 plan=
 capture=
+evidence_dir=
 row_id=
 result=
 results_dir=
@@ -22,6 +23,11 @@ while (($#)); do
     --capture)
       (($# >= 2)) || usage
       capture=$2
+      shift 2
+      ;;
+    --evidence-dir)
+      (($# >= 2)) || usage
+      evidence_dir=$2
       shift 2
       ;;
     --plan)
@@ -57,7 +63,7 @@ done
 campaign=false
 if [[ -n "$results_dir" || -n "$output" ]]; then
   [[ -n "$results_dir" && -n "$output" ]] || usage
-  [[ -z "$capture" && -z "$row_id" && -z "$result" ]] || usage
+  [[ -z "$capture" && -z "$evidence_dir" && -z "$row_id" && -z "$result" ]] || usage
   campaign=true
 else
   [[ -n "$capture" && -z "$output" ]] || usage
@@ -160,6 +166,20 @@ fi
   echo "input must be a regular non-symlink file: $capture" >&2
   exit 1
 }
+capture_path=$(readlink -e -- "$capture")
+if [[ -n "$evidence_dir" ]]; then
+  [[ -d "$evidence_dir" && ! -L "$evidence_dir" ]] || {
+    echo "capture evidence must be a non-symlink directory" >&2
+    exit 1
+  }
+  capture_evidence=$(readlink -e -- "$evidence_dir")
+else
+  capture_evidence="$(dirname -- "$capture_path")/livepatch-evidence"
+fi
+[[ -d "$capture_evidence" && ! -L "$capture_evidence" ]] || {
+  echo "capture evidence must be a non-symlink directory" >&2
+  exit 1
+}
 
 jq -e --slurpfile plan "$plan" '
   def sha: type == "string" and test("^[0-9a-f]{64}$");
@@ -209,8 +229,24 @@ flake_lock_sha256=$(sha256sum flake.lock | cut -d' ' -f1)
 [[ $(jq -er '.flakeLockSha256' "$capture") == "$flake_lock_sha256" ]]
 
 while IFS= read -r member; do
+  release=$(jq -er '.release' <<<"$member")
   producer=$(jq -er '.identity.producer' <<<"$member")
   module=$(jq -er '.identity.module' <<<"$member")
+  [[ -n "$release" && "$release" != */* && "$release" != "." && "$release" != ".." ]] || {
+    echo "captured release is not a safe evidence path: $release" >&2
+    exit 1
+  }
+  captured_member="$capture_evidence/$release"
+  captured_raw="$captured_member/raw"
+  captured_build_log="$captured_raw/build.log"
+  [[ -d "$captured_member" && ! -L "$captured_member" \
+    && -d "$captured_raw" && ! -L "$captured_raw" \
+    && -f "$captured_build_log" && ! -L "$captured_build_log" ]] || {
+    echo "captured build log is missing or unsafe: $captured_build_log" >&2
+    exit 1
+  }
+  [[ $(sha256sum "$captured_build_log" | cut -d' ' -f1) \
+    == $(jq -er '.audit.buildLogSha256' <<<"$member") ]]
   nix-store --option fallback false --realise "$producer" >/dev/null
   [[ -d "$producer" && -f "$module" ]] || {
     echo "captured producer/module is unavailable" >&2
@@ -218,11 +254,14 @@ while IFS= read -r member; do
   }
   structured="$producer/share/vpsadminos-livepatch"
   raw="$producer/livepatch-evidence"
+  [[ -f "$raw/build.log" && ! -L "$raw/build.log" ]] || {
+    echo "current producer build log is missing or unsafe" >&2
+    exit 1
+  }
   [[ $(sha256sum "$module" | cut -d' ' -f1) == $(jq -er '.identity.moduleSha256' <<<"$member") ]]
   [[ $(sha256sum "$structured/manifest.json" | cut -d' ' -f1) == $(jq -er '.identity.manifestSha256' <<<"$member") ]]
   [[ $(sha256sum "$structured/inspection.json" | cut -d' ' -f1) == $(jq -er '.identity.inspectionSha256' <<<"$member") ]]
   [[ $(sha256sum "$structured/closure.json" | cut -d' ' -f1) == $(jq -er '.identity.closureSha256' <<<"$member") ]]
-  [[ $(sha256sum "$raw/build.log" | cut -d' ' -f1) == $(jq -er '.audit.buildLogSha256' <<<"$member") ]]
   jq -e --arg name "$(jq -er '.identity.moduleName' <<<"$member")" \
     --arg digest "$(jq -er '.identity.inputDigest' <<<"$member")" \
     --arg target "$(jq -er '.identity.targetId' <<<"$member")" '

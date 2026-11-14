@@ -45,6 +45,11 @@ done
   exit 1
 }
 mkdir -- "$evidence_dir"
+evidence_dir=$(readlink -e -- "$evidence_dir")
+[[ -d "$evidence_dir" && ! -L "$evidence_dir" ]] || {
+  echo "capture evidence must be a non-symlink directory" >&2
+  exit 1
+}
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/livepatch-capture.XXXXXX")
 output_tmp=$(mktemp "$(dirname -- "$output")/.livepatch-capture.XXXXXX")
@@ -249,7 +254,11 @@ planned_members=$(jq -er '.counts.plannedMembers' "$plan")
 jq --argjson plannedMembers "$planned_members" \
   '.counts.plannedMembers = $plannedMembers' "$work/capture.json" >"$output_tmp"
 
-tools/livepatch/verify.sh --plan "$plan" --capture "$output_tmp" >/dev/null
+tools/livepatch/verify.sh \
+  --plan "$plan" \
+  --capture "$output_tmp" \
+  --evidence-dir "$evidence_dir" \
+  >/dev/null
 chmod 0644 "$output_tmp"
 mv -T -- "$output_tmp" "$output"
 trap - EXIT HUP INT TERM

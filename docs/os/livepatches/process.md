@@ -247,6 +247,14 @@ tools/livepatch/verify.sh --plan livepatch-plan.json --capture livepatch-capture
 tools/livepatch/run-profile.sh --plan livepatch-plan.json --capture livepatch-capture.json --row-id ID --state-dir DIR
 ```
 
+These commands use the canonical layout: `livepatch-capture.json` and the
+`livepatch-evidence` directory are siblings. Direct verification and profile
+execution check only that directory; they do not search for another evidence
+location. If the evidence directory has another name or location, pass its
+exact path with `--evidence-dir` to both `verify.sh` and `run-profile.sh`.
+When relocating canonical evidence, move the capture file and evidence
+directory together under their canonical names or use the explicit option.
+
 Use `kernel/livepatch-batch@<row-id>`, `kernel/livepatch-set@<row-id>` and
 `kernel/livepatch-fix@<row-id>` as the generic test selectors. The versioned
 plan, capture and result contracts are public maintainer interfaces. Flake
