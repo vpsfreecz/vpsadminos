@@ -19,6 +19,7 @@
   ./osctl/osctl-exporter.nix
   ./osctl/osctl-exportfs.nix
   ./osctl/osctl-oomd.nix
+  ./osctl/rtnl-watchdog.nix
   ./osctl/test-shell.nix
   ./programs/bash.nix
   ./programs/htop.nix

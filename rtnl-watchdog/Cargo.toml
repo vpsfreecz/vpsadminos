@@ -1,0 +1,22 @@
+[package]
+name = "rtnl-watchdog"
+version = "1.0.0"
+edition = "2021"
+license = "GPL-2.0-only"
+
+[[bin]]
+name = "rtnl-watchdog"
+path = "src/bin/rtnl-watchdog.rs"
+
+[[bin]]
+name = "rtnl-watchdog-probe"
+path = "src/bin/rtnl-watchdog-probe.rs"
+
+[dependencies]
+libc = "=0.2.186"
+serde_json = "=1.0.149"
+
+[[test]]
+name = "fd_child"
+path = "tests/fd_child.rs"
+harness = false
