@@ -43,6 +43,7 @@ nav:
     - 'Kernel parameters': 'os/kernel-parameters.md'
     - Pools: 'os/pools.md'
     - 'Control groups': 'os/cgroups.md'
+    - 'RTNL responsiveness watchdog': 'os/rtnl-watchdog.md'
     - Shell history: 'os/shell-history.md'
     - 'Kernel and ZFS development': 'os/kernel-zfs-development.md'
     - 'Downstream patch-series policy': 'os/patch-series-policy.md'

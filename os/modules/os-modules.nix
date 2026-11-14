@@ -40,6 +40,7 @@
   ./services/monitoring/munin.nix
   ./services/monitoring/prometheus/exporters.nix
   ./services/monitoring/prometheus/osbench
+  ./services/monitoring/rtnl-watchdog.nix
   ./services/network-filesystems/nfs.nix
   ./services/networking/bird.nix
   ./services/networking/chronyd.nix

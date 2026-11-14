@@ -23,6 +23,8 @@ self: super: {
 
   prometheus-ebpf-exporter = super.callPackage ../packages/prometheus-ebpf-exporter { };
 
+  rtnl-watchdog = super.callPackage ../packages/rtnl-watchdog { };
+
   lxc =
     let
       libcap = super.libcap.overrideAttrs (oldAttrs: rec {
