@@ -110,7 +110,8 @@ RSpec.describe OsCtl::Oomd::Cli do
         stop_hits: 22,
         export_file: '/run/metrics/osctl-oomd.prom',
         dry_run: true,
-        verbose: true
+        verbose: true,
+        rtnl_watchdog: OsCtl::Oomd::Controller::DEFAULTS
       )
     end
   end

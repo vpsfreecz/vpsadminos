@@ -24,7 +24,8 @@ module OsCtl::Oomd
         stop_hits: options['stop_hits'],
         export_file: options['export_file'],
         dry_run: options['dry_run'],
-        verbose: options['verbose']
+        verbose: options['verbose'],
+        rtnl_watchdog: options['rtnl_watchdog']
       )
     end
 
@@ -96,6 +97,8 @@ module OsCtl::Oomd
         warn parser
         exit(false)
       end
+
+      options['rtnl_watchdog'] = Controller.settings(options['rtnl_watchdog'])
 
       options['restart_hits'] = 120 / options.fetch('interval') unless explicit_restart_hits
       options['stop_hits'] = 600 / options.fetch('interval') unless explicit_stop_hits

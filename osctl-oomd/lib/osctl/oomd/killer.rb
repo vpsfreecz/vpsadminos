@@ -14,18 +14,18 @@ module OsCtl::Oomd
         @stop_hits = 0
       end
 
-      def hit
-        @restart_hits += 1
-        @stop_hits += 1
+      def hit(restart: true, stop: true)
+        @restart_hits += 1 if restart
+        @stop_hits += 1 if stop
         @first_hit ||= Time.now
         @last_hit = Time.now
       end
 
-      def miss
-        @restart_hits -= 1
+      def miss(restart: true, stop: true)
+        @restart_hits -= 1 if restart
         @restart_hits = 0 if @restart_hits < 0
 
-        @stop_hits -= 1
+        @stop_hits -= 1 if stop
         @stop_hits = 0 if @stop_hits < 0
       end
 
