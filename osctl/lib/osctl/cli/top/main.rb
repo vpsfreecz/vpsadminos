@@ -5,7 +5,11 @@ module OsCtl::Cli
     def start
       validate_rate
 
-      model = Top::Model.new(enable_iostat: opts[:iostat])
+      model = Top::Model.new(
+        enable_netif: opts.fetch(:netif, true),
+        enable_zfs: opts.fetch(:zfs, true),
+        enable_iostat: opts.fetch(:iostat, true)
+      )
       model.setup
 
       kwargs = {}

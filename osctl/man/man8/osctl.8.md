@@ -1912,9 +1912,30 @@ transfer and start again.
   `?`                       | Show help message.
 
   When global option `-j`, `--json` is used, the TUI is replaced by JSON
-  being periodically printed on standard output. Every line describing resource
-  usage at the time of writing. `ct top` with JSON output can be manually
-  refreshed by sending it `SIGUSR1`.
+  being periodically printed on standard output. Each line describes an acquired
+  snapshot. Send `SIGUSR1` to request an additional sample.
+
+  JSON includes `top_schema: 1`, sampler `epoch`, increasing `sequence`, core
+  `complete`/`invalid_reason` and effective `collectors` booleans for `netif`,
+  `zfs` and `iostat`. Container rows include `init_pid`,
+  `init_start_time_ticks`, `valid` and `invalid_reason`. The synthetic host row retains its place in the
+  load ranking and has no container run identity.
+
+  `sample_started_monotonic_ns` and `sample_completed_monotonic_ns` enclose
+  acquisition and projection. `measurement_window_started_monotonic_ns` starts
+  at the preceding coherent same-run raw sweep, and
+  `measurement_window_completed_monotonic_ns` is the current completion. This envelope contains the CPU reads, rather than
+  timestamping each read exactly. Serialization, redraw and mode changes do
+  not acquire data or refresh these timestamps or the sequence. Consumers
+  choose their freshness and CPU-window limits.
+
+  A coherent initial or new-run sample seeds the next delta and is incomplete
+  until a compatible baseline exists. Missing or inconsistent required input
+  invalidates the core snapshot and discards its old baseline. Disabled
+  optional collectors do not invalidate coherent core data. Disabled or
+  unavailable optional JSON values are null; they are not zero usage. The TUI
+  omits columns, sorts and totals for disabled collectors, and hides ARC panels
+  when ZFS collection is disabled.
 
     `-r`, `--rate` *n*
       Refresh rate in seconds, defaults to 1 second.
@@ -1925,7 +1946,16 @@ transfer and start again.
       this information.
 
     `--no-iostat`
-      Do not track the host's io stats using `zpool iostat`.
+      Disable host IO statistics from `zpool iostat`. ARC and ZFS objset
+      statistics remain enabled unless `--no-zfs` is also set.
+
+    `--no-netif`
+      Disable network interface inventory, event handling and statistics.
+      Network collection is enabled by default.
+
+    `--no-zfs`
+      Disable ZFS objset, ARC and iostat collection before acquiring their
+      data. This overrides `--iostat`. ZFS collection is enabled by default.
 
 `ct pid` [*pid...*] | `-`
   Find containers by process IDs. By default, the process IDs are passed as

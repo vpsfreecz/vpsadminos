@@ -7,6 +7,8 @@ RSpec.describe OsCtl::Cli::Top::Monitor do
 
   before do
     allow(model).to receive(:sync).and_yield
+    allow(model).to receive(:netif_enabled?).and_return(true)
+    allow(model).to receive(:changed!)
   end
 
   it 'subscribes to events and starts a monitor thread' do
@@ -81,5 +83,16 @@ RSpec.describe OsCtl::Cli::Top::Monitor do
     monitor.send(:process_saved_events)
 
     expect(model).to have_received(:add_pool).with('tank')
+  end
+
+  it 'ignores disabled network events before locking, lookup, buffering or RPC' do
+    allow(model).to receive(:netif_enabled?).and_return(false)
+    expect(model).not_to receive(:sync)
+    expect(model).not_to receive(:find_ct)
+    expect(model).not_to receive(:add_ct_netif)
+    monitor = described_class.new(model)
+    monitor.send(:save_event, type: 'ct_netif', opts: { action: 'add' })
+    monitor.send(:process_event, :ct_netif, action: 'add')
+    expect(monitor.instance_variable_get(:@buffer)).to be_empty
   end
 end
