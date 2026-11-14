@@ -25,8 +25,12 @@ prepare=$source_root/tools/livepatch/prepare-ci-tools.sh
 run_profile=$source_root/tools/livepatch/run-profile.sh
 test_runner=$source_root/test-runner.sh
 workflow=$source_root/.github/workflows/livepatch.yml
+main_workflow=$source_root/.github/workflows/ci.yml
+qualification_workflow=$source_root/.github/workflows/livepatch-qualification.yml
+docs_workflow=$source_root/.github/workflows/livepatch-docs.yml
 [[ -f "$inventory" && -x "$prepare" && -x "$run_profile" && -x "$test_runner" &&
-  -f "$workflow" ]] || usage
+  -f "$workflow" && -f "$main_workflow" && -f "$qualification_workflow" &&
+  -f "$docs_workflow" ]] || usage
 "$bash_path" -n "$test_runner"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/livepatch-ci-tool-test.XXXXXX")
@@ -34,6 +38,205 @@ cleanup() {
   rm -rf -- "$work"
 }
 trap cleanup EXIT HUP INT TERM
+
+extract_event_list() {
+  local file=$1
+  local event=$2
+  local key=$3
+
+  awk -v event="$event" -v key="$key" '
+    $0 == "  " event ":" { in_event = 1; next }
+    in_event && /^  [[:alnum:]_-]+:/ { exit }
+    in_event && $0 == "    " key ":" { in_list = 1; next }
+    in_list && /^      - / {
+      value = $0
+      sub(/^      - /, "", value)
+      if (value ~ /^'\''.*'\''$/ || value ~ /^".*"$/) {
+        value = substr(value, 2, length(value) - 2)
+      }
+      print value
+      next
+    }
+    in_list { exit }
+  ' "$file"
+}
+
+path_matches() {
+  local path=$1
+  shift
+  local pattern
+
+  for pattern in "$@"; do
+    if [[ $path == $pattern ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+change_matches() {
+  local patterns_name=$1
+  shift
+  local -n patterns=$patterns_name
+  local path
+
+  for path in "$@"; do
+    if path_matches "$path" "${patterns[@]}"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+expect_match() {
+  local name=$1
+  local patterns_name=$2
+  shift 2
+
+  change_matches "$patterns_name" "$@" || fail "trigger case did not match: $name"
+}
+
+expect_no_match() {
+  local name=$1
+  local patterns_name=$2
+  shift 2
+
+  if change_matches "$patterns_name" "$@"; then
+    fail "excluded trigger case matched: $name"
+  fi
+}
+
+expected_qualification_paths=$work/expected-qualification-paths
+cat >"$expected_qualification_paths" <<'EOF'
+.gitattributes
+.github/workflows/livepatch.yml
+.github/workflows/livepatch-qualification.yml
+flake.nix
+flake.lock
+libosctl/**
+os/default.nix
+os/configs/qemu.nix
+os/configs/tests.nix
+os/livepatches/**
+os/modules/config/kernel*.nix
+os/modules/module-list.nix
+os/modules/nixos-modules.nix
+os/modules/os-modules.nix
+os/modules/services/livepatches/**
+os/modules/system/boot/qemu.nix
+os/overlays/**
+os/packages/kpatch-build/**
+os/packages/linux/**
+os/packages/livepatch-module/**
+os/packages/ruby-source-gem-config.nix
+os/packages/ruby/**
+os/packages/zfs/**
+osvm/**
+test-runner.sh
+test-runner/**
+tests/all-tests.nix
+tests/make-template.nix
+tests/make-test.nix
+tests/test-configs/ci.nix
+tests/configs/vpsadminos/base.nix
+tests/configs/vpsadminos/livepatch*.nix
+tests/machines/vpsadminos/**
+tests/suite/kernel/livepatch*.nix
+tests/suite/kernel/livepatch*/**
+tools/livepatch/**
+EOF
+
+expected_docs_paths=$work/expected-docs-paths
+cat >"$expected_docs_paths" <<'EOF'
+.github/workflows/livepatch-docs.yml
+docs/os/livepatches/**
+skills/manage-livepatch/**
+mkdocs.yml
+Makefile
+EOF
+
+actual_qualification_paths=$work/actual-qualification-paths
+actual_docs_push_paths=$work/actual-docs-push-paths
+actual_docs_pull_request_paths=$work/actual-docs-pull-request-paths
+extract_event_list "$qualification_workflow" push paths >"$actual_qualification_paths"
+extract_event_list "$docs_workflow" push paths >"$actual_docs_push_paths"
+extract_event_list "$docs_workflow" pull_request paths >"$actual_docs_pull_request_paths"
+cmp -- "$expected_qualification_paths" "$actual_qualification_paths"
+cmp -- "$expected_docs_paths" "$actual_docs_push_paths"
+cmp -- "$expected_docs_paths" "$actual_docs_pull_request_paths"
+
+[[ $(extract_event_list "$qualification_workflow" push branches) == '**' ]] ||
+  fail 'qualification branch selector changed'
+[[ $(grep -Ec '^  (push|workflow_dispatch):$' "$qualification_workflow") -eq 2 ]] ||
+  fail 'qualification event set changed'
+[[ $(grep -Ec '^  pull_request:$' "$qualification_workflow") -eq 0 ]] ||
+  fail 'qualification workflow gained a pull-request trigger'
+[[ $(grep -Ec '^  workflow_call:$' "$workflow") -eq 1 ]] ||
+  fail 'reusable workflow-call trigger changed'
+[[ $(grep -Ec '^  (push|pull_request|workflow_dispatch):$' "$workflow") -eq 0 ]] ||
+  fail 'reusable workflow gained a direct trigger'
+[[ $(grep -Ec '^  (push|pull_request):$' "$docs_workflow") -eq 2 ]] ||
+  fail 'documentation event set changed'
+[[ $(grep -Ec '^  workflow_dispatch:$' "$docs_workflow") -eq 0 ]] ||
+  fail 'documentation workflow gained a dispatch trigger'
+[[ $(grep -Fc 'group: livepatch-qualification-${{ github.ref }}' "$qualification_workflow") -eq 1 ]] ||
+  fail 'qualification concurrency group changed'
+[[ $(grep -Fc 'cancel-in-progress: true' "$qualification_workflow") -eq 1 ]] ||
+  fail 'qualification cancellation policy changed'
+
+mapfile -t qualification_paths <"$actual_qualification_paths"
+mapfile -t docs_paths <"$actual_docs_push_paths"
+
+expect_match framework-new-file qualification_paths \
+  os/livepatches/framework/new-protocol.patch
+expect_match libosctl-native qualification_paths libosctl/ext/libosctl/native.c
+expect_match target-config qualification_paths os/modules/config/kernel.nix
+expect_match nixos-module-registry qualification_paths os/modules/nixos-modules.nix
+expect_match os-module-registry qualification_paths os/modules/os-modules.nix
+expect_match producer-source qualification_paths os/packages/livepatch-module/default.nix
+expect_match ruby-patch qualification_paths os/packages/ruby/export-timer-functions.patch
+expect_match ruby-gem-config qualification_paths os/packages/ruby-source-gem-config.nix
+expect_match osvm-ruby-source qualification_paths osvm/lib/osvm/machine.rb
+expect_match test-profile qualification_paths tests/configs/vpsadminos/livepatch-root.nix
+expect_match qualification-tool qualification_paths tools/livepatch/verify.sh
+expect_match rename-into-watched qualification_paths \
+  docs/internal/old.nix os/livepatches/lib/new.nix
+expect_match rename-out-of-watched qualification_paths \
+  os/packages/linux/old.nix docs/internal/new.nix
+expect_no_match target-prose qualification_paths docs/os/livepatches/process.md
+expect_no_match skill-router qualification_paths skills/manage-livepatch/SKILL.md
+expect_no_match unrelated-service qualification_paths osctld/lib/osctld/daemon.rb
+expect_no_match unrelated-package qualification_paths os/packages/bridge/default.nix
+expect_no_match unrelated-test qualification_paths tests/suite/kernel/scheduler.nix
+
+expect_match docs-new-page docs_paths docs/os/livepatches/new-target.md
+expect_match docs-router docs_paths skills/manage-livepatch/SKILL.md
+expect_match docs-navigation docs_paths mkdocs.yml
+expect_match docs-rename-into docs_paths docs/os/updates.md docs/os/livepatches/updates.md
+expect_match docs-rename-out docs_paths docs/os/livepatches/old.md docs/os/updates.md
+expect_no_match docs-producer docs_paths os/packages/livepatch-module/default.nix
+expect_no_match docs-flake docs_paths flake.nix
+
+[[ $(grep -Fl 'uses: ./.github/workflows/livepatch.yml' \
+  "$source_root"/.github/workflows/*.yml | wc -l) -eq 1 ]] ||
+  fail 'reusable livepatch workflow caller count changed'
+grep -Fq 'uses: ./.github/workflows/livepatch.yml' "$qualification_workflow" ||
+  fail 'qualification caller is missing'
+if grep -Fq 'uses: ./.github/workflows/livepatch.yml' "$main_workflow"; then
+  fail 'broad CI still calls livepatch qualification'
+fi
+if grep -Eiq '6\.12\.|nfs|release(Id)?|fix(Id)?|batch(Id)?' "$qualification_workflow"; then
+  fail 'qualification caller contains release-specific policy'
+fi
+if grep -Eq 'livepatch\.yml|tools/livepatch|runs-on: (self-hosted|\$\{\{)' "$docs_workflow"; then
+  fail 'documentation workflow gained livepatch execution or a physical runner'
+fi
+grep -Fq 'nix develop .#vpsadminos --command mkdocs build --strict' "$docs_workflow" ||
+  fail 'strict documentation command changed'
+grep -Fq '(../../docs/os/livepatches/process.md)' "$source_root/skills/manage-livepatch/SKILL.md" ||
+  fail 'livepatch process route is missing'
+grep -Fq '(../../docs/os/livepatches/template.md)' "$source_root/skills/manage-livepatch/SKILL.md" ||
+  fail 'livepatch template route is missing'
 
 expected=$work/expected.tsv
 cat >"$expected" <<'EOF'
