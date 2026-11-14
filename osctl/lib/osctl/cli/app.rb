@@ -798,6 +798,20 @@ module OsCtl::Cli
           c.action(&Command.run(Container, :restart))
         end
 
+        %i[restart stop].each do |action|
+          ct.desc "Use force-kill to #{action} a container with a matching init process"
+          ct.arg_name '<ctid>'
+          ct.command "oomd-#{action}" do |c|
+            c.desc 'PID of the expected current container init process'
+            c.flag 'expected-init-pid', type: Integer, required: true, arg_name: 'pid'
+
+            c.desc 'Start time of that init process, in raw clock ticks'
+            c.flag 'expected-init-start-time', type: Integer, required: true, arg_name: 'ticks'
+
+            c.action(&Command.run(Container, :oomd_action, [action]))
+          end
+        end
+
         ct.desc "Open container's console"
         ct.arg_name '<ctid>'
         ct.command :console do |c|
