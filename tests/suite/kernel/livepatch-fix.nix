@@ -20,6 +20,7 @@ import ../../make-template.nix (
       { pkgs }:
       let
         lib = pkgs.lib;
+        rubyJson = import ./livepatch-ruby-json.nix { inherit lib; };
         repositoryRoot = ../../..;
         adapters = map (
           oracle:
@@ -49,6 +50,12 @@ import ../../make-template.nix (
             script = adapter.oracleScripts.${oracle.role};
           }
         ) selected;
+        oracleScripts = builtins.listToAttrs (
+          map (adapter: {
+            name = adapter.oracle.id;
+            value = adapter.script;
+          }) adapters
+        );
       in
       {
         name = "kernel-livepatch-fix-${row.rowId}";
@@ -72,17 +79,8 @@ import ../../make-template.nix (
         testScript = ''
           require 'json'
 
-          ROW = ${builtins.toJSON row}
-          ORACLE_SCRIPTS = ${
-            builtins.toJSON (
-              builtins.listToAttrs (
-                map (adapter: {
-                  name = adapter.oracle.id;
-                  value = adapter.script;
-                }) adapters
-              )
-            )
-          }
+          ROW = ${rubyJson row}
+          ORACLE_SCRIPTS = ${rubyJson oracleScripts}
 
           before(:suite) do
             machine.start

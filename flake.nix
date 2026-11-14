@@ -1092,6 +1092,82 @@
             )
           ];
           qualificationOracleRows = builtins.filter (row: row.scope == "fix") qualificationPlanOne.rows;
+          qualificationRootSet = builtins.head qualificationPlanOne.sets;
+          qualificationRootRow = builtins.head (
+            builtins.filter (row: row.scope == "set") qualificationPlanOne.rows
+          );
+          qualificationSuccessorSet = builtins.head qualificationPlanTwo.sets;
+          qualificationFixRow = builtins.head qualificationOracleRows;
+          qualificationRubyJson = import ./tests/suite/kernel/livepatch-ruby-json.nix {
+            lib = pkgs.lib;
+          };
+          qualificationOracleScript = ''
+            producer = shell(identity.fetch('producer'))
+            module_path = shell(identity.fetch('module'))
+            evidence = "#{producer}/share/vpsadminos-livepatch"
+            expected_sha = "#{identity.fetch('moduleSha256')}"
+            machine.succeeds("test -f #{module_path}")
+            literal_quotes = %q("double" and 'single')
+            literal_backslash = 'C:\\livepatch\\module'
+            payload_lines = <<~'PAYLOAD'
+              before
+            VPSADMINOS_LIVEPATCH_JSON_END
+              after
+            PAYLOAD
+          '';
+          qualificationOracleScriptMap = builtins.listToAttrs [
+            {
+              name = qualificationFixRow.id;
+              value = qualificationOracleScript;
+            }
+          ];
+          qualificationOracleScriptFile = pkgs.writeText "livepatch-qualification-oracle.rb" (
+            qualificationOracleScript
+          );
+          qualificationRootSetJsonFile = pkgs.writeText "livepatch-qualification-root-set.json" (
+            builtins.toJSON qualificationRootSet
+          );
+          qualificationRootRowJsonFile = pkgs.writeText "livepatch-qualification-root-row.json" (
+            builtins.toJSON qualificationRootRow
+          );
+          qualificationSuccessorSetJsonFile = pkgs.writeText "livepatch-qualification-successor-set.json" (
+            builtins.toJSON qualificationSuccessorSet
+          );
+          qualificationFixRowJsonFile = pkgs.writeText "livepatch-qualification-fix-row.json" (
+            builtins.toJSON qualificationFixRow
+          );
+          qualificationOracleScriptMapJsonFile = pkgs.writeText "livepatch-qualification-oracle-map.json" (
+            builtins.toJSON qualificationOracleScriptMap
+          );
+          qualificationSerializationCheck = pkgs.writeText "livepatch-qualification-serialization.rb" ''
+            require 'digest'
+            require 'json'
+
+            root_set = ${qualificationRubyJson qualificationRootSet}
+            root_row = ${qualificationRubyJson qualificationRootRow}
+            successor_set = ${qualificationRubyJson qualificationSuccessorSet}
+            fix_row = ${qualificationRubyJson qualificationFixRow}
+            oracle_scripts = ${qualificationRubyJson qualificationOracleScriptMap}
+
+            raise 'root predecessor is not nil' unless root_set.fetch('members').fetch(0).fetch('predecessorRelease').nil?
+            raise 'root set did not round-trip' unless JSON.generate(root_set) == File.binread(ARGV.fetch(1))
+            raise 'root row did not round-trip' unless JSON.generate(root_row) == File.binread(ARGV.fetch(2))
+            raise 'row list changed' unless root_row.fetch('oracleIds') == []
+            raise 'row platform map changed' unless root_row.fetch('platform').fetch('supported') == true
+            raise 'successor predecessor changed' unless successor_set.fetch('members').fetch(1).fetch('predecessorRelease') == '6.12.113.1'
+            raise 'successor set did not round-trip' unless JSON.generate(successor_set) == File.binread(ARGV.fetch(3))
+            raise 'fix row did not round-trip' unless JSON.generate(fix_row) == File.binread(ARGV.fetch(4))
+            raise 'oracle map did not round-trip' unless JSON.generate(oracle_scripts) == File.binread(ARGV.fetch(5))
+
+            oracle_script = oracle_scripts.fetch(fix_row.fetch('id'))
+            expected_oracle = File.binread(ARGV.fetch(0))
+            raise 'oracle bytes changed' unless oracle_script.b == expected_oracle.b
+            raise 'oracle SHA changed' unless Digest::SHA256.hexdigest(oracle_script.b) == Digest::SHA256.file(ARGV.fetch(0)).hexdigest
+            raise 'producer interpolation changed' unless oracle_script.include?('#{producer}')
+            raise 'identity interpolation changed' unless oracle_script.include?(%q(#{identity.fetch('moduleSha256')}))
+            raise 'module path interpolation changed' unless oracle_script.include?('#{module_path}')
+            raise 'decoded delimiter line changed' unless oracle_script.lines.map(&:chomp).include?('VPSADMINOS_LIVEPATCH_JSON_END')
+          '';
           qualificationUnsupportedOracleRows = builtins.filter (
             row: row.scope == "fix"
           ) qualificationUnsupportedIntel.rows;
@@ -1234,6 +1310,26 @@
                 one=${qualificationPlanOneFile}
                 two=${qualificationPlanTwoFile}
 
+                ${pkgs.ruby}/bin/ruby ${qualificationSerializationCheck} \
+                  ${qualificationOracleScriptFile} \
+                  ${qualificationRootSetJsonFile} \
+                  ${qualificationRootRowJsonFile} \
+                  ${qualificationSuccessorSetJsonFile} \
+                  ${qualificationFixRowJsonFile} \
+                  ${qualificationOracleScriptMapJsonFile} \
+                  > qualification-serialization.log
+                grep -F 'rubyJson = import ./livepatch-ruby-json.nix' ${./tests/suite/kernel/livepatch-set.nix}
+                grep -F 'rubyJson = import ./livepatch-ruby-json.nix' ${./tests/suite/kernel/livepatch-fix.nix}
+                grep -F 'VPSADMINOS_LIVEPATCH_JSON_END' ${./tests/suite/kernel/livepatch-ruby-json.nix}
+                grep -F 'assert !lib.hasInfix' ${./tests/suite/kernel/livepatch-ruby-json.nix}
+                grep -F "JSON.parse(<<~'" ${./tests/suite/kernel/livepatch-ruby-json.nix}
+                if grep -F 'builtins.toJSON' \
+                  ${./tests/suite/kernel/livepatch-set.nix} \
+                  ${./tests/suite/kernel/livepatch-fix.nix}; then
+                  echo 'production template bypasses the shared Ruby JSON carrier' >&2
+                  exit 1
+                fi
+
                 jq -e '
                   .selectedSets == 1
                   and (.sets[0].members | length) == 1
@@ -1316,6 +1412,7 @@
                 printf '%s\n' "$livepatchCiTools" > "$out/livepatch-ci-tools-path.txt"
                 cp "$one" "$out/plan-one.json"
                 cp "$two" "$out/plan-two.json"
+                cp qualification-serialization.log "$out/qualification-serialization.log"
                 cp generic-safety-hypervisor.log "$out/generic-safety-hypervisor.log"
                 cp generic-safety.log "$out/generic-safety.log"
                 cp verify-capture.log "$out/verify-capture.log"

@@ -24,6 +24,8 @@ import ../../make-template.nix (
     test =
       { pkgs }:
       let
+        lib = pkgs.lib;
+        rubyJson = import ./livepatch-ruby-json.nix { inherit lib; };
         workload = import ./livepatch-set/workload.nix { inherit pkgs; };
       in
       {
@@ -55,9 +57,9 @@ import ../../make-template.nix (
           require 'json'
           require 'shellwords'
 
-          ROW = ${builtins.toJSON row}
-          EXPECTED_SET = ${builtins.toJSON set}
-          EXPECTED_CAPTURE = ${builtins.toJSON capturedSet}
+          ROW = ${rubyJson row}
+          EXPECTED_SET = ${rubyJson set}
+          EXPECTED_CAPTURE = ${rubyJson capturedSet}
           WORKLOAD_DIMENSIONS = %w[
             cpu scheduler forkExec cgroupMigration loopbackNetwork
             filesystemIntegrity
