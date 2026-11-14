@@ -127,6 +127,39 @@ RSpec.describe OsCtl::Oomd::Watcher do
   end
 
   describe '#run' do
+    it 'preserves ordinary scores through failed and warming common frames until complete recovery' do
+      stop_error = Class.new(StandardError)
+      queue = instance_double(OsCtl::Lib::Queue)
+      host_load = host_load_double
+      killer = killer_double
+      watcher = build_watcher(queue:, host_load:, killer:, exporter: exporter_double)
+      record = OsCtl::Oomd::Killer::Container.new('tank', 'ct1')
+      7.times { record.hit }
+      frames = [
+        { 'top_schema' => 1, 'complete' => false, 'loadavg' => nil, 'containers' => [] },
+        { 'top_schema' => 1, 'complete' => false, 'loadavg' => [25],
+          'containers' => [sample_container.merge('memory' => nil, 'cpu_usage' => nil)] },
+        { 'top_schema' => 1, 'complete' => true, 'loadavg' => [25], 'containers' => [sample_container] }
+      ]
+      allow(Thread).to receive(:new).and_return(instance_double(Thread))
+      allow(host_load).to receive(:<<)
+      allow(killer).to receive(:watched?).with('tank', 'ct1').and_return(true)
+      allow(killer).to receive(:add_hit).with('tank', 'ct1') { record.hit }
+      allow(killer).to receive(:add_miss).with('tank', 'ct1') { record.miss }
+      allow(queue).to receive(:pop) do
+        raise stop_error if frames.empty?
+
+        expect([record.restart_hits, record.stop_hits]).to eq([7, 7])
+        frames.shift
+      end
+
+      expect { watcher.run }.to raise_error(stop_error)
+      expect([record.restart_hits, record.stop_hits]).to eq([8, 8])
+      expect(killer).to have_received(:add_hit).once
+      expect(killer).not_to have_received(:add_miss)
+      expect(host_load).to have_received(:<<).with(25).once
+    end
+
     it 'adds hits only when host load exceeds the threshold' do
       stop_error = Class.new(StandardError)
       queue = instance_double(OsCtl::Lib::Queue)

@@ -1591,6 +1591,12 @@ module OsCtl::Cli
           c.desc "Track the host's IO stats using zpool iostat"
           c.switch :iostat, default_value: true
 
+          c.desc 'Collect network interface inventory and statistics'
+          c.switch :netif, default_value: true
+
+          c.desc 'Collect ZFS objset, ARC and iostat statistics'
+          c.switch :zfs, default_value: true
+
           c.action(&Command.run(Top::Main, :start))
         end
 

@@ -19,9 +19,12 @@ RSpec.describe OsCtl::Cli::Top::Tui::ModelThread do
     data, _time, generation = thread.get_data
     expect(data).to eq(containers: [])
     expect(generation).to eq(1)
+    measured_at = thread.last_measurement
 
     thread.send(:measure, mode: :cumulative)
     expect(thread.mode).to eq(:cumulative)
     expect(thread.generation).to eq(2)
+    expect(model).to have_received(:measure).once
+    expect(thread.last_measurement).to eq(measured_at)
   end
 end

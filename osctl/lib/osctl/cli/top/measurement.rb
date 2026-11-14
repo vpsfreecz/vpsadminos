@@ -7,15 +7,17 @@ module OsCtl::Cli
 
     include CGroupParams
 
-    attr_reader :time, :data
+    attr_reader :time, :data, :core_error
 
-    def initialize(host, subsystems, group_path, dataset, netifs)
+    def initialize(host, subsystems, group_path, dataset, netifs, enable_netif: true, enable_zfs: true)
       @host = host
       @subsystems = subsystems
       @group_path = group_path
       @dataset = dataset
       @netifs = netifs
       @data = {}
+      @enable_netif = enable_netif
+      @enable_zfs = enable_zfs
     end
 
     def measure
@@ -27,9 +29,27 @@ module OsCtl::Cli
                     true
                   ))
 
-      add_zfs_io_stats
+      validate_core
+      data[:cpu_limit] = nil unless data.has_key?(:cpu_limit)
+      data[:memory_limit] = nil unless data.has_key?(:memory_limit)
 
-      data.update(netif_stats)
+      data[:zfsio] = nil
+      if @enable_zfs
+        begin
+          add_zfs_io_stats
+        rescue StandardError
+          data[:zfsio] = nil
+        end
+      end
+
+      data[:tx] = data[:rx] = nil
+      if @enable_netif
+        begin
+          data.update(netif_stats)
+        rescue StandardError
+          data[:tx] = data[:rx] = nil
+        end
+      end
     rescue SystemCallError => e
       raise Error, e.message
     end
@@ -38,19 +58,58 @@ module OsCtl::Cli
       do_diff_from(other.data, data, mode, time - other.time)
     end
 
+    def delta_error(other)
+      return 'invalid_window' unless time > other.time
+
+      %i[cpu_us cpu_user_us cpu_system_us cpu_hz cpu_user_hz cpu_system_hz].each do |key|
+        next if data[key].nil? || other.data[key].nil?
+        return 'counter_reset' if raw(data[key]) < raw(other.data[key])
+      end
+      nil
+    end
+
     protected
 
     attr_reader :host, :subsystems, :group_path, :dataset, :netifs
 
+    def raw(value)
+      value.is_a?(OsCtl::Lib::Cli::Presentable) ? value.raw : value
+    end
+
+    def nonnegative?(value)
+      value = raw(value)
+      value.is_a?(Numeric) && value.finite? && value >= 0
+    end
+
+    def validate_core
+      @core_error = nil
+      unless %i[cpu_user_hz cpu_system_hz memory].all? { |k| nonnegative?(data[k]) }
+        @core_error = 'missing_cgroup_value'
+      end
+      %i[cpu_limit memory_limit].each do |k|
+        next unless data.has_key?(k)
+
+        if data[k].nil?
+          @core_error = 'missing_cgroup_value'
+        elsif !nonnegative?(data[k]) || raw(data[k]) <= 0
+          @core_error = 'invalid_limit'
+        end
+      end
+    end
+
     def do_diff_from(other, mine, mode, delta)
       ret = {}
 
-      other.each do |k, v|
-        if v.is_a?(Hash)
-          ret[k] = do_diff_from(v, mine[k], mode, delta)
-
-        elsif %i[cpu_limit memory memory_limit nproc].include?(k)
+      (other.keys | mine.keys).each do |k|
+        v = other[k]
+        if %i[cpu_limit memory memory_limit nproc].include?(k)
           ret[k] = mine[k]
+
+        elsif v.nil? || mine[k].nil?
+          ret[k] = nil
+
+        elsif v.is_a?(Hash)
+          ret[k] = do_diff_from(v, mine[k], mode, delta)
 
         else
           ret[k] = if mode == :realtime

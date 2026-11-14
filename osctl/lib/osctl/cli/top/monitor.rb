@@ -48,6 +48,8 @@ module OsCtl::Cli
     end
 
     def process_event(type, opts)
+      return if type == :ct_netif && !model.netif_enabled?
+
       case type
       when :state
         model.sync do
@@ -58,32 +60,31 @@ module OsCtl::Cli
 
           ct.state = st
           ct.init_pid = opts[:init_pid] if st == :running
+          model.changed!
         end
 
       when :db
-        model.sync do
-          if opts[:object] == 'pool'
-            case opts[:action].to_sym
-            when :add
-              unless model.has_pool?(opts[:pool])
-                model.add_pool(opts[:pool])
-              end
-
-            when :remove
-              model.remove_pool(opts[:pool])
+        if opts[:object] == 'pool'
+          case opts[:action].to_sym
+          when :add
+            unless model.has_pool?(opts[:pool])
+              model.add_pool(opts[:pool])
             end
 
-          elsif opts[:object] == 'container'
-            case opts[:action].to_sym
-            when :add
-              unless model.has_ct?(opts[:pool], opts[:id])
-                model.add_ct(opts[:pool], opts[:id])
-              end
+          when :remove
+            model.remove_pool(opts[:pool])
+          end
 
-            when :remove
-              ct = model.find_ct(opts[:pool], opts[:id])
-              model.remove_ct(ct) if ct
+        elsif opts[:object] == 'container'
+          case opts[:action].to_sym
+          when :add
+            unless model.has_ct?(opts[:pool], opts[:id])
+              model.add_ct(opts[:pool], opts[:id])
             end
+
+          when :remove
+            ct = model.find_ct(opts[:pool], opts[:id])
+            model.remove_ct(ct) if ct
           end
         end
 
@@ -93,6 +94,7 @@ module OsCtl::Cli
           next unless ct
 
           ct.cpu_package_inuse = opts[:cpu_package_inuse]
+          model.changed!
         end
 
       when :ct_init_pid
@@ -101,17 +103,20 @@ module OsCtl::Cli
           next unless ct
 
           ct.init_pid = opts[:init_pid]
+          model.changed!
         end
 
       when :ct_netif
+        if opts[:action] == 'add'
+          ct = model.find_ct(opts[:pool], opts[:id])
+          model.add_ct_netif(ct, opts[:name]) if ct && !ct.has_netif?(opts[:name])
+          return
+        end
         model.sync do
           ct = model.find_ct(opts[:pool], opts[:id])
           next unless ct
 
           case opts[:action].to_sym
-          when :add
-            model.add_ct_netif(ct, opts[:name]) unless ct.has_netif?(opts[:name])
-
           when :remove
             ct.netif_rm(opts[:name]) if ct.has_netif?(opts[:name])
 
@@ -130,11 +135,14 @@ module OsCtl::Cli
               ct.netif_down(opts[:name])
             end
           end
+          model.changed!
         end
       end
     end
 
     def save_event(event)
+      return if event[:type].to_s == 'ct_netif' && !model.netif_enabled?
+
       @buffer << event
     end
 

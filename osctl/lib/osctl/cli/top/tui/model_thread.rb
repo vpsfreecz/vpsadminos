@@ -46,6 +46,14 @@ module OsCtl::Cli::Top
       @model.iostat_enabled?
     end
 
+    def netif_enabled?
+      @model.netif_enabled?
+    end
+
+    def zfs_enabled?
+      @model.zfs_enabled?
+    end
+
     def containers
       @model.containers
     end
@@ -70,10 +78,10 @@ module OsCtl::Cli::Top
     end
 
     def measure(mode: nil)
-      @model.measure
+      @model.measure unless mode
 
       @mutex.synchronize do
-        @last_measurement = Time.now
+        @last_measurement = Time.now unless mode
 
         if mode
           @model.mode = mode

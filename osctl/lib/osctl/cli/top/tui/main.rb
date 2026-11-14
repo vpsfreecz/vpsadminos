@@ -251,7 +251,12 @@ module OsCtl::Cli::Top
         ],
         row_fmt: ['%9s'],
         row_values: proc do |ct|
-          cpu = (rt? ? format_percent(ct[:cpu_usage]) : humanize_time_us(ct[:cpu_us])).to_s
+          value = rt? ? ct[:cpu_usage] : ct[:cpu_us]
+          cpu = if value.nil?
+                  '-'
+                else
+                  (rt? ? format_percent(value) : humanize_time_us(value)).to_s
+                end
           cpu << "/#{ct[:cpu_package_inuse]}" if ct[:cpu_package_inuse]
           [cpu]
         end,
@@ -284,7 +289,7 @@ module OsCtl::Cli::Top
         ],
         row_fmt: ['%8s'],
         row_values: proc do |ct|
-          [humanize_data(ct[:memory])]
+          [ct[:memory].nil? ? '-' : humanize_data(ct[:memory])]
         end,
         sortable_fields: :memory,
         stats_cts_values: proc do |cts|
@@ -316,7 +321,7 @@ module OsCtl::Cli::Top
         end
       )
 
-      if Curses.cols >= 114
+      if model_thread.zfs_enabled? && Curses.cols >= 114
         @modules << Module.new(
           name: 'zfsio',
           header_fmts: ['%27s', '%13s %13s', '%6s %6s %6s %6s'],
@@ -369,86 +374,89 @@ module OsCtl::Cli::Top
         )
       end
 
-      @modules <<
-        if compact?
-          Module.new(
-            name: 'network',
-            header_fmts: ['%18s', '', '%8s %8s'],
-            header_labels: proc do
-              [
-                ['Network     '],
-                [],
-                rt? ? ['TX bps', 'RX bps'] : ['TX bytes', 'RX bytes']
-              ]
-            end,
-            row_fmt: ['%8s'] * 2,
-            row_values: proc do |ct|
-              [
-                humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
-                humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes])
-              ]
-            end,
-            sortable_fields: [
-              %i[tx bytes],
-              %i[rx bytes]
-            ],
-            stats_cts_values: proc do |cts|
-              [
-                humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
-                humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1))
-              ]
-            end,
-            stats_all_values: proc do |cts|
-              [
-                humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
-                humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1))
-              ]
-            end
-          )
-        else
-          Module.new(
-            name: 'network',
-            header_fmts: ['%27s', '%13s %13s', '%6s %6s %6s %6s'],
-            header_labels: proc do
-              [
-                ['Network        '],
-                ['TX    ', 'RX    '],
-                rt? ? %w[bps pps bps pps] : %w[Bytes Packet Bytes Packet]
-              ]
-            end,
-            row_fmt: ['%6s'] * 4,
-            row_values: proc do |ct|
-              [
-                humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
-                humanize_data(ct[:tx][:packets]),
-                humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
-                humanize_data(ct[:rx][:packets])
-              ]
-            end,
-            sortable_fields: [
-              %i[tx bytes],
-              %i[tx packets],
-              %i[rx bytes],
-              %i[rx packets]
-            ],
-            stats_cts_values: proc do |cts|
-              [
-                humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
-                humanize_data(sum(cts, %i[tx packets], false)),
-                humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1)),
-                humanize_data(sum(cts, %i[rx packets], false))
-              ]
-            end,
-            stats_all_values: proc do |cts|
-              [
-                humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
-                humanize_data(sum(cts, %i[tx packets], true)),
-                humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1)),
-                humanize_data(sum(cts, %i[rx packets], true))
-              ]
-            end
-          )
-        end
+      if model_thread.netif_enabled?
+        @modules <<
+          if compact?
+            Module.new(
+              name: 'network',
+              header_fmts: ['%18s', '', '%8s %8s'],
+              header_labels: proc do
+                [
+                  ['Network     '],
+                  [],
+                  rt? ? ['TX bps', 'RX bps'] : ['TX bytes', 'RX bytes']
+                ]
+              end,
+              row_fmt: ['%8s'] * 2,
+              row_values: proc do |ct|
+                [
+                  humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
+                  humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes])
+                ]
+              end,
+              sortable_fields: [
+                %i[tx bytes],
+                %i[rx bytes]
+              ],
+              stats_cts_values: proc do |cts|
+                [
+                  humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
+                  humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1))
+                ]
+              end,
+              stats_all_values: proc do |cts|
+                [
+                  humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
+                  humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1))
+                ]
+              end
+            )
+          else
+            Module.new(
+              name: 'network',
+              header_fmts: ['%27s', '%13s %13s', '%6s %6s %6s %6s'],
+              header_labels: proc do
+                [
+                  ['Network        '],
+                  ['TX    ', 'RX    '],
+                  rt? ? %w[bps pps bps pps] : %w[Bytes Packet Bytes Packet]
+                ]
+              end,
+              row_fmt: ['%6s'] * 4,
+              row_values: proc do |ct|
+                [
+                  humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
+                  humanize_data(ct[:tx][:packets]),
+                  humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
+                  humanize_data(ct[:rx][:packets])
+                ]
+              end,
+              sortable_fields: [
+                %i[tx bytes],
+                %i[tx packets],
+                %i[rx bytes],
+                %i[rx packets]
+              ],
+              stats_cts_values: proc do |cts|
+                [
+                  humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
+                  humanize_data(sum(cts, %i[tx packets], false)),
+                  humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1)),
+                  humanize_data(sum(cts, %i[rx packets], false))
+                ]
+              end,
+              stats_all_values: proc do |cts|
+                [
+                  humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
+                  humanize_data(sum(cts, %i[tx packets], true)),
+                  humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1)),
+                  humanize_data(sum(cts, %i[rx packets], true))
+                ]
+              end
+            )
+          end
+
+      end
 
       @modules <<
         if compact?
@@ -676,42 +684,45 @@ module OsCtl::Cli::Top
         Curses.addstr('calculating')
       end
 
-      # ZFS ARC
-      arc = data[:zfs] && data[:zfs][:arcstats][:arc]
+      if model_thread.zfs_enabled?
+        # ZFS ARC
+        arc = data[:zfs] && data[:zfs][:arcstats][:arc]
 
-      Curses.setpos(pos += 1, 0)
-      Curses.addstr('ARC:    ')
-
-      if arc
-        bold { Curses.addstr(format('%8s', humanize_data(arc[:c_max]))) }
-        Curses.addstr(' c_max, ')
-        bold { Curses.addstr(format('%8s', humanize_data(arc[:c]))) }
-        Curses.addstr(' c,    ')
-        bold { Curses.addstr(format('%8s', humanize_data(arc[:size]))) }
-        Curses.addstr(compact? ? ' s, ' : ' size, ')
-        bold { Curses.addstr(format('%8.2f', format_percent(arc[:hit_rate]))) }
-        Curses.addstr(compact? ? ' hit, ' : ' hitrate, ')
-        bold { Curses.addstr(format('%6d', arc[:misses])) }
-        Curses.addstr(compact? ? ' mis' : ' missed ')
-
-      else
-        Curses.addstr('calculating')
-      end
-
-      l2arc = data[:zfs] && data[:zfs][:arcstats][:l2arc]
-
-      if l2arc && l2arc[:size] > 0
         Curses.setpos(pos += 1, 0)
-        Curses.addstr("L2ARC:  #{' ' * 16}")
+        Curses.addstr('ARC:    ')
 
-        bold { Curses.addstr(format('%8s', humanize_data(l2arc[:size]))) }
-        Curses.addstr(' size, ')
-        bold { Curses.addstr(format('%8s', humanize_data(l2arc[:asize]))) }
-        Curses.addstr(' asize,')
-        bold { Curses.addstr(format('%8.2f', humanize_data(l2arc[:hit_rate]))) }
-        Curses.addstr(' hitrate, ')
-        bold { Curses.addstr(format('%6d', l2arc[:misses])) }
-        Curses.addstr(' missed ')
+        if arc
+          bold { Curses.addstr(format('%8s', humanize_data(arc[:c_max]))) }
+          Curses.addstr(' c_max, ')
+          bold { Curses.addstr(format('%8s', humanize_data(arc[:c]))) }
+          Curses.addstr(' c,    ')
+          bold { Curses.addstr(format('%8s', humanize_data(arc[:size]))) }
+          Curses.addstr(compact? ? ' s, ' : ' size, ')
+          bold { Curses.addstr(format('%8.2f', format_percent(arc[:hit_rate]))) }
+          Curses.addstr(compact? ? ' hit, ' : ' hitrate, ')
+          bold { Curses.addstr(format('%6d', arc[:misses])) }
+          Curses.addstr(compact? ? ' mis' : ' missed ')
+
+        else
+          Curses.addstr('calculating')
+        end
+
+        l2arc = data[:zfs] && data[:zfs][:arcstats][:l2arc]
+
+        if l2arc && l2arc[:size] > 0
+          Curses.setpos(pos += 1, 0)
+          Curses.addstr("L2ARC:  #{' ' * 16}")
+
+          bold { Curses.addstr(format('%8s', humanize_data(l2arc[:size]))) }
+          Curses.addstr(' size, ')
+          bold { Curses.addstr(format('%8s', humanize_data(l2arc[:asize]))) }
+          Curses.addstr(' asize,')
+          bold { Curses.addstr(format('%8.2f', humanize_data(l2arc[:hit_rate]))) }
+          Curses.addstr(' hitrate, ')
+          bold { Curses.addstr(format('%6d', l2arc[:misses])) }
+          Curses.addstr(' missed ')
+        end
+
       end
 
       # Containers
@@ -770,7 +781,14 @@ module OsCtl::Cli::Top
       # Special case for container ID as that is always visible
       Curses.addstr(format("#{@modules[0].row_fmt.join(' ')} ", *@modules[0].row_values.call(ct)))
 
-      print_row_data(@modules[1..].map { |m| m.row_values.call(ct) }.flatten)
+      print_row_data(@modules[1..].map do |m|
+        if (m.name == 'network' && (ct[:tx].nil? || ct[:rx].nil?)) ||
+           (m.name == 'zfsio' && ct[:zfsio].nil?) || (m.name == 'loadavg' && ct[:loadavg].nil?)
+          ['-'] * m.row_fmt.length
+        else
+          m.row_values.call(ct)
+        end
+      end.flatten)
     end
 
     def print_row_data(values)
@@ -789,6 +807,26 @@ module OsCtl::Cli::Top
 
       # Fill space to the edge of the screen, needed for selected rows
       Curses.addstr(' ' * (Curses.cols - w)) if Curses.cols > w
+    end
+
+    def module_totals(mod, cts, data, include_host)
+      fields = case mod.name
+               when 'network' then %i[tx rx]
+               when 'zfsio' then [:zfsio]
+               when 'cpu' then [rt? ? :cpu_usage : :cpu_us]
+               when 'memory' then [:memory]
+               when 'proc' then [:nproc]
+               when 'loadavg' then [:loadavg]
+               else []
+               end
+      unknown = cts.any? do |ct|
+        next false if !include_host && ct[:id] == '[host]'
+
+        fields.any? { |key| ct[key].nil? }
+      end
+      return ['-'] * mod.row_fmt.length if unknown
+
+      (include_host ? mod.stats_all_values : mod.stats_cts_values).call(cts, data)
     end
 
     def stats_rows
@@ -811,12 +849,12 @@ module OsCtl::Cli::Top
       Curses.setpos(Curses.lines - pos, 0)
       pos -= 1
       Curses.addstr(format('%-14s ', 'Containers:'))
-      print_row_data(@modules[1..].map { |m| m.stats_cts_values.call(cts, data) }.flatten)
+      print_row_data(@modules[1..].map { |m| module_totals(m, cts, data, false) }.flatten)
 
       Curses.setpos(Curses.lines - pos, 0)
       pos -= 1
       Curses.addstr(format('%-14s ', 'All:'))
-      print_row_data(@modules[1..].map { |m| m.stats_all_values.call(cts, data) }.flatten)
+      print_row_data(@modules[1..].map { |m| module_totals(m, cts, data, true) }.flatten)
 
       if model_thread.iostat_enabled? && @modules.detect { |m| m.name == 'zfsio' }
         iostat = data[:zfs] && data[:zfs][:iostat]
@@ -915,7 +953,13 @@ module OsCtl::Cli::Top
 
     def run_sort
       last_data[:containers].sort! do |a, b|
-        sortable_value(a) <=> sortable_value(b)
+        av = sortable_value(a)
+        bv = sortable_value(b)
+        if av.nil?
+          bv.nil? ? 0 : -1
+        else
+          (bv.nil? ? 1 : av <=> bv)
+        end
       end
 
       last_data[:containers].reverse! if @sort_desc
@@ -1094,14 +1138,15 @@ module OsCtl::Cli::Top
           acc
 
         else
-          acc + lookup_field(ct, field)
+          value = lookup_field(ct, field)
+          value.nil? || acc.nil? ? nil : acc + value
         end
       end
     end
 
     def lookup_field(ct, field)
       if field.is_a?(Array)
-        field.reduce(ct) { |acc, v| acc[v] }
+        field.reduce(ct) { |acc, v| acc && acc[v] }
 
       else
         ct[field]
@@ -1125,10 +1170,14 @@ module OsCtl::Cli::Top
     end
 
     def format_loadavgs(lavgs)
+      return '?' unless lavgs
+
       lavgs.map { |lavg| format_loadavg(lavg) }.join(', ')
     end
 
     def format_loadavg(lavg)
+      return '-' if lavg.nil?
+
       fmt =
         if lavg < 100
           '%5.2f'

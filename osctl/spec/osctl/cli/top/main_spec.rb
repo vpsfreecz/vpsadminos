@@ -40,4 +40,12 @@ RSpec.describe OsCtl::Cli::Top::Main do
       cmd(opts: { iostat: true, rate: Float::INFINITY, processes: false }).start
     end.to raise_error(GLI::BadCommandLine, 'rate must be a positive finite number')
   end
+
+  it 'passes independent generic collector controls to the common model' do
+    model = instance_double(OsCtl::Cli::Top::Model, setup: nil)
+    exporter = instance_double(OsCtl::Cli::Top::JsonExporter, start: nil)
+    expect(OsCtl::Cli::Top::Model).to receive(:new).with(enable_netif: false, enable_zfs: false, enable_iostat: true).and_return(model)
+    allow(OsCtl::Cli::Top::JsonExporter).to receive(:new).and_return(exporter)
+    cmd(opts: { netif: false, zfs: false, iostat: true, rate: 15 }, gopts: { json: true }).start
+  end
 end

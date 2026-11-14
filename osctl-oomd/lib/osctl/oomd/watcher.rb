@@ -34,6 +34,7 @@ module OsCtl::Oomd
 
       loop do
         data = @queue.pop
+        next if data['top_schema'] == 1 && data['complete'] != true
 
         lavg = data['loadavg'][0]
         @host_load << lavg
