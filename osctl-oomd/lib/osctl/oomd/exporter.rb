@@ -64,6 +64,12 @@ module OsCtl::Oomd
         docstring: 'Number of hits to restart a container'
       )
 
+      if @killer.respond_to?(:status)
+        @status_metrics = %i[notification_drops notification_failures unknown_actions].to_h do |name|
+          [name, registry.gauge(:"osctl_oomd_#{name}", docstring: "OOMd #{name.to_s.tr('_', ' ')}")]
+        end
+      end
+
       @stop_hits = registry.gauge(
         :osctl_oomd_stop_hits,
         docstring: 'Number of hits to stop a container'
@@ -76,6 +82,9 @@ module OsCtl::Oomd
         @ct_stop_hits.set(ct.stop_hits, labels: { pool: ct.pool, id: ct.id })
       end
 
+      if @status_metrics
+        @killer.status.each { |name, value| @status_metrics.fetch(name).set(value) }
+      end
       @restart_hits.set(@killer.restart_hits)
       @stop_hits.set(@killer.stop_hits)
     end

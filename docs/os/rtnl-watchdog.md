@@ -2,7 +2,8 @@
 
 `rtnl-watchdog` measures responsiveness of a small request through the
 global RTNL path. It runs independently of oomd and does not identify a lock
-holder, select containers or take container actions.
+holder, select containers or take container actions. See the
+[oomd reference](oomd.md) for the optional consumer policy and guarded actions.
 
 The service is disabled by default. Enable its standalone diagnostics with:
 
@@ -86,7 +87,9 @@ States are `starting`, `pending`, `distressed`, `healthy` and `error`.
 request; the acknowledgement does not prove the syscall has reached RTNL.
 `healthy` requires the matched expected response. Namespace/protocol/helper
 errors remain unknown. Consumers validate root ownership/mode, framing,
-boot/epoch/ordered sequence and monotonic freshness.
+boot/epoch/ordered sequence and monotonic freshness. Oomd requires two ordered
+fresh frames to bind a new epoch and expires evidence after one second. Old,
+future or missing state cannot authorize its watchdog override.
 
 ## Prometheus output
 
@@ -133,4 +136,4 @@ Clean observer shutdown removes only its own state/metrics after the writer
 exits. A crash or stalled writer can leave stale output; consumers must enforce
 freshness. Do not delete the lifetime lock or force a second probe during
 recovery. Disabling the service changes no persistent schema or container
-lifecycle.
+lifecycle, and oomd consumer policy remains separately controlled.

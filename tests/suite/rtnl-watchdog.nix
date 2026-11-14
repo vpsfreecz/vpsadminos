@@ -2,7 +2,7 @@ import ../make-test.nix (
   { pkgs }:
   {
     name = "rtnl-watchdog";
-    description = "RTNL request responsiveness";
+    description = "RTNL request responsiveness and guarded oomd actions";
     tags = [ "ci" ];
 
     machine = import ../machines/vpsadminos/with-tank.nix {
@@ -35,6 +35,12 @@ import ../make-test.nix (
               runHook postInstall
             '';
           };
+          policyRuby = pkgs.osctl-oomd.basicEnv.ruby;
+          policyTest = pkgs.writeShellScriptBin "rtnl-watchdog-policy-test" ''
+            export GEM_HOME=${pkgs.osctl-oomd.basicEnv}/${policyRuby.gemPath}
+            export GEM_PATH="$GEM_HOME"
+            exec ${policyRuby}/bin/ruby /etc/rtnl-watchdog-test/policy.rb "$@"
+          '';
         in
         {
           system.vpsadminos.enableUnstable = lib.mkForce false;
@@ -42,6 +48,7 @@ import ../make-test.nix (
           boot.enableUnifiedCgroupHierarchy = lib.mkForce true;
           boot.extraModulePackages = [ fixture ];
           osctl.rtnlWatchdog.enable = true;
+          osctl.oomd.enable = false;
           services.prometheus.exporters.node = {
             enable = true;
             listenAddress = "127.0.0.1";
@@ -53,11 +60,14 @@ import ../make-test.nix (
           };
           environment.systemPackages = [
             config.osctl.rtnlWatchdog.package
+            pkgs.osctl-oomd
             pkgs.python3
             pkgs.util-linux
             pkgs.kmod
+            policyTest
           ];
           environment.etc."rtnl-watchdog-test".source = ./rtnl-watchdog;
+          environment.etc."rtnl-watchdog-test-busybox".source = "${pkgs.pkgsStatic.busybox}/bin/busybox";
           boot.qemu.memory = 2048;
           boot.qemu.cpus = 2;
           boot.qemu.cpu.cores = 2;

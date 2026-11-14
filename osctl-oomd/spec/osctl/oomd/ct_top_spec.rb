@@ -12,7 +12,9 @@ RSpec.describe OsCtl::Oomd::CtTop do
     logged = []
 
     allow(IO).to receive(:pipe).and_return([reader, writer])
-    allow(Process).to receive(:spawn).and_return(child_pid)
+    allow(Process).to receive(:spawn).with('osctl', '-j', 'ct', 'top', '--rate', '15',
+                                           '--no-iostat', '--no-processes',
+                                           out: writer, close_others: true).and_return(child_pid)
     allow(ct_top).to receive(:sleep).and_raise(stop_error)
     allow(OsCtl::Lib::Logger).to receive(:log) do |level, message|
       logged << [level, message]
@@ -34,5 +36,23 @@ RSpec.describe OsCtl::Oomd::CtTop do
     expect(logged.any? { |level, message| level == :warn && message.include?('Unable to parse output') }).to be(true)
     expect(logged.any? { |level, message| level == :info && message == "[ct-top] Started with pid #{child_pid}" }).to be(true)
     expect(logged.any? { |level, message| level == :info && message == '[ct-top] Exited with pid 7' }).to be(true)
+  end
+
+  it 'disables optional ordinary Top collectors and invalidates malformed/oversized bounded frames' do
+    stub_const('OsCtl::Oomd::CtTop::MAX_FRAME_BYTES', 64)
+    reader = StringIO.new("#{'x' * 100}\nnot-json\n{\"top_schema\":1}\n")
+    writer = instance_double(IO, close: nil)
+    child = fork { exit 0 }
+    stop_error = Class.new(StandardError)
+    sampler = described_class.new(15, watchdog: true)
+    allow(IO).to receive(:pipe).and_return([reader, writer])
+    allow(Process).to receive(:spawn).with('osctl', '-j', 'ct', 'top', '--rate', '15',
+                                           '--no-netif', '--no-zfs', '--no-iostat', '--no-processes',
+                                           out: writer, close_others: true).and_return(child)
+    allow(sampler).to receive(:sleep).and_raise(stop_error)
+    yielded = []
+    expect { sampler.run { |data| yielded << data } }.to raise_error(stop_error)
+    expect(yielded).to eq([{}, {}, { 'top_schema' => 1 }])
+    expect(Process).to have_received(:spawn).once
   end
 end
