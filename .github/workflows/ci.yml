@@ -98,11 +98,6 @@ on:
       - tools/livepatch/**
 
 jobs:
-  livepatch:
-    if: ${{ inputs.test_suite != 'zfs-full' && !inputs.test_pattern }}
-    uses: ./.github/workflows/livepatch.yml
-    secrets: inherit
-
   build:
     name: Build OS and populate binary cache
     runs-on: self-hosted

@@ -1,0 +1,38 @@
+name: Livepatch documentation
+
+on:
+  push:
+    paths:
+      - .github/workflows/livepatch-docs.yml
+      - docs/os/livepatches/**
+      - skills/manage-livepatch/**
+      - mkdocs.yml
+      - Makefile
+  pull_request:
+    paths:
+      - .github/workflows/livepatch-docs.yml
+      - docs/os/livepatches/**
+      - skills/manage-livepatch/**
+      - mkdocs.yml
+      - Makefile
+
+permissions:
+  contents: read
+
+jobs:
+  documentation:
+    name: Check livepatch documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31.11.5
+
+      - name: Build documentation strictly
+        run: nix develop .#vpsadminos --command mkdocs build --strict
+
+      - name: Check livepatch skill routes
+        run: |
+          grep -Fq '(../../docs/os/livepatches/process.md)' skills/manage-livepatch/SKILL.md
+          grep -Fq '(../../docs/os/livepatches/template.md)' skills/manage-livepatch/SKILL.md

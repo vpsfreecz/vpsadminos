@@ -1,0 +1,56 @@
+name: Livepatch qualification
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - .gitattributes
+      - .github/workflows/livepatch.yml
+      - .github/workflows/livepatch-qualification.yml
+      - flake.nix
+      - flake.lock
+      - libosctl/**
+      - os/default.nix
+      - os/configs/qemu.nix
+      - os/configs/tests.nix
+      - os/livepatches/**
+      - os/modules/config/kernel*.nix
+      - os/modules/module-list.nix
+      - os/modules/nixos-modules.nix
+      - os/modules/os-modules.nix
+      - os/modules/services/livepatches/**
+      - os/modules/system/boot/qemu.nix
+      - os/overlays/**
+      - os/packages/kpatch-build/**
+      - os/packages/linux/**
+      - os/packages/livepatch-module/**
+      - os/packages/ruby-source-gem-config.nix
+      - os/packages/ruby/**
+      - os/packages/zfs/**
+      - osvm/**
+      - test-runner.sh
+      - test-runner/**
+      - tests/all-tests.nix
+      - tests/make-template.nix
+      - tests/make-test.nix
+      - tests/test-configs/ci.nix
+      - tests/configs/vpsadminos/base.nix
+      - tests/configs/vpsadminos/livepatch*.nix
+      - tests/machines/vpsadminos/**
+      - tests/suite/kernel/livepatch*.nix
+      - tests/suite/kernel/livepatch*/**
+      - tools/livepatch/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: livepatch-qualification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    uses: ./.github/workflows/livepatch.yml
+    secrets: inherit
