@@ -102,10 +102,10 @@ are omitted until a valid completion. Check freshness and availability before
 interpreting them.
 
 `response_duration_seconds` is a histogram of valid completed responses. Its
-fixed bucket limits are 0.001, 0.01, 0.1, 0.5, 1, 5, 10, 15, 20, 25, 30, 40,
-50, 60, 90, 120, 300, 600 and +Inf seconds, with count and sum series. Buckets
-are cumulative: each `le` bucket counts responses less than or equal to its
-limit. It records only
+fixed bucket limits are 0.001, 0.01, 0.1, 0.25, 0.5, 0.75, 1, 2, 3, 4, 5,
+6, 7, 8, 9, 10, 15, 20, 25, 30, 40, 50, 60, 90, 120, 300, 600 and +Inf
+seconds, with count and sum series. Buckets are cumulative: each `le` bucket
+counts responses less than or equal to its limit. It records only
 matched expected-EINVAL completions. `overdue_probes_total` counts each announced
 probe once at an observed pending threshold crossing or a late completion,
 including timed errors; missing-start dispatches are excluded. These aggregates
