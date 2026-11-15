@@ -5,6 +5,12 @@ set -euo pipefail
 repository_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
 validator=${1:-$repository_root/tools/livepatch/validate-generic-result.sh}
 verifier=${2:-$repository_root/tools/livepatch/verify.sh}
+ruby=${3:-ruby}
+generic_template=${4:-$repository_root/tests/suite/kernel/livepatch-set.nix}
+nfs_validator=${5-}
+nfs_oracle_script=${6-}
+nfs_plan=${7-}
+nfs_capture=${8-}
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM
 
@@ -89,9 +95,131 @@ jq -n '{
   counts: {plannedMembers: 1, capturedMembers: 1},
   sets: [{
     id: "6.12.113.1",
-    members: [{release: "6.12.113.1", kernelVersion: "6.12.113"}]
+    members: [{
+      release: "6.12.113.1",
+      identity: {
+        producer: "/nix/store/00000000000000000000000000000000-synthetic-producer",
+        module: "/nix/store/00000000000000000000000000000000-synthetic-producer/synthetic.ko",
+        moduleName: "synthetic_livepatch",
+        moduleSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        targetId: "synthetic-target",
+        inputDigest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        manifestSha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        inspectionSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        closureSha256: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        vermagic: "6.12.113 synthetic",
+        sourceRevision: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        flakeLockSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      audit: {
+        deriver: "/nix/store/00000000000000000000000000000000-synthetic-producer.drv",
+        requisites: ["/nix/store/00000000000000000000000000000000-synthetic-producer"],
+        expectedInspectionSha256: "1111111111111111111111111111111111111111111111111111111111111111",
+        frameworkSha256: "2222222222222222222222222222222222222222222222222222222222222222",
+        generatedHeaderSha256: "3333333333333333333333333333333333333333333333333333333333333333",
+        changedObjectsSha256: "4444444444444444444444444444444444444444444444444444444444444444",
+        buildLogSha256: "5555555555555555555555555555555555555555555555555555555555555555",
+        buildLogIdentity: "per-realization-only"
+      }
+    }]
   }]
 }' >"$work/capture.json"
+
+jq -e '
+  (.sets[0].members[0] | keys | sort) == ["audit", "identity", "release"]
+  and (.sets[0].members[0] | has("kernelVersion") | not)
+  and (.sets[0].members[0].identity | keys | sort) == [
+    "closureSha256", "flakeLockSha256", "inputDigest", "inspectionSha256",
+    "manifestSha256", "module", "moduleName", "moduleSha256", "producer",
+    "sourceRevision", "targetId", "vermagic"
+  ]
+  and (.sets[0].members[0].audit | keys | sort) == [
+    "buildLogIdentity", "buildLogSha256", "changedObjectsSha256", "deriver",
+    "expectedInspectionSha256", "frameworkSha256", "generatedHeaderSha256",
+    "requisites"
+  ]
+' "$work/capture.json" >/dev/null
+
+awk '
+  /F6_GENERIC_CAPTURE_RELATION_BEGIN/ { capture = 1; next }
+  /F6_GENERIC_CAPTURE_RELATION_END/ { capture = 0 }
+  capture { print }
+' "$generic_template" >"$work/generic-capture-relation-method.rb"
+[[ -s "$work/generic-capture-relation-method.rb" ]]
+
+{
+  printf 'require "json"\n\nclass GenericCaptureRelation\n'
+  cat "$work/generic-capture-relation-method.rb"
+  cat <<'RUBY'
+  def initialize(planned_set, captured_set)
+    @set = planned_set
+    @captured_set = captured_set
+  end
+end
+
+def deep_copy(value)
+  Marshal.load(Marshal.dump(value))
+end
+
+def refuse(label)
+  yield
+rescue KeyError, RuntimeError
+  return
+else
+  raise "generic capture relation unexpectedly accepted #{label}"
+end
+
+planned_set = {
+  'kernelVersion' => '6.12.113',
+  'members' => [{'release' => '6.12.113.1', 'kernelVersion' => '6.12.113'}],
+}
+captured_set = {'members' => [{'release' => '6.12.113.1'}]}
+GenericCaptureRelation.new(planned_set, captured_set).validate_capture_relation
+
+missing_target = deep_copy(planned_set)
+missing_target.fetch('members').fetch(0).delete('kernelVersion')
+refuse('missing planned member target') do
+  GenericCaptureRelation.new(missing_target, captured_set).validate_capture_relation
+end
+
+mismatched_target = deep_copy(planned_set)
+mismatched_target.fetch('members').fetch(0)['kernelVersion'] = '6.12.114'
+refuse('mismatched planned member target') do
+  GenericCaptureRelation.new(mismatched_target, captured_set).validate_capture_relation
+end
+
+mismatched_release = deep_copy(captured_set)
+mismatched_release.fetch('members').fetch(0)['release'] = '6.12.113.2'
+refuse('capture/plan release mismatch') do
+  GenericCaptureRelation.new(planned_set, mismatched_release).validate_capture_relation
+end
+
+two_member_plan = deep_copy(planned_set)
+two_member_plan.fetch('members') << {
+  'release' => '6.12.113.2',
+  'kernelVersion' => '6.12.113',
+}
+reordered_capture = {
+  'members' => [
+    {'release' => '6.12.113.2'},
+    {'release' => '6.12.113.1'},
+  ],
+}
+refuse('reordered members') do
+  GenericCaptureRelation.new(two_member_plan, reordered_capture).validate_capture_relation
+end
+
+extra_capture = deep_copy(captured_set)
+extra_capture.fetch('members') << {'release' => '6.12.113.2'}
+refuse('extra captured member') do
+  GenericCaptureRelation.new(planned_set, extra_capture).validate_capture_relation
+end
+
+puts 'generic livepatch capture relation passed'
+RUBY
+} >"$work/generic-capture-relation.rb"
+
+"$ruby" "$work/generic-capture-relation.rb"
 
 make_marker() {
   local row_id=$1
@@ -326,6 +454,197 @@ mv "$work/no-semantic-result.json" "$work/results-no-semantic/generic-busy-amd/r
 if run_campaign no-semantic "$work/results-no-semantic"; then
   echo "generic result without semantic evidence unexpectedly succeeded" >&2
   exit 1
+fi
+
+if [[ -n "$nfs_validator$nfs_oracle_script$nfs_plan$nfs_capture" ]]; then
+  [[ -x "$nfs_validator" ]]
+  [[ -f "$nfs_oracle_script" && ! -L "$nfs_oracle_script" ]]
+  [[ -f "$nfs_plan" && ! -L "$nfs_plan" ]]
+  [[ -f "$nfs_capture" && ! -L "$nfs_capture" ]]
+
+  awk '
+    /F6_NFS_CAPTURE_RELATION_BEGIN/ { capture = 1; next }
+    /F6_NFS_CAPTURE_RELATION_END/ { capture = 0 }
+    capture { print }
+  ' "$nfs_oracle_script" >"$work/nfs-capture-relation-method.rb"
+  [[ -s "$work/nfs-capture-relation-method.rb" ]]
+
+  {
+    printf 'require "json"\n\nclass NfsCaptureRelation\n'
+    cat "$work/nfs-capture-relation-method.rb"
+    cat <<'RUBY'
+end
+
+def deep_copy(value)
+  Marshal.load(Marshal.dump(value))
+end
+
+def refuse(label)
+  yield
+rescue KeyError, RuntimeError
+  return
+else
+  raise "NFS capture relation unexpectedly accepted #{label}"
+end
+
+plan = JSON.parse(File.binread(ARGV.fetch(0)))
+capture = JSON.parse(File.binread(ARGV.fetch(1)))
+planned_set = plan.fetch('sets').fetch(0)
+captured_set = capture.fetch('sets').fetch(0)
+relation = NfsCaptureRelation.new
+relation.validate_nfs_capture_relation(planned_set, captured_set)
+
+missing_target = deep_copy(planned_set)
+missing_target.fetch('members').fetch(0).delete('kernelVersion')
+refuse('missing planned member target') do
+  relation.validate_nfs_capture_relation(missing_target, captured_set)
+end
+
+mismatched_target = deep_copy(planned_set)
+mismatched_target.fetch('members').fetch(0)['kernelVersion'] = '6.12.114'
+refuse('mismatched planned member target') do
+  relation.validate_nfs_capture_relation(mismatched_target, captured_set)
+end
+
+mismatched_release = deep_copy(captured_set)
+mismatched_release.fetch('members').fetch(0)['release'] = '6.12.113.2'
+refuse('capture/plan release mismatch') do
+  relation.validate_nfs_capture_relation(planned_set, mismatched_release)
+end
+
+two_member_plan = deep_copy(planned_set)
+two_member_plan.fetch('members') << deep_copy(two_member_plan.fetch('members').fetch(0)).merge(
+  'release' => '6.12.113.2',
+)
+reordered_capture = deep_copy(captured_set)
+reordered_capture.fetch('members') << deep_copy(reordered_capture.fetch('members').fetch(0)).merge(
+  'release' => '6.12.113.2',
+)
+reordered_capture['members'].reverse!
+refuse('reordered members') do
+  relation.validate_nfs_capture_relation(two_member_plan, reordered_capture)
+end
+
+extra_capture = deep_copy(captured_set)
+extra_capture.fetch('members') << deep_copy(extra_capture.fetch('members').fetch(0))
+refuse('extra captured member') do
+  relation.validate_nfs_capture_relation(planned_set, extra_capture)
+end
+
+puts 'NFS livepatch capture relation passed'
+RUBY
+  } >"$work/nfs-capture-relation.rb"
+
+  "$ruby" "$work/nfs-capture-relation.rb" "$nfs_plan" "$nfs_capture"
+
+  nfs_row=$(jq -cer '[.rows[] | select(.scope == "fix" and .platformId == "amd")]
+    | if length == 1 then .[0] else error("AMD NFS row is not unique") end' "$nfs_plan")
+  nfs_row_id=$(jq -er '.rowId' <<<"$nfs_row")
+  nfs_other_row_id=$(jq -er '.rows[] | select(.scope == "fix" and .platformId == "intel") | .rowId' "$nfs_plan")
+
+  jq -cn \
+    --argjson row "$nfs_row" \
+    --slurpfile plan "$nfs_plan" \
+    --slurpfile capture "$nfs_capture" '
+      {
+        schemaVersion: 1,
+        oracleId: "nfs-client-operation-safety",
+        platformId: $row.platformId,
+        runnerClass: $row.runnerClass,
+        rowId: $row.rowId,
+        setId: $row.setId,
+        release: $capture[0].sets[0].members[0].release,
+        nativeRelease: $plan[0].sets[0].kernelVersion,
+        identity: $capture[0].sets[0].members[0].identity,
+        workload: {
+          mounts: 2,
+          freshMounts: 2,
+          operations: 1,
+          integritySha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        quiescence: {
+          mountCreation: true,
+          finalUnmount: true,
+          shutdownSysfsWrites: true
+        },
+        forward: {
+          enabled: 1,
+          transition: 0,
+          replace: 0,
+          release: $capture[0].sets[0].members[0].release
+        },
+        reverse: {
+          moduleRemoved: true,
+          release: $plan[0].sets[0].kernelVersion
+        },
+        kernelHealth: "clean"
+      }
+    ' >"$work/nfs-marker.json"
+
+  run_nfs_validator() {
+    local label=$1
+    local plan_file=$2
+    local capture_file=$3
+    local selected_row=$4
+    local marker_file=$5
+    local state="$work/nfs-$label"
+
+    mkdir "$state"
+    printf '0\n' >"$state/runner.status"
+    {
+      printf '1 tests successful\n'
+      printf 'VPSADMINOS_LIVEPATCH_ORACLE_RESULT '
+      cat "$marker_file"
+      printf '\n'
+    } >"$state/test.log"
+    "$nfs_validator" \
+      --plan "$plan_file" \
+      --capture "$capture_file" \
+      --row-id "$selected_row" \
+      --state-dir "$state" \
+      --runner-log "$state/test.log" \
+      --runner-status 0 \
+      --output "$state/result.json"
+  }
+
+  expect_nfs_refuse() {
+    local label=$1
+    shift
+    if run_nfs_validator "$label" "$@" >"$work/nfs-$label.stdout" 2>"$work/nfs-$label.stderr"; then
+      echo "NFS validator refusal case unexpectedly succeeded: $label" >&2
+      exit 1
+    fi
+    [[ ! -e "$work/nfs-$label/result.json" ]]
+  }
+
+  run_nfs_validator valid "$nfs_plan" "$nfs_capture" "$nfs_row_id" "$work/nfs-marker.json"
+  jq -e '.schemaVersion == 1 and .accepted == true and .validator.status == "accepted"' \
+    "$work/nfs-valid/result.json" >/dev/null
+
+  jq '.sets[0].members[0].kernelVersion = "6.12.114"' "$nfs_plan" >"$work/nfs-plan-target-mismatch.json"
+  jq 'del(.sets[0].members[0].kernelVersion)' "$nfs_plan" >"$work/nfs-plan-target-missing.json"
+  jq '.sets[0].members[0].release = "6.12.113.2"' "$nfs_capture" >"$work/nfs-capture-release-mismatch.json"
+  jq '.identity.moduleSha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"' \
+    "$work/nfs-marker.json" >"$work/nfs-marker-identity-mismatch.json"
+  jq '.platformId = "intel"' "$work/nfs-marker.json" >"$work/nfs-marker-wrong-platform.json"
+  printf '{invalid-json\n' >"$work/nfs-marker-malformed.json"
+
+  expect_nfs_refuse target-mismatch "$work/nfs-plan-target-mismatch.json" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker.json"
+  expect_nfs_refuse target-missing "$work/nfs-plan-target-missing.json" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker.json"
+  expect_nfs_refuse release-mismatch "$nfs_plan" "$work/nfs-capture-release-mismatch.json" \
+    "$nfs_row_id" "$work/nfs-marker.json"
+  expect_nfs_refuse identity-mismatch "$nfs_plan" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker-identity-mismatch.json"
+  expect_nfs_refuse wrong-row "$nfs_plan" "$nfs_capture" \
+    "$nfs_other_row_id" "$work/nfs-marker.json"
+  expect_nfs_refuse wrong-platform "$nfs_plan" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker-wrong-platform.json"
+  expect_nfs_refuse malformed-marker "$nfs_plan" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker-malformed.json"
+
+  printf 'NFS livepatch validator matrix passed\n'
 fi
 
 printf 'generic livepatch safety validator matrix passed\n'

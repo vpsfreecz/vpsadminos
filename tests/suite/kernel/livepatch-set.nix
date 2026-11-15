@@ -109,22 +109,33 @@ import ../../make-template.nix (
             )
           end
 
+          # F6_GENERIC_CAPTURE_RELATION_BEGIN
+          def validate_capture_relation
+            planned_members = @set.fetch('members')
+            captured_members = @captured_set.fetch('members')
+            raise 'capture member count does not match plan' unless captured_members.length == planned_members.length
+
+            captured_members.each_with_index do |member, index|
+              planned_member = planned_members.fetch(index)
+              raise 'capture member release does not match plan' unless member.fetch('release') == planned_member.fetch('release')
+              raise 'planned member target does not match set target' unless planned_member.fetch('kernelVersion') == @set.fetch('kernelVersion')
+            end
+          end
+          # F6_GENERIC_CAPTURE_RELATION_END
+
           def validate_capture
             expect(@set).to eq(EXPECTED_SET)
             expect(@captured_set).to eq(EXPECTED_CAPTURE)
-            expect(@captured_set.fetch('members').length).to eq(@set.fetch('members').length)
             expect(ROW.fetch('oracleIds')).to eq([])
             expect(ROW.fetch('oracleShard')).to eq('none')
             expect(ROW.fetch('validator')).to eq('builtin/generic-livepatch-safety-v1')
+            validate_capture_relation
 
-            @captured_set.fetch('members').each_with_index do |member, index|
-              expected_member = @set.fetch('members').fetch(index)
+            @captured_set.fetch('members').each do |member|
               identity = member.fetch('identity')
               producer = shell(identity.fetch('producer'))
               module_path = shell(identity.fetch('module'))
               evidence = "#{producer}/share/vpsadminos-livepatch"
-              expect(member.fetch('release')).to eq(expected_member.fetch('release'))
-              expect(member.fetch('kernelVersion')).to eq(@set.fetch('kernelVersion'))
               machine.all_succeed(
                 "test -f #{module_path}",
                 "test \"$(sha256sum #{module_path} | cut -d' ' -f1)\" = #{identity.fetch('moduleSha256')}",

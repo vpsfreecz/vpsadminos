@@ -960,6 +960,71 @@
             qualificationRoot
             qualificationSuccessor
           ];
+          qualificationActualPlan = (mkLivepatchContext system).qualification;
+          qualificationActualSet = builtins.head qualificationActualPlan.sets;
+          qualificationActualFixRow = builtins.head (
+            builtins.filter (row: row.scope == "fix" && row.platformId == "amd") qualificationActualPlan.rows
+          );
+          qualificationActualOracle = builtins.head (
+            builtins.filter (oracle: oracle.id == "nfs-client-operation-safety") qualificationActualSet.oracles
+          );
+          qualificationActualIdentity = {
+            producer = "/nix/store/00000000000000000000000000000000-synthetic-producer";
+            module = "/nix/store/00000000000000000000000000000000-synthetic-producer/synthetic.ko";
+            moduleName = "synthetic_livepatch";
+            moduleSha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+            targetId = "synthetic-target";
+            inputDigest = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+            manifestSha256 = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+            inspectionSha256 = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+            closureSha256 = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+            vermagic = "6.12.113 synthetic";
+            sourceRevision = qualificationActualPlan.sourceRevision;
+            flakeLockSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+          };
+          qualificationActualAudit = {
+            deriver = "/nix/store/00000000000000000000000000000000-synthetic-producer.drv";
+            requisites = [ "/nix/store/00000000000000000000000000000000-synthetic-producer" ];
+            expectedInspectionSha256 = "1111111111111111111111111111111111111111111111111111111111111111";
+            frameworkSha256 = "2222222222222222222222222222222222222222222222222222222222222222";
+            generatedHeaderSha256 = "3333333333333333333333333333333333333333333333333333333333333333";
+            changedObjectsSha256 = "4444444444444444444444444444444444444444444444444444444444444444";
+            buildLogSha256 = "5555555555555555555555555555555555555555555555555555555555555555";
+            buildLogIdentity = "per-realization-only";
+          };
+          qualificationActualCapture = {
+            schemaVersion = 1;
+            sourceRevision = qualificationActualPlan.sourceRevision;
+            flakeLockSha256 = qualificationActualIdentity.flakeLockSha256;
+            rawBuildLogIdentity = "per-realization-only";
+            selectedSets = 1;
+            counts = {
+              plannedMembers = 1;
+              capturedMembers = 1;
+            };
+            sets = [
+              {
+                id = qualificationActualSet.id;
+                members = [
+                  {
+                    release = (builtins.head qualificationActualSet.members).release;
+                    identity = qualificationActualIdentity;
+                    audit = qualificationActualAudit;
+                  }
+                ];
+              }
+            ];
+          };
+          qualificationActualNfsHelper =
+            import ./os/livepatches/batches/6.12.113.1/qualification/helpers/nfs-sysfs-client-lifetime.nix
+              {
+                capture = qualificationActualCapture;
+                oracle = qualificationActualOracle;
+                plan = qualificationActualPlan;
+                inherit pkgs;
+                qualificationSet = qualificationActualSet;
+                row = qualificationActualFixRow;
+              };
           mapQualificationOracle =
             transform: entry:
             entry
@@ -1189,11 +1254,23 @@
           qualificationPlanTwoFile = pkgs.writeText "livepatch-plan-two.json" (
             builtins.toJSON qualificationPlanTwo
           );
+          qualificationActualPlanFile = pkgs.writeText "livepatch-plan-actual.json" (
+            builtins.toJSON qualificationActualPlan
+          );
+          qualificationActualCaptureFile = pkgs.writeText "livepatch-capture-actual.json" (
+            builtins.toJSON qualificationActualCapture
+          );
+          qualificationActualNfsOracleFile = pkgs.writeText "livepatch-nfs-oracle-actual.rb" (
+            qualificationActualNfsHelper.oracleScripts.operation-safety
+          );
           qualificationGenericValidator = pkgs.writeShellScript "validate-generic-livepatch-result" ''
             exec ${pkgs.bash}/bin/bash ${./tools/livepatch/validate-generic-result.sh} "$@"
           '';
           qualificationResultVerifier = pkgs.writeShellScript "verify-livepatch-result" ''
             exec ${pkgs.bash}/bin/bash ${./tools/livepatch/verify.sh} "$@"
+          '';
+          qualificationNfsValidator = pkgs.writeShellScript "validate-nfs-livepatch-result" ''
+            exec ${pkgs.bash}/bin/bash ${./os/livepatches/batches/6.12.113.1/qualification/validators/nfs-sysfs-client-lifetime.sh} "$@"
           '';
         in
         {
@@ -1204,6 +1281,19 @@
             assert qualificationPlanTwo.counts.plannedMembers == 2;
             assert qualificationPlanTwo.counts.matrixRows == 10;
             assert qualificationPlanTwo.counts.coverageTuples == 4;
+            assert qualificationActualPlan.counts.plannedMembers == 1;
+            assert qualificationActualPlan.counts.plannedRows == 8;
+            assert qualificationActualPlan.counts.matrixRows == 8;
+            assert
+              builtins.length (builtins.filter (row: row.scope == "set") qualificationActualPlan.rows) == 6;
+            assert
+              builtins.length (builtins.filter (row: row.scope == "fix") qualificationActualPlan.rows) == 2;
+            assert
+              builtins.attrNames (builtins.head (builtins.head qualificationActualCapture.sets).members) == [
+                "audit"
+                "identity"
+                "release"
+              ];
             assert qualificationEvaluationFails qualificationMissingProfile;
             assert qualificationEvaluationFails qualificationMissingOracle;
             assert qualificationEvaluationFails qualificationDuplicateOracle;
@@ -1396,6 +1486,12 @@
                 ${pkgs.bash}/bin/bash ${./tools/livepatch/tests/generic-safety.sh} \
                   ${qualificationGenericValidator} \
                   ${qualificationResultVerifier} \
+                  ${pkgs.ruby}/bin/ruby \
+                  ${./tests/suite/kernel/livepatch-set.nix} \
+                  ${qualificationNfsValidator} \
+                  ${qualificationActualNfsOracleFile} \
+                  ${qualificationActualPlanFile} \
+                  ${qualificationActualCaptureFile} \
                   > generic-safety.log
 
                 ${pkgs.bash}/bin/bash ${./tools/livepatch/tests/verify-capture.sh} \
@@ -1412,6 +1508,9 @@
                 printf '%s\n' "$livepatchCiTools" > "$out/livepatch-ci-tools-path.txt"
                 cp "$one" "$out/plan-one.json"
                 cp "$two" "$out/plan-two.json"
+                cp ${qualificationActualPlanFile} "$out/plan-actual.json"
+                cp ${qualificationActualCaptureFile} "$out/capture-actual.json"
+                cp ${qualificationActualNfsOracleFile} "$out/nfs-oracle-actual.rb"
                 cp qualification-serialization.log "$out/qualification-serialization.log"
                 cp generic-safety-hypervisor.log "$out/generic-safety-hypervisor.log"
                 cp generic-safety.log "$out/generic-safety.log"

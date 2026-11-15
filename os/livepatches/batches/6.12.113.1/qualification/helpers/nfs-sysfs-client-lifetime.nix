@@ -152,6 +152,20 @@ let
     require 'json'
     require 'shellwords'
 
+    # F6_NFS_CAPTURE_RELATION_BEGIN
+    def validate_nfs_capture_relation(plan_set, captured_set)
+      planned_members = plan_set.fetch('members')
+      captured_members = captured_set.fetch('members')
+      raise 'capture member count does not match plan' unless captured_members.length == planned_members.length
+
+      captured_members.each_with_index do |member, index|
+        planned_member = planned_members.fetch(index)
+        raise 'capture member release does not match plan' unless member.fetch('release') == planned_member.fetch('release')
+        raise 'planned member target does not match set target' unless planned_member.fetch('kernelVersion') == plan_set.fetch('kernelVersion')
+      end
+    end
+    # F6_NFS_CAPTURE_RELATION_END
+
     expected_set = JSON.parse(${builtins.toJSON expectedSetJson})
     plan_sets = @plan.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }
     captured_sets = @capture.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }
@@ -162,6 +176,7 @@ let
     expect(plan_set).to eq(expected_set)
     expect(plan_set.fetch('members').length).to eq(1)
     expect(captured_set.fetch('members').length).to eq(1)
+    validate_nfs_capture_relation(plan_set, captured_set)
     expect(@plan.fetch('counts').fetch('matrixRows')).to eq(8)
     expect(@plan.fetch('counts').fetch('plannedRows')).to eq(8)
     expect(ROW.fetch('scope')).to eq('fix')
@@ -182,7 +197,7 @@ let
     expected_member = plan_set.fetch('members').fetch(0)
     expect(member.fetch('release')).to eq('6.12.113.1')
     expect(member.fetch('release')).to eq(expected_member.fetch('release'))
-    expect(member.fetch('kernelVersion')).to eq('6.12.113')
+    expect(plan_set.fetch('kernelVersion')).to eq('6.12.113')
     identity = member.fetch('identity')
     expect(identity.keys.sort).to eq(%w[
       closureSha256 flakeLockSha256 inputDigest inspectionSha256 manifestSha256

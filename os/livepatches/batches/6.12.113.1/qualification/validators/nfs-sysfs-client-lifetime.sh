@@ -99,6 +99,7 @@ jq -e --arg rowId "$row_id" '
   and (.sets[0].members | length) == 1
   and .sets[0].id == "6.12.113.1"
   and .sets[0].kernelVersion == "6.12.113"
+  and .sets[0].members[0].kernelVersion == .sets[0].kernelVersion
   and .sets[0].tipRelease == "6.12.113.1"
   and .sets[0].oracleIds == ["nfs-client-operation-safety"]
   and ([.rows[] | select(.scope == "set")] | length) == 6
@@ -148,8 +149,8 @@ jq -e --arg setId "$(jq -er '.setId' <<<"$row")" --slurpfile plan "$plan" '
   and (.sets | length) == 1
   and .sets[0].id == $setId
   and (.sets[0].members | length) == 1
+  and (.sets[0].members[0] | keys | sort) == ["audit", "identity", "release"]
   and .sets[0].members[0].release == "6.12.113.1"
-  and .sets[0].members[0].kernelVersion == "6.12.113"
   and .sets[0].members[0].identity.sourceRevision == .sourceRevision
   and .sets[0].members[0].identity.flakeLockSha256 == .flakeLockSha256
   and (.sets[0].members[0].identity | keys | sort) == [
