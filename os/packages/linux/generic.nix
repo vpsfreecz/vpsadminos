@@ -226,12 +226,18 @@ let
   livepatchConfig =
     lib.optionalAttrs
       (
-        version == "6.12.113"
+        lib.versionAtLeast version "6.12"
+        && lib.versionOlder version "6.13"
         && stdenv.hostPlatform.system == "x86_64-linux"
         && kernelArch == "x86_64"
         && defconfig == null
         && extraConfig == ""
+        && (stdenv.hostPlatform.linux-kernel.extraConfig or "") == ""
         && structuredExtraConfig == { }
+        && !(kernelFeatures.preempt_rt or false)
+        && lib.all (
+          patch: (patch.extraConfig or "") == "" && (patch.extraStructuredConfig or { }) == { }
+        ) kernelPatches
       )
       {
         CONFIG_SMP = "y";
