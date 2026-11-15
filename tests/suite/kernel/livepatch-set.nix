@@ -43,8 +43,15 @@ import ../../make-template.nix (
             { lib, ... }:
             {
               imports = [ ../../configs/vpsadminos/livepatch.nix ] ++ workload.modules;
-              boot.qemu.cpus = lib.mkOverride 0 8;
-              boot.qemu.memory = lib.mkOverride 0 8192;
+              boot.qemu = {
+                cpus = lib.mkOverride 0 8;
+                cpu = {
+                  cores = lib.mkOverride 0 8;
+                  threads = lib.mkOverride 0 1;
+                  sockets = lib.mkOverride 0 1;
+                };
+                memory = lib.mkOverride 0 8192;
+              };
               environment.systemPackages = [
                 pkgs.coreutils
                 pkgs.jq

@@ -36,6 +36,39 @@ RSpec.describe OsVm::MachineConfig do
   end
 
   describe '.validate_config!' do
+    %w[vpsadminos nixos].each do |spin|
+      it "preserves a valid 2=1*2*1 topology for #{spin}" do
+        expect(described_class.validate_config!(machine_config_hash({}, spin:))).to be(true)
+      end
+
+      it "accepts a corrected 8=8*1*1 topology for #{spin}" do
+        raw = machine_config_hash(
+          {
+            'cpus' => 8,
+            'cpu' => { 'cores' => 8, 'threads' => 1, 'sockets' => 1 }
+          },
+          spin:
+        )
+
+        expect(described_class.validate_config!(raw)).to be(true)
+      end
+
+      it "rejects an inconsistent 8!=4*1*1 topology for #{spin}" do
+        raw = machine_config_hash(
+          {
+            'cpus' => 8,
+            'cpu' => { 'cores' => 4, 'threads' => 1, 'sockets' => 1 }
+          },
+          spin:
+        )
+
+        expect { described_class.validate_config!(raw) }.to raise_error(
+          ArgumentError,
+          /CPU topology mismatch: cpus=8, cores=4, threads=1, sockets=1, product=4/
+        )
+      end
+    end
+
     it 'parses all network kinds without allocating global addresses or ports' do
       raw = machine_config_hash(
         'networks' => [

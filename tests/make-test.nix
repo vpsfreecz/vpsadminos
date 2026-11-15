@@ -322,7 +322,24 @@ let
       iso = machine.iso;
     };
 
-  machineTestConfigs = lib.mapAttrs machineTestConfig machineAttrs;
+  validateMachineTopology =
+    name: machine:
+    let
+      topologyCpus = machine.cpu.cores * machine.cpu.threads * machine.cpu.sockets;
+    in
+    if machine.cpus == topologyCpus then
+      machine
+    else
+      builtins.throw (
+        "Test '${testAttrs.name}' machine '${name}' has inconsistent CPU topology: "
+        + "cpus=${toString machine.cpus}, cores=${toString machine.cpu.cores}, "
+        + "threads=${toString machine.cpu.threads}, sockets=${toString machine.cpu.sockets}, "
+        + "product=${toString topologyCpus}"
+      );
+
+  machineTestConfigs = lib.mapAttrs (
+    name: machine: validateMachineTopology name (machineTestConfig name machine)
+  ) machineAttrs;
 
   machineResources =
     let

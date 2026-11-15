@@ -341,6 +341,12 @@ module OsVm
       @memory = cfg.fetch('memory')
       @cpus = cfg.fetch('cpus')
       @cpu = Cpu.new(cfg.fetch('cpu'))
+      topology_cpus = @cpu.cores * @cpu.threads * @cpu.sockets
+      if @cpus != topology_cpus
+        raise ArgumentError,
+              "CPU topology mismatch: cpus=#{@cpus.inspect}, cores=#{@cpu.cores.inspect}, " \
+              "threads=#{@cpu.threads.inspect}, sockets=#{@cpu.sockets.inspect}, product=#{topology_cpus.inspect}"
+      end
       @shared_filesystems = cfg.fetch('sharedFileSystems', {})
       @networks = cfg.fetch('networks', [{ 'type' => 'user' }]).each_with_index.map do |net_cfg, i|
         Network.from_config(i, net_cfg, allocate_resources:)

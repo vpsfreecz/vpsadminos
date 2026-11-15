@@ -3,6 +3,20 @@
 require 'spec_helper'
 
 RSpec.describe TestRunner::TestConfig do
+  def prepared_machine(cpus:, cores:, threads:, sockets:)
+    {
+      'spin' => 'vpsadminos',
+      'qemu' => '/qemu',
+      'virtiofsd' => '/virtiofsd',
+      'bootMode' => 'firmware',
+      'memory' => 1024,
+      'cpus' => cpus,
+      'cpu' => { 'cores' => cores, 'threads' => threads, 'sockets' => sockets },
+      'disks' => [],
+      'networks' => [{ 'type' => 'user' }]
+    }
+  end
+
   it 'builds the config file, loads it, and exposes [] and dig' do
     with_tmpdir do |dir|
       input_test_args = { 'distributions' => %w[debian-stable alpine-latest] }
@@ -46,6 +60,41 @@ RSpec.describe TestRunner::TestConfig do
       File.write(path, JSON.generate('machines' => { 'bad' => {} }, 'testScripts' => {}))
       cfg = described_class.load(build_test, config_path: path)
       expect { cfg.validate!([]) }.to raise_error(ArgumentError, /Invalid prepared machine/)
+    end
+  end
+
+  [
+    [2, 1, 2, 1],
+    [8, 8, 1, 1]
+  ].each do |cpus, cores, threads, sockets|
+    it "accepts a prepared #{cpus}=#{cores}*#{threads}*#{sockets} topology" do
+      with_tmpdir do |dir|
+        machine = prepared_machine(cpus:, cores:, threads:, sockets:)
+        path = File.join(dir, 'config.json')
+        File.write(
+          path,
+          JSON.generate('machines' => { 'machine' => machine }, 'testScripts' => {})
+        )
+        cfg = described_class.load(build_test, config_path: path)
+
+        expect(cfg.validate!([])).to equal(cfg)
+      end
+    end
+  end
+
+  it 'rejects a prepared 8!=4*1*1 topology before runtime' do
+    with_tmpdir do |dir|
+      machine = prepared_machine(cpus: 8, cores: 4, threads: 1, sockets: 1)
+      path = File.join(dir, 'config.json')
+      File.write(path, JSON.generate('machines' => { 'machine' => machine }, 'testScripts' => {}))
+      cfg = described_class.load(build_test, config_path: path)
+      allow(TestRunner::Executor).to receive(:new)
+
+      expect { cfg.validate!([]) }.to raise_error(
+        ArgumentError,
+        /CPU topology mismatch: cpus=8, cores=4, threads=1, sockets=1, product=4/
+      )
+      expect(TestRunner::Executor).not_to have_received(:new)
     end
   end
 end
