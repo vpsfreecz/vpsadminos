@@ -91,6 +91,92 @@ RSpec.describe TestRunner::Executor do
     [result, logs, dir]
   end
 
+  def run_test_with_captured_evaluator(marker_prefix:, payload:, status:, error: nil)
+    test = build_test
+    script = test.test_scripts.fetch('default')
+    executor = build_executor([script])
+    evaluator = Class.new do
+      define_method(:initialize) { |*_args, **_kwargs| nil }
+      define_method(:run) do |&block|
+        raise 'captured stdout is not synchronous' unless $stdout.sync
+        raise 'captured stderr is not synchronous' unless $stderr.sync
+
+        $stdout.puts("#{marker_prefix}#{payload}")
+        $stderr.write("#{status}\n")
+        raise error if error
+
+        block.call(
+          'type' => 'script',
+          'script' => 'default',
+          'success' => true,
+          'elapsed_time' => 0.1,
+          'expected_to_succeed' => true,
+          'expected_result' => true
+        )
+      end
+    end
+    stub_const('TestRunner::TestEvaluator', evaluator)
+    allow(OsVm::PortReservation).to receive(:get_ports).and_return([10_000, 10_001, 10_002, 10_003])
+    allow(OsVm::PortReservation).to receive(:release_ports)
+    allow(executor).to receive(:log)
+
+    original_stdout_sync = $stdout.sync
+    original_stderr_sync = $stderr.sync
+    $stdout.sync = false
+    $stderr.sync = true
+
+    begin
+      result = executor.send(:run_test, test, [script], prefix: '[1/1]')
+    ensure
+      $stdout.sync = original_stdout_sync
+      $stderr.sync = original_stderr_sync
+    end
+
+    [result, executor.send(:test_state_dir, test)]
+  end
+
+  {
+    'generic livepatch' => 'VPSADMINOS_LIVEPATCH_GENERIC_RESULT ',
+    'NFS livepatch oracle' => 'VPSADMINOS_LIVEPATCH_ORACLE_RESULT '
+  }.each do |consumer, marker_prefix|
+    it "keeps a large #{consumer} marker separate from evaluator status" do
+      payload_object = {
+        'schemaVersion' => 1,
+        'contract' => consumer,
+        'padding' => 'x' * 12_000
+      }
+      payload = JSON.generate(payload_object)
+      marker = "#{marker_prefix}#{payload}"
+      status = "[2026-11-15 17:00:00 +0100] [1/1] '#{consumer}' succeeded in 0.1s"
+
+      expect(marker.bytesize + 1).to be > 11_197
+
+      result, dir = run_test_with_captured_evaluator(marker_prefix:, payload:, status:)
+      log = File.binread(File.join(dir, 'test-runner.log'))
+      records = log.lines(chomp: true)
+
+      expect(log).to eq("#{marker}\n#{status}\n")
+      expect(records).to eq([marker, status])
+      expect(JSON.parse(records.fetch(0).delete_prefix(marker_prefix))).to eq(payload_object)
+      expect(result).to be_successful
+      expect(result.script_results.fetch(0)).to be_successful
+      expect(File.read(File.join(dir, 'test-result.txt')).strip).to eq('expected_success')
+    end
+  end
+
+  it 'propagates an evaluator failure after writing captured output' do
+    result, dir = run_test_with_captured_evaluator(
+      marker_prefix: 'VPSADMINOS_LIVEPATCH_GENERIC_RESULT ',
+      payload: JSON.generate('padding' => 'x' * 12_000),
+      status: "[2026-11-15 17:00:00 +0100] [1/1] 'failure' failed in 0.1s",
+      error: RuntimeError.new('synthetic evaluator failure')
+    )
+
+    expect(result).to be_failed
+    expect(result.script_results.fetch(0)).to be_failed
+    expect(File.read(File.join(dir, 'test-result.txt')).strip).to eq('unexpected_failure')
+  end
+
   it 'fills the pending queue with scripts grouped by test' do
     test_a = build_test(path: 'suite/a', name: 'a', scripts: { 'smoke' => {}, 'full' => {} })
     test_b = build_test(path: 'suite/b', name: 'b')

@@ -624,6 +624,8 @@ module TestRunner
         out = File.open(File.join(dir, 'test-runner.log'), 'w')
         $stdout.reopen(out)
         $stderr.reopen(out)
+        $stdout.sync = true
+        $stderr.sync = true
         $stdin.close
 
         OsVm::PortReservation.reset_to_ports(mcast_ports)
