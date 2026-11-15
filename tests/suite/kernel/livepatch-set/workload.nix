@@ -21,7 +21,7 @@ let
       from pathlib import Path
 
       STATE = Path("/run/livepatch-generic-workload")
-      TREE = Path("/var/tmp/livepatch-generic-workload")
+      TREE = Path("/tmp/livepatch-generic-workload")
       CGROUP = Path("/sys/fs/cgroup/livepatch-generic-workload")
       TRUE = "${pkgs.coreutils}/bin/true"
       DIMENSIONS = (
@@ -212,13 +212,24 @@ let
           return 0
 
 
-      def start():
+      # F7_WORKLOAD_ADMISSION_BEGIN
+      def admit_start_paths():
           for path in (STATE, TREE, CGROUP):
               if path.exists() or path.is_symlink():
                   fail(f"refusing pre-existing workload path: {path}")
-          if not Path("/sys/fs/cgroup/cgroup.controllers").is_file():
-              fail("cgroup v2 is unavailable")
 
+          for parent in (STATE.parent, TREE.parent, CGROUP.parent):
+              if parent.is_symlink() or not parent.is_dir():
+                  fail(f"workload parent is unavailable: {parent}")
+
+          controllers = CGROUP.parent / "cgroup.controllers"
+          if controllers.is_symlink() or not controllers.is_file():
+              fail("cgroup v2 is unavailable")
+      # F7_WORKLOAD_ADMISSION_END
+
+
+      # F7_WORKLOAD_CREATION_BEGIN
+      def create_start_paths():
           STATE.mkdir(mode=0o700)
           (STATE / "counters").mkdir(mode=0o700)
           TREE.mkdir(mode=0o700)
@@ -226,6 +237,12 @@ let
           CGROUP.mkdir(mode=0o755)
           (CGROUP / "a").mkdir(mode=0o755)
           (CGROUP / "b").mkdir(mode=0o755)
+      # F7_WORKLOAD_CREATION_END
+
+
+      def start():
+          admit_start_paths()
+          create_start_paths()
           atomic_write(
               STATE / "owner.json",
               json.dumps({"schemaVersion": 1, "token": uuid.uuid4().hex}, sort_keys=True) + "\n",

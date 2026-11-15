@@ -11,6 +11,8 @@ nfs_validator=${5-}
 nfs_oracle_script=${6-}
 nfs_plan=${7-}
 nfs_capture=${8-}
+python=${9:-python3}
+workload_source=${10:-$repository_root/tests/suite/kernel/livepatch-set/workload.nix}
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM
 
@@ -220,6 +222,239 @@ RUBY
 } >"$work/generic-capture-relation.rb"
 
 "$ruby" "$work/generic-capture-relation.rb"
+
+grep -F 'TREE = Path("/tmp/livepatch-generic-workload")' "$workload_source" >/dev/null
+if grep -F '/var/tmp/livepatch-generic-workload' "$workload_source" >/dev/null; then
+  echo 'generic workload still uses the absent /var/tmp parent' >&2
+  exit 1
+fi
+
+{
+  awk '
+    /F7_WORKLOAD_ADMISSION_BEGIN/ { capture = 1; next }
+    /F7_WORKLOAD_ADMISSION_END/ { capture = 0 }
+    capture { print }
+  ' "$workload_source"
+  awk '
+    /F7_WORKLOAD_CREATION_BEGIN/ { capture = 1; next }
+    /F7_WORKLOAD_CREATION_END/ { capture = 0 }
+    capture { print }
+  ' "$workload_source"
+} | sed 's/^      //' >"$work/workload-init-helpers.py"
+[[ -s "$work/workload-init-helpers.py" ]]
+
+{
+  cat <<'PYTHON'
+import os
+import shutil
+import stat
+import tempfile
+from pathlib import Path
+
+
+def fail(message):
+    raise RuntimeError(message)
+
+
+PYTHON
+  cat "$work/workload-init-helpers.py"
+  cat <<'PYTHON'
+
+
+def configure(state, tree, cgroup):
+    global STATE, TREE, CGROUP
+    STATE = state
+    TREE = tree
+    CGROUP = cgroup
+
+
+def fixture(label):
+    root = Path(tempfile.mkdtemp(prefix=f"livepatch-workload-{label}-"))
+    state_parent = root / "run"
+    tree_parent = root / "tmp"
+    cgroup_parent = root / "cgroup"
+    for parent in (state_parent, tree_parent, cgroup_parent):
+        parent.mkdir(mode=0o700)
+    (cgroup_parent / "cgroup.controllers").write_text("cpu\n", encoding="ascii")
+    return root, state_parent, tree_parent, cgroup_parent
+
+
+def configure_roots(state_parent, tree_parent, cgroup_parent):
+    configure(
+        state_parent / "livepatch-generic-workload",
+        tree_parent / "livepatch-generic-workload",
+        cgroup_parent / "livepatch-generic-workload",
+    )
+
+
+def inventory(root):
+    entries = []
+    for directory, names, files in os.walk(root, topdown=True, followlinks=False):
+        directory_path = Path(directory)
+        names.sort()
+        files.sort()
+        for name in names + files:
+            path = directory_path / name
+            relative = str(path.relative_to(root))
+            metadata = path.lstat()
+            mode = stat.S_IMODE(metadata.st_mode)
+            if path.is_symlink():
+                value = ("symlink", os.readlink(path))
+            elif path.is_dir():
+                value = ("directory", mode)
+            elif path.is_file():
+                value = ("file", mode, path.read_bytes())
+            else:
+                value = ("other", mode)
+            entries.append((relative, value))
+    return entries
+
+
+def attempt_start_paths():
+    admit_start_paths()
+    create_start_paths()
+
+
+def require_refusal(label, setup):
+    root, state_parent, tree_parent, cgroup_parent = fixture(label)
+    try:
+        configure_roots(state_parent, tree_parent, cgroup_parent)
+        setup(root, state_parent, tree_parent, cgroup_parent)
+        before = inventory(root)
+        try:
+            attempt_start_paths()
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError(f"workload initialization unexpectedly accepted {label}")
+        after = inventory(root)
+        if after != before:
+            raise AssertionError(f"workload refusal changed fixture state: {label}")
+    finally:
+        shutil.rmtree(root)
+
+
+success_root, state_parent, tree_parent, cgroup_parent = fixture("success")
+try:
+    configure_roots(state_parent, tree_parent, cgroup_parent)
+    previous_umask = os.umask(0)
+    try:
+        attempt_start_paths()
+    finally:
+        os.umask(previous_umask)
+    expected = {
+        STATE: 0o700,
+        STATE / "counters": 0o700,
+        TREE: 0o700,
+        TREE / "filesystem": 0o700,
+        CGROUP: 0o755,
+        CGROUP / "a": 0o755,
+        CGROUP / "b": 0o755,
+    }
+    for path, expected_mode in expected.items():
+        if path.is_symlink() or not path.is_dir():
+            raise AssertionError(f"workload path was not created as a directory: {path}")
+        actual_mode = stat.S_IMODE(path.stat().st_mode)
+        if actual_mode != expected_mode:
+            raise AssertionError(
+                f"workload path mode mismatch for {path}: {actual_mode:o} != {expected_mode:o}",
+            )
+    actual_children = {
+        path
+        for root in (STATE, TREE, CGROUP)
+        for path in root.rglob("*")
+    }
+    if actual_children != set(expected) - {STATE, TREE, CGROUP}:
+        raise AssertionError("workload initialization created an unexpected child")
+finally:
+    shutil.rmtree(success_root)
+
+
+def existing_root(which):
+    def setup(_root, _state_parent, _tree_parent, _cgroup_parent):
+        path = {"state": STATE, "tree": TREE, "cgroup": CGROUP}[which]
+        path.mkdir(mode=0o711)
+        (path / "sentinel").write_text(f"{which}-sentinel\n", encoding="ascii")
+
+    return setup
+
+
+def symlink_root(which):
+    def setup(root, _state_parent, _tree_parent, _cgroup_parent):
+        path = {"state": STATE, "tree": TREE, "cgroup": CGROUP}[which]
+        target = root / f"{which}-root-target"
+        target.mkdir(mode=0o711)
+        (target / "sentinel").write_text(f"{which}-symlink-sentinel\n", encoding="ascii")
+        path.symlink_to(target, target_is_directory=True)
+
+    return setup
+
+
+def missing_parent(which):
+    def setup(_root, state_parent, tree_parent, cgroup_parent):
+        parent = {"state": state_parent, "tree": tree_parent, "cgroup": cgroup_parent}[which]
+        shutil.rmtree(parent)
+
+    return setup
+
+
+def symlink_parent(which):
+    def setup(root, state_parent, tree_parent, cgroup_parent):
+        parent = {"state": state_parent, "tree": tree_parent, "cgroup": cgroup_parent}[which]
+        shutil.rmtree(parent)
+        target = root / f"{which}-parent-target"
+        target.mkdir(mode=0o700)
+        if which == "cgroup":
+            (target / "cgroup.controllers").write_text("cpu\n", encoding="ascii")
+        parent.symlink_to(target, target_is_directory=True)
+
+    return setup
+
+
+def nondirectory_parent(which):
+    def setup(_root, state_parent, tree_parent, cgroup_parent):
+        parent = {"state": state_parent, "tree": tree_parent, "cgroup": cgroup_parent}[which]
+        shutil.rmtree(parent)
+        parent.write_text(f"{which}-parent-file\n", encoding="ascii")
+
+    return setup
+
+
+def missing_controllers(_root, _state_parent, _tree_parent, cgroup_parent):
+    (cgroup_parent / "cgroup.controllers").unlink()
+
+
+def symlink_controllers(root, _state_parent, _tree_parent, cgroup_parent):
+    controllers = cgroup_parent / "cgroup.controllers"
+    controllers.unlink()
+    target = root / "controllers-target"
+    target.write_text("cpu\n", encoding="ascii")
+    controllers.symlink_to(target)
+
+
+def nonregular_controllers(_root, _state_parent, _tree_parent, cgroup_parent):
+    controllers = cgroup_parent / "cgroup.controllers"
+    controllers.unlink()
+    controllers.mkdir(mode=0o700)
+
+
+for root_name in ("state", "tree", "cgroup"):
+    require_refusal(f"pre-existing-{root_name}", existing_root(root_name))
+    require_refusal(f"symlink-{root_name}", symlink_root(root_name))
+    require_refusal(f"missing-{root_name}-parent", missing_parent(root_name))
+    require_refusal(f"symlink-{root_name}-parent", symlink_parent(root_name))
+    require_refusal(f"non-directory-{root_name}-parent", nondirectory_parent(root_name))
+
+require_refusal("missing-cgroup-controllers", missing_controllers)
+require_refusal("symlink-cgroup-controllers", symlink_controllers)
+require_refusal("non-regular-cgroup-controllers", nonregular_controllers)
+
+print("generic workload initialization matrix passed")
+PYTHON
+} >"$work/workload-init-matrix.py"
+
+"$python" -m py_compile "$work/workload-init-matrix.py"
+"$python" "$work/workload-init-matrix.py"
 
 make_marker() {
   local row_id=$1

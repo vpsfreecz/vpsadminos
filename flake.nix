@@ -1025,6 +1025,12 @@
                 qualificationSet = qualificationActualSet;
                 row = qualificationActualFixRow;
               };
+          qualificationWorkload = import ./tests/suite/kernel/livepatch-set/workload.nix {
+            inherit pkgs;
+          };
+          qualificationWorkloadPackage = builtins.head (
+            (builtins.head qualificationWorkload.modules).environment.systemPackages
+          );
           mapQualificationOracle =
             transform: entry:
             entry
@@ -1492,7 +1498,17 @@
                   ${qualificationActualNfsOracleFile} \
                   ${qualificationActualPlanFile} \
                   ${qualificationActualCaptureFile} \
+                  ${pkgs.python3}/bin/python3 \
+                  ${./tests/suite/kernel/livepatch-set/workload.nix} \
                   > generic-safety.log
+
+                PYTHONPYCACHEPREFIX="$PWD/python-cache" \
+                  ${pkgs.python3}/bin/python3 -m py_compile \
+                  ${qualificationWorkloadPackage}/bin/livepatch-generic-workload
+                grep -Fx 'generic workload initialization matrix passed' \
+                  generic-safety.log > workload-init.log
+                sha256sum ${qualificationWorkloadPackage}/bin/livepatch-generic-workload \
+                  > workload-generated.sha256
 
                 ${pkgs.bash}/bin/bash ${./tools/livepatch/tests/verify-capture.sh} \
                   ${pkgs.bash}/bin/bash \
@@ -1514,6 +1530,8 @@
                 cp qualification-serialization.log "$out/qualification-serialization.log"
                 cp generic-safety-hypervisor.log "$out/generic-safety-hypervisor.log"
                 cp generic-safety.log "$out/generic-safety.log"
+                cp workload-init.log "$out/workload-init.log"
+                cp workload-generated.sha256 "$out/workload-generated.sha256"
                 cp verify-capture.log "$out/verify-capture.log"
                 cp ci-tool-closure.log "$out/ci-tool-closure.log"
               '';
