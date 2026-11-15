@@ -1356,6 +1356,16 @@
           qualificationActualNfsOracleFile = pkgs.writeText "livepatch-nfs-oracle-actual.rb" (
             qualificationActualNfsHelper.oracleScripts.operation-safety
           );
+          qualificationProfileConfigFile = pkgs.writeText "livepatch-profile-config.json" (
+            builtins.toJSON {
+              name = "kernel-livepatch-set-generic-lifecycle-amd";
+              labels = {
+                livepatch-profile = "set/vendor-lifecycle";
+                livepatch-set = "6.12.113.1";
+              };
+              tags = [ "amd-livepatch" ];
+            }
+          );
           qualificationGenericValidator = pkgs.writeShellScript "validate-generic-livepatch-result" ''
             exec ${pkgs.bash}/bin/bash ${./tools/livepatch/validate-generic-result.sh} "$@"
           '';
@@ -1646,6 +1656,8 @@
                   ${pkgs.python3}/bin/python3 \
                   ${./tests/suite/kernel/livepatch-set/workload.nix} \
                   ${qualificationWorkloadPackage}/bin/livepatch-generic-workload \
+                  ${./tools/livepatch/run-profile.sh} \
+                  ${qualificationProfileConfigFile} \
                   > generic-safety.log
 
                 PYTHONPYCACHEPREFIX="$PWD/python-cache" \
@@ -1670,6 +1682,7 @@
 
                 mkdir "$out"
                 printf '%s\n' "$livepatchCiTools" > "$out/livepatch-ci-tools-path.txt"
+                printf '%s\n' ${qualificationProfileConfigFile} > "$out/livepatch-profile-config-path.txt"
                 cp "$one" "$out/plan-one.json"
                 cp "$two" "$out/plan-two.json"
                 cp ${qualificationActualPlanFile} "$out/plan-actual.json"

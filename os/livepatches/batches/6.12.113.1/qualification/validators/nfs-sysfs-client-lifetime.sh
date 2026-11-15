@@ -5,7 +5,8 @@ set -euo pipefail
 usage() {
   cat >&2 <<'EOF'
 usage: nfs-sysfs-client-lifetime.sh --plan FILE --capture FILE --row-id ID \
-       --state-dir DIR --runner-log FILE --runner-status STATUS --output FILE
+       --state-dir DIR --runner-log FILE --semantic-log FILE \
+       --runner-status STATUS --output FILE
 EOF
   exit 2
 }
@@ -20,6 +21,7 @@ capture=
 row_id=
 state_dir=
 runner_log=
+semantic_log=
 runner_status=
 output=
 
@@ -55,6 +57,11 @@ while (($#)); do
       runner_status=$2
       shift 2
       ;;
+    --semantic-log)
+      (($# >= 2)) || usage
+      semantic_log=$2
+      shift 2
+      ;;
     --state-dir)
       (($# >= 2)) || usage
       state_dir=$2
@@ -65,14 +72,23 @@ while (($#)); do
 done
 
 [[ -n "$plan" && -n "$capture" && -n "$row_id" && -n "$state_dir" ]] || usage
-[[ -n "$runner_log" && -n "$runner_status" && -n "$output" ]] || usage
+[[ -n "$runner_log" && -n "$semantic_log" && -n "$runner_status" && -n "$output" ]] || usage
 [[ "$runner_status" =~ ^[0-9]+$ ]] || fail "runner status is not an integer"
 [[ "$runner_status" == 0 ]] || fail "runner did not succeed"
 
-for input in "$plan" "$capture" "$runner_log"; do
+for input in "$plan" "$capture" "$runner_log" "$semantic_log"; do
   [[ -f "$input" && ! -L "$input" ]] || fail "input is not a regular non-symlink file: $input"
 done
 [[ -d "$state_dir" && ! -L "$state_dir" ]] || fail "state directory is invalid"
+state_root=$(readlink -e -- "$state_dir")
+runner_log=$(readlink -e -- "$runner_log")
+semantic_log=$(readlink -e -- "$semantic_log")
+[[ "$runner_log" == "$state_root/test.log" ]] || fail "runner log is outside its controller role"
+semantic_dir=$(dirname -- "$semantic_log")
+[[ $(dirname -- "$semantic_dir") == "$state_root" ]] || fail "semantic log is outside the state directory"
+[[ "${semantic_dir##*/}" == os-test-* && -d "$semantic_dir" && ! -L "$semantic_dir" ]] || fail "semantic log result directory is invalid"
+[[ "${semantic_log##*/}" == test-runner.log ]] || fail "semantic log has an unexpected name"
+[[ "$semantic_log" != "$runner_log" ]] || fail "runner and semantic logs must be distinct"
 [[ $(dirname -- "$output") == "$state_dir" ]] || fail "output must be inside the state directory"
 [[ ! -e "$output" && ! -L "$output" ]] || fail "output already exists"
 [[ -f "$state_dir/runner.status" && ! -L "$state_dir/runner.status" ]] || fail "runner.status is missing"
@@ -162,13 +178,19 @@ jq -e --arg setId "$(jq -er '.setId' <<<"$row")" --slurpfile plan "$plan" '
 ' "$capture" >/dev/null
 
 grep -F '1 tests successful' "$runner_log" >/dev/null || fail "runner summary is missing"
+if grep -F 'tests should have succeeded' "$runner_log" >/dev/null; then
+  fail "runner log contains a failure summary"
+fi
 noise='BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|blocked for more than|soft lockup|hard LOCKUP|([Rr][Cc][Uu]).*stall|livepatch.*(error|failed)|NFS:.*(fatal|error)|RPC:.*(fatal|error)'
 if grep -E "$noise" "$runner_log" >/dev/null; then
   fail "runner log contains fatal kernel or NFS/RPC noise"
 fi
+if grep -E "$noise" "$semantic_log" >/dev/null; then
+  fail "semantic log contains fatal kernel or NFS/RPC noise"
+fi
 
 marker_prefix='VPSADMINOS_LIVEPATCH_ORACLE_RESULT '
-mapfile -t marker_lines < <(grep -F "$marker_prefix" "$runner_log" || true)
+mapfile -t marker_lines < <(grep -F "$marker_prefix" "$semantic_log" || true)
 [[ ${#marker_lines[@]} -eq 1 ]] || fail "expected exactly one oracle result marker"
 marker_json=${marker_lines[0]#*"$marker_prefix"}
 

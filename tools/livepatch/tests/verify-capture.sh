@@ -390,7 +390,8 @@ make_run_profile_fixture() {
   printf '{}\n' >"$root/capture.json"
   jq -n '{rows: [{
     rowId: "test-row", setId: "test-set", profileId: "test-profile",
-    testAdapter: "kernel/livepatch-set", expectedOutcome: "success",
+    template: "kernel/livepatch-set", testAdapter: "kernel/livepatch-set",
+    expectedOutcome: "success",
     validator: "builtin/test-runner"
   }]}' >"$root/plan.json"
   cat >"$root/tools/livepatch/verify.sh" <<EOF

@@ -14,8 +14,18 @@ nfs_capture=${8-}
 python=${9:-python3}
 workload_source=${10:-$repository_root/tests/suite/kernel/livepatch-set/workload.nix}
 workload_executable=${11-}
+profile_runner=${12-}
+profile_store_config=${13-}
 if [[ -z "$workload_executable" || ! -f "$workload_executable" || -L "$workload_executable" || ! -x "$workload_executable" ]]; then
   echo 'generated livepatch workload executable is required' >&2
+  exit 1
+fi
+if [[ -z "$profile_runner" || ! -f "$profile_runner" || -L "$profile_runner" || ! -x "$profile_runner" ]]; then
+  echo 'livepatch profile runner is required' >&2
+  exit 1
+fi
+if [[ "$profile_store_config" != /nix/store/* || ! -f "$profile_store_config" || -L "$profile_store_config" ]]; then
+  echo 'Nix-supplied livepatch profile config is required' >&2
   exit 1
 fi
 work=$(mktemp -d)
@@ -938,19 +948,25 @@ run_validator() {
   local extra=${6-}
   local copies=${7-1}
   local summary_copies=${8-1}
-  local plan=${9-$work/plan.json}
+  local semantic_extra=${9-}
+  local plan=${10-$work/plan.json}
   local state="$work/case-$label"
+  local result_state="$state/os-test-generic"
 
-  mkdir "$state"
+  mkdir -p "$result_state"
   printf '%s\n' "$runner_status" >"$state/runner.status"
   : >"$state/test.log"
+  : >"$result_state/test-runner.log"
   for ((index = 0; index < summary_copies; index++)); do
     [[ -z "$summary" ]] || printf '%s\n' "$summary" >>"$state/test.log"
   done
   for ((index = 0; index < copies; index++)); do
-    printf 'VPSADMINOS_LIVEPATCH_GENERIC_RESULT %s\n' "$(cat "$marker")" >>"$state/test.log"
+    printf 'VPSADMINOS_LIVEPATCH_GENERIC_RESULT %s\n' \
+      "$(cat "$marker")" >>"$result_state/test-runner.log"
   done
   [[ -z "$extra" ]] || printf '%s\n' "$extra" >>"$state/test.log"
+  [[ -z "$semantic_extra" ]] || \
+    printf '%s\n' "$semantic_extra" >>"$result_state/test-runner.log"
 
   "$validator" \
     --plan "$plan" \
@@ -958,6 +974,7 @@ run_validator() {
     --row-id "$row_id" \
     --state-dir "$state" \
     --runner-log "$state/test.log" \
+    --semantic-log "$result_state/test-runner.log" \
     --runner-status "$runner_status" \
     --output "$state/result.json"
 }
@@ -968,7 +985,7 @@ expect_accept() {
   local marker=$3
   local summary=${4-$summary_positive}
   local plan=${5-$work/plan.json}
-  run_validator "$label" "$row_id" "$marker" 0 "$summary" '' 1 1 "$plan"
+  run_validator "$label" "$row_id" "$marker" 0 "$summary" '' 1 1 '' "$plan"
   jq -e --arg rowId "$row_id" '
     .schemaVersion == 1
     and .rowId == $rowId
@@ -984,8 +1001,8 @@ expect_aged_plan_refuse() {
   local label=$1
   local plan=$2
   local marker=$3
-  if run_validator "$label" generic-aged-amd "$marker" 0 "$summary_positive" '' 1 1 "$plan" \
-    >"$work/$label.stdout" 2>"$work/$label.stderr"; then
+  if run_validator "$label" generic-aged-amd "$marker" 0 "$summary_positive" \
+    '' 1 1 '' "$plan" >"$work/$label.stdout" 2>"$work/$label.stderr"; then
     echo "aged plan/marker mismatch unexpectedly succeeded: $label" >&2
     exit 1
   fi
@@ -1056,6 +1073,8 @@ expect_refuse embedded-suffix-summary generic-lifecycle-amd "$work/lifecycle.jso
   '[2026-11-15 11:11:30 +0100] 1 tests successful suffix'
 expect_refuse fatal-noise generic-lifecycle-amd "$work/lifecycle.json" 0 \
   "$summary_positive" 'kernel BUG at synthetic.c:1'
+expect_refuse child-fatal-noise generic-lifecycle-amd "$work/lifecycle.json" 0 \
+  "$summary_positive" '' 1 1 'kernel BUG at synthetic.c:1'
 expect_refuse aged-under-duration generic-aged-amd "$work/aged-under-duration.json" 0 "$summary_positive"
 expect_refuse aged-stalled generic-aged-amd "$work/aged-stalled.json" 0 "$summary_positive"
 expect_refuse aged-nonmonotonic generic-aged-amd "$work/aged-nonmonotonic.json" 0 "$summary_positive"
@@ -1065,14 +1084,17 @@ expect_refuse aged-missing-cleanup generic-aged-amd "$work/aged-missing-cleanup.
 expect_refuse aged-unclean generic-aged-amd "$work/aged-unclean.json" 0 "$summary_positive"
 
 mkdir "$work/case-smoke"
+mkdir "$work/case-smoke/os-test-generic"
 printf '0\n' >"$work/case-smoke/runner.status"
 printf '%s\n' "$summary_positive" >"$work/case-smoke/test.log"
+: >"$work/case-smoke/os-test-generic/test-runner.log"
 if "$validator" \
   --plan "$work/plan.json" \
   --capture "$work/capture.json" \
   --row-id generic-lifecycle-amd \
   --state-dir "$work/case-smoke" \
   --runner-log "$work/case-smoke/test.log" \
+  --semantic-log "$work/case-smoke/os-test-generic/test-runner.log" \
   --runner-status 0 \
   --output "$work/case-smoke/result.json" \
   >"$work/smoke.stdout" 2>"$work/smoke.stderr"; then
@@ -1605,21 +1627,23 @@ RUBY
     local selected_row=$4
     local marker_file=$5
     local state="$work/nfs-$label"
+    local result_state="$state/os-test-nfs"
 
-    mkdir "$state"
+    mkdir -p "$result_state"
     printf '0\n' >"$state/runner.status"
+    printf '1 tests successful\n' >"$state/test.log"
     {
-      printf '1 tests successful\n'
       printf 'VPSADMINOS_LIVEPATCH_ORACLE_RESULT '
       cat "$marker_file"
       printf '\n'
-    } >"$state/test.log"
+    } >"$result_state/test-runner.log"
     "$nfs_validator" \
       --plan "$plan_file" \
       --capture "$capture_file" \
       --row-id "$selected_row" \
       --state-dir "$state" \
       --runner-log "$state/test.log" \
+      --semantic-log "$result_state/test-runner.log" \
       --runner-status 0 \
       --output "$state/result.json"
   }
@@ -1662,6 +1686,256 @@ RUBY
     "$nfs_row_id" "$work/nfs-marker-malformed.json"
 
   printf 'NFS livepatch validator matrix passed\n'
+
+  profile_root="$work/profile-root"
+  mkdir -p \
+    "$profile_root/tools/livepatch" \
+    "$profile_root/os/livepatches/batches/6.12.113.1/qualification/validators"
+  ln -s "$validator" "$profile_root/tools/livepatch/validate-generic-result.sh"
+  ln -s "$nfs_validator" \
+    "$profile_root/os/livepatches/batches/6.12.113.1/qualification/validators/nfs-sysfs-client-lifetime.sh"
+
+  printf '#!%s\n' "$BASH" >"$profile_root/tools/livepatch/verify.sh"
+  cat >>"$profile_root/tools/livepatch/verify.sh" <<'EOF'
+set -euo pipefail
+printf '{"schemaVersion":1,"verified":true}\n'
+EOF
+  chmod +x "$profile_root/tools/livepatch/verify.sh"
+
+  printf '#!%s\n' "$BASH" >"$profile_root/test-runner.sh"
+  cat >>"$profile_root/test-runner.sh" <<'EOF'
+set -euo pipefail
+
+state_dir=
+selector=
+while (($#)); do
+  case "$1" in
+    --state-dir)
+      state_dir=$2
+      shift 2
+      ;;
+    --)
+      selector=$2
+      break
+      ;;
+    *) shift ;;
+  esac
+done
+[[ -n "$state_dir" && -n "$selector" ]]
+template=${selector%@*}
+row_id=${selector#*@}
+printf '%s\n' "$selector" >"$state_dir/selector.txt"
+row=$(jq -cer --arg rowId "$row_id" \
+  '[.rows[] | select(.rowId == $rowId)] | if length == 1 then .[0] else error("row selection is not unique") end' \
+  "$VPSADMINOS_LIVEPATCH_PLAN")
+
+if [[ ${FAKE_RUNNER_CASE:-success} == no-result ]]; then
+  printf '[2026-11-15 13:39:38 +0100] 1 tests successful\n'
+  exit 0
+fi
+
+result_dir="$state_dir/os-test-fixture"
+if [[ ${FAKE_RUNNER_CASE:-success} == symlink-result ]]; then
+  outside="$state_dir/../outside-result-${row_id//[^A-Za-z0-9]/_}"
+  mkdir "$outside"
+  ln -s "$outside" "$result_dir"
+  printf '[2026-11-15 13:39:38 +0100] 1 tests successful\n'
+  exit 0
+fi
+mkdir "$result_dir"
+if [[ ${FAKE_RUNNER_CASE:-success} == duplicate-result ]]; then
+  mkdir "$state_dir/os-test-duplicate"
+fi
+
+name="${template//\//-}-$row_id"
+profile=$(jq -er '.profileId' <<<"$row")
+set_id=$(jq -er '.setId' <<<"$row")
+runner_class=$(jq -er '.runnerClass' <<<"$row")
+case ${FAKE_RUNNER_CASE:-success} in
+  wrong-name) name=wrong-name ;;
+  wrong-profile) profile=wrong-profile ;;
+  wrong-set) set_id=wrong-set ;;
+  wrong-runner) runner_class=wrong-runner ;;
+esac
+write_config() {
+  jq -n \
+    --arg name "$name" \
+    --arg profile "$profile" \
+    --arg runner "$runner_class" \
+    --arg setId "$set_id" \
+    '{
+      name: $name,
+      labels: {
+        "livepatch-profile": $profile,
+        "livepatch-set": $setId
+      },
+      tags: [$runner]
+    }' >"$1"
+}
+case ${FAKE_RUNNER_CASE:-success} in
+  regular-config)
+    write_config "$result_dir/config.json"
+    ;;
+  config-escape)
+    config_target="$state_dir/../outside-config-${row_id//[^A-Za-z0-9]/_}.json"
+    write_config "$config_target"
+    ln -s "$config_target" "$result_dir/config.json"
+    ;;
+  dangling-config)
+    ln -s "$state_dir/missing-config.json" "$result_dir/config.json"
+    ;;
+  missing-config)
+    ;;
+  nonregular-config)
+    mkdir "$state_dir/nonregular-config"
+    ln -s "$state_dir/nonregular-config" "$result_dir/config.json"
+    ;;
+  wrong-name|wrong-profile|wrong-set|wrong-runner)
+    config_dir="$state_dir/prebuild-fixture"
+    mkdir "$config_dir"
+    write_config "$config_dir/config.json"
+    ln -s "$config_dir/config.json" "$result_dir/config.json"
+    ;;
+  *)
+    ln -s "$FAKE_STORE_CONFIG" "$result_dir/config.json"
+    ;;
+esac
+
+if [[ ${FAKE_RUNNER_CASE:-success} == unsuccessful ]]; then
+  printf 'unexpected_failure\n' >"$result_dir/test-result.txt"
+else
+  printf 'expected_success\n' >"$result_dir/test-result.txt"
+fi
+
+if [[ ${FAKE_RUNNER_CASE:-success} != missing-inner ]]; then
+  : >"$result_dir/test-runner.log"
+  case ${FAKE_RUNNER_CASE:-success} in
+    marker-outer) ;;
+    duplicate-marker)
+      for _index in 1 2; do
+        printf '%s ' "$FAKE_MARKER_PREFIX" >>"$result_dir/test-runner.log"
+        cat "$FAKE_MARKER_FILE" >>"$result_dir/test-runner.log"
+        printf '\n' >>"$result_dir/test-runner.log"
+      done
+      ;;
+    malformed-marker)
+      printf '%s {invalid-json\n' "$FAKE_MARKER_PREFIX" >"$result_dir/test-runner.log"
+      ;;
+    *)
+      printf '%s ' "$FAKE_MARKER_PREFIX" >>"$result_dir/test-runner.log"
+      cat "$FAKE_MARKER_FILE" >>"$result_dir/test-runner.log"
+      printf '\n' >>"$result_dir/test-runner.log"
+      ;;
+  esac
+  if [[ ${FAKE_RUNNER_CASE:-success} == inner-fatal ]]; then
+    printf 'kernel BUG at synthetic.c:1\n' >>"$result_dir/test-runner.log"
+  fi
+fi
+
+printf '[2026-11-15 13:39:38 +0100] 1 tests successful\n'
+if [[ ${FAKE_RUNNER_CASE:-success} == marker-outer ]]; then
+  printf '%s ' "$FAKE_MARKER_PREFIX"
+  cat "$FAKE_MARKER_FILE"
+  printf '\n'
+fi
+if [[ ${FAKE_RUNNER_CASE:-success} == outer-fatal ]]; then
+  printf 'kernel BUG at synthetic.c:1\n'
+fi
+EOF
+  chmod +x "$profile_root/test-runner.sh"
+
+  run_profile_case() {
+    local label=$1
+    local plan_file=$2
+    local capture_file=$3
+    local selected_row=$4
+    local marker_file=$5
+    local marker_prefix=$6
+    local runner_case=${7-success}
+    local state="$work/profile-$label"
+
+    (
+      cd "$profile_root"
+      FAKE_RUNNER_CASE="$runner_case" \
+        FAKE_MARKER_FILE="$marker_file" \
+        FAKE_MARKER_PREFIX="$marker_prefix" \
+        FAKE_STORE_CONFIG="$profile_store_config" \
+        "$BASH" "$profile_runner" \
+          --plan "$plan_file" \
+          --capture "$capture_file" \
+          --row-id "$selected_row" \
+          --state-dir "$state"
+    )
+  }
+
+  expect_profile_refuse() {
+    local label=$1
+    shift
+    if run_profile_case "$label" "$@" \
+      >"$work/profile-$label.stdout" 2>"$work/profile-$label.stderr"; then
+      echo "profile handoff refusal case unexpectedly succeeded: $label" >&2
+      exit 1
+    fi
+    [[ ! -e "$work/profile-$label/result.json" ]]
+  }
+
+  run_profile_case generic-success \
+    "$work/plan.json" "$work/capture.json" generic-lifecycle-amd \
+    "$work/lifecycle.json" VPSADMINOS_LIVEPATCH_GENERIC_RESULT
+  jq -e '.accepted == true and .semantic.role == "lifecycle"' \
+    "$work/profile-generic-success/result.json" >/dev/null
+  [[ $(cat "$work/profile-generic-success/selector.txt") == \
+    'kernel/livepatch-set@generic-lifecycle-amd' ]]
+
+  run_profile_case nfs-success \
+    "$nfs_plan" "$nfs_capture" "$nfs_row_id" \
+    "$work/nfs-marker.json" VPSADMINOS_LIVEPATCH_ORACLE_RESULT regular-config
+  jq -e '.accepted == true and .validator.id == "nfs-client-operation-safety"' \
+    "$work/profile-nfs-success/result.json" >/dev/null
+  [[ $(cat "$work/profile-nfs-success/selector.txt") == \
+    "kernel/livepatch-fix@$nfs_row_id" ]]
+  jq -e '
+    .template == "kernel/livepatch-fix"
+    and .testAdapter
+      == "os/livepatches/batches/6.12.113.1/qualification/helpers/nfs-sysfs-client-lifetime.nix"
+  ' <<<"$nfs_row" >/dev/null
+
+  for profile_case in \
+    no-result duplicate-result symlink-result config-escape dangling-config \
+    missing-config nonregular-config wrong-name wrong-profile wrong-set \
+    wrong-runner unsuccessful missing-inner \
+    marker-outer duplicate-marker malformed-marker outer-fatal inner-fatal; do
+    expect_profile_refuse "$profile_case" \
+      "$work/plan.json" "$work/capture.json" generic-lifecycle-amd \
+      "$work/lifecycle.json" VPSADMINOS_LIVEPATCH_GENERIC_RESULT "$profile_case"
+  done
+
+  if "$validator" \
+    --plan "$work/plan.json" \
+    --capture "$work/capture.json" \
+    --row-id generic-lifecycle-amd \
+    --state-dir "$work/profile-generic-success" \
+    --runner-log "$work/profile-generic-success/test.log" \
+    --semantic-log "$work/profile-generic-success/test.log" \
+    --runner-status 0 \
+    --output "$work/profile-generic-success/outer-as-semantic.json"; then
+    echo 'outer controller log unexpectedly accepted as semantic log' >&2
+    exit 1
+  fi
+  [[ ! -e "$work/profile-generic-success/outer-as-semantic.json" ]]
+
+  jq '(.rows[] | select(.rowId == "generic-lifecycle-amd") | .validator)
+    = "builtin/test-runner"' "$work/plan.json" >"$work/status-only-plan.json"
+  run_profile_case status-only \
+    "$work/status-only-plan.json" "$work/capture.json" generic-lifecycle-amd \
+    "$work/lifecycle.json" VPSADMINOS_LIVEPATCH_GENERIC_RESULT no-result
+  jq -e '
+    .accepted == true
+    and .validator.id == "builtin/test-runner"
+    and .runnerStatus == 0
+  ' "$work/profile-status-only/result.json" >/dev/null
+
+  printf 'livepatch profile result handoff matrix passed\n'
 fi
 
 printf 'generic livepatch safety validator matrix passed\n'

@@ -72,11 +72,11 @@ if [[ -n "$evidence_dir" ]]; then
 fi
 tools/livepatch/verify.sh "${verify_args[@]}" >/dev/null
 row=$(jq -cer --arg rowId "$row_id" '[.rows[] | select(.rowId == $rowId)] | if length == 1 then .[0] else error("row selection is not unique") end' "$plan")
-adapter=$(jq -er '.testAdapter' <<<"$row")
-case "$adapter" in
+template=$(jq -er '.template' <<<"$row")
+case "$template" in
   kernel/livepatch-batch|kernel/livepatch-set|kernel/livepatch-fix) ;;
   *)
-    echo "unsupported test adapter: $adapter" >&2
+    echo "unsupported test template: $template" >&2
     exit 1
     ;;
 esac
@@ -91,7 +91,7 @@ export VPSADMINOS_LIVEPATCH_ROW_ID="$row_id"
 
 runner_status=0
 set +e
-"$bash_path" ./test-runner.sh test --fresh --prebuild --jobs 1 --state-dir "$state_dir" -- "$adapter@$row_id" \
+"$bash_path" ./test-runner.sh test --fresh --prebuild --jobs 1 --state-dir "$state_dir" -- "$template@$row_id" \
   2>&1 | tee "$state_dir/test.log"
 runner_status=${PIPESTATUS[0]}
 set -e
@@ -99,6 +99,73 @@ printf '%s\n' "$runner_status" >"$state_dir/runner.status"
 
 expected=$(jq -er '.expectedOutcome' <<<"$row")
 validator=$(jq -er '.validator // "builtin/test-runner"' <<<"$row")
+semantic_log=
+if [[ "$validator" != "builtin/test-runner" ]]; then
+  state_root=$(readlink -e -- "$state_dir")
+  mapfile -d '' result_dirs < <(
+    find "$state_root" -mindepth 1 -maxdepth 1 -name 'os-test-*' -print0
+  )
+  [[ ${#result_dirs[@]} -eq 1 ]] || {
+    echo "expected exactly one test result directory" >&2
+    exit 1
+  }
+  result_dir=${result_dirs[0]}
+  [[ -d "$result_dir" && ! -L "$result_dir" ]] || {
+    echo "test result directory is invalid: $result_dir" >&2
+    exit 1
+  }
+
+  config_path="$result_dir/config.json"
+  [[ -f "$config_path" ]] || {
+    echo "test result config is missing: $config_path" >&2
+    exit 1
+  }
+  config_target=$(readlink -e -- "$config_path")
+  [[ -f "$config_target" && ! -L "$config_target" ]] || {
+    echo "test result config target is not a regular file" >&2
+    exit 1
+  }
+  if [[ -L "$config_path" ]]; then
+    [[ "$config_target" == "$state_root/"* || "$config_target" == /nix/store/* ]] || {
+      echo "test result config escapes the admitted roots" >&2
+      exit 1
+    }
+  elif [[ "$config_target" != "$state_root/"* ]]; then
+    echo "test result config escapes the state directory" >&2
+    exit 1
+  fi
+  expected_name="${template//\//-}-$row_id"
+  jq -e \
+    --arg name "$expected_name" \
+    --arg profileId "$(jq -er '.profileId' <<<"$row")" \
+    --arg runnerClass "$(jq -er '.runnerClass' <<<"$row")" \
+    --arg setId "$(jq -er '.setId' <<<"$row")" '
+      .name == $name
+      and .labels == {
+        "livepatch-profile": $profileId,
+        "livepatch-set": $setId
+      }
+      and .tags == [$runnerClass]
+    ' "$config_target" >/dev/null || {
+      echo "test result config identity does not match the selected row" >&2
+      exit 1
+    }
+
+  test_result="$result_dir/test-result.txt"
+  [[ -f "$test_result" && ! -L "$test_result" ]] || {
+    echo "test result outcome is missing" >&2
+    exit 1
+  }
+  cmp -s -- "$test_result" <(printf 'expected_success\n') || {
+    echo "test result outcome is not expected_success" >&2
+    exit 1
+  }
+  semantic_log="$result_dir/test-runner.log"
+  [[ -f "$semantic_log" && ! -L "$semantic_log" ]] || {
+    echo "test semantic log is missing" >&2
+    exit 1
+  }
+fi
 result_tmp="$state_dir/.result.$$"
 [[ ! -e "$result_tmp" && ! -L "$result_tmp" ]]
 if [[ "$validator" == "builtin/generic-livepatch-safety-v1" ]]; then
@@ -108,6 +175,7 @@ if [[ "$validator" == "builtin/generic-livepatch-safety-v1" ]]; then
     --row-id "$row_id" \
     --state-dir "$state_dir" \
     --runner-log "$state_dir/test.log" \
+    --semantic-log "$semantic_log" \
     --runner-status "$runner_status" \
     --output "$result_tmp"
 elif [[ "$validator" == "builtin/test-runner" ]]; then
@@ -141,6 +209,7 @@ else
     --row-id "$row_id" \
     --state-dir "$state_dir" \
     --runner-log "$state_dir/test.log" \
+    --semantic-log "$semantic_log" \
     --runner-status "$runner_status" \
     --output "$result_tmp"
 fi
