@@ -398,12 +398,16 @@ let
           fail("unsupported command")
 
 
-      if __name__ == "__main__":
+      def entrypoint():
           try:
-              sys.exit(main())
-          except BaseException as error:
+              return main()
+          except Exception as error:
               print(f"livepatch-generic-workload: {error}", file=sys.stderr)
-              sys.exit(1)
+              return 1
+
+
+      if __name__ == "__main__":
+          sys.exit(entrypoint())
     '';
   };
 in

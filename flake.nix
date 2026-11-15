@@ -1500,6 +1500,7 @@
                   ${qualificationActualCaptureFile} \
                   ${pkgs.python3}/bin/python3 \
                   ${./tests/suite/kernel/livepatch-set/workload.nix} \
+                  ${qualificationWorkloadPackage}/bin/livepatch-generic-workload \
                   > generic-safety.log
 
                 PYTHONPYCACHEPREFIX="$PWD/python-cache" \
@@ -1507,6 +1508,8 @@
                   ${qualificationWorkloadPackage}/bin/livepatch-generic-workload
                 grep -Fx 'generic workload initialization matrix passed' \
                   generic-safety.log > workload-init.log
+                grep -Fx 'generic workload CLI exit matrix passed' \
+                  generic-safety.log > workload-cli.log
                 sha256sum ${qualificationWorkloadPackage}/bin/livepatch-generic-workload \
                   > workload-generated.sha256
 
@@ -1531,6 +1534,7 @@
                 cp generic-safety-hypervisor.log "$out/generic-safety-hypervisor.log"
                 cp generic-safety.log "$out/generic-safety.log"
                 cp workload-init.log "$out/workload-init.log"
+                cp workload-cli.log "$out/workload-cli.log"
                 cp workload-generated.sha256 "$out/workload-generated.sha256"
                 cp verify-capture.log "$out/verify-capture.log"
                 cp ci-tool-closure.log "$out/ci-tool-closure.log"

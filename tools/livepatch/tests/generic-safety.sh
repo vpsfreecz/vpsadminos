@@ -13,6 +13,11 @@ nfs_plan=${7-}
 nfs_capture=${8-}
 python=${9:-python3}
 workload_source=${10:-$repository_root/tests/suite/kernel/livepatch-set/workload.nix}
+workload_executable=${11-}
+if [[ -z "$workload_executable" || ! -f "$workload_executable" || -L "$workload_executable" || ! -x "$workload_executable" ]]; then
+  echo 'generated livepatch workload executable is required' >&2
+  exit 1
+fi
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM
 
@@ -455,6 +460,165 @@ PYTHON
 
 "$python" -m py_compile "$work/workload-init-matrix.py"
 "$python" "$work/workload-init-matrix.py"
+
+cat <<'PYTHON' >"$work/workload-cli-matrix.py"
+import ast
+import contextlib
+import io
+import runpy
+import sys
+from pathlib import Path
+
+
+workload = Path(sys.argv[1])
+source = workload.read_text(encoding="utf-8")
+syntax = ast.parse(source, filename=str(workload))
+
+
+def is_main_guard(node):
+    return (
+        isinstance(node, ast.If)
+        and isinstance(node.test, ast.Compare)
+        and isinstance(node.test.left, ast.Name)
+        and node.test.left.id == "__name__"
+        and len(node.test.ops) == 1
+        and isinstance(node.test.ops[0], ast.Eq)
+        and len(node.test.comparators) == 1
+        and isinstance(node.test.comparators[0], ast.Constant)
+        and node.test.comparators[0].value == "__main__"
+    )
+
+
+guards = [node for node in syntax.body if is_main_guard(node)]
+if len(guards) != 1:
+    raise AssertionError("generated workload must have one module-level main guard")
+guard = guards[0]
+if len(guard.body) != 1 or not isinstance(guard.body[0], ast.Expr):
+    raise AssertionError("generated workload main guard has an unexpected body")
+exit_call = guard.body[0].value
+if not (
+    isinstance(exit_call, ast.Call)
+    and isinstance(exit_call.func, ast.Attribute)
+    and isinstance(exit_call.func.value, ast.Name)
+    and exit_call.func.value.id == "sys"
+    and exit_call.func.attr == "exit"
+    and len(exit_call.args) == 1
+    and not exit_call.keywords
+    and isinstance(exit_call.args[0], ast.Call)
+    and isinstance(exit_call.args[0].func, ast.Name)
+    and exit_call.args[0].func.id == "entrypoint"
+    and not exit_call.args[0].args
+    and not exit_call.args[0].keywords
+):
+    raise AssertionError("generated workload main guard must call sys.exit(entrypoint())")
+if any(isinstance(node, ast.Try) for node in ast.walk(guard)):
+    raise AssertionError("generated workload module exit must remain outside the handler")
+
+loaded = runpy.run_path(str(workload), run_name="livepatch_workload_f8")
+main = loaded["main"]
+entrypoint = loaded["entrypoint"]
+namespace = main.__globals__
+if entrypoint.__globals__ is not namespace:
+    raise AssertionError("generated workload functions do not share one namespace")
+
+
+class CommandCall:
+    def __init__(self, result=None, error=None):
+        self.result = result
+        self.error = error
+        self.calls = []
+
+    def __call__(self, *args):
+        self.calls.append(args)
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+
+def invoke(arguments, command_name, command):
+    previous_argv = sys.argv
+    previous_command = namespace[command_name]
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    sys.argv = [str(workload), *arguments]
+    namespace[command_name] = command
+    try:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            try:
+                status = entrypoint()
+            except BaseException as error:
+                return ("raised", error, stdout.getvalue(), stderr.getvalue())
+            return ("returned", status, stdout.getvalue(), stderr.getvalue())
+    finally:
+        namespace[command_name] = previous_command
+        sys.argv = previous_argv
+
+
+def require_return(label, arguments, command_name, command, expected_status, expected_calls):
+    outcome = invoke(arguments, command_name, command)
+    expected = ("returned", expected_status, "", "")
+    if outcome != expected:
+        raise AssertionError(f"{label} outcome mismatch: {outcome!r} != {expected!r}")
+    if command.calls != expected_calls:
+        raise AssertionError(f"{label} calls mismatch: {command.calls!r} != {expected_calls!r}")
+
+
+start_success = CommandCall()
+require_return("start success", ["start"], "start", start_success, 0, [()])
+
+start_failure = CommandCall(error=RuntimeError("start failed"))
+outcome = invoke(["start"], "start", start_failure)
+expected = ("returned", 1, "", "livepatch-generic-workload: start failed\n")
+if outcome != expected:
+    raise AssertionError(f"start failure outcome mismatch: {outcome!r} != {expected!r}")
+if start_failure.calls != [()]:
+    raise AssertionError(f"start failure call mismatch: {start_failure.calls!r}")
+
+snapshot_success = CommandCall()
+require_return("snapshot success", ["snapshot"], "snapshot", snapshot_success, 0, [()])
+
+baseline = '{"cpu":1}'
+progress_success = CommandCall()
+require_return(
+    "progress success",
+    ["progress", baseline],
+    "progress",
+    progress_success,
+    0,
+    [(baseline,)],
+)
+
+cleanup_success = CommandCall()
+require_return("cleanup success", ["cleanup"], "cleanup", cleanup_success, 0, [()])
+
+worker_success = CommandCall(result=0)
+require_return("worker success", ["worker", "cpu"], "worker", worker_success, 0, [("cpu",)])
+
+worker_failure = CommandCall(result=1)
+require_return("worker failure", ["worker", "cpu"], "worker", worker_failure, 1, [("cpu",)])
+
+system_exit = SystemExit(7)
+system_exit_call = CommandCall(error=system_exit)
+outcome = invoke(["start"], "start", system_exit_call)
+if outcome != ("raised", system_exit, "", "") or system_exit_call.calls != [()]:
+    raise AssertionError(f"SystemExit propagation mismatch: {outcome!r}")
+
+
+class ControlFlow(BaseException):
+    pass
+
+
+control_flow = ControlFlow("sentinel")
+control_flow_call = CommandCall(error=control_flow)
+outcome = invoke(["start"], "start", control_flow_call)
+if outcome != ("raised", control_flow, "", "") or control_flow_call.calls != [()]:
+    raise AssertionError(f"BaseException propagation mismatch: {outcome!r}")
+
+print("generic workload CLI exit matrix passed")
+PYTHON
+
+"$python" -m py_compile "$work/workload-cli-matrix.py"
+"$python" "$work/workload-cli-matrix.py" "$workload_executable"
 
 make_marker() {
   local row_id=$1
