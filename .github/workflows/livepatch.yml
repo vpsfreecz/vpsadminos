@@ -145,19 +145,25 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$(jq -er '.sourceRevision' "$RUNNER_TEMP/livepatch-input/plan.json")"
+          profile_state="$RUNNER_TEMP/lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}"
+          profile_state_bytes=$(LC_ALL=C printf '%s' "$profile_state" | wc -c)
+          if ((profile_state_bytes > 63)); then
+            echo "livepatch profile state path exceeds 63-byte socket budget: $profile_state_bytes" >&2
+            exit 1
+          fi
           tools/livepatch/run-profile.sh \
             --plan "$RUNNER_TEMP/livepatch-input/plan.json" \
             --capture "$RUNNER_TEMP/livepatch-input/capture/capture.json" \
             --evidence-dir "$RUNNER_TEMP/livepatch-input/capture/evidence" \
             --row-id '${{ matrix.rowId }}' \
-            --state-dir "$RUNNER_TEMP/livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}"
+            --state-dir "$profile_state"
 
       - name: Upload the uniform result and retained VM evidence
         if: ${{ always() && steps.run.outcome != 'skipped' }}
         uses: actions/upload-artifact@v7
         with:
           name: livepatch-result-${{ matrix.rowId }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}
+          path: ${{ runner.temp }}/lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
           if-no-files-found: error
           retention-days: 30
 

@@ -28,9 +28,13 @@ workflow=$source_root/.github/workflows/livepatch.yml
 main_workflow=$source_root/.github/workflows/ci.yml
 qualification_workflow=$source_root/.github/workflows/livepatch-qualification.yml
 docs_workflow=$source_root/.github/workflows/livepatch-docs.yml
+osvm_machine=$source_root/osvm/lib/osvm/machine.rb
+osvm_shared_dir=$source_root/osvm/lib/osvm/shared_dir.rb
+test_runner_executor=$source_root/test-runner/lib/test-runner/executor.rb
 [[ -f "$inventory" && -x "$prepare" && -x "$run_profile" && -x "$test_runner" &&
   -f "$workflow" && -f "$main_workflow" && -f "$qualification_workflow" &&
-  -f "$docs_workflow" ]] || usage
+  -f "$docs_workflow" && -f "$osvm_machine" && -f "$osvm_shared_dir" &&
+  -f "$test_runner_executor" ]] || usage
 "$bash_path" -n "$test_runner"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/livepatch-ci-tool-test.XXXXXX")
@@ -272,20 +276,66 @@ cmp -- "$expected" "$inventory"
   fail 'workflow setup-name count changed'
 [[ $(grep -Fc 'run: tools/livepatch/prepare-ci-tools.sh' "$workflow") -eq 4 ]] ||
   fail 'workflow setup-command count changed'
-profile_state_suffix='livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}'
-profile_state_argument='--state-dir "$RUNNER_TEMP/livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}"'
-profile_state_upload='path: ${{ runner.temp }}/livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}'
+profile_state_suffix='lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}'
+profile_state_assignment='profile_state="$RUNNER_TEMP/lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}"'
+profile_state_argument='--state-dir "$profile_state"'
+profile_state_upload='path: ${{ runner.temp }}/lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}'
 profile_artifact_name='name: livepatch-result-${{ matrix.rowId }}-${{ github.run_id }}-${{ github.run_attempt }}'
 [[ $(grep -Fc -- "$profile_state_suffix" "$workflow") -eq 2 ]] ||
   fail 'workflow profile state identity count changed'
+[[ $(grep -Fc -- "$profile_state_assignment" "$workflow") -eq 1 ]] ||
+  fail 'workflow profile state assignment changed'
 [[ $(grep -Fc -- "$profile_state_argument" "$workflow") -eq 1 ]] ||
   fail 'workflow profile state argument changed'
 [[ $(grep -Fc -- "$profile_state_upload" "$workflow") -eq 1 ]] ||
   fail 'workflow profile state upload path changed'
 [[ $(grep -Fc -- "$profile_artifact_name" "$workflow") -eq 1 ]] ||
   fail 'workflow profile artifact name changed'
-[[ $(grep -Fc -- 'livepatch-profile-${{ matrix.rowId }}' "$workflow") -eq 0 ]] ||
-  fail 'workflow retains row-only profile state identity'
+[[ $(grep -Fc -- 'livepatch-profile-' "$workflow") -eq 0 ]] ||
+  fail 'workflow retains old profile state identity'
+[[ $(grep -Fc -- 'profile_state_bytes=$(LC_ALL=C printf '\''%s'\'' "$profile_state" | wc -c)' "$workflow") -eq 1 ]] ||
+  fail 'workflow profile state byte measurement changed'
+[[ $(grep -Fc -- 'if ((profile_state_bytes > 63)); then' "$workflow") -eq 1 ]] ||
+  fail 'workflow profile state byte admission changed'
+
+[[ $(grep -Ec '^[[:space:]]*SOCKET_HASH_LENGTH = 16$' "$osvm_machine") -eq 1 ]] ||
+  fail 'OsVm socket hash length changed'
+[[ $(grep -Fc "@fs_name = 'vmSharedDir'" "$osvm_shared_dir") -eq 1 ]] ||
+  fail 'OsVm default shared filesystem name changed'
+[[ $(grep -Fc 'socket_path("fs-#{mount_name}.sock")' "$osvm_machine") -eq 1 ]] ||
+  fail 'OsVm shared filesystem socket name changed'
+[[ $(grep -Fc "File.join(state_dir, 'socks')" "$test_runner_executor") -eq 1 ]] ||
+  fail 'test-runner socket directory changed'
+socket_hash_length=16
+filesystem_name=vmSharedDir
+printf -v socket_hash '%*s' "$socket_hash_length" ''
+socket_hash=${socket_hash// /x}
+relative_socket="/socks/$socket_hash-fs-$filesystem_name.sock"
+[[ ${#relative_socket} -eq 43 ]] || fail 'OsVm default relative socket length changed'
+socket_storage_bytes=108
+pathname_ceiling=$((socket_storage_bytes - 1))
+[[ $pathname_ceiling -eq 107 ]] || fail 'UNIX pathname ceiling changed'
+((63 + ${#relative_socket} <= pathname_ceiling)) ||
+  fail 'profile state socket budget is invalid'
+
+runner_temp=/run/github-runner/runner/_temp
+compact_example="$runner_temp/lp-43657861004-1-0"
+[[ $(LC_ALL=C printf '%s' "$compact_example" | wc -c) -eq 50 ]] ||
+  fail 'compact profile state example length changed'
+[[ $(LC_ALL=C printf '%s' "$compact_example$relative_socket" | wc -c) -eq 93 ]] ||
+  fail 'compact OsVm socket example length changed'
+printf -v path_63 '%*s' 63 ''
+path_63=${path_63// /x}
+path_64=${path_63}x
+[[ $(LC_ALL=C printf '%s' "$path_63" | wc -c) -eq 63 ]] ||
+  fail '63-byte profile state fixture changed'
+[[ $(LC_ALL=C printf '%s' "$path_64" | wc -c) -eq 64 ]] ||
+  fail '64-byte profile state fixture changed'
+(( $(LC_ALL=C printf '%s' "$path_63" | wc -c) <= 63 )) ||
+  fail '63-byte profile state was refused'
+if (( $(LC_ALL=C printf '%s' "$path_64" | wc -c) <= 63 )); then
+  fail '64-byte profile state was accepted'
+fi
 [[ $(grep -Fc '"$bash_path" ./test-runner.sh test --fresh --prebuild --jobs 1' "$run_profile") -eq 1 ]] ||
   fail 'Bash-qualified test-runner invocation count changed'
 [[ $(grep -Ec '^[[:space:]]*\./test-runner\.sh[[:space:]]' "$run_profile") -eq 0 ]] ||
