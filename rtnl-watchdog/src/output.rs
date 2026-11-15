@@ -150,14 +150,14 @@ mod tests {
         for i in 1..=100 {
             model.sequence = i;
             model.history.responses = i;
-            model.history.buckets[7] = i;
+            *model.history.buckets.last_mut().unwrap() = i;
             o.submit(&model);
         }
         let slot = shared.slot.lock().unwrap();
         let last = slot.model.as_ref().unwrap();
         assert_eq!(last.sequence, 100);
         assert_eq!(last.history.responses, 100);
-        assert_eq!(last.history.buckets[7], 100);
+        assert_eq!(*last.history.buckets.last().unwrap(), 100);
         assert_eq!(shared.drops.load(Ordering::Relaxed), 99);
     }
 }

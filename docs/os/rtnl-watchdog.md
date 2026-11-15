@@ -102,8 +102,10 @@ are omitted until a valid completion. Check freshness and availability before
 interpreting them.
 
 `response_duration_seconds` is a histogram of valid completed responses. Its
-fixed bucket limits are 0.001, 0.01, 0.1, 0.5, 1, 5, 10 and +Inf seconds, with
-count and sum series. It records only
+fixed bucket limits are 0.001, 0.01, 0.1, 0.5, 1, 5, 10, 15, 20, 25, 30, 40,
+50, 60, 90, 120, 300, 600 and +Inf seconds, with count and sum series. Buckets
+are cumulative: each `le` bucket counts responses less than or equal to its
+limit. It records only
 matched expected-EINVAL completions. `overdue_probes_total` counts each announced
 probe once at an observed pending threshold crossing or a late completion,
 including timed errors; missing-start dispatches are excluded. These aggregates
@@ -112,6 +114,10 @@ overwritten. They persist across helper recreation and reset with the observer
 process, as ordinary Prometheus process counters do. A restart before a scrape
 can lose measurements not yet collected. Only histogram `le` labels
 are used; detailed bounded error reasons belong in logs.
+
+When aggregating histograms across nodes, use matching bucket boundaries.
+During a rollout with different bucket sets, query each node separately or
+restrict aggregation to the boundaries shared by all selected nodes.
 
 State/metric output uses a fixed latest-frame handoff. Coalesced frames retain
 observer-owned histogram/counters. A full stdout pipe drops bounded status

@@ -7,7 +7,7 @@ use crate::{
 use serde_json::json;
 use std::{fmt::Write, io};
 pub const LIMIT: usize = 4096;
-pub const BOUNDS: [u64; 8] = [
+pub const BOUNDS: [u64; 19] = [
     1_000_000,
     10_000_000,
     100_000_000,
@@ -15,9 +15,23 @@ pub const BOUNDS: [u64; 8] = [
     1_000_000_000,
     5_000_000_000,
     10_000_000_000,
+    15_000_000_000,
+    20_000_000_000,
+    25_000_000_000,
+    30_000_000_000,
+    40_000_000_000,
+    50_000_000_000,
+    60_000_000_000,
+    90_000_000_000,
+    120_000_000_000,
+    300_000_000_000,
+    600_000_000_000,
     u64::MAX,
 ];
-pub const LABELS: [&str; 8] = ["0.001", "0.01", "0.1", "0.5", "1", "5", "10", "+Inf"];
+pub const LABELS: [&str; BOUNDS.len()] = [
+    "0.001", "0.01", "0.1", "0.5", "1", "5", "10", "15", "20", "25", "30", "40", "50", "60",
+    "90", "120", "300", "600", "+Inf",
+];
 pub fn reason(error: u32) -> &'static str {
     [
         "none",
@@ -54,7 +68,7 @@ impl State {
 }
 #[derive(Clone, Default, Debug)]
 pub struct History {
-    pub buckets: [u64; 8],
+    pub buckets: [u64; BOUNDS.len()],
     pub responses: u64,
     pub sum_ns: u64,
     pub overdue: u64,
@@ -386,7 +400,8 @@ mod tests {
         let mut m = Model::new(BOOT, "metrics").unwrap();
         let mut now = 1_000_000_000;
         let mut sum = 0;
-        for (i, b) in BOUNDS[..7].iter().enumerate() {
+        let finite = BOUNDS.len() - 1;
+        for (i, b) in BOUNDS[..finite].iter().enumerate() {
             m.dispatch(now).unwrap();
             m.apply(started(&m, now), now, 1.).unwrap();
             m.apply(done(&m, now + b, 0), now + b, 20.).unwrap();
@@ -395,11 +410,25 @@ mod tests {
             sum += b;
             assert_eq!(m.history.responses, i as u64 + 1);
             assert_eq!(m.history.sum_ns, sum);
-            for j in 0..8 {
-                assert_eq!(m.history.buckets[j], (j.min(i) + 1) as u64);
+            for (j, count) in m.history.buckets.iter().enumerate() {
+                assert_eq!(*count, (j.min(i) + 1) as u64);
             }
             now += b + 1;
         }
+        // A response just beyond the largest finite bound only adds to +Inf.
+        let duration = BOUNDS[finite - 1] + 1;
+        m.dispatch(now).unwrap();
+        m.apply(started(&m, now), now, 1.).unwrap();
+        m.apply(done(&m, now + duration, 0), now + duration, 20.)
+            .unwrap();
+        m.completed(&c);
+        sum += duration;
+        assert_eq!(m.history.sum_ns, sum);
+        assert_eq!(m.history.responses, BOUNDS.len() as u64);
+        for (i, count) in m.history.buckets.iter().enumerate() {
+            assert_eq!(*count, i as u64 + 1);
+        }
+        now += duration + 1;
         let responses = m.history.responses;
         let overdue = m.history.overdue;
         m.dispatch(now).unwrap();
@@ -419,8 +448,37 @@ mod tests {
         assert!(m.duration.is_none());
         let metrics = String::from_utf8(m.metrics(2, 3).unwrap()).unwrap();
         assert!(metrics.contains("rtnl_watchdog_output_errors_total 5\n"));
-        assert!(metrics.contains("rtnl_watchdog_response_duration_seconds_count 7\n"));
+        assert!(metrics.contains(&format!(
+            "rtnl_watchdog_response_duration_seconds_count {responses}\n"
+        )));
+        for (label, count) in LABELS.iter().zip(m.history.buckets) {
+            assert!(metrics.contains(&format!(
+                "rtnl_watchdog_response_duration_seconds_bucket{{le=\"{label}\"}} {count}\n"
+            )));
+        }
         assert!(!metrics.contains("\nrtnl_watchdog_last_probe_duration_seconds "));
         assert!(m.json().unwrap().len() < LIMIT);
+    }
+    #[test]
+    fn maximum_metrics_frame_fits_limit() {
+        let mut m = Model::new(BOOT, &"e".repeat(95)).unwrap();
+        m.state = State::Distressed;
+        m.inflight = true;
+        m.sequence = u64::MAX;
+        m.probe = u64::MAX;
+        m.dispatch = u64::MAX;
+        m.start = 1;
+        m.end = u64::MAX;
+        m.observed = u64::MAX;
+        m.wall = f64::MAX;
+        m.duration = Some(u64::MAX);
+        m.success = Some(f64::MAX);
+        m.errors[1] = u64::MAX;
+        m.history.buckets.fill(u64::MAX);
+        m.history.responses = u64::MAX;
+        m.history.sum_ns = u64::MAX;
+        m.history.overdue = u64::MAX;
+        assert!(m.metrics(u64::MAX, 0).unwrap().len() <= LIMIT);
+        assert!(m.json().unwrap().len() <= LIMIT);
     }
 }
