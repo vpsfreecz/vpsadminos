@@ -272,6 +272,20 @@ cmp -- "$expected" "$inventory"
   fail 'workflow setup-name count changed'
 [[ $(grep -Fc 'run: tools/livepatch/prepare-ci-tools.sh' "$workflow") -eq 4 ]] ||
   fail 'workflow setup-command count changed'
+profile_state_suffix='livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}'
+profile_state_argument='--state-dir "$RUNNER_TEMP/livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}"'
+profile_state_upload='path: ${{ runner.temp }}/livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}'
+profile_artifact_name='name: livepatch-result-${{ matrix.rowId }}-${{ github.run_id }}-${{ github.run_attempt }}'
+[[ $(grep -Fc -- "$profile_state_suffix" "$workflow") -eq 2 ]] ||
+  fail 'workflow profile state identity count changed'
+[[ $(grep -Fc -- "$profile_state_argument" "$workflow") -eq 1 ]] ||
+  fail 'workflow profile state argument changed'
+[[ $(grep -Fc -- "$profile_state_upload" "$workflow") -eq 1 ]] ||
+  fail 'workflow profile state upload path changed'
+[[ $(grep -Fc -- "$profile_artifact_name" "$workflow") -eq 1 ]] ||
+  fail 'workflow profile artifact name changed'
+[[ $(grep -Fc -- 'livepatch-profile-${{ matrix.rowId }}' "$workflow") -eq 0 ]] ||
+  fail 'workflow retains row-only profile state identity'
 [[ $(grep -Fc '"$bash_path" ./test-runner.sh test --fresh --prebuild --jobs 1' "$run_profile") -eq 1 ]] ||
   fail 'Bash-qualified test-runner invocation count changed'
 [[ $(grep -Ec '^[[:space:]]*\./test-runner\.sh[[:space:]]' "$run_profile") -eq 0 ]] ||

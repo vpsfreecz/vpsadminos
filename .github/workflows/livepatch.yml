@@ -150,14 +150,14 @@ jobs:
             --capture "$RUNNER_TEMP/livepatch-input/capture/capture.json" \
             --evidence-dir "$RUNNER_TEMP/livepatch-input/capture/evidence" \
             --row-id '${{ matrix.rowId }}' \
-            --state-dir "$RUNNER_TEMP/livepatch-profile-${{ matrix.rowId }}"
+            --state-dir "$RUNNER_TEMP/livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}"
 
       - name: Upload the uniform result and retained VM evidence
         if: ${{ always() && steps.run.outcome != 'skipped' }}
         uses: actions/upload-artifact@v7
         with:
           name: livepatch-result-${{ matrix.rowId }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-profile-${{ matrix.rowId }}
+          path: ${{ runner.temp }}/livepatch-profile-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.rowId }}
           if-no-files-found: error
           retention-days: 30
 

@@ -384,11 +384,9 @@ EOF
   fi
 }
 
-run_profile_interface() {
-  local root="$work/run-profile-interface"
-  local evidence="$root/evidence"
-  local state="$root/state"
-  mkdir -p -- "$root/tools/livepatch" "$evidence"
+make_run_profile_fixture() {
+  local root=$1
+  mkdir -p -- "$root/tools/livepatch" "$root/evidence"
   printf '{}\n' >"$root/capture.json"
   jq -n '{rows: [{
     rowId: "test-row", setId: "test-set", profileId: "test-profile",
@@ -404,17 +402,57 @@ EOF
 printf '%s\n' "\$*" >"\$FAKE_RUNNER_LOG"
 EOF
   chmod +x "$root/tools/livepatch/verify.sh" "$root/test-runner.sh"
+}
+
+invoke_run_profile() {
+  local root=$1
+  local state=$2
   (
     cd "$root"
     export FAKE_VERIFY_LOG="$root/verify.log"
     export FAKE_RUNNER_LOG="$root/runner.log"
     "$bash_path" "$run_profile" --plan "$root/plan.json" \
-      --capture "$root/capture.json" --evidence-dir "$evidence" \
+      --capture "$root/capture.json" --evidence-dir "$root/evidence" \
       --row-id test-row --state-dir "$state"
-  ) >/dev/null
+  ) >/dev/null 2>&1
+}
+
+run_profile_interface() {
+  local root="$work/run-profile-interface-success"
+  local state="$root/state"
+  make_run_profile_fixture "$root"
+  invoke_run_profile "$root" "$state"
+  [[ -d "$state" && ! -L "$state" ]]
   [[ $(wc -l <"$root/verify.log") -eq 2 ]]
-  [[ $(grep -F -c -- "--evidence-dir $evidence" "$root/verify.log") -eq 2 ]]
+  [[ $(grep -F -c -- "--evidence-dir $root/evidence" "$root/verify.log") -eq 2 ]]
   [[ -s "$root/runner.log" ]]
+
+  root="$work/run-profile-interface-regular"
+  state="$root/state"
+  make_run_profile_fixture "$root"
+  mkdir -- "$state"
+  printf 'regular sentinel\n' >"$state/sentinel"
+  if invoke_run_profile "$root" "$state"; then
+    echo "pre-existing regular state directory accepted" >&2
+    exit 1
+  fi
+  [[ -d "$state" && ! -L "$state" ]]
+  [[ $(cat "$state/sentinel") == 'regular sentinel' ]]
+  [[ ! -e "$root/verify.log" && ! -e "$root/runner.log" ]]
+
+  root="$work/run-profile-interface-symlink"
+  state="$root/state"
+  make_run_profile_fixture "$root"
+  mkdir -- "$root/foreign-state"
+  printf 'symlink sentinel\n' >"$root/foreign-state/sentinel"
+  ln -s -- foreign-state "$state"
+  if invoke_run_profile "$root" "$state"; then
+    echo "pre-existing symlink state directory accepted" >&2
+    exit 1
+  fi
+  [[ -L "$state" && $(readlink -- "$state") == foreign-state ]]
+  [[ $(cat "$root/foreign-state/sentinel") == 'symlink sentinel' ]]
+  [[ ! -e "$root/verify.log" && ! -e "$root/runner.log" ]]
 }
 
 capture_interface
