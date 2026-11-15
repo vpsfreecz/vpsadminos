@@ -926,6 +926,9 @@ jq -c '
   | .busy.final = counters(33)
 ' "$work/aged.json" >"$work/aged-release.json"
 
+summary_positive='[2026-11-15 11:11:30 +0100] 1 tests successful'
+summary_negative='[2026-11-15 03:11:30 -0700] 1 tests successful'
+
 run_validator() {
   local label=$1
   local row_id=$2
@@ -934,15 +937,16 @@ run_validator() {
   local summary=$5
   local extra=${6-}
   local copies=${7-1}
-  local plan=${8-$work/plan.json}
+  local summary_copies=${8-1}
+  local plan=${9-$work/plan.json}
   local state="$work/case-$label"
 
   mkdir "$state"
   printf '%s\n' "$runner_status" >"$state/runner.status"
   : >"$state/test.log"
-  if [[ "$summary" == yes ]]; then
-    printf '1 tests successful\n' >>"$state/test.log"
-  fi
+  for ((index = 0; index < summary_copies; index++)); do
+    [[ -z "$summary" ]] || printf '%s\n' "$summary" >>"$state/test.log"
+  done
   for ((index = 0; index < copies; index++)); do
     printf 'VPSADMINOS_LIVEPATCH_GENERIC_RESULT %s\n' "$(cat "$marker")" >>"$state/test.log"
   done
@@ -962,8 +966,9 @@ expect_accept() {
   local label=$1
   local row_id=$2
   local marker=$3
-  local plan=${4-$work/plan.json}
-  run_validator "$label" "$row_id" "$marker" 0 yes '' 1 "$plan"
+  local summary=${4-$summary_positive}
+  local plan=${5-$work/plan.json}
+  run_validator "$label" "$row_id" "$marker" 0 "$summary" '' 1 1 "$plan"
   jq -e --arg rowId "$row_id" '
     .schemaVersion == 1
     and .rowId == $rowId
@@ -979,7 +984,7 @@ expect_aged_plan_refuse() {
   local label=$1
   local plan=$2
   local marker=$3
-  if run_validator "$label" generic-aged-amd "$marker" 0 yes '' 1 "$plan" \
+  if run_validator "$label" generic-aged-amd "$marker" 0 "$summary_positive" '' 1 1 "$plan" \
     >"$work/$label.stdout" 2>"$work/$label.stderr"; then
     echo "aged plan/marker mismatch unexpectedly succeeded: $label" >&2
     exit 1
@@ -997,11 +1002,12 @@ expect_refuse() {
   [[ ! -e "$work/case-$label/result.json" ]]
 }
 
-expect_accept lifecycle generic-lifecycle-amd "$work/lifecycle.json"
-expect_accept busy generic-busy-amd "$work/busy.json"
-expect_accept failure generic-failure-amd "$work/failure.json"
-expect_accept aged generic-aged-amd "$work/aged.json"
-expect_accept aged-release generic-aged-amd "$work/aged-release.json" "$work/plan-release.json"
+expect_accept lifecycle generic-lifecycle-amd "$work/lifecycle.json" "$summary_positive"
+expect_accept busy generic-busy-amd "$work/busy.json" "$summary_negative"
+expect_accept failure generic-failure-amd "$work/failure.json" "$summary_positive"
+expect_accept aged generic-aged-amd "$work/aged.json" "$summary_negative"
+expect_accept aged-release generic-aged-amd "$work/aged-release.json" \
+  "$summary_positive" "$work/plan-release.json"
 expect_aged_plan_refuse aged-release-with-development-plan \
   "$work/plan.json" "$work/aged-release.json"
 expect_aged_plan_refuse aged-development-with-release-plan \
@@ -1028,29 +1034,39 @@ jq -c '.kernelHealth.fatalNoiseCount = 1' "$work/aged.json" >"$work/aged-unclean
 printf '{invalid-json\n' >"$work/malformed.json"
 printf '{}\n' >"$work/empty.json"
 
-expect_refuse wrong-role generic-lifecycle-amd "$work/wrong-role.json" 0 yes
-expect_refuse wrong-platform generic-lifecycle-amd "$work/wrong-platform.json" 0 yes
-expect_refuse missing-busy generic-busy-amd "$work/missing-busy.json" 0 yes
-expect_refuse stalled-counter generic-busy-amd "$work/stalled-counter.json" 0 yes
-expect_refuse missing-cleanup generic-busy-amd "$work/missing-cleanup.json" 0 yes
-expect_refuse missing-refusal generic-failure-amd "$work/missing-refusal.json" 0 yes
-expect_refuse unclean-marker generic-lifecycle-amd "$work/unclean-marker.json" 0 yes
-expect_refuse malformed generic-lifecycle-amd "$work/malformed.json" 0 yes
-expect_refuse duplicate generic-lifecycle-amd "$work/lifecycle.json" 0 yes '' 2
-expect_refuse nonzero-runner generic-lifecycle-amd "$work/lifecycle.json" 1 yes
-expect_refuse missing-summary generic-lifecycle-amd "$work/lifecycle.json" 0 no
-expect_refuse fatal-noise generic-lifecycle-amd "$work/lifecycle.json" 0 yes 'kernel BUG at synthetic.c:1'
-expect_refuse aged-under-duration generic-aged-amd "$work/aged-under-duration.json" 0 yes
-expect_refuse aged-stalled generic-aged-amd "$work/aged-stalled.json" 0 yes
-expect_refuse aged-nonmonotonic generic-aged-amd "$work/aged-nonmonotonic.json" 0 yes
-expect_refuse aged-malformed-checkpoint generic-aged-amd "$work/aged-malformed-checkpoint.json" 0 yes
-expect_refuse aged-settings-mismatch generic-aged-amd "$work/aged-settings-mismatch.json" 0 yes
-expect_refuse aged-missing-cleanup generic-aged-amd "$work/aged-missing-cleanup.json" 0 yes
-expect_refuse aged-unclean generic-aged-amd "$work/aged-unclean.json" 0 yes
+expect_refuse wrong-role generic-lifecycle-amd "$work/wrong-role.json" 0 "$summary_positive"
+expect_refuse wrong-platform generic-lifecycle-amd "$work/wrong-platform.json" 0 "$summary_positive"
+expect_refuse missing-busy generic-busy-amd "$work/missing-busy.json" 0 "$summary_positive"
+expect_refuse stalled-counter generic-busy-amd "$work/stalled-counter.json" 0 "$summary_positive"
+expect_refuse missing-cleanup generic-busy-amd "$work/missing-cleanup.json" 0 "$summary_positive"
+expect_refuse missing-refusal generic-failure-amd "$work/missing-refusal.json" 0 "$summary_positive"
+expect_refuse unclean-marker generic-lifecycle-amd "$work/unclean-marker.json" 0 "$summary_positive"
+expect_refuse malformed generic-lifecycle-amd "$work/malformed.json" 0 "$summary_positive"
+expect_refuse duplicate generic-lifecycle-amd "$work/lifecycle.json" 0 "$summary_positive" '' 2
+expect_refuse nonzero-runner generic-lifecycle-amd "$work/lifecycle.json" 1 "$summary_positive"
+expect_refuse missing-summary generic-lifecycle-amd "$work/lifecycle.json" 0 ''
+expect_refuse unprefixed-summary generic-lifecycle-amd "$work/lifecycle.json" 0 '1 tests successful'
+expect_refuse malformed-summary generic-lifecycle-amd "$work/lifecycle.json" 0 \
+  '[2026-11-15 11:11 +0100] 1 tests successful'
+expect_refuse wrong-count-summary generic-lifecycle-amd "$work/lifecycle.json" 0 \
+  '[2026-11-15 11:11:30 +0100] 2 tests successful'
+expect_refuse duplicate-summary generic-lifecycle-amd "$work/lifecycle.json" 0 \
+  "$summary_positive" '' 1 2
+expect_refuse embedded-suffix-summary generic-lifecycle-amd "$work/lifecycle.json" 0 \
+  '[2026-11-15 11:11:30 +0100] 1 tests successful suffix'
+expect_refuse fatal-noise generic-lifecycle-amd "$work/lifecycle.json" 0 \
+  "$summary_positive" 'kernel BUG at synthetic.c:1'
+expect_refuse aged-under-duration generic-aged-amd "$work/aged-under-duration.json" 0 "$summary_positive"
+expect_refuse aged-stalled generic-aged-amd "$work/aged-stalled.json" 0 "$summary_positive"
+expect_refuse aged-nonmonotonic generic-aged-amd "$work/aged-nonmonotonic.json" 0 "$summary_positive"
+expect_refuse aged-malformed-checkpoint generic-aged-amd "$work/aged-malformed-checkpoint.json" 0 "$summary_positive"
+expect_refuse aged-settings-mismatch generic-aged-amd "$work/aged-settings-mismatch.json" 0 "$summary_positive"
+expect_refuse aged-missing-cleanup generic-aged-amd "$work/aged-missing-cleanup.json" 0 "$summary_positive"
+expect_refuse aged-unclean generic-aged-amd "$work/aged-unclean.json" 0 "$summary_positive"
 
 mkdir "$work/case-smoke"
 printf '0\n' >"$work/case-smoke/runner.status"
-printf '1 tests successful\n' >"$work/case-smoke/test.log"
+printf '%s\n' "$summary_positive" >"$work/case-smoke/test.log"
 if "$validator" \
   --plan "$work/plan.json" \
   --capture "$work/capture.json" \

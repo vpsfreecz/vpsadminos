@@ -136,7 +136,8 @@ jq -e --arg setId "$(jq -er '.setId' <<<"$row")" --slurpfile plan "$plan" '
     == ([ $plan[0].sets[] | select(.id == $setId) ][0].members | map(.release))
 ' "$capture" >/dev/null
 
-[[ $(grep -Fxc '1 tests successful' "$runner_log") -eq 1 ]] || fail "runner success summary is missing or duplicated"
+success_summary_pattern='^\[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} [+-][0-9]{4}\] 1 tests successful$'
+[[ $(LC_ALL=C grep -Ec "$success_summary_pattern" "$runner_log") -eq 1 ]] || fail "runner success summary is missing or duplicated"
 if grep -F 'tests should have succeeded' "$runner_log" >/dev/null; then
   fail "runner log contains a failure summary"
 fi
