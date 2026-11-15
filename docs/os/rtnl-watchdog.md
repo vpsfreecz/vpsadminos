@@ -101,6 +101,18 @@ and `output_errors_total`. Unknown distress is omitted; last duration/success
 are omitted until a valid completion. Check freshness and availability before
 interpreting them.
 
+`output_errors_total` counts failures to render or write state, metrics or
+status output, including output rejected by a size limit. Replacing an older
+queued snapshot or status event with the newest one does not increment it.
+The counter resets when the observer restarts. Alert on new failures and stale
+`snapshot_timestamp_seconds` values rather than a positive lifetime total:
+a past error can remain visible after publication has recovered. A failed
+metrics write can only be reported through a later successful publication.
+
+Older implementations also count queued-output replacements as output errors.
+During a mixed-version rollout, interpret this counter per node with that
+difference in mind.
+
 `response_duration_seconds` is a histogram of valid completed responses. Its
 fixed bucket limits are 0.001, 0.01, 0.1, 0.25, 0.5, 0.75, 1, 2, 3, 4, 5,
 6, 7, 8, 9, 10, 15, 20, 25, 30, 40, 50, 60, 90, 120, 300, 600 and +Inf

@@ -273,7 +273,7 @@ impl Model {
         }
         Ok(b)
     }
-    pub fn metrics(&self, drops: u64, failures: u64) -> io::Result<Vec<u8>> {
+    pub fn metrics(&self, failures: u64) -> io::Result<Vec<u8>> {
         let available = self.state == State::Healthy
             || (self.inflight && self.start != 0 && self.state != State::Error);
         let mut s = String::new();
@@ -294,7 +294,7 @@ impl Model {
         ] {
             writeln!(s, "# TYPE rtnl_watchdog_{n} counter").unwrap();
         }
-        writeln!(s,"rtnl_watchdog_available {}\nrtnl_watchdog_snapshot_timestamp_seconds {:.9}\nrtnl_watchdog_output_errors_total {}",u8::from(available),self.wall,drops+failures).unwrap();
+        writeln!(s,"rtnl_watchdog_available {}\nrtnl_watchdog_snapshot_timestamp_seconds {:.9}\nrtnl_watchdog_output_errors_total {}",u8::from(available),self.wall,failures).unwrap();
         if available {
             writeln!(
                 s,
@@ -372,7 +372,7 @@ mod tests {
         m.dispatch(1_000_000_000).unwrap();
         m.observe(9_000_000_000, 9., &c).unwrap();
         assert_eq!(m.state, State::Pending);
-        assert!(!String::from_utf8(m.metrics(0, 0).unwrap())
+        assert!(!String::from_utf8(m.metrics(0).unwrap())
             .unwrap()
             .contains("\nrtnl_watchdog_distress "));
         m.apply(started(&m, 9_000_000_000), 9_000_000_000, 9.)
@@ -455,7 +455,7 @@ mod tests {
         m.rebind("second-helper").unwrap();
         assert_eq!(m.history.responses, responses);
         assert!(m.duration.is_none());
-        let metrics = String::from_utf8(m.metrics(2, 3).unwrap()).unwrap();
+        let metrics = String::from_utf8(m.metrics(5).unwrap()).unwrap();
         assert!(metrics.contains("rtnl_watchdog_output_errors_total 5\n"));
         assert!(metrics.contains(&format!(
             "rtnl_watchdog_response_duration_seconds_count {responses}\n"
@@ -487,7 +487,7 @@ mod tests {
         m.history.responses = u64::MAX;
         m.history.sum_ns = u64::MAX;
         m.history.overdue = u64::MAX;
-        assert!(m.metrics(u64::MAX, 0).unwrap().len() <= LIMIT);
+        assert!(m.metrics(u64::MAX).unwrap().len() <= LIMIT);
         assert!(m.json().unwrap().len() <= LIMIT);
     }
 }
