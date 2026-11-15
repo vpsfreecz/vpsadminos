@@ -147,6 +147,7 @@ let
     // {
       qualification = unit.qualification // {
         requiredGenericProfiles = [
+          "set/vendor-aged-transition"
           "set/vendor-busy-transition"
           "set/vendor-failure-recovery"
           "set/vendor-lifecycle"
@@ -154,6 +155,11 @@ let
         platforms = {
           amd.runnerClass = "amd-livepatch";
           intel.runnerClass = "intel-kvm";
+        };
+        profileSettings."set/vendor-aged-transition" = {
+          developmentDwellSeconds = 300;
+          releaseDwellSeconds = 1800;
+          selectedEvidenceClass = "development-short";
         };
         oracles = map (
           manifest:
@@ -180,6 +186,27 @@ let
       };
     }
   ) catalog;
+  qualificationCatalogReleaseSelected = map (
+    unit:
+    unit
+    // {
+      qualification = unit.qualification // {
+        profileSettings."set/vendor-aged-transition" =
+          unit.qualification.profileSettings."set/vendor-aged-transition"
+          // {
+            selectedEvidenceClass = "release";
+          };
+      };
+    }
+  ) qualificationCatalog;
+  normalizedQualificationCatalog = livepatchLib.normalizeCatalog {
+    inherit builder target;
+    catalog = qualificationCatalog;
+  };
+  normalizedQualificationCatalogReleaseSelected = livepatchLib.normalizeCatalog {
+    inherit builder target;
+    catalog = qualificationCatalogReleaseSelected;
+  };
   catalogBatch = (builtins.head normalizedCatalog).batch;
   catalogBatchQualificationChanged = (builtins.head normalizedCatalogQualificationChanged).batch;
   emptyQualificationPlan = qualificationPlanner {
@@ -1018,8 +1045,8 @@ assert emptyCatalog == [ ];
 assert emptyQualificationPlan.selectedSets == 0;
 assert qualificationPlan.selectedSets == 1;
 assert builtins.length qualificationPlan.releases == 1;
-assert builtins.length qualificationCoveragePlan.rows == 10;
-assert builtins.length qualificationGenericRows == 6;
+assert builtins.length qualificationCoveragePlan.rows == 12;
+assert builtins.length qualificationGenericRows == 8;
 assert builtins.length qualificationOracleRows == 4;
 assert qualificationCoveragePlan.counts.coverageTuples == 4;
 assert builtins.all (row: row.oracleIds == [ ]) qualificationGenericRows;
@@ -1028,6 +1055,29 @@ assert builtins.all (
   row: row.validator == "builtin/generic-livepatch-safety-v1"
 ) qualificationGenericRows;
 assert builtins.all (row: row.oracleIds != [ ]) qualificationOracleRows;
+assert builtins.length projectQualificationPlan.rows == 10;
+assert
+  builtins.length (builtins.filter (row: row.role == "aged-transition") projectQualificationPlan.rows)
+  == 2;
+assert builtins.all (
+  row:
+  row.aging == {
+    checkpointSeconds = 60;
+    developmentDwellSeconds = 300;
+    dwellSeconds = 1800;
+    evidenceClass = "release";
+    releaseDwellSeconds = 1800;
+  }
+) (builtins.filter (row: row.role == "aged-transition") projectQualificationPlan.rows);
+assert
+  map (entry: entry.batch.manifest) normalizedQualificationCatalog
+  == map (entry: entry.batch.manifest) normalizedQualificationCatalogReleaseSelected;
+assert
+  map (entry: entry.batch.inputDigest) normalizedQualificationCatalog
+  == map (entry: entry.batch.inputDigest) normalizedQualificationCatalogReleaseSelected;
+assert
+  map (entry: entry.batch.moduleName) normalizedQualificationCatalog
+  == map (entry: entry.batch.moduleName) normalizedQualificationCatalogReleaseSelected;
 assert
   (builtins.head qualificationCoveragePlan.sets).oracleIds == [
     "oracle-a"

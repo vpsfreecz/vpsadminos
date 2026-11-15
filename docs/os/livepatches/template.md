@@ -141,6 +141,8 @@ and new oracle.
 - **Catalog and producer inspection:** <status/evidence>
 - **AMD lifecycle, busy operation and failure/recovery:** <status/evidence>
 - **Intel/KVM lifecycle, busy operation and failure/recovery:** <status/evidence>
+- **Aging duration and status on each required platform:** <evidence class,
+  configured and observed duration, status and durable evidence reference>
 - **Held-frame proof:** <required by this release policy and evidence, or `not
   required`; record the availability of a safe hold point>
 - **Every active dedicated fix-local operation-safety profile:**
@@ -183,9 +185,10 @@ preventive and is not recovery for a boot that already hit the failure.
 - Backport provenance, source review, target applicability and expected emitted
   closure are separate from livepatch-safety qualification.
 - Livepatch safety covers exact AMD and Intel/KVM lifecycle, representative
-  busy operation, activation/convergence, failure handling without fatal kernel
-  noise, every active dedicated fix operation-safety profile and whole-stack
-  forward/reverse behavior. Generic rows do not run fix adapters.
+  busy operation, release-selected aging, activation/convergence, failure
+  handling without fatal kernel noise, every active dedicated fix
+  operation-safety profile and whole-stack forward/reverse behavior. Generic
+  rows do not run fix adapters.
 - A missing safe hold point is recorded without a synthetic replacement. It
   blocks the release only when the target release policy requires held-frame
   proof.

@@ -39,6 +39,15 @@ let
     require context (unexpected == [ ]) "unexpected attributes: ${concatStringsSep ", " unexpected}";
 
   genericProfiles = {
+    "set/vendor-aged-transition" = {
+      role = "aged-transition";
+      scope = "set";
+      testAdapter = "kernel/livepatch-set";
+      template = "kernel/livepatch-set";
+      timeoutClass = "aging";
+      expectedOutcome = "success";
+      validator = "builtin/generic-livepatch-safety-v1";
+    };
     "set/vendor-lifecycle" = {
       role = "lifecycle";
       scope = "set";
@@ -76,6 +85,56 @@ let
     amd = "amd-livepatch";
     intel = "intel-kvm";
   };
+  agedProfileId = "set/vendor-aged-transition";
+
+  normalizeAgedProfileSettings =
+    context: qualification:
+    let
+      profileSettings = qualification.profileSettings or { };
+      settings = profileSettings.${agedProfileId} or { };
+      developmentDwellSeconds = settings.developmentDwellSeconds or null;
+      releaseDwellSeconds = settings.releaseDwellSeconds or null;
+      selectedEvidenceClass = settings.selectedEvidenceClass or null;
+    in
+    checked
+      [
+        (require context (builtins.isAttrs profileSettings) "profileSettings must be an attribute set")
+        (onlyAttrs context [ agedProfileId ] profileSettings)
+        (require context (builtins.hasAttr agedProfileId profileSettings)
+          "aged profile settings are missing"
+        )
+        (require context (builtins.isAttrs settings) "aged profile settings must be an attribute set")
+        (onlyAttrs context [
+          "developmentDwellSeconds"
+          "releaseDwellSeconds"
+          "selectedEvidenceClass"
+        ] settings)
+        (require context (
+          builtins.isInt developmentDwellSeconds && developmentDwellSeconds > 0
+        ) "developmentDwellSeconds must be a positive integer")
+        (require context (
+          builtins.isInt releaseDwellSeconds && releaseDwellSeconds > 0
+        ) "releaseDwellSeconds must be a positive integer")
+        (require context (
+          builtins.isInt developmentDwellSeconds
+          && builtins.isInt releaseDwellSeconds
+          && developmentDwellSeconds < releaseDwellSeconds
+        ) "developmentDwellSeconds must be shorter than releaseDwellSeconds")
+        (require context (builtins.elem selectedEvidenceClass [
+          "development-short"
+          "release"
+        ]) "selectedEvidenceClass is invalid")
+      ]
+      {
+        checkpointSeconds = 60;
+        dwellSeconds =
+          if selectedEvidenceClass == "development-short" then
+            developmentDwellSeconds
+          else
+            releaseDwellSeconds;
+        evidenceClass = selectedEvidenceClass;
+        inherit developmentDwellSeconds releaseDwellSeconds;
+      };
 
   normalizePlatform =
     context: id: platform:
@@ -210,6 +269,7 @@ let
         tip = builtins.elemAt releases (length releases - 1);
         setId = tip.batch.release;
         qualification = tip.qualification;
+        agingSettings = normalizeAgedProfileSettings "${context} aged profile" qualification;
         profileIds = sorted (qualification.requiredGenericProfiles or [ ]);
         platformNames = sorted (attrNames (qualification.platforms or { }));
         platforms = map (
@@ -280,6 +340,7 @@ let
                 ;
               oracleIds = [ ];
               oracleShard = "none";
+              aging = if profileId == agedProfileId then agingSettings else null;
               runnerClass = platform.runnerClass;
               supported = platform.supported;
               expectedOutcome = if platform.supported then profile.expectedOutcome else "blocked";

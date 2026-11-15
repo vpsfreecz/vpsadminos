@@ -202,6 +202,95 @@ import ../../make-template.nix (
             value
           end
 
+          # AGE1_GENERIC_AGING_BEGIN
+          def monotonic_seconds
+            Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          end
+
+          def aging_sleep(seconds)
+            sleep(seconds)
+          end
+
+          def age_workload(settings)
+            required_seconds = settings.fetch('dwellSeconds')
+            checkpoint_seconds = settings.fetch('checkpointSeconds')
+            started_at = monotonic_seconds
+            before = workload_snapshot
+            checkpoints = []
+            checkpoint_target = checkpoint_seconds
+
+            while checkpoint_target <= required_seconds
+              remaining = checkpoint_target - (monotonic_seconds - started_at)
+              aging_sleep(remaining) if remaining.positive?
+              after = workload_progress(before)
+              checkpoints << {
+                elapsedSeconds: (monotonic_seconds - started_at).floor,
+                before: before,
+                after: after,
+              }
+              before = after
+              checkpoint_target += checkpoint_seconds
+            end
+
+            if checkpoints.empty? || checkpoints.last.fetch(:elapsedSeconds) < required_seconds
+              remaining = required_seconds - (monotonic_seconds - started_at)
+              aging_sleep(remaining) if remaining.positive?
+              after = workload_progress(before)
+              checkpoints << {
+                elapsedSeconds: (monotonic_seconds - started_at).floor,
+                before: before,
+                after: after,
+              }
+            end
+
+            {
+              evidenceClass: settings.fetch('evidenceClass'),
+              developmentDwellSeconds: settings.fetch('developmentDwellSeconds'),
+              releaseDwellSeconds: settings.fetch('releaseDwellSeconds'),
+              requiredSeconds: required_seconds,
+              observedSeconds: (monotonic_seconds - started_at).floor,
+              checkpointSeconds: checkpoint_seconds,
+              checkpoints: checkpoints,
+            }
+          end
+
+          def run_workload_transition(aging_settings = nil)
+            machine.succeeds('livepatch-generic-workload start', timeout: 30)
+            cleanup_complete = false
+            begin
+              initial = workload_snapshot
+              aging = aging_settings.nil? ? nil : age_workload(aging_settings)
+              forward_progress = []
+              reverse_progress = []
+              forward = load_set(forward_progress)
+              reverse = reverse_set(reverse_progress)
+              final = workload_snapshot
+              busy = {
+                dimensions: WORKLOAD_DIMENSIONS,
+                initial: initial,
+                forwardProgress: forward_progress,
+                reverseProgress: reverse_progress,
+                final: final,
+                cleanupComplete: false,
+              }
+            ensure
+              cleanup = JSON.parse(
+                machine.succeeds('livepatch-generic-workload cleanup', timeout: 60)[1],
+              )
+              raise 'generic workload cleanup was incomplete' unless cleanup == { 'cleanupComplete' => true }
+
+              cleanup_complete = true
+            end
+            busy[:cleanupComplete] = cleanup_complete
+            {
+              forward: forward,
+              reverse: reverse,
+              busy: busy,
+              aging: aging,
+            }
+          end
+          # AGE1_GENERIC_AGING_END
+
           def load_set(progress_log = nil)
             observations = []
             @captured_set.fetch('members').each_with_index do |member, index|
@@ -304,32 +393,24 @@ import ../../make-template.nix (
               forward = []
               reverse = []
               busy = nil
+              aging = nil
               failure_recovery = nil
-              workload_started = false
-              cleanup_complete = false
 
-              begin
-                case ROW.fetch('role')
+              case ROW.fetch('role')
                 when 'lifecycle'
                   forward = load_set
                   reverse = reverse_set
                 when 'busy-transition'
-                  machine.succeeds('livepatch-generic-workload start', timeout: 30)
-                  workload_started = true
-                  initial = workload_snapshot
-                  forward_progress = []
-                  reverse_progress = []
-                  forward = load_set(forward_progress)
-                  reverse = reverse_set(reverse_progress)
-                  final = workload_snapshot
-                  busy = {
-                    dimensions: WORKLOAD_DIMENSIONS,
-                    initial: initial,
-                    forwardProgress: forward_progress,
-                    reverseProgress: reverse_progress,
-                    final: final,
-                    cleanupComplete: false,
-                  }
+                  result = run_workload_transition
+                  forward = result.fetch(:forward)
+                  reverse = result.fetch(:reverse)
+                  busy = result.fetch(:busy)
+                when 'aged-transition'
+                  result = run_workload_transition(ROW.fetch('aging'))
+                  forward = result.fetch(:forward)
+                  reverse = result.fetch(:reverse)
+                  busy = result.fetch(:busy)
+                  aging = result.fetch(:aging)
                 when 'failure-recovery'
                   forward = load_set
                   tip = @captured_set.fetch('members').last
@@ -359,18 +440,8 @@ import ../../make-template.nix (
                   }
                 else
                   raise "unsupported generic profile role #{ROW.fetch('role')}"
-                end
-              ensure
-                if workload_started
-                  cleanup = JSON.parse(
-                    machine.succeeds('livepatch-generic-workload cleanup', timeout: 60)[1],
-                  )
-                  expect(cleanup).to eq('cleanupComplete' => true)
-                  cleanup_complete = true
-                end
               end
 
-              busy[:cleanupComplete] = cleanup_complete unless busy.nil?
               @captured_set.fetch('members').each do |member|
                 module_name = member.fetch('identity').fetch('moduleName')
                 machine.fails("test -d #{shell(patch_dir(module_name))}")
@@ -392,6 +463,7 @@ import ../../make-template.nix (
                 forward: forward,
                 reverse: reverse,
                 busy: busy,
+                aging: aging,
                 failureRecovery: failure_recovery,
                 kernelHealth: {
                   clean: true,

@@ -90,11 +90,11 @@ jq -e --arg rowId "$row_id" '
   and .counts.catalogReleases == 1
   and .counts.normalizedReleases == 1
   and .counts.plannedMembers == 1
-  and .counts.requiredProfilePlatformTuples == 6
+  and .counts.requiredProfilePlatformTuples == 8
   and .counts.activeOracles == 1
   and .counts.coverageTuples == 2
-  and .counts.plannedRows == 8
-  and .counts.matrixRows == 8
+  and .counts.plannedRows == 10
+  and .counts.matrixRows == 10
   and (.sets | length) == 1
   and (.sets[0].members | length) == 1
   and .sets[0].id == "6.12.113.1"
@@ -102,10 +102,10 @@ jq -e --arg rowId "$row_id" '
   and .sets[0].members[0].kernelVersion == .sets[0].kernelVersion
   and .sets[0].tipRelease == "6.12.113.1"
   and .sets[0].oracleIds == ["nfs-client-operation-safety"]
-  and ([.rows[] | select(.scope == "set")] | length) == 6
+  and ([.rows[] | select(.scope == "set")] | length) == 8
   and ([.rows[] | select(.scope == "fix")] | length) == 2
   and ([.rows[] | select(.scope == "set") | .role] | unique | sort)
-    == ["busy-transition", "failure-recovery", "lifecycle"]
+    == ["aged-transition", "busy-transition", "failure-recovery", "lifecycle"]
   and ([.rows[] | select(.scope == "set") | .oracleIds] | all(. == []))
   and ([.rows[] | select(.scope == "set") | .oracleShard] | all(. == "none"))
   and ([.rows[] | select(.scope == "set") | .validator]

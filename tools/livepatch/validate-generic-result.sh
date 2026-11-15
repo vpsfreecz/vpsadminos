@@ -85,7 +85,12 @@ row=$(jq -cer --arg rowId "$row_id" '
 
 jq -e '
   .scope == "set"
-  and (.role == "lifecycle" or .role == "busy-transition" or .role == "failure-recovery")
+  and (
+    .role == "aged-transition"
+    or .role == "busy-transition"
+    or .role == "failure-recovery"
+    or .role == "lifecycle"
+  )
   and .oracleIds == []
   and .oracleShard == "none"
   and .validator == "builtin/generic-livepatch-safety-v1"
@@ -97,6 +102,27 @@ jq -e '
   and (
     if .platform.id == "amd" then .runnerClass == "amd-livepatch"
     else .runnerClass == "intel-kvm"
+    end
+  )
+  and (
+    if .role == "aged-transition" then
+      (.aging | type == "object")
+      and (.aging | keys | sort) == [
+        "checkpointSeconds", "developmentDwellSeconds", "dwellSeconds",
+        "evidenceClass", "releaseDwellSeconds"
+      ]
+      and .aging.checkpointSeconds == 60
+      and (.aging.developmentDwellSeconds | type == "number" and floor == . and . > 0)
+      and (.aging.releaseDwellSeconds | type == "number" and floor == . and . > 0)
+      and .aging.developmentDwellSeconds < .aging.releaseDwellSeconds
+      and (.aging.evidenceClass == "development-short" or .aging.evidenceClass == "release")
+      and .aging.dwellSeconds == (
+        if .aging.evidenceClass == "development-short" then .aging.developmentDwellSeconds
+        else .aging.releaseDwellSeconds
+        end
+      )
+    else
+      .aging == null
     end
   )
 ' <<<"$row" >/dev/null
@@ -149,6 +175,55 @@ jq -e --argjson row "$row" --slurpfile plan "$plan" '
     | ($before | counters)
     and ($after | counters)
     and all(counter_keys[]; $after[.] > $before[.]);
+  def busy_valid($members; $reverse):
+    type == "object"
+    and (keys | sort) == [
+      "cleanupComplete", "dimensions", "final", "forwardProgress", "initial",
+      "reverseProgress"
+    ]
+    and (.dimensions | sort) == counter_keys
+    and (.initial | counters)
+    and (.final | counters)
+    and .cleanupComplete == true
+    and (.forwardProgress | length) == ($members | length)
+    and (.forwardProgress | map(.release)) == $members
+    and (.forwardProgress | all(
+      (keys | sort) == ["after", "before", "release"] and progressed
+    ))
+    and (.reverseProgress | length) == ($reverse | length)
+    and (.reverseProgress | map({removedRelease, release})) == $reverse
+    and (.reverseProgress | all(
+      (keys | sort) == ["after", "before", "release", "removedRelease"] and progressed
+    ));
+  def aging_valid($row):
+    . as $aging
+    | $row.aging as $planned
+    | $aging.requiredSeconds as $required
+    | $aging.checkpointSeconds as $interval
+    | (($required + $interval - 1) / $interval | floor) as $checkpoint_count
+    | ($aging.checkpoints | map(.elapsedSeconds)) as $elapsed
+    | (keys | sort) == [
+        "checkpointSeconds", "checkpoints", "developmentDwellSeconds",
+        "evidenceClass", "observedSeconds", "releaseDwellSeconds",
+        "requiredSeconds"
+      ]
+    and $aging.evidenceClass == $planned.evidenceClass
+    and $aging.developmentDwellSeconds == $planned.developmentDwellSeconds
+    and $aging.releaseDwellSeconds == $planned.releaseDwellSeconds
+    and $aging.requiredSeconds == $planned.dwellSeconds
+    and $aging.checkpointSeconds == $planned.checkpointSeconds
+    and ($aging.observedSeconds | type == "number" and floor == . and . >= $required)
+    and ($aging.checkpoints | length) == $checkpoint_count
+    and ($aging.checkpoints | all(
+      (keys | sort) == ["after", "before", "elapsedSeconds"]
+      and (.elapsedSeconds | type == "number" and floor == . and . > 0)
+      and progressed
+    ))
+    and all(range(0; $elapsed | length);
+      ($elapsed[.] >= ([($interval * (. + 1)), $required] | min))
+      and (if . == 0 then true else $elapsed[.] > $elapsed[. - 1] end)
+    )
+    and $aging.observedSeconds >= $elapsed[-1];
 
   $row.setId as $setId
   | ([ $plan[0].sets[] | select(.id == $setId) ] | if length == 1 then .[0] else null end) as $set
@@ -161,7 +236,7 @@ jq -e --argjson row "$row" --slurpfile plan "$plan" '
   | .schemaVersion == 1
   and .contract == "generic-livepatch-safety-v1"
   and (keys | sort) == [
-    "busy", "contract", "failureRecovery", "forward", "kernelHealth",
+    "aging", "busy", "contract", "failureRecovery", "forward", "kernelHealth",
     "members", "platform", "profileId", "reverse", "role", "rowId",
     "schemaVersion", "setId"
   ]
@@ -187,30 +262,18 @@ jq -e --argjson row "$row" --slurpfile plan "$plan" '
   and .kernelHealth == {clean: true, fatalNoiseCount: 0}
   and (
     if $row.role == "lifecycle" then
-      .busy == null and .failureRecovery == null
+      .aging == null and .busy == null and .failureRecovery == null
     elif $row.role == "busy-transition" then
+      .aging == null
+      and .failureRecovery == null
+      and (.busy | busy_valid($members; $reverse))
+    elif $row.role == "aged-transition" then
       .failureRecovery == null
-      and (.busy | type == "object")
-      and (.busy | keys | sort) == [
-        "cleanupComplete", "dimensions", "final", "forwardProgress", "initial",
-        "reverseProgress"
-      ]
-      and (.busy.dimensions | sort) == counter_keys
-      and (.busy.initial | counters)
-      and (.busy.final | counters)
-      and .busy.cleanupComplete == true
-      and (.busy.forwardProgress | length) == ($members | length)
-      and (.busy.forwardProgress | map(.release)) == $members
-      and (.busy.forwardProgress | all(
-        (keys | sort) == ["after", "before", "release"] and progressed
-      ))
-      and (.busy.reverseProgress | length) == ($reverse | length)
-      and (.busy.reverseProgress | map({removedRelease, release})) == $reverse
-      and (.busy.reverseProgress | all(
-        (keys | sort) == ["after", "before", "release", "removedRelease"] and progressed
-      ))
+      and (.busy | busy_valid($members; $reverse))
+      and (.aging | aging_valid($row))
     else
-      .busy == null
+      .aging == null
+      and .busy == null
       and .failureRecovery == {
         duplicateInsertionRefused: true,
         enabledRemovalRefused: true,

@@ -885,6 +885,7 @@
           qualificationPlanner = import ./os/livepatches/qualification.nix { lib = pkgs.lib; };
           qualificationTarget.kernelVersion = "6.12.113";
           qualificationProfiles = [
+            "set/vendor-aged-transition"
             "set/vendor-busy-transition"
             "set/vendor-failure-recovery"
             "set/vendor-lifecycle"
@@ -892,6 +893,11 @@
           qualificationPlatforms = {
             amd.runnerClass = "amd-livepatch";
             intel.runnerClass = "intel-kvm";
+          };
+          qualificationProfileSettings."set/vendor-aged-transition" = {
+            developmentDwellSeconds = 300;
+            releaseDwellSeconds = 1800;
+            selectedEvidenceClass = "development-short";
           };
           mkQualificationOracle = fixId: oracleId: {
             schemaVersion = 1;
@@ -933,6 +939,7 @@
                 inherit release;
                 requiredGenericProfiles = qualificationProfiles;
                 platforms = qualificationPlatforms;
+                profileSettings = qualificationProfileSettings;
                 oracles = [ (mkQualificationOracle fixId oracleId) ];
               };
             };
@@ -959,6 +966,22 @@
           qualificationPlanTwo = mkQualificationPlan [
             qualificationRoot
             qualificationSuccessor
+          ];
+          withQualificationProfileSettings =
+            entry: settings:
+            entry
+            // {
+              qualification = entry.qualification // {
+                profileSettings."set/vendor-aged-transition" = settings;
+              };
+            };
+          qualificationReleaseSelection = mkQualificationPlan [
+            (withQualificationProfileSettings qualificationRoot (
+              qualificationProfileSettings."set/vendor-aged-transition"
+              // {
+                selectedEvidenceClass = "release";
+              }
+            ))
           ];
           qualificationActualPlan = (mkLivepatchContext system).qualification;
           qualificationActualSet = builtins.head qualificationActualPlan.sets;
@@ -1055,6 +1078,61 @@
                 };
               }
             )
+          ];
+          qualificationMissingAgedSettings = mkQualificationPlan [
+            (
+              qualificationRoot
+              // {
+                qualification = builtins.removeAttrs qualificationRoot.qualification [ "profileSettings" ];
+              }
+            )
+          ];
+          qualificationPartialAgedSettings = mkQualificationPlan [
+            (withQualificationProfileSettings qualificationRoot (
+              builtins.removeAttrs qualificationProfileSettings."set/vendor-aged-transition" [
+                "releaseDwellSeconds"
+              ]
+            ))
+          ];
+          qualificationExtraAgedSettings = mkQualificationPlan [
+            (withQualificationProfileSettings qualificationRoot (
+              qualificationProfileSettings."set/vendor-aged-transition"
+              // {
+                unexpected = true;
+              }
+            ))
+          ];
+          qualificationUnknownAgedClass = mkQualificationPlan [
+            (withQualificationProfileSettings qualificationRoot (
+              qualificationProfileSettings."set/vendor-aged-transition"
+              // {
+                selectedEvidenceClass = "unknown";
+              }
+            ))
+          ];
+          qualificationNonIntegerAgedSettings = mkQualificationPlan [
+            (withQualificationProfileSettings qualificationRoot (
+              qualificationProfileSettings."set/vendor-aged-transition"
+              // {
+                developmentDwellSeconds = 300.5;
+              }
+            ))
+          ];
+          qualificationNonPositiveAgedSettings = mkQualificationPlan [
+            (withQualificationProfileSettings qualificationRoot (
+              qualificationProfileSettings."set/vendor-aged-transition"
+              // {
+                developmentDwellSeconds = 0;
+              }
+            ))
+          ];
+          qualificationNonIncreasingAgedSettings = mkQualificationPlan [
+            (withQualificationProfileSettings qualificationRoot (
+              qualificationProfileSettings."set/vendor-aged-transition"
+              // {
+                developmentDwellSeconds = 1800;
+              }
+            ))
           ];
           qualificationMissingOracle = mkQualificationPlan [
             (
@@ -1242,6 +1320,15 @@
           qualificationUnsupportedOracleRows = builtins.filter (
             row: row.scope == "fix"
           ) qualificationUnsupportedIntel.rows;
+          qualificationAgedRows = builtins.filter (
+            row: row.role == "aged-transition"
+          ) qualificationPlanOne.rows;
+          qualificationReleaseAgedRows = builtins.filter (
+            row: row.role == "aged-transition"
+          ) qualificationReleaseSelection.rows;
+          qualificationActualAgedRows = builtins.filter (
+            row: row.role == "aged-transition"
+          ) qualificationActualPlan.rows;
           compactQualificationRows =
             rows:
             map (row: {
@@ -1282,16 +1369,16 @@
         {
           livepatch-qualification =
             assert qualificationPlanOne.counts.plannedMembers == 1;
-            assert qualificationPlanOne.counts.matrixRows == 8;
+            assert qualificationPlanOne.counts.matrixRows == 10;
             assert qualificationPlanOne.counts.coverageTuples == 2;
             assert qualificationPlanTwo.counts.plannedMembers == 2;
-            assert qualificationPlanTwo.counts.matrixRows == 10;
+            assert qualificationPlanTwo.counts.matrixRows == 12;
             assert qualificationPlanTwo.counts.coverageTuples == 4;
             assert qualificationActualPlan.counts.plannedMembers == 1;
-            assert qualificationActualPlan.counts.plannedRows == 8;
-            assert qualificationActualPlan.counts.matrixRows == 8;
+            assert qualificationActualPlan.counts.plannedRows == 10;
+            assert qualificationActualPlan.counts.matrixRows == 10;
             assert
-              builtins.length (builtins.filter (row: row.scope == "set") qualificationActualPlan.rows) == 6;
+              builtins.length (builtins.filter (row: row.scope == "set") qualificationActualPlan.rows) == 8;
             assert
               builtins.length (builtins.filter (row: row.scope == "fix") qualificationActualPlan.rows) == 2;
             assert
@@ -1301,6 +1388,13 @@
                 "release"
               ];
             assert qualificationEvaluationFails qualificationMissingProfile;
+            assert qualificationEvaluationFails qualificationMissingAgedSettings;
+            assert qualificationEvaluationFails qualificationPartialAgedSettings;
+            assert qualificationEvaluationFails qualificationExtraAgedSettings;
+            assert qualificationEvaluationFails qualificationUnknownAgedClass;
+            assert qualificationEvaluationFails qualificationNonIntegerAgedSettings;
+            assert qualificationEvaluationFails qualificationNonPositiveAgedSettings;
+            assert qualificationEvaluationFails qualificationNonIncreasingAgedSettings;
             assert qualificationEvaluationFails qualificationMissingOracle;
             assert qualificationEvaluationFails qualificationDuplicateOracle;
             assert qualificationEvaluationFails qualificationAuthoredRunnerClass;
@@ -1310,6 +1404,42 @@
             assert qualificationEvaluationFails qualificationUnknownApplicablePlatform;
             assert qualificationEvaluationFails qualificationAbsentApplicablePlatform;
             assert qualificationEvaluationFails qualificationDuplicateApplicablePlatform;
+            assert builtins.length qualificationAgedRows == 2;
+            assert builtins.all (
+              row:
+              row.aging == {
+                checkpointSeconds = 60;
+                developmentDwellSeconds = 300;
+                dwellSeconds = 300;
+                evidenceClass = "development-short";
+                releaseDwellSeconds = 1800;
+              }
+            ) qualificationAgedRows;
+            assert builtins.length qualificationReleaseAgedRows == 2;
+            assert builtins.all (
+              row:
+              row.aging == {
+                checkpointSeconds = 60;
+                developmentDwellSeconds = 300;
+                dwellSeconds = 1800;
+                evidenceClass = "release";
+                releaseDwellSeconds = 1800;
+              }
+            ) qualificationReleaseAgedRows;
+            assert builtins.length qualificationActualAgedRows == 2;
+            assert builtins.all (
+              row:
+              row.aging == {
+                checkpointSeconds = 60;
+                developmentDwellSeconds = 300;
+                dwellSeconds = 1800;
+                evidenceClass = "release";
+                releaseDwellSeconds = 1800;
+              }
+            ) qualificationActualAgedRows;
+            assert
+              map (row: builtins.removeAttrs row [ "aging" ]) qualificationPlanOne.rows
+              == map (row: builtins.removeAttrs row [ "aging" ]) qualificationReleaseSelection.rows;
             assert
               qualificationOracleRows == [
                 {
@@ -1405,6 +1535,7 @@
                 set -euo pipefail
                 one=${qualificationPlanOneFile}
                 two=${qualificationPlanTwoFile}
+                actual=${qualificationActualPlanFile}
 
                 ${pkgs.ruby}/bin/ruby ${qualificationSerializationCheck} \
                   ${qualificationOracleScriptFile} \
@@ -1430,7 +1561,10 @@
                   .selectedSets == 1
                   and (.sets[0].members | length) == 1
                   and ([.matrix.include[].runnerClass] | unique | sort) == ["amd-livepatch", "intel-kvm"]
-                  and ([.rows[] | select(.scope == "set") | .role] | unique | sort) == ["busy-transition", "failure-recovery", "lifecycle"]
+                  and ([.rows[] | select(.scope == "set") | .role] | unique | sort) == ["aged-transition", "busy-transition", "failure-recovery", "lifecycle"]
+                  and ([.rows[] | select(.role == "aged-transition")] | length) == 2
+                  and ([.rows[] | select(.role == "aged-transition") | .aging.evidenceClass] | unique) == ["development-short"]
+                  and ([.rows[] | select(.role == "aged-transition") | .aging.dwellSeconds] | unique) == [300]
                   and ([.rows[] | select(.scope == "set") | .oracleIds] | all(. == []))
                   and ([.rows[] | select(.scope == "set") | .oracleShard] | all(. == "none"))
                   and ([.rows[] | select(.scope == "set") | .validator] | all(. == "builtin/generic-livepatch-safety-v1"))
@@ -1438,11 +1572,22 @@
                 ' "$one" >/dev/null
 
                 jq -e '
+                  .counts.plannedRows == 10
+                  and .counts.matrixRows == 10
+                  and ([.rows[] | select(.role == "aged-transition")] | length) == 2
+                  and ([.rows[] | select(.role == "aged-transition") | .aging.evidenceClass] | unique) == ["release"]
+                  and ([.rows[] | select(.role == "aged-transition") | .aging.dwellSeconds] | unique) == [1800]
+                  and ([.rows[] | select(.role == "aged-transition") | .aging.developmentDwellSeconds] | unique) == [300]
+                  and ([.rows[] | select(.role == "aged-transition") | .aging.releaseDwellSeconds] | unique) == [1800]
+                  and ([.rows[] | select(.role == "aged-transition") | .aging.checkpointSeconds] | unique) == [60]
+                ' "$actual" >/dev/null
+
+                jq -e '
                   .selectedSets == 1
                   and (.sets[0].members | map(.release)) == ["6.12.113.1", "6.12.113.2"]
                   and .sets[0].members[1].predecessorRelease == "6.12.113.1"
                   and .counts.plannedMembers == 2
-                  and .counts.matrixRows == 10
+                  and .counts.matrixRows == 12
                   and .counts.coverageTuples == 4
                   and ([.rows[] | select(.scope == "set") | .oracleIds] | all(. == []))
                   and ([.coverage[] | .oracleId] | sort) == ["oracle-a", "oracle-a", "oracle-b", "oracle-b"]

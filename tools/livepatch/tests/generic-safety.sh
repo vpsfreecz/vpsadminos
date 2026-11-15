@@ -46,9 +46,19 @@ jq -n \
     oracleShard: "none",
     runnerClass: "amd-livepatch",
     supported: true,
-    platform: {id: "amd", runnerClass: "amd-livepatch", supported: true}
+    platform: {id: "amd", runnerClass: "amd-livepatch", supported: true},
+    aging: (
+      if $role == "aged-transition" then {
+        evidenceClass: "development-short",
+        dwellSeconds: 300,
+        developmentDwellSeconds: 300,
+        releaseDwellSeconds: 1800,
+        checkpointSeconds: 60
+      } else null end
+    )
   };
   [
+    row("generic-aged-amd"; "set/vendor-aged-transition"; "aged-transition"),
     row("generic-lifecycle-amd"; "set/vendor-lifecycle"; "lifecycle"),
     row("generic-busy-amd"; "set/vendor-busy-transition"; "busy-transition"),
     row("generic-failure-amd"; "set/vendor-failure-recovery"; "failure-recovery")
@@ -84,14 +94,19 @@ jq -n \
         catalogReleases: 1,
         normalizedReleases: 1,
         plannedMembers: 1,
-        requiredProfilePlatformTuples: 3,
+        requiredProfilePlatformTuples: 4,
         activeOracles: 0,
         coverageTuples: 0,
-        plannedRows: 3,
-        matrixRows: 3
+        plannedRows: 4,
+        matrixRows: 4
       }
     }
 ' >"$work/plan.json"
+
+jq -c '
+  (.rows[] | select(.role == "aged-transition") | .aging.evidenceClass) = "release"
+  | (.rows[] | select(.role == "aged-transition") | .aging.dwellSeconds) = 1800
+' "$work/plan.json" >"$work/plan-release.json"
 
 jq -n '{
   schemaVersion: 1,
@@ -620,6 +635,175 @@ PYTHON
 "$python" -m py_compile "$work/workload-cli-matrix.py"
 "$python" "$work/workload-cli-matrix.py" "$workload_executable"
 
+extract_marked_body() {
+  local begin=$1
+  local end=$2
+  local source=$3
+  local output=$4
+
+  [[ $(grep -F -c -- "$begin" "$source") -eq 1 ]]
+  [[ $(grep -F -c -- "$end" "$source") -eq 1 ]]
+  awk -v begin="$begin" -v end="$end" '
+    index($0, begin) { capture = 1; next }
+    index($0, end) { capture = 0 }
+    capture { print }
+  ' "$source" >"$output"
+  [[ -s "$output" ]]
+}
+
+extract_marked_body AGE1_GENERIC_AGING_BEGIN AGE1_GENERIC_AGING_END \
+  "$generic_template" "$work/aging-methods.rb"
+{
+  cat <<'RUBY'
+require 'json'
+
+WORKLOAD_DIMENSIONS = %w[
+  cpu scheduler forkExec cgroupMigration loopbackNetwork filesystemIntegrity
+].freeze
+
+class SyntheticProgressFailure < StandardError
+end
+
+class AgedConsumer
+RUBY
+  cat "$work/aging-methods.rb"
+  cat <<'RUBY'
+  attr_reader :events
+
+  def initialize(fail_progress_at: nil)
+    @events = []
+    @now = 0.0
+    @progress_calls = 0
+    @fail_progress_at = fail_progress_at
+    @counters = WORKLOAD_DIMENSIONS.to_h { |dimension| [dimension, 1] }
+    @machine = FakeMachine.new(@events)
+  end
+
+  def machine
+    @machine
+  end
+
+  def monotonic_seconds
+    @now
+  end
+
+  def aging_sleep(seconds)
+    raise "unexpected sleep duration #{seconds}" unless seconds == 60
+
+    @events << [:sleep, seconds]
+    @now += seconds
+  end
+
+  def workload_snapshot
+    @events << :snapshot
+    @counters.dup
+  end
+
+  def workload_progress(baseline)
+    @progress_calls += 1
+    raise SyntheticProgressFailure, 'synthetic progress failure' if @progress_calls == @fail_progress_at
+    raise 'progress baseline changed' unless baseline == @counters
+
+    @events << :progress
+    @counters = @counters.transform_values { |value| value + 1 }
+  end
+
+  def load_set(progress_log)
+    @events << :forward
+    before = workload_snapshot
+    after = workload_progress(before)
+    progress_log << {release: '6.12.113.1', before: before, after: after}
+    [{release: '6.12.113.1', enabled: 1, transition: 0, replace: 0}]
+  end
+
+  def reverse_set(progress_log)
+    @events << :reverse
+    before = workload_snapshot
+    after = workload_progress(before)
+    progress_log << {
+      removedRelease: '6.12.113.1',
+      release: '6.12.113',
+      before: before,
+      after: after,
+    }
+    [{removedRelease: '6.12.113.1', release: '6.12.113'}]
+  end
+end
+
+class FakeMachine
+  def initialize(events)
+    @events = events
+  end
+
+  def succeeds(command, timeout:)
+    case command
+    when 'livepatch-generic-workload start'
+      raise 'start timeout changed' unless timeout == 30
+
+      @events << :start
+      ['', '']
+    when 'livepatch-generic-workload cleanup'
+      raise 'cleanup timeout changed' unless timeout == 60
+
+      @events << :cleanup
+      ['', JSON.generate('cleanupComplete' => true)]
+    else
+      raise "unexpected machine command: #{command}"
+    end
+  end
+end
+
+settings = {
+  'evidenceClass' => 'development-short',
+  'dwellSeconds' => 300,
+  'developmentDwellSeconds' => 300,
+  'releaseDwellSeconds' => 1800,
+  'checkpointSeconds' => 60,
+}
+consumer = AgedConsumer.new
+result = consumer.run_workload_transition(settings)
+aging = result.fetch(:aging)
+raise 'aging evidence class changed' unless aging.fetch(:evidenceClass) == 'development-short'
+raise 'aging required duration changed' unless aging.fetch(:requiredSeconds) == 300
+raise 'aging observed duration changed' unless aging.fetch(:observedSeconds) == 300
+raise 'aging policy changed' unless aging.values_at(
+  :developmentDwellSeconds, :releaseDwellSeconds, :checkpointSeconds
+) == [300, 1800, 60]
+raise 'aging checkpoint count changed' unless aging.fetch(:checkpoints).length == 5
+raise 'aging elapsed checkpoints changed' unless aging.fetch(:checkpoints).map {
+  |checkpoint| checkpoint.fetch(:elapsedSeconds)
+} == [60, 120, 180, 240, 300]
+aging.fetch(:checkpoints).each do |checkpoint|
+  WORKLOAD_DIMENSIONS.each do |dimension|
+    raise "aging counter did not progress: #{dimension}" unless
+      checkpoint.fetch(:after).fetch(dimension) > checkpoint.fetch(:before).fetch(dimension)
+  end
+end
+raise 'forward observation changed' unless result.fetch(:forward).length == 1
+raise 'reverse observation changed' unless result.fetch(:reverse).length == 1
+raise 'busy cleanup was not complete' unless result.dig(:busy, :cleanupComplete) == true
+raise 'workload did not start first' unless consumer.events.first == :start
+raise 'aging did not precede forward convergence' unless
+  consumer.events.rindex([:sleep, 60]) < consumer.events.index(:forward)
+raise 'forward/reverse order changed' unless consumer.events.index(:forward) < consumer.events.index(:reverse)
+raise 'cleanup did not run last' unless consumer.events.last == :cleanup
+
+failing = AgedConsumer.new(fail_progress_at: 2)
+begin
+  failing.run_workload_transition(settings)
+  raise 'aged helper failure unexpectedly succeeded'
+rescue SyntheticProgressFailure
+  raise 'cleanup did not run after helper failure' unless failing.events.last == :cleanup
+  raise 'forward convergence ran after helper failure' if failing.events.include?(:forward)
+end
+
+puts 'generic aged-transition helper and consumer matrix passed'
+RUBY
+} >"$work/aging-method-matrix.rb"
+
+"$ruby" -c "$work/aging-method-matrix.rb" >/dev/null
+"$ruby" "$work/aging-method-matrix.rb"
+
 make_marker() {
   local row_id=$1
   local profile_id=$2
@@ -634,6 +818,14 @@ make_marker() {
     --argjson one "$counters_one" \
     --argjson two "$counters_two" \
     --argjson three "$counters_three" '
+    def counters($value): {
+      cpu: $value,
+      scheduler: $value,
+      forkExec: $value,
+      cgroupMigration: $value,
+      loopbackNetwork: $value,
+      filesystemIntegrity: $value
+    };
     {
       schemaVersion: 1,
       contract: "generic-livepatch-safety-v1",
@@ -653,15 +845,39 @@ make_marker() {
       forward: [{release: "6.12.113.1", enabled: 1, transition: 0, replace: 0}],
       reverse: [{removedRelease: "6.12.113.1", release: "6.12.113"}],
       busy: (
-        if $role == "busy-transition" then {
+        if $role == "busy-transition" or $role == "aged-transition" then {
           dimensions: $dimensions,
           initial: $one,
-          forwardProgress: [{release: "6.12.113.1", before: $one, after: $two}],
-          reverseProgress: [{
-            removedRelease: "6.12.113.1", release: "6.12.113", before: $two, after: $three
+          forwardProgress: [{
+            release: "6.12.113.1",
+            before: (if $role == "aged-transition" then counters(6) else $one end),
+            after: (if $role == "aged-transition" then counters(7) else $two end)
           }],
-          final: $three,
+          reverseProgress: [{
+            removedRelease: "6.12.113.1",
+            release: "6.12.113",
+            before: (if $role == "aged-transition" then counters(7) else $two end),
+            after: (if $role == "aged-transition" then counters(8) else $three end)
+          }],
+          final: (if $role == "aged-transition" then counters(8) else $three end),
           cleanupComplete: true
+        } else null end
+      ),
+      aging: (
+        if $role == "aged-transition" then {
+          evidenceClass: "development-short",
+          developmentDwellSeconds: 300,
+          releaseDwellSeconds: 1800,
+          requiredSeconds: 300,
+          observedSeconds: 300,
+          checkpointSeconds: 60,
+          checkpoints: [
+            {elapsedSeconds: 60, before: counters(1), after: counters(2)},
+            {elapsedSeconds: 120, before: counters(2), after: counters(3)},
+            {elapsedSeconds: 180, before: counters(3), after: counters(4)},
+            {elapsedSeconds: 240, before: counters(4), after: counters(5)},
+            {elapsedSeconds: 300, before: counters(5), after: counters(6)}
+          ]
         } else null end
       ),
       failureRecovery: (
@@ -681,6 +897,34 @@ make_marker() {
 make_marker generic-lifecycle-amd set/vendor-lifecycle lifecycle "$work/lifecycle.json"
 make_marker generic-busy-amd set/vendor-busy-transition busy-transition "$work/busy.json"
 make_marker generic-failure-amd set/vendor-failure-recovery failure-recovery "$work/failure.json"
+make_marker generic-aged-amd set/vendor-aged-transition aged-transition "$work/aged.json"
+
+jq -c '
+  def counters($value): {
+    cpu: $value,
+    scheduler: $value,
+    forkExec: $value,
+    cgroupMigration: $value,
+    loopbackNetwork: $value,
+    filesystemIntegrity: $value
+  };
+  .aging.evidenceClass = "release"
+  | .aging.requiredSeconds = 1800
+  | .aging.observedSeconds = 1800
+  | .aging.checkpoints = [
+      range(1; 31) as $checkpoint
+      | {
+          elapsedSeconds: ($checkpoint * 60),
+          before: counters($checkpoint),
+          after: counters($checkpoint + 1)
+        }
+    ]
+  | .busy.forwardProgress[0].before = counters(31)
+  | .busy.forwardProgress[0].after = counters(32)
+  | .busy.reverseProgress[0].before = counters(32)
+  | .busy.reverseProgress[0].after = counters(33)
+  | .busy.final = counters(33)
+' "$work/aged.json" >"$work/aged-release.json"
 
 run_validator() {
   local label=$1
@@ -690,6 +934,7 @@ run_validator() {
   local summary=$5
   local extra=${6-}
   local copies=${7-1}
+  local plan=${8-$work/plan.json}
   local state="$work/case-$label"
 
   mkdir "$state"
@@ -704,7 +949,7 @@ run_validator() {
   [[ -z "$extra" ]] || printf '%s\n' "$extra" >>"$state/test.log"
 
   "$validator" \
-    --plan "$work/plan.json" \
+    --plan "$plan" \
     --capture "$work/capture.json" \
     --row-id "$row_id" \
     --state-dir "$state" \
@@ -717,7 +962,8 @@ expect_accept() {
   local label=$1
   local row_id=$2
   local marker=$3
-  run_validator "$label" "$row_id" "$marker" 0 yes
+  local plan=${4-$work/plan.json}
+  run_validator "$label" "$row_id" "$marker" 0 yes '' 1 "$plan"
   jq -e --arg rowId "$row_id" '
     .schemaVersion == 1
     and .rowId == $rowId
@@ -727,6 +973,18 @@ expect_accept() {
     and .validator.status == "accepted"
     and .semantic.contract == "generic-livepatch-safety-v1"
   ' "$work/case-$label/result.json" >/dev/null
+}
+
+expect_aged_plan_refuse() {
+  local label=$1
+  local plan=$2
+  local marker=$3
+  if run_validator "$label" generic-aged-amd "$marker" 0 yes '' 1 "$plan" \
+    >"$work/$label.stdout" 2>"$work/$label.stderr"; then
+    echo "aged plan/marker mismatch unexpectedly succeeded: $label" >&2
+    exit 1
+  fi
+  [[ ! -e "$work/case-$label/result.json" ]]
 }
 
 expect_refuse() {
@@ -742,6 +1000,12 @@ expect_refuse() {
 expect_accept lifecycle generic-lifecycle-amd "$work/lifecycle.json"
 expect_accept busy generic-busy-amd "$work/busy.json"
 expect_accept failure generic-failure-amd "$work/failure.json"
+expect_accept aged generic-aged-amd "$work/aged.json"
+expect_accept aged-release generic-aged-amd "$work/aged-release.json" "$work/plan-release.json"
+expect_aged_plan_refuse aged-release-with-development-plan \
+  "$work/plan.json" "$work/aged-release.json"
+expect_aged_plan_refuse aged-development-with-release-plan \
+  "$work/plan-release.json" "$work/aged.json"
 
 jq -c '.role = "failure-recovery"' "$work/lifecycle.json" >"$work/wrong-role.json"
 jq -c '.platform.id = "intel"' "$work/lifecycle.json" >"$work/wrong-platform.json"
@@ -750,6 +1014,17 @@ jq -c '.busy.forwardProgress[0].after.cpu = 1' "$work/busy.json" >"$work/stalled
 jq -c '.busy.cleanupComplete = false' "$work/busy.json" >"$work/missing-cleanup.json"
 jq -c '.failureRecovery.enabledRemovalRefused = false' "$work/failure.json" >"$work/missing-refusal.json"
 jq -c '.kernelHealth.fatalNoiseCount = 1' "$work/lifecycle.json" >"$work/unclean-marker.json"
+jq -c '.aging.observedSeconds = 299' "$work/aged.json" >"$work/aged-under-duration.json"
+jq -c '.aging.checkpoints[2].after.cpu = .aging.checkpoints[2].before.cpu' \
+  "$work/aged.json" >"$work/aged-stalled.json"
+jq -c '.aging.checkpoints[2].elapsedSeconds = 120' \
+  "$work/aged.json" >"$work/aged-nonmonotonic.json"
+jq -c '.aging.checkpoints[1].after.scheduler = "invalid"' \
+  "$work/aged.json" >"$work/aged-malformed-checkpoint.json"
+jq -c '.aging.evidenceClass = "release"' \
+  "$work/aged.json" >"$work/aged-settings-mismatch.json"
+jq -c '.busy.cleanupComplete = false' "$work/aged.json" >"$work/aged-missing-cleanup.json"
+jq -c '.kernelHealth.fatalNoiseCount = 1' "$work/aged.json" >"$work/aged-unclean.json"
 printf '{invalid-json\n' >"$work/malformed.json"
 printf '{}\n' >"$work/empty.json"
 
@@ -765,6 +1040,13 @@ expect_refuse duplicate generic-lifecycle-amd "$work/lifecycle.json" 0 yes '' 2
 expect_refuse nonzero-runner generic-lifecycle-amd "$work/lifecycle.json" 1 yes
 expect_refuse missing-summary generic-lifecycle-amd "$work/lifecycle.json" 0 no
 expect_refuse fatal-noise generic-lifecycle-amd "$work/lifecycle.json" 0 yes 'kernel BUG at synthetic.c:1'
+expect_refuse aged-under-duration generic-aged-amd "$work/aged-under-duration.json" 0 yes
+expect_refuse aged-stalled generic-aged-amd "$work/aged-stalled.json" 0 yes
+expect_refuse aged-nonmonotonic generic-aged-amd "$work/aged-nonmonotonic.json" 0 yes
+expect_refuse aged-malformed-checkpoint generic-aged-amd "$work/aged-malformed-checkpoint.json" 0 yes
+expect_refuse aged-settings-mismatch generic-aged-amd "$work/aged-settings-mismatch.json" 0 yes
+expect_refuse aged-missing-cleanup generic-aged-amd "$work/aged-missing-cleanup.json" 0 yes
+expect_refuse aged-unclean generic-aged-amd "$work/aged-unclean.json" 0 yes
 
 mkdir "$work/case-smoke"
 printf '0\n' >"$work/case-smoke/runner.status"
@@ -785,6 +1067,7 @@ fi
 
 mkdir "$work/results-full"
 for mapping in \
+  "generic-aged-amd:aged" \
   "generic-lifecycle-amd:lifecycle" \
   "generic-busy-amd:busy" \
   "generic-failure-amd:failure"; do
@@ -804,7 +1087,7 @@ run_campaign() {
 }
 
 run_campaign full "$work/results-full"
-jq -e '.schemaVersion == 1 and .accepted == true and .plannedRows == 3 and (.receipts | length) == 3' \
+jq -e '.schemaVersion == 1 and .accepted == true and .plannedRows == 4 and (.receipts | length) == 4' \
   "$work/full.json" >/dev/null
 
 cp -a "$work/results-full" "$work/results-missing"
@@ -860,6 +1143,20 @@ if [[ -n "$nfs_validator$nfs_oracle_script$nfs_plan$nfs_capture" ]]; then
   [[ -f "$nfs_oracle_script" && ! -L "$nfs_oracle_script" ]]
   [[ -f "$nfs_plan" && ! -L "$nfs_plan" ]]
   [[ -f "$nfs_capture" && ! -L "$nfs_capture" ]]
+  jq -e '
+    .counts.plannedRows == 10
+    and .counts.matrixRows == 10
+    and ([.rows[] | select(.role == "aged-transition")] | length) == 2
+    and ([.rows[] | select(.role == "aged-transition") | .aging] | all(
+      . == {
+        evidenceClass: "release",
+        dwellSeconds: 1800,
+        developmentDwellSeconds: 300,
+        releaseDwellSeconds: 1800,
+        checkpointSeconds: 60
+      }
+    ))
+  ' "$nfs_plan" >/dev/null
 
   extract_method() {
     local begin=$1
@@ -1147,6 +1444,99 @@ RUBY
   } >"$work/nfs-capture-relation.rb"
 
   "$ruby" "$work/nfs-capture-relation.rb" "$nfs_plan" "$nfs_capture"
+
+  cat >"$work/nfs-count-admission.rb" <<'RUBY'
+require 'json'
+
+class AdmissionReached < RuntimeError
+end
+
+class AdmissionRefused < RuntimeError
+end
+
+class EqualityMatcher
+  def initialize(expected)
+    @expected = expected
+  end
+
+  def match(actual)
+    return if actual == @expected
+
+    raise AdmissionRefused, "expected #{actual.inspect} to equal #{@expected.inspect}"
+  end
+end
+
+class Expectation
+  def initialize(actual)
+    @actual = actual
+  end
+
+  def to(matcher)
+    matcher.match(@actual)
+  end
+end
+
+class AdmissionMachine
+  def succeeds(_command)
+    raise AdmissionReached, 'NFS operation boundary reached'
+  end
+end
+
+class OracleAdmission
+  def initialize(plan, capture)
+    @plan = plan
+    @capture = capture
+  end
+
+  def eq(expected)
+    EqualityMatcher.new(expected)
+  end
+
+  def expect(actual)
+    Expectation.new(actual)
+  end
+
+  def machine
+    @machine ||= AdmissionMachine.new
+  end
+
+  def run(source, source_path)
+    instance_eval(source, source_path, 1)
+  end
+end
+
+source_path, plan_path, capture_path, platform_id, expected = ARGV
+plan = JSON.parse(File.binread(plan_path))
+capture = JSON.parse(File.binread(capture_path))
+rows = plan.fetch('rows').select do |row|
+  row.fetch('scope') == 'fix' && row.fetch('platformId') == platform_id
+end
+raise "#{platform_id} NFS row is not unique" unless rows.length == 1
+
+Object.const_set(:ROW, rows.fetch(0))
+begin
+  OracleAdmission.new(plan, capture).run(File.binread(source_path), source_path)
+rescue AdmissionReached
+  raise "#{platform_id} old-count plan reached NFS operations" unless expected == 'accept'
+rescue AdmissionRefused => error
+  raise if expected != 'refuse'
+  raise "#{platform_id} refusal was not the ten-row admission: #{error.message}" unless
+    error.message == 'expected 8 to equal 10'
+else
+  raise "#{platform_id} NFS admission did not reach its operation boundary"
+end
+RUBY
+
+  jq '.counts.matrixRows = 8 | .counts.plannedRows = 8' \
+    "$nfs_plan" >"$work/nfs-plan-old-counts.json"
+  for platform_id in amd intel; do
+    "$ruby" "$work/nfs-count-admission.rb" \
+      "$nfs_oracle_script" "$nfs_plan" "$nfs_capture" "$platform_id" accept
+    "$ruby" "$work/nfs-count-admission.rb" \
+      "$nfs_oracle_script" "$work/nfs-plan-old-counts.json" "$nfs_capture" \
+      "$platform_id" refuse
+  done
+  printf 'NFS rendered ten-row count admission passed\n'
 
   nfs_row=$(jq -cer '[.rows[] | select(.scope == "fix" and .platformId == "amd")]
     | if length == 1 then .[0] else error("AMD NFS row is not unique") end' "$nfs_plan")

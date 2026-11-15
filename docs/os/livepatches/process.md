@@ -274,21 +274,40 @@ Qualification covers these layers:
    predecessor profiles exposed at each rollback level.
 5. Whole-stack loading root-to-tip and reversal tip-to-root.
 
-Run the generic lifecycle, representative busy-transition and
-failure/recovery profiles on real AMD and real Intel/KVM hosts. These six rows
+### Develop aging and delay tests
+
+Start new or changed aging, soak, and artificial-delay tests with a short
+development duration. The short run must complete setup and admission,
+workload checks, forward and reverse transitions, module removal, cleanup and
+result validation before the duration is increased. Fix harness failures with
+focused checks and short runs before attempting another extended run.
+
+Choose a bounded final duration that exercises the intended condition. Record
+the configured and observed durations with the results, and distinguish
+development evidence from final qualification. A short run establishes no
+longer-duration coverage. Keep real state checks and their failure deadlines
+intact: a job timeout limits a failure; it does not provide an aging dwell.
+
+### Required profiles
+
+Run the generic lifecycle, representative busy-transition, aged-transition and
+failure/recovery profiles on real AMD and real Intel/KVM hosts. These eight rows
 have no fix oracle IDs and never import or run a fix adapter. Each guest first
 proves its x86_64 CPU vendor, hypervisor flag and KVM identity. The lifecycle
 profile loads root to tip and reverses newest first. The busy profile keeps
 independent CPU, scheduler, fork/exec, cgroup-v2 migration, loopback network,
 and fsync/rename/checksum counters progressing through every normal forward and
-reverse convergence, then proves bounded cleanup of its own resources. The
-failure profile requires real duplicate insertion and enabled-tip removal to
-fail without changing the active tip, then follows the normal rollback path.
+reverse convergence, then proves bounded cleanup of its own resources. The aged
+profile checks the same workload during the release-selected pre-transition
+dwell and records its configured and observed duration before normal forward
+and reverse convergence. The failure profile requires real duplicate insertion
+and enabled-tip removal to fail without changing the active tip, then follows
+the normal rollback path.
 
 Every successful generic row emits one structured
 `VPSADMINOS_LIVEPATCH_GENERIC_RESULT` marker. The generic host validator binds
 that marker to the planned row, set, profile, role, platform, members, forward
-and reverse observations, plus the applicable busy or failure facts. A zero
+and reverse observations, plus the applicable busy, aging or failure facts. A zero
 test-runner status without this semantic result is not accepted.
 
 Dedicated fix-oracle rows run the declared ordinary operation-safety adapters.
