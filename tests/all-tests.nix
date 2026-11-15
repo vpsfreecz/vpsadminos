@@ -236,6 +236,7 @@ let
           "system/boot/stage-2"
           "system/install"
           "system/install-zfs"
+          "system/livepatch-activation"
           "system/switch-to-configuration"
           "system/sysctl"
           "systemd/credentials"

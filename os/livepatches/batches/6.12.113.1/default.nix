@@ -50,7 +50,6 @@
       states = [ ];
     };
     runtime = {
-      bootAutoload = false;
       prevention = "drain server sysfs callbacks before releasing NFS client state";
       removal = "disable and remove only after the reverse transition converges";
       recovery = "does not repair already-freed clients or interrupted shutdown work";

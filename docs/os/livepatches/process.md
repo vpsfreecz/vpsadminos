@@ -349,8 +349,57 @@ Use `status` and `list` before changing state. The target page supplies the
 release-specific order, expected output and recovery boundary for `load` and
 `unload`.
 
-The first release is manual and boot autoload remains disabled. Before each
-node:
+### Automatic loading
+
+When `services.live-patches.enable` is true, two independent options control
+automatic loading of the configured livepatch:
+
+```nix
+services.live-patches.loadOnBoot = true;
+services.live-patches.loadOnSwitch = false;
+```
+
+These are the defaults. They apply to numbered releases and legacy opt-in
+modules. Loading policy belongs to the host configuration and does not change
+the module's identity or bytes.
+
+| `loadOnBoot` | `loadOnSwitch` | At boot | During live activation |
+| --- | --- | --- | --- |
+| `false` | `false` | No automatic load | No automatic load |
+| `true` | `false` | One load attempt | No automatic load |
+| `false` | `true` | No automatic load | One load attempt |
+| `true` | `true` | One load attempt | One load attempt |
+
+Boot loading runs after the booted generation is recorded and before runit
+starts. Live loading runs during `switch-to-configuration test` or `switch`,
+including activation of the same generation or a switch back to the booted
+generation. The `boot` action only updates the bootloader; `dry-activate` does
+not load patches. Creating or restarting the `live-patches` service does not
+load or unload a patch.
+
+Each enabled hook calls its generation's manager once. A failed attempt is
+logged, does not abort boot or switch, and is not retried automatically. The
+manager retains its target, integrity, state and convergence checks; an already
+active exact module is reverified. Check `live-patches status` and monitoring
+after activation. Successful system activation or a running service does not
+establish that the patch is applied.
+
+With the defaults, deploying to a running node does not load the patch; booting
+that generation does. Before booting a generation containing a release, obtain
+rollout approval and check its eligibility requirements. Set both options to
+`false` to keep loading manual. Explicit manager commands remain available
+under every policy combination. Qualification guests select both options as
+`false` so tests control insertion and removal themselves.
+
+Disabling either option never unloads an active patch. A configuration rollback
+does not restore the kernel's earlier livepatch state; follow the release's
+explicit unload or reboot procedure. Previously built generations retain their
+own activation behavior, so check that policy before switching to an older
+generation.
+
+### Rollout checks
+
+Before loading each node:
 
 1. Confirm the node is healthy and has the exact approved boot image and notes.
 2. Confirm the captured module and all structured evidence match the approved

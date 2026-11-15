@@ -17,8 +17,11 @@ let
 in
 if planPath == "" then
   {
-    services.live-patches.enable = true;
-    runit.services.live-patches.run = lib.mkForce "sleep inf";
+    services.live-patches = {
+      enable = true;
+      loadOnBoot = false;
+      loadOnSwitch = false;
+    };
   }
 else
   assert capturePath != "";
@@ -31,12 +34,14 @@ else
   assert builtins.length set.members == builtins.length (builtins.head capturedSets).members;
   {
     boot.kernelVersion = lib.mkForce set.kernelVersion;
-    services.live-patches.enable = true;
+    services.live-patches = {
+      enable = true;
+      loadOnBoot = false;
+      loadOnSwitch = false;
+    };
 
     # Qualification owns activation order; boot autoload would hide the native
     # baseline and make failure/recovery rows ambiguous.
-    runit.services.live-patches.run = lib.mkForce "sleep inf";
-
     environment.etc = {
       "livepatch-qualification/plan.json".source = builtins.path {
         path = planPath;

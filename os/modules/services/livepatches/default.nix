@@ -96,7 +96,6 @@ let
       assert batch.mode == "additive";
       assert batch.lineage.depth == 0;
       assert batch.lineage.predecessorBatch == null;
-      assert !batch.runtime.bootAutoload;
       assert module.batch == batch;
       assert module.manifest == batch.manifest;
       assert module.kernelTarget == configuredTarget.kernelTarget;
@@ -1020,6 +1019,16 @@ let
       esac
     ''
   );
+  activationManager =
+    if livepatchTest != null && livepatchTest ? manager then
+      livepatchTest.manager
+    else
+      "${live-patches-util}/bin/live-patches";
+  automaticLoad = phase: ''
+    if ! ${escapeShellArg activationManager} load; then
+      echo "live-patches: automatic ${phase} activation failed; inspect live-patches status" >&2
+    fi
+  '';
 in
 {
   options = {
@@ -1028,11 +1037,26 @@ in
       default = true;
       description = ''
         Add the live-patches utility and compiled livepatch modules to the system.
-        Legacy opt-in livepatches are loaded automatically by the boot service.
-        Numbered releases follow runtime.bootAutoload; current numbered releases
-        set it to false and require explicit activation with live-patches load.
-        Deploying either type to an already running machine does not trigger the
-        boot service, so activation there is also manual.
+      '';
+    };
+
+    services.live-patches.loadOnBoot = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        Attempt to load the configured livepatch once after the booted system
+        generation has been recorded. A failed attempt is logged and does not
+        prevent the host from booting.
+      '';
+    };
+
+    services.live-patches.loadOnSwitch = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Attempt to load the configured livepatch once when an already-running
+        host activates this generation with switch-to-configuration test or
+        switch. Disabling this option never unloads an active patch.
       '';
     };
   };
@@ -1047,18 +1071,26 @@ in
           "";
       environment.systemPackages = [ live-patches-util ];
       runit.services.live-patches = {
-        run =
-          (optionalString (
-            buildEnable || (genericBuildEnable && genericBatch.runtime.bootAutoload)
-          ) "live-patches load && ")
-          + "sleep inf";
-        finish = optionalString (buildEnable) "live-patches unload";
+        run = "sleep inf";
+        finish = "";
         log.enable = true;
         log.sendTo = "127.0.0.1";
         runlevels = [ "default" ];
         onChange = "ignore";
       };
     }
+
+    (mkIf (cfg.enable && cfg.loadOnBoot) {
+      boot.postBootCommands = automaticLoad "boot";
+    })
+
+    (mkIf (cfg.enable && cfg.loadOnSwitch) {
+      system.activationScripts.livePatches = stringAfter [ "etc" ] ''
+        if test -e /run/booted-system; then
+          ${automaticLoad "live-switch"}
+        fi
+      '';
+    })
 
     (mkIf buildEnable {
       system.build.livePatches = patches;

@@ -35,7 +35,6 @@
       states = [ ];
     };
     runtime = {
-      bootAutoload = false;
       prevention = "synthetic prevention";
       removal = "synthetic removal";
       recovery = "synthetic recovery";

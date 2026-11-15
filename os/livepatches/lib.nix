@@ -1178,10 +1178,7 @@ let
           predecessor: predecessor.release != descriptor.release
         ) predecessors) "release is already registered")
         (require context (builtins.isAttrs runtime) "runtime must be an attribute set")
-        (onlyAttrs "${context}.runtime" [ "bootAutoload" "prevention" "recovery" "removal" ] runtime)
-        (require "${context}.runtime" (
-          runtime.bootAutoload == false
-        ) "bootAutoload must be false for this batch class")
+        (onlyAttrs "${context}.runtime" [ "prevention" "recovery" "removal" ] runtime)
         (require "${context}.runtime" (isNonEmptyString runtime.prevention)
           "prevention must be a non-empty string"
         )

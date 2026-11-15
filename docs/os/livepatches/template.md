@@ -74,7 +74,9 @@ This page covers livepatches built for the exact configured Linux
 - **Supported mixed versions:** <native, numbered releases and native-fixed
   combinations that may coexist>
 - **Maximum qualified stack depth:** <tested depth for this kernel epoch>
-- **Boot autoload:** disabled
+- **Boot loading:** `services.live-patches.loadOnBoot`, default `true`
+- **Live deployment loading:** `services.live-patches.loadOnSwitch`, default
+  `false`
 
 Do not activate a preventive livepatch on a boot that has already hit the
 target failure, has an unexplained Oops, or is otherwise unreliable. Follow the
@@ -157,6 +159,18 @@ representative load.
 
 ### Activation
 
+Describe the host policy and any release-specific eligibility restrictions.
+With `services.live-patches.enable = true`, boot loading defaults to on and
+live deployment loading defaults to off. Both options are independent; link to
+the [automatic-loading policy](process.md#automatic-loading) for the four
+combinations. Set both to `false` when loading must remain manual. Rollout
+approval applies to automatic and manual activation.
+
+Boot and live `test`/`switch` hooks each make at most one manager attempt when
+enabled. A logged failure does not abort boot/switch or trigger a retry.
+Service creation or restart does not load or unload a patch. State how to
+verify the resulting kernel state before returning the node to service.
+
 List the exact starting release, health and workload prerequisites, monitoring,
 quiescence requirements, manual command, expected `enabled`, `transition`,
 `replace` and published-release state, active oracle checks, and stop
@@ -166,7 +180,9 @@ conditions. Load only the next contiguous release.
 
 State whether reversal is supported. Describe newest-first disable/removal,
 the expected predecessor release, the predecessor oracles that must be rerun,
-and the boundary where forced removal is forbidden.
+and the boundary where forced removal is forbidden. Disabling a loading option
+does not unload an active patch. Configuration rollback does not restore live
+kernel state, and older generations retain their own activation policy.
 
 ### Recovery
 
@@ -194,6 +210,8 @@ preventive and is not recovery for a boot that already hit the failure.
   proof.
 - Operator steps preserve the exact boot image/notes refusal and never use
   force.
+- Boot and live deployment loading have independent options, with defaults
+  `true` and `false`; failure handling and manual operation remain explicit.
 - Rollback is newest first and retests the exposed predecessor.
 - Already-hit and unexplained-Oops boots are recovery-only.
 - Current producer paths, module names and checksums are absent.
