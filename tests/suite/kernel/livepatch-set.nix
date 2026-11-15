@@ -91,16 +91,17 @@ import ../../make-template.nix (
             )
           end
 
-          def wait_disabled(module_name)
-            dir = shell(patch_dir(module_name))
+          # F9_GENERIC_COMPLETED_DISABLE_BEGIN
+          def wait_completed_disable(module_name)
             machine.wait_until_succeeds(
-              "test \"$(cat #{dir}/enabled)\" = 0 && " \
-                "test \"$(cat #{dir}/transition)\" = 0 && " \
-                "test \"$(cat #{dir}/replace)\" = 0",
+              "test ! -d #{shell(patch_dir(module_name))} && " \
+                "test -d /sys/module/#{shell(module_name)}",
               timeout: 180,
             )
           end
+          # F9_GENERIC_COMPLETED_DISABLE_END
 
+          # F9_GENERIC_REMOVAL_WAIT_BEGIN
           def wait_removed(module_name)
             machine.wait_until_succeeds(
               "test ! -d #{shell(patch_dir(module_name))} && " \
@@ -108,6 +109,7 @@ import ../../make-template.nix (
               timeout: 180,
             )
           end
+          # F9_GENERIC_REMOVAL_WAIT_END
 
           # F6_GENERIC_CAPTURE_RELATION_BEGIN
           def validate_capture_relation
@@ -227,6 +229,7 @@ import ../../make-template.nix (
             observations
           end
 
+          # F9_GENERIC_REVERSE_SET_BEGIN
           def reverse_set(progress_log = nil)
             observations = []
             members = @captured_set.fetch('members')
@@ -238,7 +241,7 @@ import ../../make-template.nix (
                 "sh -c 'echo 0 > #{shell(patch_dir(identity.fetch('moduleName')))}/enabled'",
                 timeout: 60,
               )
-              wait_disabled(identity.fetch('moduleName'))
+              wait_completed_disable(identity.fetch('moduleName'))
               machine.succeeds("rmmod #{shell(identity.fetch('moduleName'))}", timeout: 60)
               wait_removed(identity.fetch('moduleName'))
               expected_release =
@@ -263,6 +266,7 @@ import ../../make-template.nix (
             end
             observations
           end
+          # F9_GENERIC_REVERSE_SET_END
 
           def tip_state(member)
             identity = member.fetch('identity')

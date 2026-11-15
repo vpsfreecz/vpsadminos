@@ -190,6 +190,17 @@ let
       'amd' => 'AuthenticAMD',
       'intel' => 'GenuineIntel',
     }.fetch(ROW.fetch('platformId'))
+
+    # F9_NFS_COMPLETED_DISABLE_BEGIN
+    def wait_nfs_completed_disable(machine, patch_dir, module_name)
+      machine.wait_until_succeeds(
+        "test ! -d #{Shellwords.escape(patch_dir)} && " \
+          "test -d /sys/module/#{Shellwords.escape(module_name)}",
+        timeout: 180,
+      )
+    end
+    # F9_NFS_COMPLETED_DISABLE_END
+
     vendor = machine.succeeds("awk -F: '/vendor_id/{gsub(/ /, \"\", $2); print $2; exit}' /proc/cpuinfo")[1].strip
     expect(vendor).to eq(expected_vendor)
 
@@ -242,18 +253,16 @@ let
     machine.succeeds('nfs-livepatch-operation operate')
     machine.succeeds('nfs-livepatch-operation fresh after-forward')
 
+    # F9_NFS_REVERSE_BOUNDARY_BEGIN
     machine.succeeds("sh -c 'echo 0 > #{Shellwords.escape(patch_dir)}/enabled'", timeout: 60)
-    machine.wait_until_succeeds(
-      "test \"$(cat #{Shellwords.escape(patch_dir)}/enabled)\" = 0 && " \
-        "test \"$(cat #{Shellwords.escape(patch_dir)}/transition)\" = 0",
-      timeout: 180,
-    )
+    wait_nfs_completed_disable(machine, patch_dir, module_name)
     machine.succeeds("rmmod #{module_name_shell}", timeout: 60)
     machine.wait_until_succeeds(
       "test ! -d #{Shellwords.escape(patch_dir)} && test ! -d /sys/module/#{module_name_shell}",
       timeout: 180,
     )
     machine.succeeds('test "$(uname -r)" = 6.12.113')
+    # F9_NFS_REVERSE_BOUNDARY_END
     machine.succeeds('nfs-livepatch-operation operate')
     machine.succeeds('nfs-livepatch-operation fresh after-reverse')
 
