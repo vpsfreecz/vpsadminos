@@ -281,13 +281,66 @@ Qualification covers these layers:
    predecessor profiles exposed at each rollback level.
 5. Whole-stack loading root-to-tip and reversal tip-to-root.
 
+### Fast checks before a campaign
+
+A new batch normally adds its descriptors, canonical patches, ordered series,
+oracle declarations and target-page facts. Reuse the generic AMD and Intel/KVM
+lifecycle, busy, aging and failure/recovery profiles. Add a fix-local adapter
+only when the affected subsystem needs ordinary operation checks that the
+existing profiles do not provide. Keep the shared producer, workflow and
+result validators as the common implementation for every release.
+
+Check changed interfaces in their existing owners before starting a campaign:
+
+| Changed boundary | Existing check owner |
+| --- | --- |
+| Catalog, target, lineage or producer inputs | `os/packages/livepatch-module/tests/eval.nix`, followed by exact configured-target artifact inspection |
+| Manager CLI, state, ordering or activation policy | Generated-manager unit in `os/modules/services/livepatches/tests/default.nix`; production-manager VM after review |
+| Plan, topology, locked tools, capture/verification, profile handoff or result validation | `checks.x86_64-linux.livepatch-qualification` |
+| TestRunner fork/redirection or output ordering | `test-runner/spec/test_runner/executor_spec.rb` |
+
+The focused qualification check exercises the actual profile command handoff,
+separate controller and semantic logs, result ownership and count-closure
+refusals. It includes the generated-manager unit and private VM render, but
+runs no VM and excludes TestRunner. Keep the large-output and stream-ordering
+regression with the executor; do not copy it into another fixture or rebuild
+the runner for an unrelated release change.
+
+Inspect the dry dependency graph before realizing a focused check. Unexpected
+kernel, kpatch or livepatch producer builds stop that check for diagnosis.
+Build and capture the intended target-bound module once, then verify every
+consumer against that capture. Reuse passing checks only when their relevant
+inputs are unchanged; retain exact derivation and input evidence for reused
+Nix results.
+
+Commit the intended source, tests and documentation, pass quick checks and
+complete independent review before long integration tests or campaigns.
+Diagnose a failure at its first failing interface and check the correction
+there before repeating the campaign. Retain the failed attempt and its cause;
+do not relax result validation to accept it.
+
+Every later batch qualifies the whole active set, including predecessor
+profiles exposed during newest-first removal. New payload, target, builder,
+lineage or emitted closure requires fresh artifact inspection and full
+qualification. Evidence for native to `.1` alone does not establish production
+multi-batch manager behavior. Preserve earlier receipts at their original
+source revision; path or harness changes need their affected checks and new
+receipts even when the module identity is unchanged.
+
 ### Develop aging and delay tests
 
-Start new or changed aging, soak, and artificial-delay tests with a short
-development duration. The short run must complete setup and admission,
-workload checks, forward and reverse transitions, module removal, cleanup and
-result validation before the duration is increased. Fix harness failures with
-focused checks and short runs before attempting another extended run.
+For a new release or changed aging, soak or artificial-delay test, run the
+complete planned matrix with the development aging class first. The short run
+must complete setup and admission, workload progress, forward and reverse
+transitions, module removal, cleanup, health checks and count closure before
+the duration is increased. Fix harness failures with focused checks before
+attempting another campaign.
+
+Then select the release aging class, run the affected quick checks and review
+the final committed selection. Run a fresh complete campaign on that exact
+head, with serial rows, fail-fast cancellation and accepted count closure.
+Applicable final-head CI must also pass before merge consideration. Activation
+and rollout approval remain separate from qualification.
 
 Choose a bounded final duration that exercises the intended condition. Record
 the configured and observed durations with the results, and distinguish

@@ -54,7 +54,10 @@ Check the following before adding the target-page section:
 - Qualification and documentation values are excluded from producer identity.
 
 See the [canonical process](process.md) for normalization, build, qualification
-and rollout requirements.
+and rollout requirements. Use its [fast checks before a campaign](process.md#fast-checks-before-a-campaign)
+to verify changed interfaces with the existing test infrastructure. Record
+development-short and release-duration results separately; qualify the entire
+active set and every active fix profile for each new batch.
 
 ## Target-page skeleton
 
