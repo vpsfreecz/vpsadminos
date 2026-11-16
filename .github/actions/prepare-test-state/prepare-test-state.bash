@@ -20,7 +20,14 @@ if [[ "$state_root" != /* || "$state_root" == / ]]; then
   exit 1
 fi
 
+state_root=$(readlink -m -- "$state_root")
 state_directory="${state_root%/}/os-test-runner-${TEST_STATE_REPOSITORY_ID}-${TEST_STATE_RUN_ID}-${TEST_STATE_RUN_ATTEMPT}"
+action_directory=${BASH_SOURCE[0]%/*}
+
+if ! bash "$action_directory/../test-state-processes.bash" prepare; then
+  echo "::error::Refusing to prepare test state while conflicting test processes remain"
+  exit 1
+fi
 
 rm -rf -- "$state_directory"
 umask 077

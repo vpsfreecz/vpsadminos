@@ -20,6 +20,12 @@ for value_name in \
   fi
 done
 
+if [[ "$state_root" != /* || "$state_root" == / ]]; then
+  echo "::error::TEST_STATE_ROOT must be an absolute directory below /"
+  exit 1
+fi
+
+state_root=$(readlink -m -- "$state_root")
 expected_directory="${state_root%/}/os-test-runner-${TEST_STATE_REPOSITORY_ID}-${TEST_STATE_RUN_ID}-${TEST_STATE_RUN_ATTEMPT}"
 
 if [[ "$TEST_STATE_DIRECTORY" != "$expected_directory" ]]; then
@@ -42,6 +48,13 @@ fi
 if [[ "$cleanup" != true ]]; then
   echo "::notice::Preserving unpublished test state at $TEST_STATE_DIRECTORY"
   exit 0
+fi
+
+action_directory=${BASH_SOURCE[0]%/*}
+
+if ! bash "$action_directory/../test-state-processes.bash" cleanup; then
+  echo "::error::Refusing to clean test state while its processes remain"
+  exit 1
 fi
 
 rm -rf -- "$TEST_STATE_DIRECTORY"
