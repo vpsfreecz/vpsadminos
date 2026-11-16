@@ -1,479 +1,493 @@
-import ../../make-template.nix (
-  { row }:
-  let
-    planPath = builtins.getEnv "VPSADMINOS_LIVEPATCH_PLAN";
-    capturePath = builtins.getEnv "VPSADMINOS_LIVEPATCH_CAPTURE";
-    plan = builtins.fromJSON (builtins.readFile planPath);
-    capture = builtins.fromJSON (builtins.readFile capturePath);
-    sets = builtins.filter (candidate: candidate.id == row.setId) plan.sets;
-    set = builtins.head sets;
-    capturedSets = builtins.filter (candidate: candidate.id == row.setId) capture.sets;
-    capturedSet = builtins.head capturedSets;
-  in
-  assert planPath != "";
-  assert capturePath != "";
-  assert builtins.length sets == 1;
-  assert builtins.length capturedSets == 1;
-  assert row.scope == "set";
-  assert row.oracleIds == [ ];
-  assert row.oracleShard == "none";
-  assert row.validator == "builtin/generic-livepatch-safety-v1";
-  {
-    instance = row.rowId;
+args:
+let
+  templateValues =
+    if (args.templateArgs or null) != null then
+      args.templateArgs
+    else if (args.templateArgsInJson or null) != null then
+      builtins.fromJSON args.templateArgsInJson
+    else
+      abort "provide templateArgs or templateArgsInJson";
+  row = templateValues.row;
+in
+if row.managerFixture or false then
+  import ./livepatch-set/manager.nix (args // { inherit row; })
+else
+  import ../../make-template.nix (
+    { row }:
+    let
+      planPath = builtins.getEnv "VPSADMINOS_LIVEPATCH_PLAN";
+      capturePath = builtins.getEnv "VPSADMINOS_LIVEPATCH_CAPTURE";
+      plan = builtins.fromJSON (builtins.readFile planPath);
+      capture = builtins.fromJSON (builtins.readFile capturePath);
+      sets = builtins.filter (candidate: candidate.id == row.setId) plan.sets;
+      set = builtins.head sets;
+      capturedSets = builtins.filter (candidate: candidate.id == row.setId) capture.sets;
+      capturedSet = builtins.head capturedSets;
+    in
+    assert planPath != "";
+    assert capturePath != "";
+    assert builtins.length sets == 1;
+    assert builtins.length capturedSets == 1;
+    assert row.scope == "set";
+    assert row.oracleIds == [ ];
+    assert row.oracleShard == "none";
+    assert row.validator == "builtin/generic-livepatch-safety-v1";
+    {
+      instance = row.rowId;
 
-    test =
-      { pkgs }:
-      let
-        lib = pkgs.lib;
-        rubyJson = import ./livepatch-ruby-json.nix { inherit lib; };
-        workload = import ./livepatch-set/workload.nix { inherit pkgs; };
-      in
-      {
-        name = "kernel-livepatch-set-${row.rowId}";
-        description = "Generic livepatch whole-set qualification for ${row.profileId}";
-        tags = [ row.runnerClass ];
-        labels = {
-          livepatch-profile = row.profileId;
-          livepatch-set = row.setId;
-        };
+      test =
+        { pkgs }:
+        let
+          lib = pkgs.lib;
+          rubyJson = import ./livepatch-ruby-json.nix { inherit lib; };
+          workload = import ./livepatch-set/workload.nix { inherit pkgs; };
+        in
+        {
+          name = "kernel-livepatch-set-${row.rowId}";
+          description = "Generic livepatch whole-set qualification for ${row.profileId}";
+          tags = [ row.runnerClass ];
+          labels = {
+            livepatch-profile = row.profileId;
+            livepatch-set = row.setId;
+          };
 
-        machine = import ../../machines/vpsadminos/with-empty.nix {
-          inherit pkgs;
-          config =
-            { lib, ... }:
-            {
-              imports = [ ../../configs/vpsadminos/livepatch.nix ] ++ workload.modules;
-              boot.qemu = {
-                cpus = lib.mkOverride 0 8;
-                cpu = {
-                  cores = lib.mkOverride 0 8;
-                  threads = lib.mkOverride 0 1;
-                  sockets = lib.mkOverride 0 1;
+          machine = import ../../machines/vpsadminos/with-empty.nix {
+            inherit pkgs;
+            config =
+              { lib, ... }:
+              {
+                imports = [ ../../configs/vpsadminos/livepatch.nix ] ++ workload.modules;
+                boot.qemu = {
+                  cpus = lib.mkOverride 0 8;
+                  cpu = {
+                    cores = lib.mkOverride 0 8;
+                    threads = lib.mkOverride 0 1;
+                    sockets = lib.mkOverride 0 1;
+                  };
+                  memory = lib.mkOverride 0 8192;
                 };
-                memory = lib.mkOverride 0 8192;
+                environment.systemPackages = [
+                  pkgs.coreutils
+                  pkgs.jq
+                  pkgs.kmod
+                ];
               };
-              environment.systemPackages = [
-                pkgs.coreutils
-                pkgs.jq
-                pkgs.kmod
-              ];
-            };
-        };
+          };
 
-        testScript = ''
-          require 'json'
-          require 'shellwords'
+          testScript = ''
+            require 'json'
+            require 'shellwords'
 
-          ROW = ${rubyJson row}
-          EXPECTED_SET = ${rubyJson set}
-          EXPECTED_CAPTURE = ${rubyJson capturedSet}
-          WORKLOAD_DIMENSIONS = %w[
-            cpu scheduler forkExec cgroupMigration loopbackNetwork
-            filesystemIntegrity
-          ].freeze
-          KERNEL_FAULT_PATTERN = /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol|blocked for more than|soft lockup|hard LOCKUP|(?:rcu|RCU).*stall|livepatch.*(?:error|failed)/
+            ROW = ${rubyJson row}
+            EXPECTED_SET = ${rubyJson set}
+            EXPECTED_CAPTURE = ${rubyJson capturedSet}
+            WORKLOAD_DIMENSIONS = %w[
+              cpu scheduler forkExec cgroupMigration loopbackNetwork
+              filesystemIntegrity
+            ].freeze
+            KERNEL_FAULT_PATTERN = /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol|blocked for more than|soft lockup|hard LOCKUP|(?:rcu|RCU).*stall|livepatch.*(?:error|failed)/
 
-          def patch_dir(module_name)
-            "/sys/kernel/livepatch/#{module_name}"
-          end
-
-          def shell(value)
-            Shellwords.escape(value)
-          end
-
-          def wait_enabled(module_name)
-            dir = shell(patch_dir(module_name))
-            machine.wait_until_succeeds(
-              "test -d #{dir} && test \"$(cat #{dir}/enabled)\" = 1 && " \
-                "test \"$(cat #{dir}/transition)\" = 0 && " \
-                "test \"$(cat #{dir}/replace)\" = 0",
-              timeout: 180,
-            )
-          end
-
-          # F9_GENERIC_COMPLETED_DISABLE_BEGIN
-          def wait_completed_disable(module_name)
-            machine.wait_until_succeeds(
-              "test ! -d #{shell(patch_dir(module_name))} && " \
-                "test -d /sys/module/#{shell(module_name)}",
-              timeout: 180,
-            )
-          end
-          # F9_GENERIC_COMPLETED_DISABLE_END
-
-          # F9_GENERIC_REMOVAL_WAIT_BEGIN
-          def wait_removed(module_name)
-            machine.wait_until_succeeds(
-              "test ! -d #{shell(patch_dir(module_name))} && " \
-                "test ! -d /sys/module/#{shell(module_name)}",
-              timeout: 180,
-            )
-          end
-          # F9_GENERIC_REMOVAL_WAIT_END
-
-          # F6_GENERIC_CAPTURE_RELATION_BEGIN
-          def validate_capture_relation
-            planned_members = @set.fetch('members')
-            captured_members = @captured_set.fetch('members')
-            raise 'capture member count does not match plan' unless captured_members.length == planned_members.length
-
-            captured_members.each_with_index do |member, index|
-              planned_member = planned_members.fetch(index)
-              raise 'capture member release does not match plan' unless member.fetch('release') == planned_member.fetch('release')
-              raise 'planned member target does not match set target' unless planned_member.fetch('kernelVersion') == @set.fetch('kernelVersion')
+            def patch_dir(module_name)
+              "/sys/kernel/livepatch/#{module_name}"
             end
-          end
-          # F6_GENERIC_CAPTURE_RELATION_END
 
-          def validate_capture
-            expect(@set).to eq(EXPECTED_SET)
-            expect(@captured_set).to eq(EXPECTED_CAPTURE)
-            expect(ROW.fetch('oracleIds')).to eq([])
-            expect(ROW.fetch('oracleShard')).to eq('none')
-            expect(ROW.fetch('validator')).to eq('builtin/generic-livepatch-safety-v1')
-            validate_capture_relation
+            def shell(value)
+              Shellwords.escape(value)
+            end
 
-            @captured_set.fetch('members').each do |member|
-              identity = member.fetch('identity')
-              producer = shell(identity.fetch('producer'))
-              module_path = shell(identity.fetch('module'))
-              evidence = "#{producer}/share/vpsadminos-livepatch"
-              machine.all_succeed(
-                "test -f #{module_path}",
-                "test \"$(sha256sum #{module_path} | cut -d' ' -f1)\" = #{identity.fetch('moduleSha256')}",
-                "test \"$(sha256sum #{evidence}/manifest.json | cut -d' ' -f1)\" = #{identity.fetch('manifestSha256')}",
-                "test \"$(sha256sum #{evidence}/inspection.json | cut -d' ' -f1)\" = #{identity.fetch('inspectionSha256')}",
-                "test \"$(sha256sum #{evidence}/closure.json | cut -d' ' -f1)\" = #{identity.fetch('closureSha256')}",
-                "jq -e '.matches == true and .mismatches == {}' #{evidence}/closure.json",
-                "jq -e --arg name #{shell(identity.fetch('moduleName'))} '.module.name == $name and .buildInvocation.nonReplaceRequested == true' #{evidence}/inspection.json",
+            def wait_enabled(module_name)
+              dir = shell(patch_dir(module_name))
+              machine.wait_until_succeeds(
+                "test -d #{dir} && test \"$(cat #{dir}/enabled)\" = 1 && " \
+                  "test \"$(cat #{dir}/transition)\" = 0 && " \
+                  "test \"$(cat #{dir}/replace)\" = 0",
+                timeout: 180,
               )
             end
-          end
 
-          def admit_platform
-            expected_vendor = {
-              'amd' => 'AuthenticAMD',
-              'intel' => 'GenuineIntel',
-            }.fetch(ROW.fetch('platform').fetch('id'))
-            architecture = machine.succeeds('uname -m')[1].strip
-            vendors = machine.succeeds(
-              "awk -F: '/^vendor_id/{gsub(/[[:space:]]/, \"\", $2); print $2}' /proc/cpuinfo | LC_ALL=C sort -u",
-            )[1].lines.map(&:strip).reject(&:empty?)
-            hypervisor_flag = machine.succeeds(
-              "awk -F: '/^flags/{found=1; if ($2 !~ /(^|[[:space:]])hypervisor([[:space:]]|$)/) missing=1} END{exit (!found || missing)}' /proc/cpuinfo && printf true",
-            )[1].strip == 'true'
-            lscpu = JSON.parse(machine.succeeds('LC_ALL=C lscpu --json')[1])
-            facts = lscpu.fetch('lscpu').to_h do |entry|
-              [entry.fetch('field').delete_suffix(':'), entry.fetch('data')]
-            end
-            hypervisor_vendor = facts.fetch('Hypervisor vendor')
-
-            expect(architecture).to eq('x86_64')
-            expect(facts.fetch('Architecture')).to eq('x86_64')
-            expect(vendors).to eq([expected_vendor])
-            expect(hypervisor_flag).to be(true)
-            expect(hypervisor_vendor).to eq('KVM')
-            {
-              id: ROW.fetch('platform').fetch('id'),
-              architecture: architecture,
-              cpuVendor: expected_vendor,
-              hypervisorFlag: hypervisor_flag,
-              hypervisorVendor: hypervisor_vendor,
-              admitted: true,
-            }
-          end
-
-          def workload_snapshot
-            value = JSON.parse(machine.succeeds('livepatch-generic-workload snapshot')[1])
-            expect(value.keys.sort).to eq(WORKLOAD_DIMENSIONS.sort)
-            expect(value.values).to all(be_a(Integer).and(be > 0))
-            value
-          end
-
-          def workload_progress(baseline)
-            value = JSON.parse(
-              machine.succeeds(
-                "livepatch-generic-workload progress #{shell(JSON.generate(baseline))}",
-              )[1],
-            )
-            WORKLOAD_DIMENSIONS.each do |dimension|
-              expect(value.fetch(dimension)).to be > baseline.fetch(dimension)
-            end
-            value
-          end
-
-          # AGE1_GENERIC_AGING_BEGIN
-          def monotonic_seconds
-            Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          end
-
-          def aging_sleep(seconds)
-            sleep(seconds)
-          end
-
-          def age_workload(settings)
-            required_seconds = settings.fetch('dwellSeconds')
-            checkpoint_seconds = settings.fetch('checkpointSeconds')
-            started_at = monotonic_seconds
-            before = workload_snapshot
-            checkpoints = []
-            checkpoint_target = checkpoint_seconds
-
-            while checkpoint_target <= required_seconds
-              remaining = checkpoint_target - (monotonic_seconds - started_at)
-              aging_sleep(remaining) if remaining.positive?
-              after = workload_progress(before)
-              checkpoints << {
-                elapsedSeconds: (monotonic_seconds - started_at).floor,
-                before: before,
-                after: after,
-              }
-              before = after
-              checkpoint_target += checkpoint_seconds
-            end
-
-            if checkpoints.empty? || checkpoints.last.fetch(:elapsedSeconds) < required_seconds
-              remaining = required_seconds - (monotonic_seconds - started_at)
-              aging_sleep(remaining) if remaining.positive?
-              after = workload_progress(before)
-              checkpoints << {
-                elapsedSeconds: (monotonic_seconds - started_at).floor,
-                before: before,
-                after: after,
-              }
-            end
-
-            {
-              evidenceClass: settings.fetch('evidenceClass'),
-              developmentDwellSeconds: settings.fetch('developmentDwellSeconds'),
-              releaseDwellSeconds: settings.fetch('releaseDwellSeconds'),
-              requiredSeconds: required_seconds,
-              observedSeconds: (monotonic_seconds - started_at).floor,
-              checkpointSeconds: checkpoint_seconds,
-              checkpoints: checkpoints,
-            }
-          end
-
-          def run_workload_transition(aging_settings = nil)
-            machine.succeeds('livepatch-generic-workload start', timeout: 30)
-            cleanup_complete = false
-            begin
-              initial = workload_snapshot
-              aging = aging_settings.nil? ? nil : age_workload(aging_settings)
-              forward_progress = []
-              reverse_progress = []
-              forward = load_set(forward_progress)
-              reverse = reverse_set(reverse_progress)
-              final = workload_snapshot
-              busy = {
-                dimensions: WORKLOAD_DIMENSIONS,
-                initial: initial,
-                forwardProgress: forward_progress,
-                reverseProgress: reverse_progress,
-                final: final,
-                cleanupComplete: false,
-              }
-            ensure
-              cleanup = JSON.parse(
-                machine.succeeds('livepatch-generic-workload cleanup', timeout: 60)[1],
+            # F9_GENERIC_COMPLETED_DISABLE_BEGIN
+            def wait_completed_disable(module_name)
+              machine.wait_until_succeeds(
+                "test ! -d #{shell(patch_dir(module_name))} && " \
+                  "test -d /sys/module/#{shell(module_name)}",
+                timeout: 180,
               )
-              raise 'generic workload cleanup was incomplete' unless cleanup == { 'cleanupComplete' => true }
-
-              cleanup_complete = true
             end
-            busy[:cleanupComplete] = cleanup_complete
-            {
-              forward: forward,
-              reverse: reverse,
-              busy: busy,
-              aging: aging,
-            }
-          end
-          # AGE1_GENERIC_AGING_END
+            # F9_GENERIC_COMPLETED_DISABLE_END
 
-          def load_set(progress_log = nil)
-            observations = []
-            @captured_set.fetch('members').each_with_index do |member, index|
-              expected_member = @set.fetch('members').fetch(index)
-              identity = member.fetch('identity')
-              baseline = workload_snapshot unless progress_log.nil?
-              machine.succeeds("insmod #{shell(identity.fetch('module'))}", timeout: 60)
-              wait_enabled(identity.fetch('moduleName'))
-              machine.succeeds("test \"$(uname -r)\" = #{shell(member.fetch('release'))}")
-              observations << {
-                release: member.fetch('release'),
-                enabled: 1,
-                transition: 0,
-                replace: 0,
-              }
-              unless progress_log.nil?
-                progress_log << {
-                  release: member.fetch('release'),
-                  before: baseline,
-                  after: workload_progress(baseline),
-                }
-              end
-              expect(member.fetch('release')).to eq(expected_member.fetch('release'))
-            end
-            observations
-          end
-
-          # F9_GENERIC_REVERSE_SET_BEGIN
-          def reverse_set(progress_log = nil)
-            observations = []
-            members = @captured_set.fetch('members')
-            members.each_index.to_a.reverse_each do |index|
-              member = members.fetch(index)
-              identity = member.fetch('identity')
-              baseline = workload_snapshot unless progress_log.nil?
-              machine.succeeds(
-                "sh -c 'echo 0 > #{shell(patch_dir(identity.fetch('moduleName')))}/enabled'",
-                timeout: 60,
+            # F9_GENERIC_REMOVAL_WAIT_BEGIN
+            def wait_removed(module_name)
+              machine.wait_until_succeeds(
+                "test ! -d #{shell(patch_dir(module_name))} && " \
+                  "test ! -d /sys/module/#{shell(module_name)}",
+                timeout: 180,
               )
-              wait_completed_disable(identity.fetch('moduleName'))
-              machine.succeeds("rmmod #{shell(identity.fetch('moduleName'))}", timeout: 60)
-              wait_removed(identity.fetch('moduleName'))
-              expected_release =
-                if index.zero?
-                  @set.fetch('kernelVersion')
-                else
-                  members.fetch(index - 1).fetch('release')
-                end
-              machine.succeeds("test \"$(uname -r)\" = #{shell(expected_release)}")
-              observations << {
-                removedRelease: member.fetch('release'),
-                release: expected_release,
-              }
-              unless progress_log.nil?
-                progress_log << {
-                  removedRelease: member.fetch('release'),
-                  release: expected_release,
-                  before: baseline,
-                  after: workload_progress(baseline),
-                }
+            end
+            # F9_GENERIC_REMOVAL_WAIT_END
+
+            # F6_GENERIC_CAPTURE_RELATION_BEGIN
+            def validate_capture_relation
+              planned_members = @set.fetch('members')
+              captured_members = @captured_set.fetch('members')
+              raise 'capture member count does not match plan' unless captured_members.length == planned_members.length
+
+              captured_members.each_with_index do |member, index|
+                planned_member = planned_members.fetch(index)
+                raise 'capture member release does not match plan' unless member.fetch('release') == planned_member.fetch('release')
+                raise 'planned member target does not match set target' unless planned_member.fetch('kernelVersion') == @set.fetch('kernelVersion')
               end
             end
-            observations
-          end
-          # F9_GENERIC_REVERSE_SET_END
+            # F6_GENERIC_CAPTURE_RELATION_END
 
-          def tip_state(member)
-            identity = member.fetch('identity')
-            dir = shell(patch_dir(identity.fetch('moduleName')))
-            module_name = shell(identity.fetch('moduleName'))
-            {
-              release: machine.succeeds('uname -r')[1].strip,
-              enabled: machine.succeeds("cat #{dir}/enabled")[1].strip.to_i,
-              transition: machine.succeeds("cat #{dir}/transition")[1].strip.to_i,
-              replace: machine.succeeds("cat #{dir}/replace")[1].strip.to_i,
-              livepatchInstances: machine.succeeds(
-                "find /sys/kernel/livepatch -mindepth 1 -maxdepth 1 -type d -name #{module_name} | wc -l",
-              )[1].strip.to_i,
-              moduleInstances: machine.succeeds(
-                "find /sys/module -mindepth 1 -maxdepth 1 -type d -name #{module_name} | wc -l",
-              )[1].strip.to_i,
-            }
-          end
-
-          before(:suite) do
-            machine.start
-            machine.wait_until_online
-            @plan = JSON.parse(machine.succeeds('cat /etc/livepatch-qualification/plan.json')[1])
-            @capture = JSON.parse(machine.succeeds('cat /etc/livepatch-qualification/capture.json')[1])
-            @set = @plan.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }.fetch(0)
-            @captured_set = @capture.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }.fetch(0)
-          end
-
-          describe 'generic catalog-selected livepatch set', order: :defined do
-            it 'executes the selected semantic profile' do
-              validate_capture
-              platform = admit_platform
-              expect(machine.succeeds('uname -r')[1].strip).to eq(@set.fetch('kernelVersion'))
-              @dmesg_start = machine.succeeds('dmesg | wc -l')[1].to_i
-              forward = []
-              reverse = []
-              busy = nil
-              aging = nil
-              failure_recovery = nil
-
-              case ROW.fetch('role')
-                when 'lifecycle'
-                  forward = load_set
-                  reverse = reverse_set
-                when 'busy-transition'
-                  result = run_workload_transition
-                  forward = result.fetch(:forward)
-                  reverse = result.fetch(:reverse)
-                  busy = result.fetch(:busy)
-                when 'aged-transition'
-                  result = run_workload_transition(ROW.fetch('aging'))
-                  forward = result.fetch(:forward)
-                  reverse = result.fetch(:reverse)
-                  busy = result.fetch(:busy)
-                  aging = result.fetch(:aging)
-                when 'failure-recovery'
-                  forward = load_set
-                  tip = @captured_set.fetch('members').last
-                  expected_tip = {
-                    release: tip.fetch('release'),
-                    enabled: 1,
-                    transition: 0,
-                    replace: 0,
-                    livepatchInstances: 1,
-                    moduleInstances: 1,
-                  }
-                  before = tip_state(tip)
-                  expect(before).to eq(expected_tip)
-                  machine.fails("insmod #{shell(tip.fetch('identity').fetch('module'))}", timeout: 60)
-                  after_duplicate = tip_state(tip)
-                  expect(after_duplicate).to eq(before)
-                  machine.fails("rmmod #{shell(tip.fetch('identity').fetch('moduleName'))}", timeout: 60)
-                  after_removal = tip_state(tip)
-                  expect(after_removal).to eq(before)
-                  reverse = reverse_set
-                  failure_recovery = {
-                    duplicateInsertionRefused: true,
-                    enabledRemovalRefused: true,
-                    tipUnchangedAfterDuplicate: true,
-                    tipUnchangedAfterRemoval: true,
-                    predecessorRestored: true,
-                  }
-                else
-                  raise "unsupported generic profile role #{ROW.fetch('role')}"
-              end
+            def validate_capture
+              expect(@set).to eq(EXPECTED_SET)
+              expect(@captured_set).to eq(EXPECTED_CAPTURE)
+              expect(ROW.fetch('oracleIds')).to eq([])
+              expect(ROW.fetch('oracleShard')).to eq('none')
+              expect(ROW.fetch('validator')).to eq('builtin/generic-livepatch-safety-v1')
+              validate_capture_relation
 
               @captured_set.fetch('members').each do |member|
-                module_name = member.fetch('identity').fetch('moduleName')
-                machine.fails("test -d #{shell(patch_dir(module_name))}")
-                machine.fails("test -d /sys/module/#{shell(module_name)}")
+                identity = member.fetch('identity')
+                producer = shell(identity.fetch('producer'))
+                module_path = shell(identity.fetch('module'))
+                evidence = "#{producer}/share/vpsadminos-livepatch"
+                machine.all_succeed(
+                  "test -f #{module_path}",
+                  "test \"$(sha256sum #{module_path} | cut -d' ' -f1)\" = #{identity.fetch('moduleSha256')}",
+                  "test \"$(sha256sum #{evidence}/manifest.json | cut -d' ' -f1)\" = #{identity.fetch('manifestSha256')}",
+                  "test \"$(sha256sum #{evidence}/inspection.json | cut -d' ' -f1)\" = #{identity.fetch('inspectionSha256')}",
+                  "test \"$(sha256sum #{evidence}/closure.json | cut -d' ' -f1)\" = #{identity.fetch('closureSha256')}",
+                  "jq -e '.matches == true and .mismatches == {}' #{evidence}/closure.json",
+                  "jq -e --arg name #{shell(identity.fetch('moduleName'))} '.module.name == $name and .buildInvocation.nonReplaceRequested == true' #{evidence}/inspection.json",
+                )
               end
-              kernel_output = machine.succeeds("dmesg | tail -n +#{@dmesg_start + 1}")[1]
-              fatal_noise_count = kernel_output.scan(KERNEL_FAULT_PATTERN).length
-              expect(fatal_noise_count).to eq(0)
+            end
 
-              marker = {
-                schemaVersion: 1,
-                contract: 'generic-livepatch-safety-v1',
-                rowId: ROW.fetch('rowId'),
-                setId: ROW.fetch('setId'),
-                profileId: ROW.fetch('profileId'),
-                role: ROW.fetch('role'),
-                platform: platform,
-                members: @set.fetch('members').map { |member| member.fetch('release') },
+            def admit_platform
+              expected_vendor = {
+                'amd' => 'AuthenticAMD',
+                'intel' => 'GenuineIntel',
+              }.fetch(ROW.fetch('platform').fetch('id'))
+              architecture = machine.succeeds('uname -m')[1].strip
+              vendors = machine.succeeds(
+                "awk -F: '/^vendor_id/{gsub(/[[:space:]]/, \"\", $2); print $2}' /proc/cpuinfo | LC_ALL=C sort -u",
+              )[1].lines.map(&:strip).reject(&:empty?)
+              hypervisor_flag = machine.succeeds(
+                "awk -F: '/^flags/{found=1; if ($2 !~ /(^|[[:space:]])hypervisor([[:space:]]|$)/) missing=1} END{exit (!found || missing)}' /proc/cpuinfo && printf true",
+              )[1].strip == 'true'
+              lscpu = JSON.parse(machine.succeeds('LC_ALL=C lscpu --json')[1])
+              facts = lscpu.fetch('lscpu').to_h do |entry|
+                [entry.fetch('field').delete_suffix(':'), entry.fetch('data')]
+              end
+              hypervisor_vendor = facts.fetch('Hypervisor vendor')
+
+              expect(architecture).to eq('x86_64')
+              expect(facts.fetch('Architecture')).to eq('x86_64')
+              expect(vendors).to eq([expected_vendor])
+              expect(hypervisor_flag).to be(true)
+              expect(hypervisor_vendor).to eq('KVM')
+              {
+                id: ROW.fetch('platform').fetch('id'),
+                architecture: architecture,
+                cpuVendor: expected_vendor,
+                hypervisorFlag: hypervisor_flag,
+                hypervisorVendor: hypervisor_vendor,
+                admitted: true,
+              }
+            end
+
+            def workload_snapshot
+              value = JSON.parse(machine.succeeds('livepatch-generic-workload snapshot')[1])
+              expect(value.keys.sort).to eq(WORKLOAD_DIMENSIONS.sort)
+              expect(value.values).to all(be_a(Integer).and(be > 0))
+              value
+            end
+
+            def workload_progress(baseline)
+              value = JSON.parse(
+                machine.succeeds(
+                  "livepatch-generic-workload progress #{shell(JSON.generate(baseline))}",
+                )[1],
+              )
+              WORKLOAD_DIMENSIONS.each do |dimension|
+                expect(value.fetch(dimension)).to be > baseline.fetch(dimension)
+              end
+              value
+            end
+
+            # AGE1_GENERIC_AGING_BEGIN
+            def monotonic_seconds
+              Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            end
+
+            def aging_sleep(seconds)
+              sleep(seconds)
+            end
+
+            def age_workload(settings)
+              required_seconds = settings.fetch('dwellSeconds')
+              checkpoint_seconds = settings.fetch('checkpointSeconds')
+              started_at = monotonic_seconds
+              before = workload_snapshot
+              checkpoints = []
+              checkpoint_target = checkpoint_seconds
+
+              while checkpoint_target <= required_seconds
+                remaining = checkpoint_target - (monotonic_seconds - started_at)
+                aging_sleep(remaining) if remaining.positive?
+                after = workload_progress(before)
+                checkpoints << {
+                  elapsedSeconds: (monotonic_seconds - started_at).floor,
+                  before: before,
+                  after: after,
+                }
+                before = after
+                checkpoint_target += checkpoint_seconds
+              end
+
+              if checkpoints.empty? || checkpoints.last.fetch(:elapsedSeconds) < required_seconds
+                remaining = required_seconds - (monotonic_seconds - started_at)
+                aging_sleep(remaining) if remaining.positive?
+                after = workload_progress(before)
+                checkpoints << {
+                  elapsedSeconds: (monotonic_seconds - started_at).floor,
+                  before: before,
+                  after: after,
+                }
+              end
+
+              {
+                evidenceClass: settings.fetch('evidenceClass'),
+                developmentDwellSeconds: settings.fetch('developmentDwellSeconds'),
+                releaseDwellSeconds: settings.fetch('releaseDwellSeconds'),
+                requiredSeconds: required_seconds,
+                observedSeconds: (monotonic_seconds - started_at).floor,
+                checkpointSeconds: checkpoint_seconds,
+                checkpoints: checkpoints,
+              }
+            end
+
+            def run_workload_transition(aging_settings = nil)
+              machine.succeeds('livepatch-generic-workload start', timeout: 30)
+              cleanup_complete = false
+              begin
+                initial = workload_snapshot
+                aging = aging_settings.nil? ? nil : age_workload(aging_settings)
+                forward_progress = []
+                reverse_progress = []
+                forward = load_set(forward_progress)
+                reverse = reverse_set(reverse_progress)
+                final = workload_snapshot
+                busy = {
+                  dimensions: WORKLOAD_DIMENSIONS,
+                  initial: initial,
+                  forwardProgress: forward_progress,
+                  reverseProgress: reverse_progress,
+                  final: final,
+                  cleanupComplete: false,
+                }
+              ensure
+                cleanup = JSON.parse(
+                  machine.succeeds('livepatch-generic-workload cleanup', timeout: 60)[1],
+                )
+                raise 'generic workload cleanup was incomplete' unless cleanup == { 'cleanupComplete' => true }
+
+                cleanup_complete = true
+              end
+              busy[:cleanupComplete] = cleanup_complete
+              {
                 forward: forward,
                 reverse: reverse,
                 busy: busy,
                 aging: aging,
-                failureRecovery: failure_recovery,
-                kernelHealth: {
-                  clean: true,
-                  fatalNoiseCount: fatal_noise_count,
-                },
               }
-              puts "VPSADMINOS_LIVEPATCH_GENERIC_RESULT #{JSON.generate(marker)}"
             end
-          end
-        '';
-      };
-  }
-)
+            # AGE1_GENERIC_AGING_END
+
+            def load_set(progress_log = nil)
+              observations = []
+              @captured_set.fetch('members').each_with_index do |member, index|
+                expected_member = @set.fetch('members').fetch(index)
+                identity = member.fetch('identity')
+                baseline = workload_snapshot unless progress_log.nil?
+                machine.succeeds("insmod #{shell(identity.fetch('module'))}", timeout: 60)
+                wait_enabled(identity.fetch('moduleName'))
+                machine.succeeds("test \"$(uname -r)\" = #{shell(member.fetch('release'))}")
+                observations << {
+                  release: member.fetch('release'),
+                  enabled: 1,
+                  transition: 0,
+                  replace: 0,
+                }
+                unless progress_log.nil?
+                  progress_log << {
+                    release: member.fetch('release'),
+                    before: baseline,
+                    after: workload_progress(baseline),
+                  }
+                end
+                expect(member.fetch('release')).to eq(expected_member.fetch('release'))
+              end
+              observations
+            end
+
+            # F9_GENERIC_REVERSE_SET_BEGIN
+            def reverse_set(progress_log = nil)
+              observations = []
+              members = @captured_set.fetch('members')
+              members.each_index.to_a.reverse_each do |index|
+                member = members.fetch(index)
+                identity = member.fetch('identity')
+                baseline = workload_snapshot unless progress_log.nil?
+                machine.succeeds(
+                  "sh -c 'echo 0 > #{shell(patch_dir(identity.fetch('moduleName')))}/enabled'",
+                  timeout: 60,
+                )
+                wait_completed_disable(identity.fetch('moduleName'))
+                machine.succeeds("rmmod #{shell(identity.fetch('moduleName'))}", timeout: 60)
+                wait_removed(identity.fetch('moduleName'))
+                expected_release =
+                  if index.zero?
+                    @set.fetch('kernelVersion')
+                  else
+                    members.fetch(index - 1).fetch('release')
+                  end
+                machine.succeeds("test \"$(uname -r)\" = #{shell(expected_release)}")
+                observations << {
+                  removedRelease: member.fetch('release'),
+                  release: expected_release,
+                }
+                unless progress_log.nil?
+                  progress_log << {
+                    removedRelease: member.fetch('release'),
+                    release: expected_release,
+                    before: baseline,
+                    after: workload_progress(baseline),
+                  }
+                end
+              end
+              observations
+            end
+            # F9_GENERIC_REVERSE_SET_END
+
+            def tip_state(member)
+              identity = member.fetch('identity')
+              dir = shell(patch_dir(identity.fetch('moduleName')))
+              module_name = shell(identity.fetch('moduleName'))
+              {
+                release: machine.succeeds('uname -r')[1].strip,
+                enabled: machine.succeeds("cat #{dir}/enabled")[1].strip.to_i,
+                transition: machine.succeeds("cat #{dir}/transition")[1].strip.to_i,
+                replace: machine.succeeds("cat #{dir}/replace")[1].strip.to_i,
+                livepatchInstances: machine.succeeds(
+                  "find /sys/kernel/livepatch -mindepth 1 -maxdepth 1 -type d -name #{module_name} | wc -l",
+                )[1].strip.to_i,
+                moduleInstances: machine.succeeds(
+                  "find /sys/module -mindepth 1 -maxdepth 1 -type d -name #{module_name} | wc -l",
+                )[1].strip.to_i,
+              }
+            end
+
+            before(:suite) do
+              machine.start
+              machine.wait_until_online
+              @plan = JSON.parse(machine.succeeds('cat /etc/livepatch-qualification/plan.json')[1])
+              @capture = JSON.parse(machine.succeeds('cat /etc/livepatch-qualification/capture.json')[1])
+              @set = @plan.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }.fetch(0)
+              @captured_set = @capture.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }.fetch(0)
+            end
+
+            describe 'generic catalog-selected livepatch set', order: :defined do
+              it 'executes the selected semantic profile' do
+                validate_capture
+                platform = admit_platform
+                expect(machine.succeeds('uname -r')[1].strip).to eq(@set.fetch('kernelVersion'))
+                @dmesg_start = machine.succeeds('dmesg | wc -l')[1].to_i
+                forward = []
+                reverse = []
+                busy = nil
+                aging = nil
+                failure_recovery = nil
+
+                case ROW.fetch('role')
+                  when 'lifecycle'
+                    forward = load_set
+                    reverse = reverse_set
+                  when 'busy-transition'
+                    result = run_workload_transition
+                    forward = result.fetch(:forward)
+                    reverse = result.fetch(:reverse)
+                    busy = result.fetch(:busy)
+                  when 'aged-transition'
+                    result = run_workload_transition(ROW.fetch('aging'))
+                    forward = result.fetch(:forward)
+                    reverse = result.fetch(:reverse)
+                    busy = result.fetch(:busy)
+                    aging = result.fetch(:aging)
+                  when 'failure-recovery'
+                    forward = load_set
+                    tip = @captured_set.fetch('members').last
+                    expected_tip = {
+                      release: tip.fetch('release'),
+                      enabled: 1,
+                      transition: 0,
+                      replace: 0,
+                      livepatchInstances: 1,
+                      moduleInstances: 1,
+                    }
+                    before = tip_state(tip)
+                    expect(before).to eq(expected_tip)
+                    machine.fails("insmod #{shell(tip.fetch('identity').fetch('module'))}", timeout: 60)
+                    after_duplicate = tip_state(tip)
+                    expect(after_duplicate).to eq(before)
+                    machine.fails("rmmod #{shell(tip.fetch('identity').fetch('moduleName'))}", timeout: 60)
+                    after_removal = tip_state(tip)
+                    expect(after_removal).to eq(before)
+                    reverse = reverse_set
+                    failure_recovery = {
+                      duplicateInsertionRefused: true,
+                      enabledRemovalRefused: true,
+                      tipUnchangedAfterDuplicate: true,
+                      tipUnchangedAfterRemoval: true,
+                      predecessorRestored: true,
+                    }
+                  else
+                    raise "unsupported generic profile role #{ROW.fetch('role')}"
+                end
+
+                @captured_set.fetch('members').each do |member|
+                  module_name = member.fetch('identity').fetch('moduleName')
+                  machine.fails("test -d #{shell(patch_dir(module_name))}")
+                  machine.fails("test -d /sys/module/#{shell(module_name)}")
+                end
+                kernel_output = machine.succeeds("dmesg | tail -n +#{@dmesg_start + 1}")[1]
+                fatal_noise_count = kernel_output.scan(KERNEL_FAULT_PATTERN).length
+                expect(fatal_noise_count).to eq(0)
+
+                marker = {
+                  schemaVersion: 1,
+                  contract: 'generic-livepatch-safety-v1',
+                  rowId: ROW.fetch('rowId'),
+                  setId: ROW.fetch('setId'),
+                  profileId: ROW.fetch('profileId'),
+                  role: ROW.fetch('role'),
+                  platform: platform,
+                  members: @set.fetch('members').map { |member| member.fetch('release') },
+                  forward: forward,
+                  reverse: reverse,
+                  busy: busy,
+                  aging: aging,
+                  failureRecovery: failure_recovery,
+                  kernelHealth: {
+                    clean: true,
+                    fatalNoiseCount: fatal_noise_count,
+                  },
+                }
+                puts "VPSADMINOS_LIVEPATCH_GENERIC_RESULT #{JSON.generate(marker)}"
+              end
+            end
+          '';
+        };
+    }
+  ) args

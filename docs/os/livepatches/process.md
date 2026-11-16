@@ -330,12 +330,12 @@ include order or transactional cancellation. Acceptance is therefore based on
 a complete, count-closed set of successful receipts, not on row start order or
 on a claim that no sibling could start while cancellation propagated.
 
-Before publishing `.2`, deploy and verify list-capable readers before the
-plural metadata/runtime writer. Qualify `.1` plus `.2` in both forward and
-reverse directions, including out-of-order refusal, predecessor protection,
-restart/idempotence and all active fix profiles. The current scalar manager supports
-only native to `.1`; registration of a real `.2` remains an error until the
-plural manager and reader-first compatibility work are complete.
+Before deploying plural monitor metadata to nodes, deploy and verify readers
+that accept the schema-2 module list and the legacy scalar format. Test the
+complete release set in both directions, including out-of-order refusal,
+predecessor protection, restart behavior, idempotence and every active fix
+profile. Qualification
+of native to `.1` does not qualify `.2` or any deeper stack.
 
 ## Publish and operate
 
@@ -343,16 +343,77 @@ The target page is the operator authority for eligibility, supported mixed
 versions, commands, expected release levels, maximum stack depth and current
 qualification status. Do not infer rollout permission from a successful build.
 
-The generic manager provides the manual `live-patches status`,
-`live-patches list`, `live-patches load` and `live-patches unload` commands.
-Use `status` and `list` before changing state. The target page supplies the
-release-specific order, expected output and recovery boundary for `load` and
-`unload`.
+### Manual commands
+
+Each numbered batch is one module. The manager selects batches from the current
+system configuration for its exact configured kernel. `N` is a positive decimal
+batch ordinal such as `1`, `2` or `3`; do not pass a kernel version, full release
+ID or module name. Leading zeroes and extra arguments are rejected. Inspect
+`status` before changing state and follow the target page's workload and
+recovery requirements.
+
+| Command | Behavior |
+| --- | --- |
+| `live-patches load` | Load the configured batches in ascending order, skipping the already applied and verified prefix. |
+| `live-patches load N` | Load batch N only when every predecessor is applied; revalidate an already applied N without inserting it again. |
+| `live-patches unload` | Remove all loaded configured batches, newest first. |
+| `live-patches unload N` | Remove N only when it is the active tip or a recognized partial tip awaiting removal. An already completed removal succeeds only if the remaining stack is exactly the prefix through N-1. |
+| `live-patches status` | Report configured and observed livepatch modules and their states. |
+| `live-patches list` | Show the same inventory as `status`. |
+
+Each mutation holds one global lock. Loading waits for the kernel transition to
+complete and verifies the exact module, `enabled=1`, `transition=0`, `replace=0`
+and the expected published release before advancing to the next batch. Unloading
+waits for reverse convergence and the predecessor release, then removes the
+module before proceeding to its predecessor. A successful insertion or disable
+request alone is not a completed operation.
+
+A failed step stops the command. Earlier successful steps remain in effect,
+and partial or disabled-but-present state remains visible. The manager does
+not undo earlier steps, force a transition or force module removal. Inspect
+`status` and follow the target page's recovery procedure before continuing.
+Unknown modules, gaps, wrong identities and unsupported partial states prevent
+mutation.
+
+### Status and configuration rollback
+
+Status combines all configured batches, registered kernel livepatch entries,
+and existing manager-owned module records whose exact names are still present
+in `/sys/module`. It shows batches that are configured but not loaded, active
+or transitioning modules, and modules that are present but no longer configured.
+A module loaded by the manager remains visible after reverse convergence until
+removal, even if its `/sys/kernel/livepatch` entry has disappeared. Status does
+not take the mutation lock, so it can report a transition while a load or unload
+command waits.
+
+Each row contains `ordinal`, `release`, `module`, `configured`, `present`,
+`enabled`, `transition`, `replace` and `state`. Configured batches retain their
+release and ordinal. Runtime modules outside the configuration report those
+fields as `unavailable`; an exact module name does not establish their release.
+States distinguish `configured-not-loaded`, `active`, `transitioning`,
+`partial/inconsistent`, `disabled-present`, `cleanup-pending`,
+`loaded-not-configured` and `metadata-unavailable`. Missing metadata and
+inconsistent state remain visible. The manager does not infer a release or
+ownership from a module-name prefix, and it does not classify arbitrary
+`/sys/module` entries as livepatches. A collection error produces an explicit error and a nonzero exit;
+a reported inconsistency is not itself permission to mutate the module.
+
+Rolling back the system configuration does not unload modules already in the
+kernel. A configuration that knows only batch 1 can therefore encounter a loaded
+batch 2. The plural manager reports it as loaded but not configured and refuses
+mutation. Restore a generation that configures the complete loaded stack before
+managed removal, or follow the target page's approved reboot procedure. This
+also applies when the unknown batch has completed reverse convergence but its
+module remains present.
+
+Previously built scalar-manager generations retain their original behavior and
+cannot manage a plural stack. Remove newer batches with the plural manager
+before switching to such a generation, or reboot into an approved native state.
 
 ### Automatic loading
 
 When `services.live-patches.enable` is true, two independent options control
-automatic loading of the configured livepatch:
+automatic loading of the configured livepatch set:
 
 ```nix
 services.live-patches.loadOnBoot = true;
@@ -377,12 +438,13 @@ generation. The `boot` action only updates the bootloader; `dry-activate` does
 not load patches. Creating or restarting the `live-patches` service does not
 load or unload a patch.
 
-Each enabled hook calls its generation's manager once. A failed attempt is
-logged, does not abort boot or switch, and is not retried automatically. The
-manager retains its target, integrity, state and convergence checks; an already
-active exact module is reverified. Check `live-patches status` and monitoring
-after activation. Successful system activation or a running service does not
-establish that the patch is applied.
+Each enabled hook calls its generation's bare `live-patches load` once. The
+manager verifies the active prefix and loads the remaining configured batches
+in order. A failed attempt is logged, does not abort boot or switch, and is not
+retried automatically. Every batch retains its target, integrity, state and
+convergence checks. Check `live-patches status` and monitoring after activation.
+Successful system activation or a running service does not establish that the
+patch is applied.
 
 With the defaults, deploying to a running node does not load the patch; booting
 that generation does. Before booting a generation containing a release, obtain

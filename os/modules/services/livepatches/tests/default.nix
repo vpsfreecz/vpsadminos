@@ -209,6 +209,45 @@ let
     release = unrelatedRelease;
     kernelVersion = unrelatedKernelVersion;
   };
+  successorDescriptor = descriptor // {
+    release = successorRelease;
+    payloadRevision = 2;
+    lineage = descriptor.lineage // {
+      predecessorBatch = {
+        release = descriptor.release;
+        payloadRevision = descriptor.payloadRevision;
+      };
+      functions = [
+        {
+          inherit (payloadFunction) object symbol sympos;
+          predecessorOwner = {
+            release = descriptor.release;
+            payloadRevision = descriptor.payloadRevision;
+          };
+        }
+      ];
+    };
+  };
+  thirdDescriptor = successorDescriptor // {
+    release = gapRelease;
+    payloadRevision = 3;
+    lineage = successorDescriptor.lineage // {
+      predecessorBatch = {
+        release = successorDescriptor.release;
+        payloadRevision = successorDescriptor.payloadRevision;
+      };
+      functions = [
+        {
+          inherit (payloadFunction) object symbol sympos;
+          predecessorOwner = {
+            release = successorDescriptor.release;
+            payloadRevision = successorDescriptor.payloadRevision;
+          };
+        }
+      ];
+    };
+  };
+  gapDescriptor = thirdDescriptor;
   mkCatalogUnit = batchDescriptor: {
     batch = batchDescriptor;
     qualification = {
@@ -230,6 +269,13 @@ let
     };
   };
   catalogUnit = mkCatalogUnit descriptor;
+  successorCatalogUnit = mkCatalogUnit successorDescriptor;
+  thirdCatalogUnit = mkCatalogUnit thirdDescriptor;
+  fullCatalog = [
+    catalogUnit
+    successorCatalogUnit
+    thirdCatalogUnit
+  ];
   stableCatalogUnit = mkCatalogUnit stableDescriptor;
   unrelatedCatalogUnit = mkCatalogUnit unrelatedDescriptor;
   configuredTarget = livepatchLib.mkConfiguredTarget {
@@ -244,12 +290,18 @@ let
     toolchain = stableKernel.stdenv.cc;
     zfsBuiltinPkg = null;
   };
-  normalizedCatalog = livepatchLib.normalizeCatalog {
+  rootNormalizedCatalog = livepatchLib.normalizeCatalog {
     inherit builder;
     catalog = [ catalogUnit ];
     target = configuredTarget.kernelTarget;
   };
-  batch = (builtins.head normalizedCatalog).batch;
+  normalizedCatalog = livepatchLib.normalizeCatalog {
+    inherit builder;
+    catalog = fullCatalog;
+    target = configuredTarget.kernelTarget;
+  };
+  batches = map (unit: unit.batch) normalizedCatalog;
+  batch = builtins.head batches;
   stableNormalizedCatalog = livepatchLib.normalizeCatalog {
     inherit builder;
     catalog = [ stableCatalogUnit ];
@@ -257,28 +309,61 @@ let
   };
   stableBatch = (builtins.head stableNormalizedCatalog).batch;
   stableRelease = stableBatch.release;
-  expectedBatch = batch;
+  expectedBatch = (builtins.head rootNormalizedCatalog).batch;
+  assertRootIdentity =
+    assert batch == expectedBatch;
+    true;
   inherit (batch) installPath moduleName;
   function = builtins.head batch.build.expected.functions;
-  manifestFile = pkgs.writeText "${moduleName}-manifest.json" (builtins.toJSON batch.manifest);
-  modulePackage =
-    (pkgs.runCommand "${moduleName}-synthetic-module" { nativeBuildInputs = [ pkgs.jq ]; } ''
-      module="$out/${installPath}"
-      evidence="$out/share/vpsadminos-livepatch"
-      mkdir -p "$(dirname "$module")" "$evidence"
-      printf 'synthetic livepatch module bytes\n' > "$module"
-      sha=$(sha256sum "$module" | cut -d ' ' -f 1)
-      cp ${manifestFile} "$evidence/manifest.json"
-      jq -n --arg name ${lib.escapeShellArg moduleName} --arg sha "$sha" \
-        '{
-          buildInvocation: {
-            flags: ["--non-replace"],
-            nonReplaceRequested: true
-          },
-          module: { name: $name, sha256: $sha }
-        }' > "$evidence/inspection.json"
-      jq -n '{ schemaVersion: 1, matches: true, mismatches: {} }' \
-        > "$evidence/closure.json"
+  mkModulePackage =
+    selectedBatch:
+    let
+      selectedManifest = pkgs.writeText "${selectedBatch.moduleName}-manifest.json" (
+        builtins.toJSON selectedBatch.manifest
+      );
+    in
+    (pkgs.runCommand "${selectedBatch.moduleName}-synthetic-module" { nativeBuildInputs = [ pkgs.jq ]; }
+      ''
+        module="$out/${selectedBatch.installPath}"
+        evidence="$out/share/vpsadminos-livepatch"
+        mkdir -p "$(dirname "$module")" "$evidence"
+        printf 'synthetic livepatch module %s bytes\n' ${lib.escapeShellArg selectedBatch.release} > "$module"
+        sha=$(sha256sum "$module" | cut -d ' ' -f 1)
+        cp ${selectedManifest} "$evidence/manifest.json"
+        jq -n --arg name ${lib.escapeShellArg selectedBatch.moduleName} --arg sha "$sha" \
+          '{
+            buildInvocation: {
+              flags: ["--non-replace"],
+              nonReplaceRequested: true
+            },
+            module: { name: $name, sha256: $sha }
+          }' > "$evidence/inspection.json"
+        jq -n '{ schemaVersion: 1, matches: true, mismatches: {} }' \
+          > "$evidence/closure.json"
+      ''
+    ).overrideAttrs
+      {
+        passthru = {
+          batch = selectedBatch;
+          kernelTarget = selectedBatch.kernelTarget;
+          manifest = selectedBatch.manifest;
+          targetIdentity = configuredTarget.targetBuild.identity;
+        };
+      };
+  modulePackages = map mkModulePackage batches;
+  modulePackagesByRelease = builtins.listToAttrs (
+    lib.imap0 (index: selectedBatch: {
+      name = selectedBatch.release;
+      value = builtins.elemAt modulePackages index;
+    }) batches
+  );
+  modulePackage = modulePackagesByRelease.${rootRelease};
+  mutateModulePackage =
+    name: mutation:
+    (pkgs.runCommand name { nativeBuildInputs = [ pkgs.jq ]; } ''
+      cp -R ${modulePackage}/. "$out"
+      chmod -R u+w "$out"
+      ${mutation}
     '').overrideAttrs
       {
         passthru = {
@@ -290,21 +375,11 @@ let
       };
   alterModulePackage =
     name: jqFilter:
-    (pkgs.runCommand name { nativeBuildInputs = [ pkgs.jq ]; } ''
-      cp -R ${modulePackage}/. "$out"
-      chmod -R u+w "$out"
+    mutateModulePackage name ''
       inspection="$out/share/vpsadminos-livepatch/inspection.json"
       jq ${lib.escapeShellArg jqFilter} "$inspection" > "$inspection.tmp"
       mv "$inspection.tmp" "$inspection"
-    '').overrideAttrs
-      {
-        passthru = {
-          inherit batch;
-          kernelTarget = batch.kernelTarget;
-          manifest = batch.manifest;
-          targetIdentity = configuredTarget.targetBuild.identity;
-        };
-      };
+    '';
   replaceRequestedPackage = alterModulePackage "${moduleName}-replace-requested" ''
     .buildInvocation = {
       flags: [],
@@ -314,19 +389,60 @@ let
   wrongIdentityPackage = alterModulePackage "${moduleName}-wrong-identity" ''
     .module.name = "wrong_module"
   '';
+  missingArtifactPackage = mutateModulePackage "${moduleName}-missing-artifact" ''
+    rm "$out/${batch.installPath}"
+  '';
+  wrongManifestPackage = mutateModulePackage "${moduleName}-wrong-manifest" ''
+    printf '{}\n' > "$out/share/vpsadminos-livepatch/manifest.json"
+  '';
+  wrongHashPackage = alterModulePackage "${moduleName}-wrong-hash" ''
+    .module.sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+  '';
+  malformedInspectionPackage = mutateModulePackage "${moduleName}-malformed-inspection" ''
+    printf '{\n' > "$out/share/vpsadminos-livepatch/inspection.json"
+  '';
+  malformedClosurePackage = mutateModulePackage "${moduleName}-malformed-closure" ''
+    printf '{\n' > "$out/share/vpsadminos-livepatch/closure.json"
+  '';
+  unreadableInspectionPackage = mutateModulePackage "${moduleName}-unreadable-inspection" ''
+    rm "$out/share/vpsadminos-livepatch/inspection.json"
+    ln -s /proc/self/mem "$out/share/vpsadminos-livepatch/inspection.json"
+  '';
+  unreadableClosurePackage = mutateModulePackage "${moduleName}-unreadable-closure" ''
+    rm "$out/share/vpsadminos-livepatch/closure.json"
+    ln -s /proc/self/mem "$out/share/vpsadminos-livepatch/closure.json"
+  '';
+  unreadableHashPackage = mutateModulePackage "${moduleName}-unreadable-hash" ''
+    rm "$out/${batch.installPath}"
+    ln -s /proc/self/mem "$out/${batch.installPath}"
+  '';
   kernelImage = pkgs.writeText "synthetic-kernel-image" "synthetic kernel image\n";
   kernelNotes = pkgs.writeText "synthetic-kernel-notes" "synthetic kernel notes\n";
+  selectSyntheticBatch = lib.concatMapStringsSep "\n" (selectedBatch: ''
+    ${lib.escapeShellArg selectedBatch.moduleName})
+      ordinal=${toString selectedBatch.unameLevel.releaseOrdinal}
+      published_release=${lib.escapeShellArg selectedBatch.unameLevel.publishedRelease}
+      rollback_release=${lib.escapeShellArg selectedBatch.unameLevel.rollbackRelease}
+      ;;
+  '') batches;
   fakeInsmod = pkgs.writeShellScript "livepatch-synthetic-insmod" ''
     root=${lib.escapeShellArg testRoot}
-    patch="$root/sys/kernel/livepatch/${moduleName}"
+    module_file="$1"
+    module_base="''${module_file##*/}"
+    module_name="''${module_base%.ko}"
+    case "$module_name" in
+      ${selectSyntheticBatch}
+      *) echo "unexpected module $module_name" >&2; exit 2 ;;
+    esac
+    patch="$root/sys/kernel/livepatch/$module_name"
     control="$root/control"
-    sys_module="$root/sys/module/${moduleName}"
+    sys_module="$root/sys/module/$module_name"
     scenario=$(cat "$control/scenario")
-    count=0
-    if [ -f "$control/insmod-count" ]; then
-      count=$(cat "$control/insmod-count")
+    order=
+    if [ -f "$control/insmod-order" ]; then
+      order=$(cat "$control/insmod-order")
     fi
-    printf '%s\n' "$((count + 1))" > "$control/insmod-count"
+    printf '%s%s\n' "$order" "$ordinal" > "$control/insmod-order"
     mkdir -p "$sys_module"
 
     write_state() {
@@ -337,74 +453,120 @@ let
       printf '%s\n' "$4" > "$patch/vmlinux/patched"
     }
 
-    case "$scenario" in
-      stable)
+    case "$scenario:$ordinal" in
+      insmod-failure-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
+        if [ "$failure_ordinal" = "$ordinal" ]; then
+          write_state 1 1 0 1
+          exit 1
+        fi
         write_state 1 0 0 1
-        printf '${rootRelease}\n' > "$control/uname"
+        printf '%s\n' "$published_release" > "$control/uname"
         ;;
-      delayed)
-        write_state 1 1 0 1
-        (
-          sleep 0.10
-          printf '${rootRelease}\n' > "$control/uname"
-          printf '0\n' > "$patch/transition"
-        ) &
+      timeout-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
+        if [ "$failure_ordinal" = "$ordinal" ]; then
+          write_state 1 1 0 1
+        else
+          write_state 1 0 0 1
+          printf '%s\n' "$published_release" > "$control/uname"
+        fi
         ;;
-      timeout)
-        write_state 1 1 0 1
+      replace-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
+        if [ "$failure_ordinal" = "$ordinal" ]; then
+          write_state 1 0 1 1
+        else
+          write_state 1 0 0 1
+          printf '%s\n' "$published_release" > "$control/uname"
+        fi
         ;;
-      replace)
-        write_state 1 0 1 1
-        ;;
-      malformed)
-        write_state invalid 0 0 1
-        ;;
-      missing)
-        mkdir -p "$patch"
-        ;;
-      missing-coverage)
-        write_state 1 0 0 0
-        rm -rf "$patch/vmlinux/synthetic_target,1"
-        ;;
-      partial-failure)
-        write_state 1 1 0 1
-        exit 1
-        ;;
-      serialized)
-        sleep 0.10
+      malformed-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
         write_state 1 0 0 1
-        printf '${rootRelease}\n' > "$control/uname"
+        if [ "$failure_ordinal" = "$ordinal" ]; then
+          printf 'malformed\n' > "$patch/enabled"
+        else
+          printf '%s\n' "$published_release" > "$control/uname"
+        fi
         ;;
-      wrong-uname)
+      missing-state-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
         write_state 1 0 0 1
+        if [ "$failure_ordinal" = "$ordinal" ]; then
+          rm "$patch/enabled"
+        else
+          printf '%s\n' "$published_release" > "$control/uname"
+        fi
         ;;
-      boot-change)
-        write_state 1 1 0 1
-        (
-          sleep 0.10
+      missing-coverage-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
+        write_state 1 0 0 1
+        printf '%s\n' "$published_release" > "$control/uname"
+        if [ "$failure_ordinal" = "$ordinal" ]; then
+          printf '0\n' > "$patch/vmlinux/patched"
+          rm -rf "$patch/vmlinux/synthetic_target,1"
+        fi
+        ;;
+      wrong-uname-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
+        write_state 1 0 0 1
+        if [ "$failure_ordinal" != "$ordinal" ]; then
+          printf '%s\n' "$published_release" > "$control/uname"
+        fi
+        ;;
+      boot-change-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
+        write_state 1 0 0 1
+        printf '%s\n' "$published_release" > "$control/uname"
+        if [ "$failure_ordinal" = "$ordinal" ]; then
           printf 'changed notes\n' > "$root/sys/kernel/notes"
-          printf '${rootRelease}\n' > "$control/uname"
-          printf '0\n' > "$patch/transition"
-        ) &
+        fi
+        ;;
+      delayed-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
+        if [ "$failure_ordinal" = "$ordinal" ]; then
+          write_state 1 1 0 1
+          (
+            sleep 0.10
+            printf '%s\n' "$published_release" > "$control/uname"
+            printf '0\n' > "$patch/transition"
+          ) &
+        else
+          write_state 1 0 0 1
+          printf '%s\n' "$published_release" > "$control/uname"
+        fi
+        ;;
+      stable:*|serialized:*|marker-publication-failure-*:$ordinal)
+        write_state 1 0 0 1
+        printf '%s\n' "$published_release" > "$control/uname"
         ;;
       *)
-        echo "unknown synthetic scenario $scenario" >&2
+        echo "unknown synthetic scenario $scenario for ordinal $ordinal" >&2
         exit 2
         ;;
     esac
   '';
   fakeDate = pkgs.writeShellScript "livepatch-synthetic-date" ''
     root=${lib.escapeShellArg testRoot}
-    transition=$(cat "$root/sys/kernel/livepatch/${moduleName}/transition")
-    if [ "$transition" != 0 ]; then
-      echo "applied-at requested while transition=$transition" >&2
+    for transition_file in "$root"/sys/kernel/livepatch/*/transition; do
+      [ -e "$transition_file" ] || continue
+      transition=$(cat "$transition_file")
+      if [ "$transition" != 0 ]; then
+        echo "applied-at requested while transition=$transition" >&2
+        exit 1
+      fi
+    done
+    count=0
+    if [ -f "$root/control/date-count" ]; then
+      count=$(cat "$root/control/date-count")
+    fi
+    scenario=$(cat "$root/control/scenario")
+    if [ "$scenario" = "marker-publication-failure-$((count + 1))" ]; then
+      echo "synthetic applied-marker publication failure" >&2
       exit 1
     fi
-    if [ "$(cat "$root/control/uname")" != ${lib.escapeShellArg rootRelease} ]; then
-      echo "applied-at requested before published uname" >&2
-      exit 1
-    fi
-    printf 'called\n' > "$root/control/date-called"
+    printf '%s\n' "$((count + 1))" > "$root/control/date-count"
     printf '2026-11-12T12:00:00Z\n'
   '';
   fakeUname = pkgs.writeShellScript "livepatch-synthetic-uname" ''
@@ -413,38 +575,46 @@ let
   '';
   fakeDisable = pkgs.writeShellScript "livepatch-synthetic-disable" ''
     root=${lib.escapeShellArg testRoot}
-    patch="$root/sys/kernel/livepatch/${moduleName}"
+    patch="''${1%/enabled}"
+    module_name="''${patch##*/}"
+    case "$module_name" in
+      ${selectSyntheticBatch}
+      *) echo "unexpected module $module_name" >&2; exit 2 ;;
+    esac
     control="$root/control"
     scenario=$(cat "$control/scenario")
-    count=0
-    if [ -f "$control/disable-count" ]; then
-      count=$(cat "$control/disable-count")
+    order=
+    if [ -f "$control/disable-order" ]; then
+      order=$(cat "$control/disable-order")
     fi
-    printf '%s\n' "$((count + 1))" > "$control/disable-count"
+    printf '%s%s\n' "$order" "$ordinal" > "$control/disable-order"
 
-    case "$scenario" in
-      reverse-stable|rmmod-failure)
+    case "$scenario:$ordinal" in
+      reverse-timeout-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
         printf '0\n' > "$1"
         printf '1\n' > "$patch/transition"
-        (
-          sleep 0.10
-          printf '${fixtureKernelVersion}\n' > "$control/uname"
+        if [ "$failure_ordinal" != "$ordinal" ]; then
+          printf '%s\n' "$rollback_release" > "$control/uname"
           printf '0\n' > "$patch/transition"
-          sleep 0.05
           rm -rf "$patch"
-        ) &
+        fi
         ;;
-      reverse-timeout)
+      disable-failure-*:$ordinal)
+        failure_ordinal="''${scenario##*-}"
+        if [ "$failure_ordinal" = "$ordinal" ]; then
+          exit 1
+        fi
         printf '0\n' > "$1"
-        printf '1\n' > "$patch/transition"
-        ;;
-      reverse-wrong-uname)
-        printf '0\n' > "$1"
-        printf '0\n' > "$patch/transition"
+        printf '%s\n' "$rollback_release" > "$control/uname"
         rm -rf "$patch"
         ;;
-      disable-failure)
-        exit 1
+      reverse-stable:*|rmmod-failure-*:$ordinal)
+        printf '0\n' > "$1"
+        printf '1\n' > "$patch/transition"
+        printf '%s\n' "$rollback_release" > "$control/uname"
+        printf '0\n' > "$patch/transition"
+        rm -rf "$patch"
         ;;
       *)
         echo "unexpected disable scenario $scenario" >&2
@@ -455,20 +625,25 @@ let
   fakeRmmod = pkgs.writeShellScript "livepatch-synthetic-rmmod" ''
     root=${lib.escapeShellArg testRoot}
     control="$root/control"
-    test "$1" = ${lib.escapeShellArg moduleName}
-    count=0
-    if [ -f "$control/rmmod-count" ]; then
-      count=$(cat "$control/rmmod-count")
+    module_name="$1"
+    case "$module_name" in
+      ${selectSyntheticBatch}
+      *) echo "unexpected module $module_name" >&2; exit 2 ;;
+    esac
+    order=
+    if [ -f "$control/rmmod-order" ]; then
+      order=$(cat "$control/rmmod-order")
     fi
-    printf '%s\n' "$((count + 1))" > "$control/rmmod-count"
-    if [ "$(cat "$control/scenario")" = rmmod-failure ]; then
+    printf '%s%s\n' "$order" "$ordinal" > "$control/rmmod-order"
+    scenario=$(cat "$control/scenario")
+    if [ "$scenario" = "rmmod-failure-$ordinal" ]; then
       exit 1
     fi
-    rm -rf "$root/sys/module/${moduleName}"
+    rm -rf "$root/sys/module/$module_name"
   '';
 
   syntheticLivepatchTest = {
-    catalog = [ catalogUnit ];
+    catalog = fullCatalog;
     inherit builder;
     kpatchBuild = builder.kpatchBuild;
     livepatchModule =
@@ -477,10 +652,9 @@ let
         kpatchBuild,
         targetBuild,
       }:
-      assert batch == expectedBatch;
       assert toString kpatchBuild == builder.kpatchBuild;
       assert targetBuild == configuredTarget.targetBuild;
-      modulePackage;
+      modulePackagesByRelease.${batch.release};
     inherit kernelImage kernelNotes;
     runtime = {
       appliedDir = "${testRoot}/run/vpsadminos/livepatches";
@@ -506,6 +680,9 @@ let
   };
   alteredUnrelatedCatalogTest = syntheticLivepatchTest // {
     catalog = [ unrelatedCatalogUnit ];
+  };
+  rootOnlyTest = syntheticLivepatchTest // {
+    catalog = [ catalogUnit ];
   };
   activationRecorder = pkgs.writeShellScript "livepatch-activation-recorder" ''
     root="''${LIVEPATCH_ACTIVATION_TEST_ROOT:?}"
@@ -533,10 +710,9 @@ let
           kpatchBuild,
           targetBuild,
         }:
-        assert batch == expectedBatch;
         assert toString kpatchBuild == builder.kpatchBuild;
         assert targetBuild == configuredTarget.targetBuild;
-        package;
+        if batch.release == rootRelease then package else modulePackagesByRelease.${batch.release};
     };
   stableProductionCallerTest = syntheticLivepatchTest // {
     catalog = [ stableCatalogUnit ];
@@ -556,33 +732,6 @@ let
         manifest = batch.manifest;
         targetIdentity = targetBuild.identity;
       };
-  };
-  successorDescriptor = descriptor // {
-    release = successorRelease;
-    lineage = descriptor.lineage // {
-      predecessorBatch = {
-        release = descriptor.release;
-        payloadRevision = descriptor.payloadRevision;
-      };
-      functions = [
-        {
-          inherit (payloadFunction) object symbol sympos;
-          predecessorOwner = {
-            release = descriptor.release;
-            payloadRevision = descriptor.payloadRevision;
-          };
-        }
-      ];
-    };
-  };
-  gapDescriptor = successorDescriptor // {
-    release = gapRelease;
-    lineage = successorDescriptor.lineage // {
-      predecessorBatch = {
-        release = successorRelease;
-        payloadRevision = 1;
-      };
-    };
   };
   ordinalTwoTest = syntheticLivepatchTest // {
     catalog = [ (mkCatalogUnit successorDescriptor) ];
@@ -681,6 +830,11 @@ let
     kernelPackage = configuredKernel;
     livepatchTest = syntheticLivepatchTest;
   };
+  rootOnlyConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = rootOnlyTest;
+  };
   mkPolicyConfig =
     loadOnBoot: loadOnSwitch:
     evalService {
@@ -699,17 +853,23 @@ let
     policy10
     policy11
   ];
-  policyIdentity = policy: {
-    batch = policy.system.build.livePatchModules.${rootRelease}.batch;
-    drvPath = policy.system.build.livePatchModules.${rootRelease}.drvPath;
-    inputDigest = policy.system.build.livePatchModules.${rootRelease}.batch.inputDigest;
-    installPath = policy.system.build.livePatchModules.${rootRelease}.batch.installPath;
-    kernelTarget = policy.system.build.livePatchModules.${rootRelease}.kernelTarget;
-    manifest = policy.system.build.livePatchModules.${rootRelease}.manifest;
-    moduleName = policy.system.build.livePatchModules.${rootRelease}.batch.moduleName;
-    producerDigest = policy.system.build.livePatchModules.${rootRelease}.batch.producerDigest;
-    targetIdentity = policy.system.build.livePatchModules.${rootRelease}.targetIdentity;
-  };
+  policyIdentity =
+    policy:
+    lib.mapAttrs (_release: module: {
+      inherit (module)
+        drvPath
+        kernelTarget
+        manifest
+        targetIdentity
+        ;
+      inherit (module.batch)
+        inputDigest
+        installPath
+        moduleName
+        producerDigest
+        ;
+      batch = module.batch;
+    }) policy.system.build.livePatchModules;
   policyIdentity0 = policyIdentity policy00;
   oldRuntimeResult = builtins.tryEval (
     builtins.deepSeq (livepatchLib.normalizeCatalog {
@@ -745,6 +905,46 @@ let
     kernelPackage = configuredKernel;
     livepatchTest = mkModuleTest wrongIdentityPackage;
   };
+  missingArtifactConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = mkModuleTest missingArtifactPackage;
+  };
+  wrongManifestConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = mkModuleTest wrongManifestPackage;
+  };
+  wrongHashConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = mkModuleTest wrongHashPackage;
+  };
+  malformedInspectionConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = mkModuleTest malformedInspectionPackage;
+  };
+  malformedClosureConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = mkModuleTest malformedClosurePackage;
+  };
+  unreadableInspectionConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = mkModuleTest unreadableInspectionPackage;
+  };
+  unreadableClosureConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = mkModuleTest unreadableClosurePackage;
+  };
+  unreadableHashConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = mkModuleTest unreadableHashPackage;
+  };
   mismatchedTargetResult = builtins.tryEval (
     (evalService {
       kernelVersion = fixtureKernelVersion;
@@ -771,12 +971,17 @@ let
       livepatchTest = gapTest;
     }).system.build.livePatchManager.drvPath
   );
-  multiReleaseResult = builtins.tryEval (
-    (evalService {
-      kernelVersion = fixtureKernelVersion;
-      kernelPackage = configuredKernel;
-      livepatchTest = multiReleaseTest;
-    }).system.build.livePatchManager.drvPath
+  multiReleaseConfig = evalService {
+    kernelVersion = fixtureKernelVersion;
+    kernelPackage = configuredKernel;
+    livepatchTest = multiReleaseTest;
+  };
+  genericMonitor = builtins.fromJSON (
+    builtins.unsafeDiscardStringContext
+      genericConfig.environment.etc."vpsadminos/livepatch-monitor.json".text
+  );
+  moduleNamesFile = pkgs.writeText "livepatch-synthetic-module-names.json" (
+    builtins.toJSON (map (selectedBatch: selectedBatch.moduleName) batches)
   );
 in
 
@@ -857,7 +1062,11 @@ assert genericConfig.system.build.livePatchModules.${rootRelease} == modulePacka
 assert !mismatchedTargetResult.success;
 assert !ordinalTwoResult.success;
 assert !gapResult.success;
-assert !multiReleaseResult.success;
+assert
+  builtins.attrNames multiReleaseConfig.system.build.livePatchModules == [
+    rootRelease
+    successorRelease
+  ];
 assert stableDescriptor.kernelVersion == stableKernelOwner.defaultVersion;
 assert stableKernel.modDirVersion == stableKernelOwner.defaultVersion;
 assert stableBatch.kernelTarget.kernelVersion == stableKernelOwner.defaultVersion;
@@ -867,11 +1076,16 @@ assert
 assert
   stableProductionConfig.system.build.livePatchModules.${stableRelease}.targetIdentity
   == stableConfiguredTarget.targetBuild.identity;
+assert genericMonitor.schemaVersion == 2;
+assert genericMonitor.kernelVersion == fixtureKernelVersion;
+assert builtins.length genericMonitor.modules == 3;
 assert
-  (builtins.fromJSON (
-    builtins.unsafeDiscardStringContext
-      genericConfig.environment.etc."vpsadminos/livepatch-monitor.json".text
-  )).patchVersion == 1;
+  map (entry: entry.patchVersion) genericMonitor.modules == [
+    1
+    2
+    3
+  ];
+assert map (entry: entry.module) genericMonitor.modules == map (entry: entry.moduleName) batches;
 assert batch.mode == "additive";
 assert batch.unameLevel.protocol == "vpsadminos-additive-uname-v1";
 assert batch.unameLevel.releaseOrdinal == 1;
@@ -880,7 +1094,7 @@ assert batch.unameLevel.rollbackRelease == fixtureKernelVersion;
 assert batch.unameLevel.publishedRelease == rootRelease;
 assert builtins.length batch.build.expected.callbacks == 3;
 assert builtins.length batch.build.expected.states == 1;
-pkgs.runCommand "livepatch-scalar-manager-unit" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+pkgs.runCommand "livepatch-stack-manager-unit" { nativeBuildInputs = [ pkgs.python3 ]; } ''
   empty_manager=${lib.escapeShellArg "${builtins.head emptyPrivateCatalogConfig.environment.systemPackages}/bin/live-patches"}
   test "$("$empty_manager" load)" = "Live Patching not enabled in machine config or no patches available"
   test ! -e ${lib.escapeShellArg "${testRoot}/run/vpsadminos/livepatches"}
@@ -890,9 +1104,18 @@ pkgs.runCommand "livepatch-scalar-manager-unit" { nativeBuildInputs = [ pkgs.pyt
     ${lib.escapeShellArg testRoot} \
     ${lib.escapeShellArg kernelImage} \
     ${lib.escapeShellArg kernelNotes} \
-    ${lib.escapeShellArg moduleName} \
+    ${moduleNamesFile} \
+    ${rootOnlyConfig.system.build.livePatchManager}/bin/live-patches \
     ${replaceRequestedConfig.system.build.livePatchManager}/bin/live-patches \
-    ${wrongIdentityConfig.system.build.livePatchManager}/bin/live-patches
+    ${wrongIdentityConfig.system.build.livePatchManager}/bin/live-patches \
+    ${missingArtifactConfig.system.build.livePatchManager}/bin/live-patches \
+    ${wrongManifestConfig.system.build.livePatchManager}/bin/live-patches \
+    ${wrongHashConfig.system.build.livePatchManager}/bin/live-patches \
+    ${malformedInspectionConfig.system.build.livePatchManager}/bin/live-patches \
+    ${malformedClosureConfig.system.build.livePatchManager}/bin/live-patches \
+    ${unreadableInspectionConfig.system.build.livePatchManager}/bin/live-patches \
+    ${unreadableClosureConfig.system.build.livePatchManager}/bin/live-patches \
+    ${unreadableHashConfig.system.build.livePatchManager}/bin/live-patches
 
   activation_root="$TMPDIR/activation"
   export LIVEPATCH_ACTIVATION_TEST_ROOT="$activation_root"

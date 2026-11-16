@@ -90,9 +90,9 @@ recovery section instead.
 | `<kernel-version>.1` | native | <fix IDs> | <status and durable evidence reference> | <blocked, qualified or retired> |
 | `<kernel-version>.2` | `<kernel-version>.1` | <fix IDs> | <status and durable evidence reference> | <blocked, qualified or retired> |
 
-Remove unused future rows. Never use a skipped ordinal. Before adding `.2`,
-complete reader-first plural metadata/runtime deployment and whole-stack
-qualification.
+Remove unused future rows. Never use a skipped ordinal. Qualify the complete
+set before releasing a new batch. Deploy compatible monitor readers before
+rolling out the plural writer to nodes.
 
 <a id="release-<kernel-version-with-dashes>-<ordinal>"></a>
 ## Release `<kernel-version>.<ordinal>`
@@ -174,15 +174,26 @@ verify the resulting kernel state before returning the node to service.
 List the exact starting release, health and workload prerequisites, monitoring,
 quiescence requirements, manual command, expected `enabled`, `transition`,
 `replace` and published-release state, active oracle checks, and stop
-conditions. Load only the next contiguous release.
+conditions. Use `live-patches load <ordinal>` to load this batch only after
+its predecessors are applied. Explain that bare `live-patches load` loads all
+batches shipped by the configuration and waits for each transition before
+advancing. Keep the documented maximum depth tied to actual qualification.
 
 ### Rollback
 
 State whether reversal is supported. Describe newest-first disable/removal,
 the expected predecessor release, the predecessor oracles that must be rerun,
-and the boundary where forced removal is forbidden. Disabling a loading option
-does not unload an active patch. Configuration rollback does not restore live
-kernel state, and older generations retain their own activation policy.
+and the boundary where forced removal is forbidden. Use
+`live-patches unload <ordinal>` for one active tip; bare `live-patches unload`
+removes every loaded configured batch newest first. The manager waits for each
+reverse transition and module removal before proceeding.
+
+Disabling a loading option does not unload an active patch. Configuration
+rollback does not restore live kernel state. Describe how `status` exposes
+loaded modules absent from the current configuration, and require restoring a
+generation that configures the loaded stack before managed removal. Include
+the approved reboot alternative. Older generations retain their own activation
+policy and manager capabilities.
 
 ### Recovery
 

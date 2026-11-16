@@ -871,6 +871,25 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          stackManagerUnit = import ./os/modules/services/livepatches/tests/default.nix {
+            inherit pkgs;
+          };
+          stackManagerRendered = import ./tests/suite/kernel/livepatch-set.nix {
+            pkgs = nixpkgs.outPath;
+            inherit system testFramework;
+            templateArgs.row = {
+              managerFixture = true;
+              rowId = "production-manager-private-stack";
+            };
+          };
+          stackManagerReceipt = pkgs.writeText "livepatch-stack-manager-render.json" (
+            builtins.toJSON {
+              instance = stackManagerRendered.instance;
+              name = stackManagerRendered.config.name;
+              machines = builtins.attrNames stackManagerRendered.config.machines;
+              tags = stackManagerRendered.config.tags;
+            }
+          );
           sys = vpsadminosSystem {
             inherit system;
             modules = [
@@ -1531,6 +1550,7 @@
             pkgs.runCommand "livepatch-qualification-check"
               {
                 livepatchCiTools = livepatchCiTools.${system};
+                inherit stackManagerReceipt stackManagerUnit;
                 nativeBuildInputs = [
                   pkgs.bash
                   pkgs.coreutils
@@ -1546,6 +1566,17 @@
                 one=${qualificationPlanOneFile}
                 two=${qualificationPlanTwoFile}
                 actual=${qualificationActualPlanFile}
+
+                test -e "$stackManagerUnit"
+                jq -e '
+                  .instance == "production-manager-private-stack"
+                  and .name == "kernel-livepatch-production-manager-stack"
+                  and .machines == ["boot_on", "machine", "switch_on"]
+                  and .tags == ["ci"]
+                ' "$stackManagerReceipt" > livepatch-stack-manager-render.log
+                grep -F 'live-patches load 1' ${./tests/suite/kernel/livepatch-set/manager.nix}
+                grep -F 'live-patches unload 3' ${./tests/suite/kernel/livepatch-set/manager.nix}
+                grep -F 'managerFixture = true;' ${./tests/all-tests.nix}
 
                 ${pkgs.ruby}/bin/ruby ${qualificationSerializationCheck} \
                   ${qualificationOracleScriptFile} \

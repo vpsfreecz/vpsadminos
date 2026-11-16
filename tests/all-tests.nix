@@ -180,6 +180,17 @@ let
             template = "kernel/livepatch-lifecycle";
             instances = livepatchLifecycleInstances;
           }
+          {
+            template = "kernel/livepatch-set";
+            instances = [
+              {
+                row = {
+                  managerFixture = true;
+                  rowId = "production-manager-private-stack";
+                };
+              }
+            ];
+          }
           "kernel/vpsadminos"
           "kernel/module-autoload"
           "kernel/cpu-view/cgroups-v1"
