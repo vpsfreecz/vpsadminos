@@ -11,10 +11,10 @@ the captured realization and release evidence.
 
 ## Source layout checklist
 
-Each release uses this flat layout:
+Group releases by kernel version and place each batch in its ordinal directory:
 
 ```text
-os/livepatches/batches/<kernel-version>.<ordinal>/
+os/livepatches/batches/<kernel-version>/<ordinal>/
 ├── default.nix
 ├── series.nix
 ├── fixes/<fix-id>.nix
@@ -28,6 +28,9 @@ os/livepatches/batches/<kernel-version>.<ordinal>/
 
 Check the following before adding the target-page section:
 
+- The public release ID is `<kernel-version>.<ordinal>`. The descriptor's
+  `kernelVersion` and `release` match the directory components, which contain
+  no leading zeroes; the ordinal is positive.
 - `default.nix` returns separate `batch`, `qualification` and `documentation`
   values.
 - `series.nix` is the only patch-order authority.

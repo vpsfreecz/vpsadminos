@@ -199,7 +199,8 @@ elif [[ "$validator" == "builtin/test-runner" ]]; then
       validator: {id: "builtin/test-runner", status: (if $accepted then "accepted" else "rejected" end)}
     }' >"$result_tmp"
 else
-  [[ "$validator" == os/livepatches/batches/*/qualification/validators/*.sh && -x "$validator" ]] || {
+  [[ "$validator" == os/livepatches/batches/*/*/qualification/validators/*.sh \
+    && "$validator" != *"/../"* && "$validator" != */.. && -x "$validator" ]] || {
     echo "oracle validator is outside the allowed tree or not executable: $validator" >&2
     exit 1
   }

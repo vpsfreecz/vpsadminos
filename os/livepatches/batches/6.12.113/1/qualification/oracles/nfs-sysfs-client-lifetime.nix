@@ -12,8 +12,8 @@
       ];
       timeoutClass = "oracle";
       expectedOutcome = "success";
-      testAdapter = "os/livepatches/batches/6.12.113.1/qualification/helpers/nfs-sysfs-client-lifetime.nix";
-      validator = "os/livepatches/batches/6.12.113.1/qualification/validators/nfs-sysfs-client-lifetime.sh";
+      testAdapter = "os/livepatches/batches/6.12.113/1/qualification/helpers/nfs-sysfs-client-lifetime.nix";
+      validator = "os/livepatches/batches/6.12.113/1/qualification/validators/nfs-sysfs-client-lifetime.sh";
     }
   ];
 }

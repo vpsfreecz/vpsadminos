@@ -27,6 +27,8 @@ let
   isString = value: builtins.isString value && value != "";
   stableId =
     value: isString value && builtins.match "[a-z0-9]([a-z0-9._:/-]*[a-z0-9])?" value != null;
+  catalogKernelVersionPattern = "(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*))+";
+  catalogReleasePathPattern = "${catalogKernelVersionPattern}/[1-9][0-9]*";
   uniqueList = values: length (unique values) == length values;
   sorted = sort builtins.lessThan;
   rowComponent = value: replaceStrings [ "/" ":" "." ] [ "-" "-" "-" ] value;
@@ -195,13 +197,14 @@ let
         (require context (isString (oracle.timeoutClass or "")) "timeoutClass must be non-empty")
         (require context (isString (oracle.expectedOutcome or "")) "expectedOutcome must be non-empty")
         (require context (
-          builtins.match "os/livepatches/batches/[0-9.]+/qualification/helpers/[a-z0-9][a-z0-9._/-]*\\.nix" (
-            oracle.testAdapter or ""
-          ) != null
+          builtins.match
+            "os/livepatches/batches/${catalogReleasePathPattern}/qualification/helpers/[a-z0-9][a-z0-9._/-]*\\.nix"
+            (oracle.testAdapter or "") != null
           && builtins.match ".*(/\\.\\./|/\\.\\.$).*" oracle.testAdapter == null
         ) "testAdapter must name a fix-local qualification helper")
         (require context (
-          builtins.match "os/livepatches/batches/[0-9.]+/qualification/validators/[a-z0-9][a-z0-9._/-]*\\.sh"
+          builtins.match
+            "os/livepatches/batches/${catalogReleasePathPattern}/qualification/validators/[a-z0-9][a-z0-9._/-]*\\.sh"
             (oracle.validator or "") != null
           && builtins.match ".*(/\\.\\./|/\\.\\.$).*" oracle.validator == null
         ) "validator must name a fix-local qualification validator")

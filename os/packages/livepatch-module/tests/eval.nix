@@ -116,6 +116,11 @@ let
   qualificationPlanner = import ../../../livepatches/qualification.nix { inherit lib; };
   emptyCatalog = livepatchLib.discoverCatalog ./fixtures/catalog-empty;
   catalog = livepatchLib.discoverCatalog ./fixtures/catalog;
+  invalidKernelCatalog = livepatchLib.discoverCatalog ./fixtures/catalog-invalid-kernel;
+  leadingZeroKernelCatalog = livepatchLib.discoverCatalog ./fixtures/catalog-leading-zero-kernel;
+  leadingZeroOrdinalCatalog = livepatchLib.discoverCatalog ./fixtures/catalog-leading-zero-ordinal;
+  releaseMismatchCatalog = livepatchLib.discoverCatalog ./fixtures/catalog-release-mismatch;
+  unexpectedEntryCatalog = livepatchLib.discoverCatalog ./fixtures/catalog-unexpected;
   catalogUnit = builtins.head catalog;
   catalogQualificationChanged = [
     (
@@ -176,9 +181,9 @@ let
                 expectedOutcome = "success";
                 role = "synthetic";
                 scope = "fix";
-                testAdapter = "os/livepatches/batches/6.12.113.1/qualification/helpers/synthetic.nix";
+                testAdapter = "os/livepatches/batches/6.12.113/1/qualification/helpers/synthetic.nix";
                 timeoutClass = "oracle";
-                validator = "os/livepatches/batches/6.12.113.1/qualification/validators/synthetic.sh";
+                validator = "os/livepatches/batches/6.12.113/1/qualification/validators/synthetic.sh";
               }
             ) manifest.oracles;
           }
@@ -836,7 +841,7 @@ let
 
   evaluationFails = value: !(builtins.tryEval (builtins.deepSeq value true)).success;
 
-  catalogReleaseDirectory = ./fixtures/catalog/6.12.113.1;
+  catalogReleaseDirectory = ./fixtures/catalog/6.12.113/1;
   validateCatalogUnit =
     unit:
     livepatchLib.validateBatchUnit {
@@ -1114,6 +1119,11 @@ assert
 assert catalogBatch.oracleIds == catalogBatchQualificationChanged.oracleIds;
 assert !(catalogBatch.manifest ? oracleIds);
 assert catalogBatch.moduleName == "lp_612113_1_${builtins.substring 0 12 catalogBatch.inputDigest}";
+assert evaluationFails invalidKernelCatalog;
+assert evaluationFails leadingZeroKernelCatalog;
+assert evaluationFails leadingZeroOrdinalCatalog;
+assert evaluationFails releaseMismatchCatalog;
+assert evaluationFails unexpectedEntryCatalog;
 assert
   catalogBatch.manifest.patches
   == map (patch: removeAttrs patch [ "path" ]) catalogBatch.build.patches;

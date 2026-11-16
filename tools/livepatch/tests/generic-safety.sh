@@ -1690,8 +1690,11 @@ RUBY
   profile_root="$work/profile-root"
   mkdir -p \
     "$profile_root/tools/livepatch" \
+    "$profile_root/os/livepatches/batches/6.12.113/1/qualification/validators" \
     "$profile_root/os/livepatches/batches/6.12.113.1/qualification/validators"
   ln -s "$validator" "$profile_root/tools/livepatch/validate-generic-result.sh"
+  ln -s "$nfs_validator" \
+    "$profile_root/os/livepatches/batches/6.12.113/1/qualification/validators/nfs-sysfs-client-lifetime.sh"
   ln -s "$nfs_validator" \
     "$profile_root/os/livepatches/batches/6.12.113.1/qualification/validators/nfs-sysfs-client-lifetime.sh"
 
@@ -1897,8 +1900,24 @@ EOF
   jq -e '
     .template == "kernel/livepatch-fix"
     and .testAdapter
-      == "os/livepatches/batches/6.12.113.1/qualification/helpers/nfs-sysfs-client-lifetime.nix"
+      == "os/livepatches/batches/6.12.113/1/qualification/helpers/nfs-sysfs-client-lifetime.nix"
   ' <<<"$nfs_row" >/dev/null
+
+  jq --arg rowId "$nfs_row_id" '
+    (.rows[] | select(.rowId == $rowId) | .validator)
+      = "os/livepatches/batches/6.12.113.1/qualification/validators/nfs-sysfs-client-lifetime.sh"
+  ' "$nfs_plan" >"$work/nfs-plan-flat-validator.json"
+  expect_profile_refuse flat-validator-path \
+    "$work/nfs-plan-flat-validator.json" "$nfs_capture" "$nfs_row_id" \
+    "$work/nfs-marker.json" VPSADMINOS_LIVEPATCH_ORACLE_RESULT regular-config
+
+  jq --arg rowId "$nfs_row_id" '
+    (.rows[] | select(.rowId == $rowId) | .validator)
+      = "os/livepatches/batches/6.12.113/1/qualification/validators/../validators/nfs-sysfs-client-lifetime.sh"
+  ' "$nfs_plan" >"$work/nfs-plan-traversal-validator.json"
+  expect_profile_refuse traversal-validator-path \
+    "$work/nfs-plan-traversal-validator.json" "$nfs_capture" "$nfs_row_id" \
+    "$work/nfs-marker.json" VPSADMINOS_LIVEPATCH_ORACLE_RESULT regular-config
 
   for profile_case in \
     no-result duplicate-result symlink-result config-escape dangling-config \

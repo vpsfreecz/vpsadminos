@@ -148,8 +148,8 @@ jq -e '
     else .runnerClass == "intel-kvm"
     end
   )
-  and .testAdapter == "os/livepatches/batches/6.12.113.1/qualification/helpers/nfs-sysfs-client-lifetime.nix"
-  and .validator == "os/livepatches/batches/6.12.113.1/qualification/validators/nfs-sysfs-client-lifetime.sh"
+  and .testAdapter == "os/livepatches/batches/6.12.113/1/qualification/helpers/nfs-sysfs-client-lifetime.nix"
+  and .validator == "os/livepatches/batches/6.12.113/1/qualification/validators/nfs-sysfs-client-lifetime.sh"
 ' <<<"$row" >/dev/null
 
 jq -e --arg setId "$(jq -er '.setId' <<<"$row")" --slurpfile plan "$plan" '

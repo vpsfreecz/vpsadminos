@@ -932,8 +932,8 @@
                 ];
                 timeoutClass = "oracle";
                 expectedOutcome = "success";
-                testAdapter = "os/livepatches/batches/6.12.113.1/qualification/helpers/${fixId}.nix";
-                validator = "os/livepatches/batches/6.12.113.1/qualification/validators/${fixId}.sh";
+                testAdapter = "os/livepatches/batches/6.12.113/1/qualification/helpers/${fixId}.nix";
+                validator = "os/livepatches/batches/6.12.113/1/qualification/validators/${fixId}.sh";
               }
             ];
           };
@@ -1058,7 +1058,7 @@
             ];
           };
           qualificationActualNfsHelper =
-            import ./os/livepatches/batches/6.12.113.1/qualification/helpers/nfs-sysfs-client-lifetime.nix
+            import ./os/livepatches/batches/6.12.113/1/qualification/helpers/nfs-sysfs-client-lifetime.nix
               {
                 capture = qualificationActualCapture;
                 oracle = qualificationActualOracle;
@@ -1179,6 +1179,24 @@
           ];
           qualificationAuthoredRunnerClass = mkQualificationPlan [
             (mapQualificationOracle (oracle: oracle // { runnerClass = "amd-livepatch"; }) qualificationRoot)
+          ];
+          qualificationFlatOraclePath = mkQualificationPlan [
+            (mapQualificationOracle (
+              oracle:
+              oracle
+              // {
+                testAdapter = "os/livepatches/batches/6.12.113.1/qualification/helpers/fix-a.nix";
+              }
+            ) qualificationRoot)
+          ];
+          qualificationLeadingZeroOraclePath = mkQualificationPlan [
+            (mapQualificationOracle (
+              oracle:
+              oracle
+              // {
+                validator = "os/livepatches/batches/6.12.113/01/qualification/validators/fix-a.sh";
+              }
+            ) qualificationRoot)
           ];
           qualificationMissingPlatformRunner = mkQualificationPlan [
             (
@@ -1392,7 +1410,7 @@
             exec ${pkgs.bash}/bin/bash ${./tools/livepatch/verify.sh} "$@"
           '';
           qualificationNfsValidator = pkgs.writeShellScript "validate-nfs-livepatch-result" ''
-            exec ${pkgs.bash}/bin/bash ${./os/livepatches/batches/6.12.113.1/qualification/validators/nfs-sysfs-client-lifetime.sh} "$@"
+            exec ${pkgs.bash}/bin/bash ${./os/livepatches/batches/6.12.113/1/qualification/validators/nfs-sysfs-client-lifetime.sh} "$@"
           '';
         in
         {
@@ -1427,6 +1445,8 @@
             assert qualificationEvaluationFails qualificationMissingOracle;
             assert qualificationEvaluationFails qualificationDuplicateOracle;
             assert qualificationEvaluationFails qualificationAuthoredRunnerClass;
+            assert qualificationEvaluationFails qualificationFlatOraclePath;
+            assert qualificationEvaluationFails qualificationLeadingZeroOraclePath;
             assert qualificationEvaluationFails qualificationMissingPlatformRunner;
             assert qualificationEvaluationFails qualificationEmptyPlatformRunner;
             assert qualificationEvaluationFails qualificationWrongPlatformRunner;
@@ -1495,9 +1515,9 @@
                   setId = "6.12.113.1";
                   supported = true;
                   template = "kernel/livepatch-fix";
-                  testAdapter = "os/livepatches/batches/6.12.113.1/qualification/helpers/fix-a.nix";
+                  testAdapter = "os/livepatches/batches/6.12.113/1/qualification/helpers/fix-a.nix";
                   timeoutClass = "oracle";
-                  validator = "os/livepatches/batches/6.12.113.1/qualification/validators/fix-a.sh";
+                  validator = "os/livepatches/batches/6.12.113/1/qualification/validators/fix-a.sh";
                 }
                 {
                   expectedOutcome = "success";
@@ -1523,9 +1543,9 @@
                   setId = "6.12.113.1";
                   supported = true;
                   template = "kernel/livepatch-fix";
-                  testAdapter = "os/livepatches/batches/6.12.113.1/qualification/helpers/fix-a.nix";
+                  testAdapter = "os/livepatches/batches/6.12.113/1/qualification/helpers/fix-a.nix";
                   timeoutClass = "oracle";
-                  validator = "os/livepatches/batches/6.12.113.1/qualification/validators/fix-a.sh";
+                  validator = "os/livepatches/batches/6.12.113/1/qualification/validators/fix-a.sh";
                 }
               ];
             assert

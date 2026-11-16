@@ -650,21 +650,52 @@ let
     let
       entries = builtins.readDir directory;
       names = sortStrings (attrNames entries);
-      releaseNames = filter (name: entries.${name} == "directory") names;
+      kernelVersions = filter (name: entries.${name} == "directory") names;
       unexpected = filter (
         name: !(entries.${name} == "directory" || (name == "default.nix" && entries.${name} == "regular"))
       ) names;
-      sortedReleases = sort releaseLessThan releaseNames;
+      discovered = concatMap (
+        kernelVersion:
+        let
+          kernelDirectory = directory + "/${kernelVersion}";
+          kernelEntries = builtins.readDir kernelDirectory;
+          kernelNames = sortStrings (attrNames kernelEntries);
+          ordinals = filter (name: kernelEntries.${name} == "directory") kernelNames;
+          kernelUnexpected = filter (name: kernelEntries.${name} != "directory") kernelNames;
+        in
+        checked
+          [
+            (require "catalog" (
+              builtins.match "(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*))+" kernelVersion != null
+            ) "kernel directory is not a canonical numeric version: ${kernelVersion}")
+            (require "catalog ${kernelVersion}" (
+              kernelUnexpected == [ ]
+            ) "unexpected entries: ${concatStringsSep ", " kernelUnexpected}")
+            (require "catalog ${kernelVersion}" (all (
+              ordinal: builtins.match "[1-9][0-9]*" ordinal != null
+            ) ordinals) "ordinal directories must be canonical positive integers")
+          ]
+          (
+            map (ordinal: {
+              release = "${kernelVersion}.${ordinal}";
+              directory = kernelDirectory + "/${ordinal}";
+            }) ordinals
+          )
+      ) kernelVersions;
+      releases = map (entry: entry.release) discovered;
+      sortedReleases = sort (left: right: releaseLessThan left.release right.release) discovered;
     in
     checked
       [
         (require "catalog" (unexpected == [ ]) "unexpected entries: ${concatStringsSep ", " unexpected}")
+        (require "catalog" (uniqueList releases) "constructed releases must be unique")
       ]
       (
         map (
-          release:
+          entry:
           let
-            releaseDirectory = directory + "/${release}";
+            release = entry.release;
+            releaseDirectory = entry.directory;
             unit = import (releaseDirectory + "/default.nix") { batchLib = livepatchLib; };
           in
           validateBatchUnit {

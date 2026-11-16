@@ -59,10 +59,10 @@ derived module name as the release identity.
 
 ## Repository unit
 
-Each numbered release is one flat unit:
+Group releases by kernel version, with one subdirectory per batch ordinal:
 
 ```text
-os/livepatches/batches/<kernel-version>.<ordinal>/
+os/livepatches/batches/<kernel-version>/<ordinal>/
 ├── default.nix
 ├── series.nix
 ├── fixes/
@@ -78,6 +78,13 @@ os/livepatches/batches/<kernel-version>.<ordinal>/
     └── validators/
         └── <fix-id>/        # only when several validator files justify it
 ```
+
+The public release ID is `<kernel-version>.<ordinal>`. For example,
+`os/livepatches/batches/6.12.113/1/` contains release `6.12.113.1`. Kernel
+directories use dotted numeric versions; ordinals are positive integers.
+Version components and ordinals must have no leading zeroes. Discovery requires
+the descriptor's `kernelVersion` and `release` to match the path and rejects
+unexpected entries.
 
 `default.nix` separates the producer batch, qualification and documentation
 reference. Only the batch enters producer identity and module bytes.
