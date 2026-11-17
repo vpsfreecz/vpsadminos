@@ -81,6 +81,11 @@ class StackManagerTest(unittest.TestCase):
     def release_link(self, ordinal):
         return TEST_ROOT / f"lib/modules/{NATIVE_RELEASE}.{ordinal}"
 
+    def point_booted_kernel(self, target):
+        booted_kernel = TEST_ROOT / "run/booted-system/kernel"
+        booted_kernel.unlink()
+        booted_kernel.symlink_to(target)
+
     def assert_owned_link(self, ordinal):
         link = self.release_link(ordinal)
         self.assertTrue(link.is_symlink())
@@ -601,13 +606,6 @@ class StackManagerTest(unittest.TestCase):
                 "not owned by this batch",
             ),
             (
-                "wrong boot notes",
-                lambda: (TEST_ROOT / "sys/kernel/notes").write_text(
-                    "wrong\n", encoding="utf-8"
-                ),
-                "does not match the running boot kernel",
-            ),
-            (
                 "wrong release",
                 lambda: self.write_uname(f"{NATIVE_RELEASE}.9"),
                 "does not match expected",
@@ -667,18 +665,6 @@ class StackManagerTest(unittest.TestCase):
                 "cannot resolve booted module-tree authority",
             ),
             (
-                "boot-kernel authority loop",
-                lambda: self.replace_with_self_link(
-                    TEST_ROOT / "run/booted-system/kernel"
-                ),
-                "cannot resolve running boot-kernel authority",
-            ),
-            (
-                "unreadable boot notes",
-                lambda: self.replace_with_directory(TEST_ROOT / "sys/kernel/notes"),
-                "cannot compare running kernel notes",
-            ),
-            (
                 "unreadable uname",
                 lambda: (TEST_ROOT / "control/uname").unlink(),
                 "cannot read uname release",
@@ -708,23 +694,29 @@ class StackManagerTest(unittest.TestCase):
         self.assertIn("module identity mismatch", result.stderr)
         self.assertEqual("", self.control_value("insmod-order"))
 
-    def test_boot_identity_refuses_before_insertion(self):
-        wrong_image = TEST_ROOT / "wrong-kernel-image"
-        wrong_image.write_text("wrong\n", encoding="utf-8")
-        booted_kernel = TEST_ROOT / "run/booted-system/kernel"
-        booted_kernel.unlink()
-        booted_kernel.symlink_to(wrong_image)
-        result = self.run_manager("load", expected=1)
-        self.assertIn("does not match the running boot kernel", result.stderr)
-        self.assertEqual("", self.control_value("insmod-order"))
+    def test_boot_image_path_bytes_and_notes_do_not_gate_a_valid_stack(self):
+        booted_image = TEST_ROOT / "different-boot-image"
+        booted_image.write_bytes(b"different boot image\n")
+        self.assertNotEqual(KERNEL_IMAGE, booted_image)
+        self.assertNotEqual(KERNEL_IMAGE.read_bytes(), booted_image.read_bytes())
+        self.point_booted_kernel(booted_image)
 
-        self.setUp()
-        (TEST_ROOT / "sys/kernel/notes").write_text("wrong\n", encoding="utf-8")
-        result = self.run_manager("load", expected=1)
-        self.assertIn("does not match the running boot kernel", result.stderr)
-        self.assertEqual("", self.control_value("insmod-order"))
+        running_notes = TEST_ROOT / "sys/kernel/notes"
+        running_notes.write_text("different boot notes\n", encoding="utf-8")
+        self.assertNotEqual(KERNEL_NOTES.read_bytes(), running_notes.read_bytes())
 
-    def test_native_published_release_and_post_transition_boot_checks_refuse(self):
+        self.run_manager("load")
+        self.assertEqual("123", self.control_value("insmod-order"))
+        self.assert_prefix(3)
+        self.assert_status_states({1: "active", 2: "active", 3: "active"})
+
+        self.set_scenario("reverse-stable")
+        self.run_manager("unload")
+        self.assertEqual("321", self.control_value("disable-order"))
+        self.assertEqual("321", self.control_value("rmmod-order"))
+        self.assert_prefix(0)
+
+    def test_native_and_post_transition_release_checks_refuse(self):
         self.write_uname(f"{NATIVE_RELEASE}.9")
         result = self.run_manager("load", expected=1)
         self.assertIn(f"does not match expected {NATIVE_RELEASE}", result.stderr)
@@ -734,12 +726,6 @@ class StackManagerTest(unittest.TestCase):
         self.set_scenario("wrong-uname-2")
         result = self.run_manager("load", expected=1)
         self.assertIn(f"does not match expected {NATIVE_RELEASE}.2", result.stderr)
-        self.assertFalse(self.marker(2).exists())
-
-        self.setUp()
-        self.set_scenario("boot-change-2")
-        result = self.run_manager("load", expected=1)
-        self.assertIn("does not match the running boot kernel", result.stderr)
         self.assertFalse(self.marker(2).exists())
 
     def test_missing_coverage_refuses_before_marker_and_next_member(self):

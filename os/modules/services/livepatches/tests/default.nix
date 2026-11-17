@@ -515,14 +515,6 @@ let
           printf '%s\n' "$published_release" > "$control/uname"
         fi
         ;;
-      boot-change-*:$ordinal)
-        failure_ordinal="''${scenario##*-}"
-        write_state 1 0 0 1
-        printf '%s\n' "$published_release" > "$control/uname"
-        if [ "$failure_ordinal" = "$ordinal" ]; then
-          printf 'changed notes\n' > "$root/sys/kernel/notes"
-        fi
-        ;;
       delayed-*:$ordinal)
         failure_ordinal="''${scenario##*-}"
         if [ "$failure_ordinal" = "$ordinal" ]; then
@@ -658,7 +650,6 @@ let
     inherit kernelImage kernelNotes;
     runtime = {
       appliedDir = "${testRoot}/run/vpsadminos/livepatches";
-      bootedKernel = "${testRoot}/run/booted-system/kernel";
       date = fakeDate;
       disable = fakeDisable;
       insmod = fakeInsmod;
@@ -670,7 +661,6 @@ let
       pollAttempts = 5;
       pollInterval = "0.05";
       rmmod = fakeRmmod;
-      runningNotes = "${testRoot}/sys/kernel/notes";
       sysModuleRoot = "${testRoot}/sys/module";
       uname = fakeUname;
     };
@@ -1098,9 +1088,16 @@ pkgs.runCommand "livepatch-stack-manager-unit" { nativeBuildInputs = [ pkgs.pyth
   empty_manager=${lib.escapeShellArg "${builtins.head emptyPrivateCatalogConfig.environment.systemPackages}/bin/live-patches"}
   test "$("$empty_manager" load)" = "Live Patching not enabled in machine config or no patches available"
   test ! -e ${lib.escapeShellArg "${testRoot}/run/vpsadminos/livepatches"}
+  manager=${genericConfig.system.build.livePatchManager}/bin/live-patches
+  if ${pkgs.gnugrep}/bin/grep -F 'check_boot_identity' "$manager" || \
+     ${pkgs.gnugrep}/bin/grep -F 'running boot-kernel' "$manager" || \
+     ${pkgs.gnugrep}/bin/grep -F '/sys/kernel/notes' "$manager"; then
+    echo 'generated manager retains boot-image or notes admission' >&2
+    exit 1
+  fi
   python ${./test_manager.py} \
     ${lib.escapeShellArg pkgs.runtimeShell} \
-    ${genericConfig.system.build.livePatchManager}/bin/live-patches \
+    "$manager" \
     ${lib.escapeShellArg testRoot} \
     ${lib.escapeShellArg kernelImage} \
     ${lib.escapeShellArg kernelNotes} \

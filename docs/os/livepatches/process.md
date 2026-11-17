@@ -179,17 +179,50 @@ applicable platforms, timeout, expected outcome, adapter and validator. A
 fix-local adapter may exercise ordinary affected-subsystem operation around
 load and unload. It must not manufacture the original defect.
 
+<a id="preserve-a-supported-boot-target"></a>
+## Configured kernel and running boot
+
+The final system configuration selects `config.boot.kernelPackage`. The
+livepatch producer uses that package's source, development output, kernel
+configuration, `vmlinux`, `Module.symvers`, compiler and built-in module inputs.
+This applies to vpsAdminOS alone and to configurations that supply their own
+Nixpkgs or kernel settings. The build obtains these inputs through Nix;
+operators do not supply development artifacts from running nodes.
+
+A running kernel can remain in use while the system switches to a newer
+configuration. Build the livepatch against the kernel selected by that new
+configuration and qualify it on the older running build. Store paths, whole
+kernel-image bytes and ELF notes can change without changing the code or ABI
+needed by the livepatch. The manager does not compare those values for
+admission.
+
+Compatibility still depends on the patched code and its dependencies. The
+kernel enforces module architecture/release checks, configured symbol-version
+checks, symbol and relocation resolution, and livepatch loading and
+transitions. These checks do not establish semantic compatibility by
+themselves. Review the affected code and ABI, then verify load, operation and
+reversal on the intended older boot. Never force a module load or transition
+to bypass a refusal. Follow the
+[older-boot qualification procedure](#verify-an-older-boot-with-newer-userspace).
+
+Each generation carries modules derived from its configured kernel. A changed
+build can produce a different module identity for the same authored release.
+Retain a generation that can manage any previously loaded module. A newer
+generation reports and refuses an unknown module without adopting or unloading
+it; follow the [configuration rollback procedure](#status-and-configuration-rollback).
+Numbered release links continue to use the actual booted generation's module
+tree.
+
 ## Prepare a candidate
 
-1. Select the configured kernel through the normal vpsAdminOS configuration.
-   The selected package supplies the exact source, development tree,
-   configuration, `Module.symvers`, `vmlinux`, compiler/toolchain and any
-   built-in module inputs used by the producer. Do not introduce a parallel
-   target selector.
-2. Confirm that the target release page covers the exact configured kernel.
-   Same-version kernel builds are not interchangeable. The runtime manager
-   compares the configured boot image and extracted ELF notes with the running
-   kernel before it changes livepatch state.
+1. Select the supported base kernel through the final vpsAdminOS configuration.
+   Its `boot.kernelPackage` supplies the producer inputs described above.
+   Include the caller's Nixpkgs, kernel settings and built-in module choices
+   when evaluating the candidate.
+2. Confirm that the target release page covers the selected kernel and intended
+   running builds. For an older boot with a newer configuration, review the
+   affected code/ABI and include that upgrade path in qualification. Matching
+   version strings alone do not prove compatibility.
 3. Record authoritative provenance, prerequisites and affected functions in
    each fix descriptor. Review the complete source change and its transitive
    emitted-function closure; do not infer the livepatch closure from the source
@@ -217,23 +250,24 @@ consolidated and quick checks pass.
 
 ## Dependency and rebuild decisions
 
-Derive the current candidate from the current dependency graph. Nixpkgs or
-toolchain movement can change the kernel or module realization even when the
-source-level fix is unchanged.
+Derive the candidate from the final configuration after dependency changes.
+Compare its producer inputs and emitted artifact with the accepted candidate.
+When the configured kernel build changes, include the older running build in
+compatibility qualification before deploying the livepatch to it.
 
 | Change | Required response |
 | --- | --- |
 | Documentation, qualification profile, oracle, helper or validator only | Keep producer identity and module bytes unchanged. Re-run the affected qualification or documentation checks. |
 | Payload bytes, patch order, affected-function declaration, payload revision or semantic-union lineage | This is a semantic payload change. Before publication, rebuild and qualify it as a changed candidate. After publication, use a new ordinal. |
 | Livepatch release framework or kpatch builder | Derive a new current candidate and inspect the complete emitted closure. Any changed module or closure needs fresh qualification. |
-| Nixpkgs, compiler, binutils, kernel package, kernel configuration, built-in module input or another target-build dependency | Derive against that exact configured kernel. Capture the new realization and run fresh exact-kernel qualification when the target, module or closure changes. |
-| Released predecessor or intentionally supported frozen boot ABI | Preserve and verify its exact released bytes and recorded derivation evidence. Do not replace it with a rebuild. |
+| Nixpkgs, compiler, binutils, kernel package, kernel configuration, built-in module input or another target-build dependency | Evaluate the final configured producer. If its inputs or artifact change, capture and qualify the new realization, including the intended older-boot/newer-configuration path. |
+| Module already loaded from an earlier generation | Retain that generation for managed removal. A new generation must not adopt a different module identity. |
 
-Semantically identical dependency movement is recorded relationally: capture
-the candidate's source/input graph, deriver and requisites and compare the
-normalized semantics. It is not permission to reuse an older module. Freeze
-exact bytes only for released predecessors or an intentionally supported frozen
-boot ABI.
+Record the candidate's source/input graph, deriver and requisites and compare
+the normalized semantics. Reuse artifact checks only for an unchanged producer
+and realization. Successful loading on another compatible kernel does not
+change the module's captured build identity or transfer another artifact's
+qualification results.
 
 ## Capture and qualification
 
@@ -326,6 +360,23 @@ qualification. Evidence for native to `.1` alone does not establish production
 multi-batch manager behavior. Preserve earlier receipts at their original
 source revision; path or harness changes need their affected checks and new
 receipts even when the module identity is unchanged.
+
+### Verify an older boot with newer userspace
+
+Qualification must cover the upgrade path used by running nodes. Boot the
+older kernel build, then switch to the newer userspace and final configuration
+with `loadOnSwitch=false`. The new generation selects its own kernel package
+and the livepatch built from it. Verify that the switch leaves livepatch state
+unchanged and that release links still use the booted generation's module tree.
+Explicitly load the configured set, wait for convergence, run the applicable
+operation and health checks, then reverse the set and verify module removal and
+native state.
+
+Retain refusal coverage for wrong native releases, invalid module artifacts,
+unknown modules left by another generation, and kernel loading failures.
+A successful fresh boot into the newer configured kernel does not cover this
+upgrade path. Record which older boot and newer configuration were tested;
+do not infer that result from matching versions or a successful build.
 
 ### Develop aging and delay tests
 
@@ -523,7 +574,8 @@ generation.
 
 Before loading each node:
 
-1. Confirm the node is healthy and has the exact approved boot image and notes.
+1. Confirm the node is healthy and its running base kernel is covered by the
+   release's compatibility qualification.
 2. Confirm the captured module and all structured evidence match the approved
    realization.
 3. Confirm the current native or predecessor release is exactly the state
@@ -536,7 +588,7 @@ Before loading each node:
    the receipt before proceeding to another node.
 
 Mixed native, patched and native-fixed nodes may coexist only where the target
-page says so. Stop on an image/notes mismatch, malformed capture, unexpected
+page says so. Stop on a kernel module rejection, malformed capture, unexpected
 livepatch state, transition timeout, failed oracle, monitoring gap, unexplained
 Oops or workload regression. Never force a transition, unload a subsystem to
 make it converge or toggle the patch repeatedly.

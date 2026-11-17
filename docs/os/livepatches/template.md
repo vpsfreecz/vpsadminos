@@ -59,6 +59,20 @@ to verify changed interfaces with the existing test infrastructure. Record
 development-short and release-duration results separately; qualify the entire
 active set and every active fix profile for each new batch.
 
+## Configured-kernel checklist
+
+Follow the [configured-kernel requirements](process.md#configured-kernel-and-running-boot):
+
+- Build from the final system's `boot.kernelPackage`, including the caller's
+  Nixpkgs, kernel settings and built-in modules. Record the producer's source,
+  development tree, config, toolchain, `vmlinux` and `Module.symvers` inputs.
+- Compare the affected code and ABI when the configured build differs from
+  the running build. Store paths and whole-image or notes hashes are not
+  runtime admission checks.
+- Qualify the [older-boot/newer-userspace path](process.md#verify-an-older-boot-with-newer-userspace)
+  before claiming that the update preserves livepatch support. Keep this result
+  distinct from qualification performed after booting a newer kernel.
+
 ## Target-page skeleton
 
 Copy the following Markdown into the target page and replace every angle-bracket
@@ -68,13 +82,16 @@ sections.
 ````markdown
 # Linux <kernel-version> livepatch releases
 
-This page covers livepatches built for the exact configured Linux
-<kernel-version> target. Same-version kernel builds are not interchangeable.
+This page covers livepatches built from the final system configuration's Linux
+<kernel-version> package. It records supported running builds and compatibility
+qualification for deployment across kernel builds.
 
 ## Eligibility
 
-- **Eligible boot identity:** <durable description of the approved configured
-  kernel; point to release evidence instead of pasting a store path or hash>
+- **Configured kernel:** <supported final kernel configuration and producer
+  inputs; point to release evidence instead of pasting a store path or hash>
+- **Eligible running kernels:** <base release and code/ABI compatibility scope,
+  including older builds tested with the newer configuration>
 - **Native-fixed recovery coverage:** <approved reboot target when known, or
   `not yet established`; this is not a universal direct-reproducer gate>
 - **Supported mixed versions:** <native, numbered releases and native-fixed
@@ -155,6 +172,10 @@ and new oracle.
   required`; record the availability of a safe hold point>
 - **Every active dedicated fix-local operation-safety profile:**
   <status/evidence>
+- **Older boot with newer userspace:** <older running build and newer final
+  configuration, unchanged state with automatic loading disabled, explicit
+  load/convergence/operation, reverse and cleanup status; do not substitute a
+  fresh-kernel boot result>
 - **Whole-stack forward/reverse:** <status/evidence>
 - **Fatal kernel-noise and workload-health gate:** <status/evidence>
 - **Unsupported or blocked rows:** <reason/evidence, or `none`>
@@ -225,8 +246,11 @@ preventive and is not recovery for a boot that already hit the failure.
 - A missing safe hold point is recorded without a synthetic replacement. It
   blocks the release only when the target release policy requires held-frame
   proof.
-- Operator steps preserve the exact boot image/notes refusal and never use
-  force.
+- The producer uses the final configuration's kernel package. Qualification
+  covers loading its livepatch on the intended older running build, followed
+  by operation checks and reversal without a reboot.
+- Operator steps preserve module integrity, kernel compatibility and state
+  checks and never use force.
 - Boot and live deployment loading have independent options, with defaults
   `true` and `false`; failure handling and manual operation remain explicit.
 - Rollback is newest first and retests the exposed predecessor.

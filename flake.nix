@@ -1591,12 +1591,24 @@
                 jq -e '
                   .instance == "production-manager-private-stack"
                   and .name == "kernel-livepatch-production-manager-stack"
-                  and .machines == ["boot_on", "machine", "switch_on"]
+                  and .machines == ["boot_on", "machine", "switch_off", "switch_on"]
                   and .tags == ["ci"]
                 ' "$stackManagerReceipt" > livepatch-stack-manager-render.log
                 grep -F 'live-patches load 1' ${./tests/suite/kernel/livepatch-set/manager.nix}
                 grep -F 'live-patches unload 3' ${./tests/suite/kernel/livepatch-set/manager.nix}
+                grep -F 'module_param_cb(stack_value' ${./tests/suite/kernel/livepatch-set/manager.nix}
+                grep -F 'loadOnSwitch = false;' ${./tests/suite/kernel/livepatch-set/manager.nix}
+                grep -F 'kernelImage = switchKernelImage;' ${./tests/suite/kernel/livepatch-set/manager.nix}
+                grep -F 'configured_modules = lambda do |guest|' ${./tests/suite/kernel/livepatch-set/manager.nix}
+                grep -F '/run/booted-system/kernel-modules' ${./tests/suite/kernel/livepatch-set/manager.nix}
+                grep -F "switch_off.succeeds('live-patches load'" ${./tests/suite/kernel/livepatch-set/manager.nix}
+                grep -F "switch_off.succeeds('live-patches unload'" ${./tests/suite/kernel/livepatch-set/manager.nix}
                 grep -F 'managerFixture = true;' ${./tests/all-tests.nix}
+                if grep -E 'compatibility|nfs-livepatch|nfs-sysfs|batches/6[.]12[.]113' \
+                  ${./tests/suite/kernel/livepatch-set.nix}; then
+                  echo 'generic livepatch-set template contains release-specific fixture logic' >&2
+                  exit 1
+                fi
 
                 ${pkgs.ruby}/bin/ruby ${qualificationSerializationCheck} \
                   ${qualificationOracleScriptFile} \

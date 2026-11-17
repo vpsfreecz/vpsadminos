@@ -132,13 +132,27 @@ let
   targetSource = nixpkgs.runCommand "livepatch-stack-target-source" { } ''
     mkdir -p "$out"
     cat > "$out/${targetModuleName}.c" <<'SOURCE_END'
+    #include <linux/compiler_attributes.h>
     #include <linux/module.h>
+    #include <linux/moduleparam.h>
+    #include <linux/sysfs.h>
 
-    noinline int ${targetFunction}(void)
+    noinline __noipa int ${targetFunction}(void)
     {
       return 0;
     }
     EXPORT_SYMBOL_GPL(${targetFunction});
+
+    static int stack_value_get(char *buffer, const struct kernel_param *kp)
+    {
+      (void)kp;
+      return sysfs_emit(buffer, "%d\n", ${targetFunction}());
+    }
+
+    static const struct kernel_param_ops stack_value_ops = {
+      .get = stack_value_get,
+    };
+    module_param_cb(stack_value, &stack_value_ops, NULL, 0444);
 
     MODULE_LICENSE("GPL");
     MODULE_DESCRIPTION("Private STACK1 livepatch target");
@@ -157,6 +171,42 @@ let
     buildPhase = ''
       runHook preBuild
       make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M="$PWD" modules
+
+      ${kernel.stdenv.cc.bintools.bintools}/bin/objdump -dr \
+        ${targetModuleName}.ko \
+        | awk '
+            /^[[:xdigit:]]+ <stack_value_get>:/ { capture = 1 }
+            capture && /^$/ { exit }
+            capture { print }
+          ' > stack-value-get.disassembly
+
+      if ! awk '
+        /^[[:space:]]*[[:xdigit:]]+:/ && $0 !~ /R_X86_64_/ {
+          instruction = $0
+        }
+        /R_X86_64_(PLT32|PC32)[[:space:]]+${targetFunction}([-+]|$)/ {
+          if (instruction !~ /[[:space:]]call[q]?[[:space:]]/) exit 2
+          target_call = 1
+          after_target_call = 1
+        }
+        after_target_call &&
+          /^[[:space:]]*[[:xdigit:]]+:/ &&
+          /[[:space:]]mov[lq]?[[:space:]]+%eax,%edx([[:space:]]|$)/ {
+          return_consumed = 1
+        }
+        /R_X86_64_(PLT32|PC32)[[:space:]]+sysfs_emit([-+]|$)/ {
+          if (instruction !~ /[[:space:]](call|jmp)[q]?[[:space:]]/) exit 3
+          if (!return_consumed) exit 4
+          sysfs_call = 1
+        }
+        END {
+          if (!(target_call && return_consumed && sysfs_call)) exit 1
+        }
+      ' stack-value-get.disassembly; then
+        echo 'stack_value_get does not preserve the livepatch target call' >&2
+        sed -n '1,80p' stack-value-get.disassembly >&2
+        exit 1
+      fi
       runHook postBuild
     '';
     installPhase = ''
@@ -386,6 +436,16 @@ let
       uname = "${nixpkgs.coreutils}/bin/uname";
     };
   };
+  switchKernelImage = nixpkgs.writeText "livepatch-stack-switch-kernel-image" ''
+    configured image diagnostic changed by private switch fixture
+  '';
+  switchKernelNotes = nixpkgs.writeText "livepatch-stack-switch-kernel-notes" ''
+    configured notes diagnostic changed by private switch fixture
+  '';
+  switchOffLivepatchTest = livepatchTest // {
+    kernelImage = switchKernelImage;
+    kernelNotes = switchKernelNotes;
+  };
   rootOnlyLivepatchTest = livepatchTest // {
     catalog = [ (builtins.head catalog) ];
   };
@@ -405,7 +465,10 @@ let
           modules = [
             ../../../configs/vpsadminos/base.nix
             ../../../configs/vpsadminos/pool-tank.nix
-            { boot.zfsBuiltin = pkgs.lib.mkForce false; }
+            {
+              boot.extraModulePackages = [ targetModule ];
+              boot.zfsBuiltin = pkgs.lib.mkForce false;
+            }
             module
           ];
         }).config.system.build.toplevel;
@@ -428,6 +491,13 @@ let
           enable = true;
           loadOnBoot = false;
           loadOnSwitch = true;
+        };
+      };
+      switchOffSystem = switchedSystem switchOffLivepatchTest {
+        services.live-patches = {
+          enable = true;
+          loadOnBoot = false;
+          loadOnSwitch = false;
         };
       };
       machineConfig =
@@ -453,6 +523,7 @@ let
           system.extraDependencies = [
             fullSystem
             rootOnlySystem
+            switchOffSystem
             switchSystem
           ];
           system.vpsadminos.enableUnstable = lib.mkForce false;
@@ -485,9 +556,33 @@ let
             loadOnSwitch = false;
           };
         };
+        switch_off = import ../../../machines/vpsadminos/with-empty.nix {
+          inherit pkgs;
+          config = machineConfig {
+            loadOnBoot = false;
+            loadOnSwitch = false;
+          };
+        };
       };
 
       testScript = ''
+        require 'json'
+
+        STACK_VALUE = '/sys/module/${targetModuleName}/parameters/stack_value'
+        KERNEL_FAULT_PATTERN = /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|Invalid relocation target|disagrees about version|Unknown symbol|blocked for more than|soft lockup|hard LOCKUP|(?:rcu|RCU).*stall|livepatch.*(?:error|failed)/
+
+        stack_value = lambda do |guest|
+          Integer(guest.succeeds("cat #{STACK_VALUE}")[1].strip, 10)
+        end
+
+        configured_modules = lambda do |guest|
+          output = guest.succeeds('live-patches status')[1]
+          modules = output.scan(/\bmodule=([a-z0-9_]+)\b/).flatten
+          expect(modules.length).to eq(3)
+          expect(modules.uniq.length).to eq(3)
+          modules
+        end
+
         status_state = lambda do |guest, ordinal, state|
           output = guest.succeeds('live-patches status')[1]
           row = output.lines.find { |line| line.start_with?("ordinal=#{ordinal} ") }
@@ -504,11 +599,13 @@ let
 
           it 'loads selected and aggregate batches in strict order' do
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}')
+            expect(stack_value.call(machine)).to eq(0)
             status_state.call(machine, 1, 'configured-not-loaded')
             status_state.call(machine, 2, 'configured-not-loaded')
             status_state.call(machine, 3, 'configured-not-loaded')
             machine.succeeds('live-patches load 1', timeout: 240)
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.1')
+            expect(stack_value.call(machine)).to eq(1)
             status_state.call(machine, 1, 'active')
             status_state.call(machine, 2, 'configured-not-loaded')
             status_state.call(machine, 3, 'configured-not-loaded')
@@ -516,11 +613,13 @@ let
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.1')
             machine.succeeds('live-patches load 2', timeout: 240)
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.2')
+            expect(stack_value.call(machine)).to eq(2)
             status_state.call(machine, 1, 'active')
             status_state.call(machine, 2, 'active')
             status_state.call(machine, 3, 'configured-not-loaded')
             machine.succeeds('live-patches load', timeout: 480)
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.3')
+            expect(stack_value.call(machine)).to eq(3)
             status_state.call(machine, 1, 'active')
             status_state.call(machine, 2, 'active')
             status_state.call(machine, 3, 'active')
@@ -529,6 +628,7 @@ let
           it 'refuses a non-tip removal without changing the stack' do
             machine.fails('live-patches unload 1', timeout: 60)
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.3')
+            expect(stack_value.call(machine)).to eq(3)
           end
 
           it 'reports loaded modules after a generation rollback without adopting them' do
@@ -538,19 +638,23 @@ let
             expect(status.scan('configured=no present=yes').length).to eq(2)
             machine.fails('live-patches unload', timeout: 60)
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.3')
+            expect(stack_value.call(machine)).to eq(3)
             machine.succeeds('${fullSystem}/bin/switch-to-configuration test', timeout: 180)
           end
 
           it 'rolls back and reloads the tip, then returns to native' do
             machine.succeeds('live-patches unload 3', timeout: 240)
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.2')
+            expect(stack_value.call(machine)).to eq(2)
             status_state.call(machine, 1, 'active')
             status_state.call(machine, 2, 'active')
             status_state.call(machine, 3, 'configured-not-loaded')
             machine.succeeds('live-patches load 3', timeout: 240)
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.3')
+            expect(stack_value.call(machine)).to eq(3)
             machine.succeeds('live-patches unload', timeout: 480)
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}')
+            expect(stack_value.call(machine)).to eq(0)
             status_state.call(machine, 1, 'configured-not-loaded')
             status_state.call(machine, 2, 'configured-not-loaded')
             status_state.call(machine, 3, 'configured-not-loaded')
@@ -562,6 +666,7 @@ let
             machine.succeeds("sh -c 'printf 1 > /proc/sys/kernel/modules_disabled'")
             machine.fails('live-patches load 2', timeout: 60)
             expect(machine.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.1')
+            expect(stack_value.call(machine)).to eq(1)
             status_state.call(machine, 1, 'active')
             status_state.call(machine, 2, 'partial/inconsistent')
             status_state.call(machine, 3, 'configured-not-loaded')
@@ -572,24 +677,123 @@ let
             boot_on.start
             boot_on.succeeds('test -d /sys/module/${targetModuleName}')
             expect(boot_on.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.3')
+            expect(stack_value.call(boot_on)).to eq(3)
             status_state.call(boot_on, 1, 'active')
             status_state.call(boot_on, 2, 'active')
             status_state.call(boot_on, 3, 'active')
             boot_on.succeeds('sv restart live-patches')
             expect(boot_on.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.3')
+            expect(stack_value.call(boot_on)).to eq(3)
             boot_on.succeeds('live-patches unload', timeout: 480)
             expect(boot_on.succeeds('uname -r')[1].strip).to eq('${kernelVersion}')
+            expect(stack_value.call(boot_on)).to eq(0)
+          end
+
+          it 'keeps automatic loading off across a diagnostic-only switch' do
+            switch_off.start
+            dmesg_start = switch_off.succeeds('dmesg | wc -l')[1].to_i
+            booted_system = switch_off.succeeds('readlink -f /run/booted-system')[1].strip
+            expect(switch_off.succeeds('uname -r')[1].strip).to eq('${kernelVersion}')
+            expect(stack_value.call(switch_off)).to eq(0)
+            status_state.call(switch_off, 1, 'configured-not-loaded')
+            status_state.call(switch_off, 2, 'configured-not-loaded')
+            status_state.call(switch_off, 3, 'configured-not-loaded')
+            configured_modules.call(switch_off).each do |module_name|
+              switch_off.succeeds("test ! -d /sys/module/#{module_name}")
+            end
+            switch_off.all_succeed(
+              'test -z "$(find /sys/kernel/livepatch -mindepth 1 -maxdepth 1 -print -quit)"',
+              'test ! -e /lib/modules/${kernelVersion}.1',
+              'test ! -e /lib/modules/${kernelVersion}.2',
+              'test ! -e /lib/modules/${kernelVersion}.3',
+            )
+
+            before_monitor = JSON.parse(
+              switch_off.succeeds('cat /etc/vpsadminos/livepatch-monitor.json')[1],
+            )
+            expect(before_monitor.fetch('modules').map { |entry| entry.fetch('kernelImage') }.uniq).to eq(
+              ['${livepatchTest.kernelImage}'],
+            )
+            expect(before_monitor.fetch('modules').map { |entry| entry.fetch('kernelNotes') }.uniq).to eq(
+              ['${livepatchTest.kernelNotes}'],
+            )
+
+            switch_off.succeeds('${switchOffSystem}/bin/switch-to-configuration test', timeout: 480)
+            current_system = switch_off.succeeds('readlink -f /run/current-system')[1].strip
+            expect(current_system).to eq('${switchOffSystem}')
+            expect(current_system).not_to eq(booted_system)
+            expect(switch_off.succeeds('readlink -f /run/booted-system')[1].strip).to eq(
+              booted_system,
+            )
+            switch_off.all_succeed(
+              'test "$(readlink -f /run/current-system/kernel)" = "$(readlink -f /run/booted-system/kernel)"',
+              'test "$(readlink -f /run/current-system/kernel-modules)" = "$(readlink -f /run/booted-system/kernel-modules)"',
+            )
+            after_monitor = JSON.parse(
+              switch_off.succeeds('cat /etc/vpsadminos/livepatch-monitor.json')[1],
+            )
+            expect(after_monitor.fetch('modules').map { |entry| entry.fetch('kernelImage') }.uniq).to eq(
+              ['${switchKernelImage}'],
+            )
+            expect(after_monitor.fetch('modules').map { |entry| entry.fetch('kernelNotes') }.uniq).to eq(
+              ['${switchKernelNotes}'],
+            )
+            expect(stack_value.call(switch_off)).to eq(0)
+            status_state.call(switch_off, 1, 'configured-not-loaded')
+            status_state.call(switch_off, 2, 'configured-not-loaded')
+            status_state.call(switch_off, 3, 'configured-not-loaded')
+            configured_modules.call(switch_off).each do |module_name|
+              switch_off.succeeds("test ! -d /sys/module/#{module_name}")
+            end
+            switch_off.succeeds(
+              'test -z "$(find /sys/kernel/livepatch -mindepth 1 -maxdepth 1 -print -quit)"',
+            )
+
+            switch_off.succeeds('live-patches load', timeout: 480)
+            expect(switch_off.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.3')
+            expect(stack_value.call(switch_off)).to eq(3)
+            status_state.call(switch_off, 1, 'active')
+            status_state.call(switch_off, 2, 'active')
+            status_state.call(switch_off, 3, 'active')
+            (1..3).each do |ordinal|
+              switch_off.succeeds(
+                "test \"$(readlink -f /lib/modules/${kernelVersion}.#{ordinal})\" = " \
+                  '"$(readlink -f /run/booted-system/kernel-modules/lib/modules/${kernel.modDirVersion})"',
+              )
+            end
+
+            switch_off.succeeds('live-patches unload', timeout: 480)
+            expect(switch_off.succeeds('uname -r')[1].strip).to eq('${kernelVersion}')
+            expect(stack_value.call(switch_off)).to eq(0)
+            status_state.call(switch_off, 1, 'configured-not-loaded')
+            status_state.call(switch_off, 2, 'configured-not-loaded')
+            status_state.call(switch_off, 3, 'configured-not-loaded')
+            configured_modules.call(switch_off).each do |module_name|
+              switch_off.succeeds("test ! -d /sys/module/#{module_name}")
+            end
+            switch_off.all_succeed(
+              'test -z "$(find /sys/kernel/livepatch -mindepth 1 -maxdepth 1 -print -quit)"',
+              'test ! -e /lib/modules/${kernelVersion}.1',
+              'test ! -e /lib/modules/${kernelVersion}.2',
+              'test ! -e /lib/modules/${kernelVersion}.3',
+            )
+            kernel_output = switch_off.succeeds("dmesg | tail -n +#{dmesg_start + 1}")[1]
+            expect(kernel_output).not_to match(KERNEL_FAULT_PATTERN)
           end
 
           it 'loads the aggregate on an opted-in live switch and stays idempotent' do
             switch_on.start
             expect(switch_on.succeeds('uname -r')[1].strip).to eq('${kernelVersion}')
+            expect(stack_value.call(switch_on)).to eq(0)
             switch_on.succeeds('${switchSystem}/bin/switch-to-configuration test', timeout: 480)
             expect(switch_on.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.3')
+            expect(stack_value.call(switch_on)).to eq(3)
             switch_on.succeeds('/run/current-system/bin/switch-to-configuration test', timeout: 180)
             expect(switch_on.succeeds('uname -r')[1].strip).to eq('${kernelVersion}.3')
+            expect(stack_value.call(switch_on)).to eq(3)
             switch_on.succeeds('live-patches unload', timeout: 480)
             expect(switch_on.succeeds('uname -r')[1].strip).to eq('${kernelVersion}')
+            expect(stack_value.call(switch_on)).to eq(0)
           end
         end
       '';

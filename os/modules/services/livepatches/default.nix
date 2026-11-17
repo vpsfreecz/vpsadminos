@@ -136,7 +136,6 @@ let
     else
       {
         appliedDir = "/run/vpsadminos/livepatches";
-        bootedKernel = "/run/booted-system/kernel";
         date = "${pkgs.coreutils}/bin/date";
         disable = pkgs.writeShellScript "livepatch-disable" ''
           printf '0\n' > "$1"
@@ -150,7 +149,6 @@ let
         pollAttempts = 60;
         pollInterval = "1";
         rmmod = "${pkgs.kmod}/bin/rmmod";
-        runningNotes = "/sys/kernel/notes";
         sysModuleRoot = "/sys/module";
         uname = "${pkgs.coreutils}/bin/uname";
       };
@@ -602,32 +600,6 @@ let
       esac
     }
 
-    check_boot_identity() {
-      booted_kernel=$(${pkgs.coreutils}/bin/readlink -f \
-        ${escapeShellArg genericRuntime.bootedKernel} 2>/dev/null) || {
-        echo "live-patches: cannot resolve running boot-kernel authority ${genericRuntime.bootedKernel}" >&2
-        return "$authority_collection_error"
-      }
-      if [ "$booted_kernel" != ${escapeShellArg genericKernelImage} ]; then
-        echo "live-patches: configured module does not match the running boot kernel" >&2
-        echo "live-patches: existing livepatches are unchanged; boot the configured kernel before managing this module" >&2
-        return "$authority_disagreement"
-      fi
-      if ${pkgs.diffutils}/bin/cmp -s \
-        ${escapeShellArg genericKernelNotes} ${escapeShellArg genericRuntime.runningNotes}; then
-        :
-      else
-        compare_result=$?
-        if [ "$compare_result" -eq 1 ]; then
-          echo "live-patches: configured module does not match the running boot kernel" >&2
-          echo "live-patches: existing livepatches are unchanged; boot the configured kernel before managing this module" >&2
-          return "$authority_disagreement"
-        fi
-        echo "live-patches: cannot compare running kernel notes ${genericRuntime.runningNotes}" >&2
-        return "$authority_collection_error"
-      fi
-    }
-
     check_release() {
       expected_release="$1"
       context="$2"
@@ -893,7 +865,6 @@ let
     }
 
     scan_stack() {
-      check_boot_identity || return 1
       refuse_unknown_runtime || return 1
       active_tip=0
       pending_ordinal=0
@@ -985,7 +956,6 @@ let
         fi
         if [ "$enabled_state" = 1 ] && [ "$transition_state" = 0 ]; then
           verify_coverage || return 1
-          check_boot_identity || return 1
           check_release "$published_release" "load convergence" || {
             report_state
             return 1
@@ -1012,7 +982,6 @@ let
     }
 
     finish_unload_cleanup() {
-      check_boot_identity || return 1
       check_release "$rollback_release" "unload cleanup" || return 1
       if [ ! -f "$applied_marker" ]; then
         echo "live-patches: $module_name has no owned applied marker" >&2
@@ -1072,7 +1041,6 @@ let
       if [ "$enabled_state" = 1 ] && [ "$transition_state" = 0 ]; then
         verify_coverage || return 1
         check_release "$published_release" "unload preflight" || return 1
-        check_boot_identity || return 1
         if ! ${genericRuntime.disable} "$patch_dir/enabled"; then
           echo "live-patches: disabling $module_name FAILED" >&2
           report_state
@@ -1091,7 +1059,6 @@ let
       attempt=0
       while [ "$attempt" -lt ${toString genericRuntime.pollAttempts} ]; do
         if [ ! -d "$patch_dir" ]; then
-          check_boot_identity || return 1
           check_release "$rollback_release" "unload convergence" || return 1
           break
         fi
@@ -1210,7 +1177,6 @@ let
       inventory_authority check_module_identity || return 0
       inventory_authority verify_coverage || return 0
       inventory_authority verify_release_link || return 0
-      inventory_authority check_boot_identity || return 0
       state=active
     }
 
@@ -1499,13 +1465,6 @@ let
       exit 0
     ''
     + optionalString (!genericBuildEnable && buildEnable) ''
-      if [ "$(readlink -f /run/booted-system/kernel)" != "${kernel}/bzImage" ] || \
-         ! ${pkgs.diffutils}/bin/cmp -s ${kernelNotes} /sys/kernel/notes; then
-        echo "live-patches: configured module does not match the running boot kernel" >&2
-        echo "live-patches: existing livepatches are unchanged; boot the configured kernel before managing this module" >&2
-        exit 1
-      fi
-
       case "$1" in
       load)
         ${moduleLoadContent}
