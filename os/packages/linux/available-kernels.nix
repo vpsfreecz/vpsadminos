@@ -1,7 +1,7 @@
 { lib }:
 with lib.kernel;
 {
-  stableKernelVersion = "6.12.117";
+  stableKernelVersion = "6.12.118";
   unstableKernelVersion = "6.18.49";
 
   kernels = {
@@ -42,6 +42,15 @@ with lib.kernel;
       zfs = {
         rev = "b2ade5816c3a16f779616c6d25710f7f2bca7ce9";
         sha256 = "sha256-OHzDCuQ9fP3qKPhA3QysBOwqzWiFUir6BcHv2hIONPg=";
+      };
+    };
+    "6.12.118" = {
+      rev = "3bba27296b6f4f4a2b1568d65cea6037368f229b";
+      sha256 = "sha256-tXgl0RdF3YigscvXI/tD5QHbujUV+6bVW+KIyESG93U=";
+      zfs = {
+        rev = "481845fca6ae3f61ca2262c1a5693a58ae364650";
+        sha256 = "sha256-/zeZH5EJYa0zaNcbMUoeHp6UnHNAMUrjgok/VgWI88A=";
+        patches = [ ../zfs/zfs235-free-account.patch ];
       };
     };
     "6.12.117" = {
