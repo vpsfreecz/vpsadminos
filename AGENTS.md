@@ -34,6 +34,19 @@
 - Format Nix with `nixfmt`/`nixpkgs-fmt`; keep attribute names snake_case and package derivations under `os/packages`.
 - Tests/scripts: snake_case filenames; gem/module names match their directories (`osctl-oomd`, `libosctl`, etc.).
 
+## Kernel Version Updates
+
+- Use the repository-owned `update-kernel` skill for kernel version ports and
+  stable/unstable catalog selection changes. Read the
+  [kernel update process](docs/os/kernel-updates.md) and
+  [downstream patch-series policy](docs/os/patch-series-policy.md) before replaying
+  a stack or changing its package pin. Final Linux delivery is publication of
+  the reviewed and verified exact head on `vpsadminos-<upstream-version>`, without
+  merging Linux into its default or series branches or creating downstream tags
+  automatically. The OS keeps its
+  full commit/hash pin. Numbered livepatch releases use `manage-livepatch` and
+  its release process.
+
 ## Testing Guidelines
 - Before adding or changing a numbered kernel livepatch, read the
   [canonical release process](docs/os/livepatches/process.md), start target

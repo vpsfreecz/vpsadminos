@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Kernel"
+  short_description: "Port and register vpsAdminOS kernel versions"
+  default_prompt: "Use $update-kernel to update the requested vpsAdminOS kernel selection while preserving the complete packaged downstream stack."

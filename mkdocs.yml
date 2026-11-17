@@ -35,6 +35,7 @@ nav:
     - 'Binary cache': 'os/binary-cache.md'
     - Installation: 'os/installation.md'
     - Updates: 'os/updates.md'
+    - 'Kernel version updates': 'os/kernel-updates.md'
     - Kernel livepatches:
         - 'Release process': 'os/livepatches/process.md'
         - 'Linux 6.12.113': 'os/livepatches/6.12.113.md'

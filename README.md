@@ -136,3 +136,4 @@ the kernel.
 <a id="automated-flake-updates"></a>
 
 * [Automated flake updates](docs/operations/flake-updates.md)
+* [Kernel version updates](docs/os/kernel-updates.md)
