@@ -1738,6 +1738,8 @@
                   ${qualificationResultVerifier} \
                   ${./tools/livepatch/capture.sh} \
                   ${./tools/livepatch/run-profile.sh} \
+                  ${./tools/livepatch/ci-workspace.sh} \
+                  ${./.github/workflows/livepatch.yml} \
                   > verify-capture.log
 
                 ${pkgs.bash}/bin/bash ${./tools/livepatch/tests/ci-tool-closure.sh} \

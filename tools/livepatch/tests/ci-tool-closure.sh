@@ -22,6 +22,7 @@ bash_path=${BASH:?}
 [[ -x "$bash_path" ]] || fail "current Bash is not executable: $bash_path"
 inventory=$source_root/tools/livepatch/ci-tool-closure.tsv
 prepare=$source_root/tools/livepatch/prepare-ci-tools.sh
+ci_workspace=$source_root/tools/livepatch/ci-workspace.sh
 run_profile=$source_root/tools/livepatch/run-profile.sh
 test_runner=$source_root/test-runner.sh
 workflow=$source_root/.github/workflows/livepatch.yml
@@ -31,11 +32,12 @@ docs_workflow=$source_root/.github/workflows/livepatch-docs.yml
 osvm_machine=$source_root/osvm/lib/osvm/machine.rb
 osvm_shared_dir=$source_root/osvm/lib/osvm/shared_dir.rb
 test_runner_executor=$source_root/test-runner/lib/test-runner/executor.rb
-[[ -f "$inventory" && -x "$prepare" && -x "$run_profile" && -x "$test_runner" &&
-  -f "$workflow" && -f "$main_workflow" && -f "$qualification_workflow" &&
-  -f "$docs_workflow" && -f "$osvm_machine" && -f "$osvm_shared_dir" &&
-  -f "$test_runner_executor" ]] || usage
+[[ -f "$inventory" && -x "$prepare" && -x "$ci_workspace" && -x "$run_profile" &&
+  -x "$test_runner" && -f "$workflow" && -f "$main_workflow" &&
+  -f "$qualification_workflow" && -f "$docs_workflow" && -f "$osvm_machine" &&
+  -f "$osvm_shared_dir" && -f "$test_runner_executor" ]] || usage
 "$bash_path" -n "$test_runner"
+"$bash_path" -n "$ci_workspace"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/livepatch-ci-tool-test.XXXXXX")
 cleanup() {
@@ -276,24 +278,31 @@ cmp -- "$expected" "$inventory"
   fail 'workflow setup-name count changed'
 [[ $(grep -Fc 'run: tools/livepatch/prepare-ci-tools.sh' "$workflow") -eq 4 ]] ||
   fail 'workflow setup-command count changed'
-profile_state_suffix='lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}'
-profile_state_assignment='profile_state="$RUNNER_TEMP/lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}"'
-profile_state_argument='--state-dir "$profile_state"'
-profile_state_upload='path: ${{ runner.temp }}/lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}'
+profile_state_environment='LIVEPATCH_PROFILE_STATE: ${{ steps.prepare-profile.outputs.state-directory }}/profile'
+profile_state_argument='--state-dir "$LIVEPATCH_PROFILE_STATE"'
+profile_state_upload='path: ${{ steps.prepare-profile.outputs.state-directory }}/profile'
 profile_artifact_name='name: livepatch-result-${{ matrix.rowId }}-${{ github.run_id }}-${{ github.run_attempt }}'
-[[ $(grep -Fc -- "$profile_state_suffix" "$workflow") -eq 2 ]] ||
-  fail 'workflow profile state identity count changed'
-[[ $(grep -Fc -- "$profile_state_assignment" "$workflow") -eq 1 ]] ||
-  fail 'workflow profile state assignment changed'
+[[ $(grep -Fc -- 'uses: ./.github/actions/prepare-test-state' "$workflow") -eq 1 ]] ||
+  fail 'workflow profile state preparation changed'
+[[ $(grep -Fc -- 'uses: ./.github/actions/cleanup-test-state' "$workflow") -eq 1 ]] ||
+  fail 'workflow profile state cleanup changed'
+[[ $(grep -Fc -- "$profile_state_environment" "$workflow") -eq 1 ]] ||
+  fail 'workflow profile state environment changed'
 [[ $(grep -Fc -- "$profile_state_argument" "$workflow") -eq 1 ]] ||
   fail 'workflow profile state argument changed'
 [[ $(grep -Fc -- "$profile_state_upload" "$workflow") -eq 1 ]] ||
   fail 'workflow profile state upload path changed'
 [[ $(grep -Fc -- "$profile_artifact_name" "$workflow") -eq 1 ]] ||
   fail 'workflow profile artifact name changed'
-[[ $(grep -Fc -- 'livepatch-profile-' "$workflow") -eq 0 ]] ||
-  fail 'workflow retains old profile state identity'
-[[ $(grep -Fc -- 'profile_state_bytes=$(LC_ALL=C printf '\''%s'\'' "$profile_state" | wc -c)' "$workflow") -eq 1 ]] ||
+[[ $(grep -Fc -- 'state-directory: ${{ steps.prepare-profile.outputs.state-directory }}' "$workflow") -eq 1 ]] ||
+  fail 'workflow profile cleanup directory changed'
+[[ $(grep -Fc -- 'prepare-outcome: ${{ steps.prepare-profile.outcome }}' "$workflow") -eq 1 ]] ||
+  fail 'workflow profile cleanup prepare outcome changed'
+[[ $(grep -Fc -- 'test-outcome: ${{ steps.run.outcome }}' "$workflow") -eq 1 ]] ||
+  fail 'workflow profile cleanup test outcome changed'
+[[ $(grep -Fc -- 'upload-outcome: ${{ steps.upload-result.outcome }}' "$workflow") -eq 1 ]] ||
+  fail 'workflow profile cleanup upload outcome changed'
+[[ $(grep -Fc -- 'profile_state_bytes=$(LC_ALL=C printf '\''%s'\'' "$LIVEPATCH_PROFILE_STATE" | wc -c)' "$workflow") -eq 1 ]] ||
   fail 'workflow profile state byte measurement changed'
 [[ $(grep -Fc -- 'if ((profile_state_bytes > 63)); then' "$workflow") -eq 1 ]] ||
   fail 'workflow profile state byte admission changed'
@@ -318,12 +327,11 @@ pathname_ceiling=$((socket_storage_bytes - 1))
 ((63 + ${#relative_socket} <= pathname_ceiling)) ||
   fail 'profile state socket budget is invalid'
 
-runner_temp=/run/github-runner/runner/_temp
-compact_example="$runner_temp/lp-43657861004-1-0"
-[[ $(LC_ALL=C printf '%s' "$compact_example" | wc -c) -eq 50 ]] ||
-  fail 'compact profile state example length changed'
-[[ $(LC_ALL=C printf '%s' "$compact_example$relative_socket" | wc -c) -eq 93 ]] ||
-  fail 'compact OsVm socket example length changed'
+compact_example=/tmp/os-test-runner-123456789-43657861004-1/profile
+[[ $(LC_ALL=C printf '%s' "$compact_example" | wc -c) -eq 51 ]] ||
+  fail 'prepared profile state example length changed'
+[[ $(LC_ALL=C printf '%s' "$compact_example$relative_socket" | wc -c) -eq 94 ]] ||
+  fail 'prepared profile OsVm socket example length changed'
 printf -v path_63 '%*s' 63 ''
 path_63=${path_63// /x}
 path_64=${path_63}x

@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-if (($# != 4)); then
-  echo "usage: tools/livepatch/tests/verify-capture.sh BASH VERIFY CAPTURE RUN_PROFILE" >&2
+if (($# != 6)); then
+  echo "usage: tools/livepatch/tests/verify-capture.sh BASH VERIFY CAPTURE RUN_PROFILE CI_WORKSPACE WORKFLOW" >&2
   exit 2
 fi
 
@@ -19,12 +19,18 @@ verify=$(readlink -e -- "$2")
 }
 capture_script=$(readlink -e -- "$3")
 run_profile=$(readlink -e -- "$4")
-for input in "$capture_script" "$run_profile"; do
+ci_workspace=$(readlink -e -- "$5")
+workflow=$(readlink -e -- "$6")
+for input in "$capture_script" "$run_profile" "$ci_workspace"; do
   [[ -f "$input" && ! -L "$input" ]] || {
     echo "interface script must be a regular non-symlink file" >&2
     exit 1
   }
 done
+[[ -f "$workflow" && ! -L "$workflow" ]] || {
+  echo "workflow must be a regular non-symlink file" >&2
+  exit 1
+}
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/livepatch-verify-capture.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM
@@ -456,7 +462,252 @@ run_profile_interface() {
   [[ ! -e "$root/verify.log" && ! -e "$root/runner.log" ]]
 }
 
+expect_workspace_refusal() {
+  local name=$1
+  shift
+
+  if "$bash_path" "$ci_workspace" "$@" >"$work/$name.stdout" 2>"$work/$name.stderr"; then
+    echo "CI workspace refusal case accepted: $name" >&2
+    exit 1
+  fi
+}
+
+prepare_workspace() {
+  local root=$1
+  local job=$2
+  local run_id=${3:-77}
+  local run_attempt=${4:-2}
+
+  "$bash_path" "$ci_workspace" prepare --root "$root" --job "$job" \
+    --run-id "$run_id" --run-attempt "$run_attempt"
+}
+
+cleanup_workspace() {
+  local root=$1
+  local job=$2
+  local directory=$3
+  local run_id=${4:-77}
+  local run_attempt=${5:-2}
+
+  "$bash_path" "$ci_workspace" cleanup --root "$root" --job "$job" \
+    --run-id "$run_id" --run-attempt "$run_attempt" --directory "$directory"
+}
+
+invoke_capture_fixture() {
+  local root=$1
+  local output=$2
+  local evidence=$3
+  local -a fake_requisites
+
+  mapfile -t fake_requisites <"$root/requisites.txt"
+  (
+    cd "$root"
+    export PATH="$root/bin:$PATH"
+    export FAKE_SOURCE_REVISION=$source_revision
+    export FAKE_PRODUCER="$root/producer"
+    export FAKE_DERIVER=$deriver
+    export FAKE_REQUISITE_ONE=${fake_requisites[0]}
+    export FAKE_REQUISITE_TWO=${fake_requisites[1]}
+    "$bash_path" "$capture_script" --plan "$root/plan.json" \
+      --output "$output" --evidence-dir "$evidence"
+  )
+}
+
+ci_workspace_interface() {
+  local root="$work/ci-workspace"
+  local legacy="$root/legacy"
+  local capture_root="$root/capture-fixture"
+  local owner output evidence first second job sentinel hash
+  local -a owners=()
+
+  mkdir -p -- "$root/scratch" "$legacy"
+  for job in discovery input capture results; do
+    mkdir -- "$legacy/livepatch-$job"
+    printf 'legacy %s sentinel\n' "$job" >"$legacy/livepatch-$job/sentinel"
+  done
+  printf '{stale legacy result\n' >"$legacy/livepatch-results/result.json"
+  hash=$(find "$legacy" -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum)
+
+  for job in discover capture qualify results; do
+    first=$(prepare_workspace "$root/scratch" "$job")
+    second=$(prepare_workspace "$root/scratch" "$job")
+    [[ $first != "$second" && -d $first && ! -L $first && -O $first ]]
+    [[ -d $second && ! -L $second && -O $second ]]
+    [[ $(find "$first" -maxdepth 0 -printf '%m') == 700 ]]
+    [[ $(find "$second" -maxdepth 0 -printf '%m') == 700 ]]
+    owners+=("$job:$first" "$job:$second")
+  done
+  [[ $(printf '%s\n' "${owners[@]#*:}" | LC_ALL=C sort -u | wc -l) -eq 8 ]]
+  expect_workspace_refusal unsupported-job prepare --root "$root/scratch" \
+    --job other --run-id 77 --run-attempt 2
+  expect_workspace_refusal nonnumeric-run prepare --root "$root/scratch" \
+    --job capture --run-id current --run-attempt 2
+
+  for sentinel in "${owners[@]}"; do
+    cleanup_workspace "$root/scratch" "${sentinel%%:*}" "${sentinel#*:}"
+  done
+
+  make_fixture "$capture_root"
+  mkdir -p -- "$capture_root/tools/livepatch"
+  cat >"$capture_root/tools/livepatch/discover.sh" <<EOF
+#!$bash_path
+set -euo pipefail
+input=
+plan=
+matrix=
+while ((\$#)); do
+  case \$1 in
+    --input) input=\$2; shift 2 ;;
+    --plan) plan=\$2; shift 2 ;;
+    --matrix) matrix=\$2; shift 2 ;;
+    *) exit 2 ;;
+  esac
+done
+cp -- "\$input" "\$plan"
+printf '{}\n' >"\$matrix"
+EOF
+  cat >"$capture_root/tools/livepatch/verify.sh" <<EOF
+#!$bash_path
+exec "$bash_path" "$verify" "\$@"
+EOF
+  cat >"$capture_root/bin/nix" <<EOF
+#!$bash_path
+set -euo pipefail
+[[ \$# -eq 4 && \$1 == build && \$2 == --no-link && \$3 == --print-out-paths ]]
+printf '%s\n' "\$FAKE_PRODUCER"
+EOF
+  chmod +x "$capture_root/tools/livepatch/discover.sh" \
+    "$capture_root/tools/livepatch/verify.sh" "$capture_root/bin/nix"
+
+  owner=$(prepare_workspace "$root/scratch" capture)
+  mkdir -- "$owner/capture"
+  output="$owner/capture/capture.json"
+  evidence="$owner/capture/evidence"
+  invoke_capture_fixture "$capture_root" "$output" "$evidence"
+  run_verifier "$capture_root" "$output" "$evidence" >/dev/null
+  if invoke_capture_fixture "$capture_root" "$output" "$evidence" >/dev/null 2>&1; then
+    echo 'same-invocation capture children were reused' >&2
+    exit 1
+  fi
+  cleanup_workspace "$root/scratch" capture "$owner"
+  [[ ! -e $owner && ! -L $owner ]]
+
+  owner=$(prepare_workspace "$root/scratch" capture)
+  mkdir -p -- "$owner/capture/evidence"
+  printf 'capture failure sentinel\n' >"$owner/capture/evidence/sentinel"
+  if invoke_capture_fixture "$capture_root" "$owner/capture/capture.json" \
+    "$owner/capture/evidence" >/dev/null 2>&1; then
+    echo 'pre-existing evidence directory was accepted' >&2
+    exit 1
+  fi
+  cleanup_workspace "$root/scratch" capture "$owner"
+  [[ ! -e $owner && ! -L $owner ]]
+
+  owner=$(prepare_workspace "$root/scratch" results)
+  mkdir -p -- "$owner/results/fresh"
+  jq -n '{
+    schemaVersion: 1,
+    counts: {matrixRows: 1},
+    matrix: {include: [{rowId: "fresh-row"}]},
+    rows: [{rowId: "fresh-row", setId: "test-set", profileId: "test-profile", scope: "fix"}]
+  }' >"$owner/plan.json"
+  jq -n '{
+    schemaVersion: 1,
+    rowId: "fresh-row",
+    setId: "test-set",
+    profileId: "test-profile",
+    accepted: true,
+    runnerStatus: 0,
+    validator: {status: "accepted"}
+  }' >"$owner/results/fresh/result.json"
+  "$bash_path" "$verify" --plan "$owner/plan.json" \
+    --results-dir "$owner/results" --output "$owner/results/consolidated.json"
+  jq -e '.accepted == true and .plannedRows == 1 and (.receipts | length) == 1' \
+    "$owner/results/consolidated.json" >/dev/null
+  cleanup_workspace "$root/scratch" results "$owner"
+
+  owner=$(prepare_workspace "$root/scratch" results)
+  mkdir -p -- "$owner/results/readonly"
+  printf 'read-only evidence\n' >"$owner/results/readonly/evidence"
+  printf 'external sentinel\n' >"$root/external-target"
+  ln -s -- "$root/external-target" "$owner/results/external-link"
+  chmod a-w "$owner/results/readonly"
+  cleanup_workspace "$root/scratch" results "$owner"
+  [[ $(cat "$root/external-target") == 'external sentinel' ]]
+
+  owner=$(prepare_workspace "$root/scratch" results)
+  mv -- "$owner" "$owner.real"
+  ln -s -- "$owner.real" "$owner"
+  expect_workspace_refusal top-level-symlink cleanup --root "$root/scratch" \
+    --job results --run-id 77 --run-attempt 2 --directory "$owner"
+  [[ -L $owner && -d $owner.real ]]
+  rm -- "$owner"
+  rm -rf -- "$owner.real"
+
+  owner=$(prepare_workspace "$root/scratch" results)
+  expect_workspace_refusal wrong-run cleanup --root "$root/scratch" \
+    --job results --run-id 78 --run-attempt 2 --directory "$owner"
+  [[ -d $owner ]]
+  cleanup_workspace "$root/scratch" results "$owner"
+  cleanup_workspace "$root/scratch" results "$owner"
+
+  mkdir -- "$root/scratch/livepatch-results-77-2.short"
+  expect_workspace_refusal wrong-owner-shape cleanup --root "$root/scratch" \
+    --job results --run-id 77 --run-attempt 2 \
+    --directory "$root/scratch/livepatch-results-77-2.short"
+  [[ -d $root/scratch/livepatch-results-77-2.short ]]
+
+  mkdir -p -- "$root/outside/livepatch-results-77-2.ABC123"
+  expect_workspace_refusal outside-root cleanup --root "$root/scratch" \
+    --job results --run-id 77 --run-attempt 2 \
+    --directory "$root/outside/livepatch-results-77-2.ABC123"
+  [[ -d $root/outside/livepatch-results-77-2.ABC123 ]]
+
+  mkdir -- "$root/actual-root"
+  ln -s -- "$root/actual-root" "$root/root-link"
+  expect_workspace_refusal symlink-root prepare --root "$root/root-link" \
+    --job discover --run-id 77 --run-attempt 2
+
+  [[ $hash == "$(find "$legacy" -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum)" ]]
+}
+
+workflow_interface() {
+  local job
+
+  [[ $(grep -Fc 'tools/livepatch/ci-workspace.sh prepare' "$workflow") -eq 4 ]]
+  [[ $(grep -Fc 'tools/livepatch/ci-workspace.sh cleanup' "$workflow") -eq 4 ]]
+  [[ $(grep -Fc -- '--directory "$LIVEPATCH_CI_WORKSPACE"' "$workflow") -eq 4 ]]
+  [[ $(grep -Fc 'id: workspace' "$workflow") -eq 4 ]]
+  for job in discover capture qualify results; do
+    [[ $(grep -Fc "LIVEPATCH_CI_JOB: $job" "$workflow") -eq 2 ]]
+  done
+  if grep -Eq '\$RUNNER_TEMP/livepatch-(discovery|input|capture|results)|\$\{\{ runner[.]temp \}\}/livepatch-(discovery|input|capture|results)' \
+    "$workflow"; then
+    echo 'workflow retains an active fixed livepatch scratch path' >&2
+    exit 1
+  fi
+
+  [[ $(grep -Fc 'uses: ./.github/actions/prepare-test-state' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'uses: ./.github/actions/cleanup-test-state' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'LIVEPATCH_PROFILE_STATE: ${{ steps.prepare-profile.outputs.state-directory }}/profile' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'path: ${{ steps.prepare-profile.outputs.state-directory }}/profile' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'state-directory: ${{ steps.prepare-profile.outputs.state-directory }}' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'steps.cleanup-profile.outcome == '\''success'\''' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'steps.upload-result.outcome == '\''success'\''' "$workflow") -eq 1 ]]
+  [[ $(grep -Ec '^[[:space:]]*path: \$\{\{ steps[.]workspace[.]outputs[.]directory \}\}$' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Ec '^[[:space:]]*path: \$\{\{ steps[.]workspace[.]outputs[.]directory \}\}/capture$' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Ec '^[[:space:]]*path: \$\{\{ steps[.]workspace[.]outputs[.]directory \}\}/results$' \
+    "$workflow") -eq 2 ]]
+}
+
 capture_interface
 run_profile_interface
+ci_workspace_interface
+workflow_interface
 
 echo "livepatch capture verifier matrix passed"

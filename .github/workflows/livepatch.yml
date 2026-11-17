@@ -25,29 +25,62 @@ jobs:
       - name: Prepare locked livepatch CI tools
         run: tools/livepatch/prepare-ci-tools.sh
 
-      - name: Discover a count-closed qualification plan
-        id: plan
+      - name: Prepare livepatch discovery workspace
+        id: workspace
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: discover
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/livepatch-discovery"
+          workspace=$(tools/livepatch/ci-workspace.sh prepare \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT")
+          printf 'directory=%s\n' "$workspace" >> "$GITHUB_OUTPUT"
+
+      - name: Discover a count-closed qualification plan
+        id: plan
+        env:
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+        run: |
+          set -euo pipefail
           tools/livepatch/discover.sh \
-            --plan "$RUNNER_TEMP/livepatch-discovery/plan.json" \
-            --matrix "$RUNNER_TEMP/livepatch-discovery/matrix.json"
-          matrix=$(cat "$RUNNER_TEMP/livepatch-discovery/matrix.json")
+            --plan "$LIVEPATCH_CI_WORKSPACE/plan.json" \
+            --matrix "$LIVEPATCH_CI_WORKSPACE/matrix.json"
+          matrix=$(cat "$LIVEPATCH_CI_WORKSPACE/matrix.json")
           test "${#matrix}" -lt 65536
           {
             printf 'matrix=%s\n' "$matrix"
-            printf 'selected-sets=%s\n' "$(jq -er '.selectedSets' "$RUNNER_TEMP/livepatch-discovery/plan.json")"
-            printf 'source-revision=%s\n' "$(jq -er '.sourceRevision' "$RUNNER_TEMP/livepatch-discovery/plan.json")"
+            printf 'selected-sets=%s\n' "$(jq -er '.selectedSets' "$LIVEPATCH_CI_WORKSPACE/plan.json")"
+            printf 'source-revision=%s\n' "$(jq -er '.sourceRevision' "$LIVEPATCH_CI_WORKSPACE/plan.json")"
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload the detailed qualification plan
         uses: actions/upload-artifact@v7
         with:
           name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-discovery
+          path: ${{ steps.workspace.outputs.directory }}
           if-no-files-found: error
           retention-days: 30
+
+      - name: Cleanup livepatch discovery workspace
+        if: ${{ always() && steps.workspace.outcome == 'success' }}
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: discover
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+        run: |
+          tools/livepatch/ci-workspace.sh cleanup \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT" \
+            --directory "$LIVEPATCH_CI_WORKSPACE"
 
   capture:
     name: Build and capture the selected livepatch set
@@ -69,38 +102,72 @@ jobs:
       - name: Prepare locked livepatch CI tools
         run: tools/livepatch/prepare-ci-tools.sh
 
+      - name: Prepare livepatch capture workspace
+        id: workspace
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: capture
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          workspace=$(tools/livepatch/ci-workspace.sh prepare \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT")
+          printf 'directory=%s\n' "$workspace" >> "$GITHUB_OUTPUT"
+
       - uses: actions/download-artifact@v7
         with:
           name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-input
+          path: ${{ steps.workspace.outputs.directory }}/input
 
       - name: Capture one dynamic producer identity set
         id: capture
+        env:
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
         run: |
           set -euo pipefail
-          plan="$RUNNER_TEMP/livepatch-input/plan.json"
+          plan="$LIVEPATCH_CI_WORKSPACE/input/plan.json"
           test "$(git rev-parse HEAD)" = "$(jq -er '.sourceRevision' "$plan")"
-          mkdir -p "$RUNNER_TEMP/livepatch-capture"
+          mkdir "$LIVEPATCH_CI_WORKSPACE/capture"
           tools/livepatch/capture.sh \
             --plan "$plan" \
-            --output "$RUNNER_TEMP/livepatch-capture/capture.json" \
-            --evidence-dir "$RUNNER_TEMP/livepatch-capture/evidence"
+            --output "$LIVEPATCH_CI_WORKSPACE/capture/capture.json" \
+            --evidence-dir "$LIVEPATCH_CI_WORKSPACE/capture/evidence"
           tools/livepatch/verify.sh \
             --plan "$plan" \
-            --capture "$RUNNER_TEMP/livepatch-capture/capture.json" \
-            --evidence-dir "$RUNNER_TEMP/livepatch-capture/evidence" \
-            > "$RUNNER_TEMP/livepatch-capture/verification.json"
+            --capture "$LIVEPATCH_CI_WORKSPACE/capture/capture.json" \
+            --evidence-dir "$LIVEPATCH_CI_WORKSPACE/capture/evidence" \
+            > "$LIVEPATCH_CI_WORKSPACE/capture/verification.json"
           printf 'sha256=%s\n' \
-            "$(sha256sum "$RUNNER_TEMP/livepatch-capture/capture.json" | cut -d' ' -f1)" \
+            "$(sha256sum "$LIVEPATCH_CI_WORKSPACE/capture/capture.json" | cut -d' ' -f1)" \
             >> "$GITHUB_OUTPUT"
 
       - name: Upload captured modules and realization evidence
         uses: actions/upload-artifact@v7
         with:
           name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-capture
+          path: ${{ steps.workspace.outputs.directory }}/capture
           if-no-files-found: error
           retention-days: 30
+
+      - name: Cleanup livepatch capture workspace
+        if: ${{ always() && steps.workspace.outcome == 'success' }}
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: capture
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+        run: |
+          tools/livepatch/ci-workspace.sh cleanup \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT" \
+            --directory "$LIVEPATCH_CI_WORKSPACE"
 
   qualify:
     name: Livepatch ${{ matrix.rowId }}
@@ -130,42 +197,97 @@ jobs:
       - name: Prepare locked livepatch CI tools
         run: tools/livepatch/prepare-ci-tools.sh
 
+      - name: Prepare livepatch qualification workspace
+        id: workspace
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: qualify
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          workspace=$(tools/livepatch/ci-workspace.sh prepare \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT")
+          printf 'directory=%s\n' "$workspace" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare livepatch profile state
+        id: prepare-profile
+        uses: ./.github/actions/prepare-test-state
+
       - uses: actions/download-artifact@v7
         with:
           name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-input
+          path: ${{ steps.workspace.outputs.directory }}/input
 
       - uses: actions/download-artifact@v7
         with:
           name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-input/capture
+          path: ${{ steps.workspace.outputs.directory }}/input/capture
 
       - name: Verify and run the selected stable row
         id: run
+        env:
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+          LIVEPATCH_PROFILE_STATE: ${{ steps.prepare-profile.outputs.state-directory }}/profile
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$(jq -er '.sourceRevision' "$RUNNER_TEMP/livepatch-input/plan.json")"
-          profile_state="$RUNNER_TEMP/lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}"
-          profile_state_bytes=$(LC_ALL=C printf '%s' "$profile_state" | wc -c)
+          test "$(git rev-parse HEAD)" = "$(jq -er '.sourceRevision' "$LIVEPATCH_CI_WORKSPACE/input/plan.json")"
+          profile_state_bytes=$(LC_ALL=C printf '%s' "$LIVEPATCH_PROFILE_STATE" | wc -c)
           if ((profile_state_bytes > 63)); then
             echo "livepatch profile state path exceeds 63-byte socket budget: $profile_state_bytes" >&2
             exit 1
           fi
           tools/livepatch/run-profile.sh \
-            --plan "$RUNNER_TEMP/livepatch-input/plan.json" \
-            --capture "$RUNNER_TEMP/livepatch-input/capture/capture.json" \
-            --evidence-dir "$RUNNER_TEMP/livepatch-input/capture/evidence" \
+            --plan "$LIVEPATCH_CI_WORKSPACE/input/plan.json" \
+            --capture "$LIVEPATCH_CI_WORKSPACE/input/capture/capture.json" \
+            --evidence-dir "$LIVEPATCH_CI_WORKSPACE/input/capture/evidence" \
             --row-id '${{ matrix.rowId }}' \
-            --state-dir "$profile_state"
+            --state-dir "$LIVEPATCH_PROFILE_STATE"
 
       - name: Upload the uniform result and retained VM evidence
+        id: upload-result
         if: ${{ always() && steps.run.outcome != 'skipped' }}
         uses: actions/upload-artifact@v7
         with:
           name: livepatch-result-${{ matrix.rowId }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/lp-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+          path: ${{ steps.prepare-profile.outputs.state-directory }}/profile
           if-no-files-found: error
           retention-days: 30
+
+      - name: Cleanup livepatch profile state
+        id: cleanup-profile
+        if: ${{ always() }}
+        uses: ./.github/actions/cleanup-test-state
+        with:
+          state-directory: ${{ steps.prepare-profile.outputs.state-directory }}
+          prepare-outcome: ${{ steps.prepare-profile.outcome }}
+          test-outcome: ${{ steps.run.outcome }}
+          upload-outcome: ${{ steps.upload-result.outcome }}
+
+      - name: Cleanup livepatch qualification workspace
+        if: >-
+          always() &&
+          steps.workspace.outcome == 'success' &&
+          steps.cleanup-profile.outcome == 'success' &&
+          (steps.run.outcome == 'success' ||
+          steps.run.outcome == 'skipped' ||
+          steps.upload-result.outcome == 'success')
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: qualify
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+        run: |
+          tools/livepatch/ci-workspace.sh cleanup \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT" \
+            --directory "$LIVEPATCH_CI_WORKSPACE"
 
   results:
     name: Close livepatch result counts
@@ -184,29 +306,63 @@ jobs:
       - name: Prepare locked livepatch CI tools
         run: tools/livepatch/prepare-ci-tools.sh
 
+      - name: Prepare livepatch results workspace
+        id: workspace
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: results
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          workspace=$(tools/livepatch/ci-workspace.sh prepare \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT")
+          printf 'directory=%s\n' "$workspace" >> "$GITHUB_OUTPUT"
+
       - uses: actions/download-artifact@v7
         with:
           name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-input
+          path: ${{ steps.workspace.outputs.directory }}/input
 
       - uses: actions/download-artifact@v7
         with:
           pattern: livepatch-result-*-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-results
+          path: ${{ steps.workspace.outputs.directory }}/results
 
       - name: Require one accepted receipt for every planned row
+        env:
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
         run: |
           set -euo pipefail
-          plan="$RUNNER_TEMP/livepatch-input/plan.json"
+          plan="$LIVEPATCH_CI_WORKSPACE/input/plan.json"
           tools/livepatch/verify.sh \
             --plan "$plan" \
-            --results-dir "$RUNNER_TEMP/livepatch-results" \
-            --output "$RUNNER_TEMP/livepatch-results/consolidated.json"
+            --results-dir "$LIVEPATCH_CI_WORKSPACE/results" \
+            --output "$LIVEPATCH_CI_WORKSPACE/results/consolidated.json"
 
       - name: Upload the count-closed result set
         uses: actions/upload-artifact@v7
         with:
           name: livepatch-results-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/livepatch-results
+          path: ${{ steps.workspace.outputs.directory }}/results
           if-no-files-found: error
           retention-days: 30
+
+      - name: Cleanup livepatch results workspace
+        if: ${{ always() && steps.workspace.outcome == 'success' }}
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: results
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+        run: |
+          tools/livepatch/ci-workspace.sh cleanup \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT" \
+            --directory "$LIVEPATCH_CI_WORKSPACE"
