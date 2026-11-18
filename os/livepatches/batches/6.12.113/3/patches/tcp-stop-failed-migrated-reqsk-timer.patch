@@ -1,0 +1,47 @@
+From f7fba81b00699360f96ed7d9a47b8c801e74c6f9 Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@google.com>
+Date: Wed, 6 May 2026 03:59:18 +0000
+Subject: [PATCH] tcp: Fix potential UAF in reqsk_timer_handler().
+
+commit 97c8a3c1f73d828de43a5a88e8a9a143efb2b661 upstream.
+
+When TCP socket migration fails at inet_ehash_insert() in
+reqsk_timer_handler(), we jump to the no_ownership: label
+and free the new reqsk immediately with __reqsk_free().
+
+Thus, we must stop the new reqsk's timer before jumping to the
+label, but the timer might be missed since the cited commit,
+resulting in UAF.
+
+As we are in the original reqsk's timer context, we can safely
+call timer_delete_sync() for the new reqsk.
+
+Let's pass false to __inet_csk_reqsk_queue_drop() to stop
+the new reqsk's timer.
+
+Fixes: 83fccfc3940c ("inet: fix potential deadlock in reqsk_queue_unlink()")
+Reported-by: Damiano Melotti <melotti@google.com>
+Signed-off-by: Kuniyuki Iwashima <kuniyu@google.com>
+Link: https://patch.msgid.link/20260506035954.1563147-2-kuniyu@google.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ net/ipv4/inet_connection_sock.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ipv4/inet_connection_sock.c b/net/ipv4/inet_connection_sock.c
+index eeee6f7583376..14f54dc8e0179 100644
+--- a/net/ipv4/inet_connection_sock.c
++++ b/net/ipv4/inet_connection_sock.c
+@@ -1158,7 +1158,7 @@ static void reqsk_timer_handler(struct timer_list *t)
+ 
+ 		if (!inet_ehash_insert(req_to_sk(nreq), req_to_sk(oreq), NULL)) {
+ 			/* delete timer */
+-			__inet_csk_reqsk_queue_drop(sk_listener, nreq, true);
++			__inet_csk_reqsk_queue_drop(sk_listener, nreq, false);
+ 			goto no_ownership;
+ 		}
+ 
+-- 
+2.54.0
+
