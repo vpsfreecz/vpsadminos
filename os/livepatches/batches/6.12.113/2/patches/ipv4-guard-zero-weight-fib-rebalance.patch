@@ -1,0 +1,46 @@
+From 0800c92ca5d1983df6843a5435299978901d1d02 Mon Sep 17 00:00:00 2001
+From: Zihan Xi <zihanx@nebusec.ai>
+Date: Thu, 27 Aug 2026 18:25:14 +0000
+Subject: [PATCH] ipv4: avoid divide by zero in fib_rebalance
+
+commit 5046d2880fec7d49ebed2fd2866747ee1d06ad71 upstream.
+
+fib_rebalance() computes the total eligible nexthop weight in one pass
+and programs upper bounds in a second pass. A concurrent change to
+ignore_routes_with_linkdown can make the first pass return zero while
+the second pass sees an eligible nexthop, resulting in division by zero.
+
+If the first pass reports a zero total, set each nexthop upper bound to
+-1 and skip the division. This matches the IPv6 fix in commit
+d2c26c2911dd ("ipv6: avoid divide by zero in rt6_multipath_rebalance")
+and preserves the lock-free rebalance path.
+
+Fixes: 0e884c78ee19 ("ipv4: L3 hash-based multipath")
+Cc: stable@vger.kernel.org
+Reported-by: Vega <vega@nebusec.ai>
+Signed-off-by: Zihan Xi <zihanx@nebusec.ai>
+Reviewed-by: Eric Dumazet <edumazet@google.com>
+Reviewed-by: Ido Schimmel <idosch@nvidia.com>
+Link: https://patch.msgid.link/20260827182514.4667-2-zihanx@nebusec.ai
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ net/ipv4/fib_semantics.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ipv4/fib_semantics.c b/net/ipv4/fib_semantics.c
+index 1e7961b8a7cee..9599bdb30c196 100644
+--- a/net/ipv4/fib_semantics.c
++++ b/net/ipv4/fib_semantics.c
+@@ -856,7 +856,7 @@ static void fib_rebalance(struct fib_info *fi)
+ 	change_nexthops(fi) {
+ 		int upper_bound;
+ 
+-		if (nexthop_nh->fib_nh_flags & RTNH_F_DEAD) {
++		if (!total || nexthop_nh->fib_nh_flags & RTNH_F_DEAD) {
+ 			upper_bound = -1;
+ 		} else if (ip_ignore_linkdown(nexthop_nh->fib_nh_dev) &&
+ 			   nexthop_nh->fib_nh_flags & RTNH_F_LINKDOWN) {
+-- 
+2.54.0
+

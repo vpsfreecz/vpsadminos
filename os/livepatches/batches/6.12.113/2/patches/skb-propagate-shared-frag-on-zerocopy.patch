@@ -1,0 +1,75 @@
+From 5c8e1987e80cff7ca6187c59d538a03802819334 Mon Sep 17 00:00:00 2001
+From: Zizhen Liu <pointerliu@126.com>
+Date: Thu, 22 Oct 2026 18:42:17 +0800
+Subject: [PATCH] net: skbuff: propagate shared-frag marker in skb_zerocopy()
+
+commit 79dc34beb1fdb3da79753e51e15c68591a2561fe upstream.
+
+skb_zerocopy() moves frag descriptors from @from into @to and takes a
+reference on each frag, but it does not copy skb_shinfo(from)->flags into
+skb_shinfo(to)->flags.  A destination skb holding the same page-cache
+backed frags as the source therefore reports skb_has_shared_frag() as
+false.
+
+That breaks the invariant relied on by later in-place writers.  ESP input
+checks skb_has_shared_frag() before deciding whether an uncloned
+nonlinear skb can skip skb_cow_data(); with the marker lost, an skb that
+skb_zerocopy() built for nfnetlink_queue or for an openvswitch upcall is
+decrypted in place, letting an unprivileged user write into the page
+cache of a root-owned read-only file.
+
+Propagate SKBFL_SHARED_FRAG when frag descriptors are copied, as done for
+the other frag-transfer helpers.
+
+[vpsAdminOS: Remove two existing blank lines inside skb_zerocopy() so the
+canonical two-line insertion does not shift later functions' source-line
+metadata. This changes no C tokens from stable commit
+fe8477e23dd2ee6bce231d65f2586a333b211dc0 and avoids a line-only
+skb_try_coalesce() replacement in the livepatch producer.]
+
+Fixes: af2806f8f90a
+    ("net: Export skb_zerocopy() to zerocopy from one skb to another")
+Fixes: f4c50a4034e6 ("xfrm: esp: avoid in-place decrypt on shared skb frags")
+Cc: stable@kernel.org
+Signed-off-by: Zizhen Liu <pointerliu@126.com>
+Reviewed-by: Eric Dumazet <edumazet@kernel.org>
+Link: https://patch.msgid.link/20261022104217.1852191-1-pointerliu@126.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+[ sashal: Adjusted context in skb_zerocopy() due to missing
+  from->unreadable propagation. ]
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Assisted-by: LLM
+---
+ net/core/skbuff.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index 5608b5507b5bf..744744a0eac9d 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -3850,12 +3850,10 @@ skb_zerocopy(struct sk_buff *to, struct sk_buff *from, int len, int hlen)
+ 	}
+ 
+ 	skb_len_add(to, len + plen);
+-
+ 	if (unlikely(skb_orphan_frags(from, GFP_ATOMIC)))
+ 		return -ENOMEM;
+ 
+ 	skb_zerocopy_clone(to, from, GFP_ATOMIC);
+-
+ 	for (i = 0; i < skb_shinfo(from)->nr_frags; i++) {
+ 		int size;
+ 
+@@ -3871,6 +3869,8 @@ skb_zerocopy(struct sk_buff *to, struct sk_buff *from, int len, int hlen)
+ 	}
+ 	skb_shinfo(to)->nr_frags = j;
+ 
++	skb_shinfo(to)->flags |= skb_shinfo(from)->flags & SKBFL_SHARED_FRAG;
++
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(skb_zerocopy);
+-- 
+2.54.0
+

@@ -1,0 +1,47 @@
+From d49eff15261dd62e4fa3a316c26cb1f537a60464 Mon Sep 17 00:00:00 2001
+From: Xin Long <lucien.xin@gmail.com>
+Date: Mon, 29 Jun 2026 14:31:14 -0400
+Subject: [PATCH] sctp: fix addr_wq_timer race in sctp_free_addr_wq()
+
+[ Upstream commit 976c19de0f22a857ba0112f39635f8fd7a257568 ]
+
+sctp_free_addr_wq() previously removed addr_wq_timer using timer_delete()
+while holding addr_wq_lock. However, timer_delete() does not guarantee that
+a currently running timer handler has completed.
+
+This allows a race with sctp_addr_wq_timeout_handler(), where the handler
+may still run after addr_waitq has been freed, acquire addr_wq_lock, and
+access freed memory, leading to a use-after-free.
+
+Fix this by calling timer_shutdown_sync() before taking addr_wq_lock.  This
+guarantees that any in-flight timer handler has finished and prevents the
+timer from being re-armed during teardown, making subsequent cleanup safe.
+
+Fixes: 4db67e808640 ("sctp: Make the address lists per network namespace")
+Reported-by: Sashiko <sashiko-bot@kernel.org>
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Link: https://patch.msgid.link/5dc95f295bdb5c3f60e880dd9aa5112dc5c071cc.1782757874.git.lucien.xin@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+---
+ net/sctp/protocol.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/net/sctp/protocol.c b/net/sctp/protocol.c
+index c6d74fa517cd8..66ede52383f86 100644
+--- a/net/sctp/protocol.c
++++ b/net/sctp/protocol.c
+@@ -693,8 +693,9 @@ static void sctp_free_addr_wq(struct net *net)
+ 	struct sctp_sockaddr_entry *addrw;
+ 	struct sctp_sockaddr_entry *temp;
+ 
++	timer_shutdown_sync(&net->sctp.addr_wq_timer);
++
+ 	spin_lock_bh(&net->sctp.addr_wq_lock);
+-	del_timer(&net->sctp.addr_wq_timer);
+ 	list_for_each_entry_safe(addrw, temp, &net->sctp.addr_waitq, list) {
+ 		list_del(&addrw->list);
+ 		kfree(addrw);
+-- 
+2.54.0
+

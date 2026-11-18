@@ -1,1 +1,1 @@
-os/livepatches/batches/*/*/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
+os/livepatches/batches/*/*/patches/*.patch whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab

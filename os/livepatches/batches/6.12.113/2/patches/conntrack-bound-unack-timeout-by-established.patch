@@ -1,0 +1,35 @@
+From ea9137859d913a21aab5a3fe06414890159793a7 Mon Sep 17 00:00:00 2001
+From: Pablo Neira Ayuso <pablo@netfilter.org>
+Date: Mon, 10 Aug 2026 10:18:22 +0200
+Subject: [PATCH] netfilter: conntrack: always lower timeout for non-closing
+ RST packets
+
+commit 73df81b38cb7f70a347a97370386378a86e53019 upstream.
+
+The existing check might extend the timeout if the ESTABLISHED timeout
+has been tuned to be lower than UNACK via sysctl. Reported by sashiko.
+
+Fixes: bf80e6802273 ("netfilter: conntrack: tcp: use UNACK timeout for non-closing RST packets")
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ net/netfilter/nf_conntrack_proto_tcp.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/net/netfilter/nf_conntrack_proto_tcp.c b/net/netfilter/nf_conntrack_proto_tcp.c
+index 456721e40ed0c..03b32bd397d32 100644
+--- a/net/netfilter/nf_conntrack_proto_tcp.c
++++ b/net/netfilter/nf_conntrack_proto_tcp.c
+@@ -1326,7 +1326,8 @@ int nf_conntrack_tcp_packet(struct nf_conn *ct,
+ 	    timeouts[new_state] > timeouts[TCP_CONNTRACK_RETRANS])
+ 		timeout = timeouts[TCP_CONNTRACK_RETRANS];
+ 	else if (unlikely(index == TCP_RST_SET &&
+-			  new_state == TCP_CONNTRACK_ESTABLISHED))
++			  new_state == TCP_CONNTRACK_ESTABLISHED) &&
++		 timeouts[new_state] > timeouts[TCP_CONNTRACK_UNACK])
+ 		timeout = timeouts[TCP_CONNTRACK_UNACK];
+ 	else if ((ct->proto.tcp.seen[0].flags | ct->proto.tcp.seen[1].flags) &
+ 		 IP_CT_TCP_FLAG_DATA_UNACKNOWLEDGED &&
+-- 
+2.54.0
+
