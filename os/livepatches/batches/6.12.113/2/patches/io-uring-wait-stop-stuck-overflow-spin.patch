@@ -1,0 +1,72 @@
+From a6cfc85c6bf9498aaf1978b503f9663635a1aa22 Mon Sep 17 00:00:00 2001
+From: Josef Bacik <josef@toxicpanda.com>
+Date: Thu, 15 Oct 2026 19:30:27 +0000
+Subject: [PATCH] io_uring/wait: don't spin on a stuck overflow list
+
+Commit 34f5a664c34d3cb62f6bec7f4156754594a7d25b upstream.
+
+As long as IO_CHECK_CQ_OVERFLOW_BIT is set, io_cqring_wait_schedule()
+returns right away, before it gets to look at signals or arms the timeout,
+for io_cqring_wait() to flush the overflow list. If that doesn't empty the
+list, and the CQ ring doesn't hold the number of events the caller wants,
+the loop starts over, with the same result. The task spins in the kernel,
+and can't be killed.
+
+The assumption is that this can't happen: if CQEs can't be flushed, the
+ring is full, and min_events is capped to the size of the ring. But:
+
+- With IORING_SETUP_CQE_MIXED a 32b CQE needs two contiguous entries. It
+  is stuck on the list if a single one is free, and then the ring holds
+  less than cq_entries events. A single threaded application that asks
+  for as many events as the ring has entries never gets out of
+  io_uring_enter().
+
+- Whether the ring is full is up to the CQ head, which the application
+  can write to. While one thread waits for events on an empty ring,
+  another one can move the head back so that the ring looks full and
+  have a CQE overflow. The waiter can't be stopped any more, not even by
+  SIGKILL.
+
+Only the application can make room in the CQ ring. Return to it if the
+list could not be flushed.
+
+[ 6.12: io_cqring_wait() is in io_uring.c ]
+Fixes: 3fcf19d592d5 ("io_uring: parse check_cq out of wq waiting")
+Assisted-by: LLM
+Signed-off-by: Josef Bacik <josef@toxicpanda.com>
+Link: https://patch.msgid.link/20261015-b4-io-uring-fixes-v1-3-c1556f5d7bf5@toxicpanda.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ io_uring/io_uring.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/io_uring/io_uring.c b/io_uring/io_uring.c
+index 68a21552a186f..c195d7efde4af 100644
+--- a/io_uring/io_uring.c
++++ b/io_uring/io_uring.c
+@@ -2608,9 +2608,18 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events, u32 flags,
+ 
+ 		check_cq = READ_ONCE(ctx->check_cq);
+ 		if (unlikely(check_cq)) {
+-			/* let the caller flush overflows, retry */
+-			if (check_cq & BIT(IO_CHECK_CQ_OVERFLOW_BIT))
++			if (check_cq & BIT(IO_CHECK_CQ_OVERFLOW_BIT)) {
+ 				io_cqring_do_overflow_flush(ctx);
++				/*
++				 * No room for what has overflown. It takes the
++				 * application to change that, so return to it.
++				 */
++				if (test_bit(IO_CHECK_CQ_OVERFLOW_BIT,
++					     &ctx->check_cq)) {
++					ret = 0;
++					break;
++				}
++			}
+ 			if (check_cq & BIT(IO_CHECK_CQ_DROPPED_BIT)) {
+ 				ret = -EBADR;
+ 				break;
+-- 
+2.54.0
+

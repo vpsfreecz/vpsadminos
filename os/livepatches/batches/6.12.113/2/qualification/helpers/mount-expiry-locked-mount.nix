@@ -1,0 +1,701 @@
+{
+  capture,
+  oracle,
+  plan,
+  pkgs,
+  qualificationSet,
+  row,
+  profile ? null,
+}:
+
+let
+  effectiveProfile =
+    if profile == null then
+      {
+        fixId = "mount-expiry-locked-mount";
+        oracleId = "mount-expiry-operation-safety";
+        operationKind = "mount-expiry";
+        adapterPath = "os/livepatches/batches/6.12.113/2/qualification/helpers/mount-expiry-locked-mount.nix";
+        validatorPath = "os/livepatches/batches/6.12.113/2/qualification/validators/mount-expiry-locked-mount.sh";
+      }
+    else
+      profile;
+
+  inherit (effectiveProfile)
+    adapterPath
+    fixId
+    operationKind
+    oracleId
+    validatorPath
+    ;
+
+  ioRunnerSource = pkgs.writeText "${fixId}-io-runner.c" ''
+    #include <errno.h>
+    #include <fcntl.h>
+    #include <liburing.h>
+    #include <signal.h>
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <string.h>
+    #include <sys/wait.h>
+    #include <unistd.h>
+
+    int main(int argc, char **argv)
+    {
+      struct io_uring ring;
+      struct io_uring_cqe *cqe;
+      siginfo_t info;
+      pid_t child;
+      int ret;
+      unsigned int completions = 0;
+
+      if (argc != 2)
+        return 2;
+      ret = io_uring_queue_init(16, &ring, 0);
+      if (ret < 0) {
+        fprintf(stderr, "io_uring_queue_init: %s\n", strerror(-ret));
+        return 1;
+      }
+
+      if (strcmp(argv[1], "io-waitid") == 0) {
+        struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
+
+        child = fork();
+        if (child < 0 || sqe == NULL)
+          return 1;
+        if (child == 0) {
+          pause();
+          _exit(1);
+        }
+        memset(&info, 0, sizeof(info));
+        io_uring_prep_waitid(sqe, P_PID, child, &info, WEXITED, 0);
+        if (io_uring_submit(&ring) != 1 || kill(child, SIGTERM) != 0)
+          return 1;
+        ret = io_uring_wait_cqe(&ring, &cqe);
+        if (ret < 0 || cqe->res != 0 || info.si_pid != child)
+          return 1;
+        io_uring_cqe_seen(&ring, cqe);
+        completions = 1;
+      } else if (strcmp(argv[1], "io-wq") == 0) {
+        struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
+        char buffer[8] = { 0 };
+        char path[] = "/tmp/core-io-wq.XXXXXX";
+        int fd = mkstemp(path);
+
+        if (fd < 0 || sqe == NULL)
+          return 1;
+        if (write(fd, "ordinary", 8) != 8)
+          return 1;
+        io_uring_prep_read(sqe, fd, buffer, sizeof(buffer), 0);
+        sqe->flags |= IOSQE_ASYNC;
+        ret = io_uring_submit_and_wait(&ring, 1);
+        if (ret < 0 || io_uring_wait_cqe(&ring, &cqe) < 0 || cqe->res != 8)
+          return 1;
+        io_uring_cqe_seen(&ring, cqe);
+        if (memcmp(buffer, "ordinary", 8) != 0)
+          return 1;
+        close(fd);
+        unlink(path);
+        completions = 1;
+      } else {
+        for (unsigned int i = 0; i < 8; i++) {
+          struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
+
+          if (sqe == NULL)
+            return 1;
+          io_uring_prep_nop(sqe);
+          io_uring_sqe_set_data64(sqe, i + 1);
+        }
+        ret = io_uring_submit_and_wait(&ring, 8);
+        if (ret < 0)
+          return 1;
+        for (unsigned int i = 0; i < 8; i++) {
+          ret = io_uring_wait_cqe(&ring, &cqe);
+          if (ret < 0 || cqe->res != 0)
+            return 1;
+          io_uring_cqe_seen(&ring, cqe);
+        }
+
+        child = fork();
+        if (child < 0)
+          return 1;
+        if (child == 0)
+          _exit(0);
+        memset(&info, 0, sizeof(info));
+        if (waitid(P_PID, child, &info, WEXITED) != 0 || info.si_pid != child)
+          return 1;
+        completions = 8;
+      }
+
+      if (strcmp(argv[1], "io-cancel") == 0 ||
+          strcmp(argv[1], "io-cancel-task-work") == 0) {
+        struct __kernel_timespec timeout = { .tv_sec = 5 };
+        struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
+
+        if (sqe == NULL)
+          return 1;
+        io_uring_prep_timeout(sqe, &timeout, 0, 0);
+        if (io_uring_submit(&ring) != 1)
+          return 1;
+      }
+
+      io_uring_queue_exit(&ring);
+      printf("operation=%s completions=%u waitid=ok\n", argv[1], completions);
+      return 0;
+    }
+  '';
+
+  ioRunner = pkgs.stdenv.mkDerivation {
+    pname = "${fixId}-io-runner";
+    version = "1";
+    dontUnpack = true;
+    src = ioRunnerSource;
+    nativeBuildInputs = [ pkgs.pkg-config ];
+    buildInputs = [ pkgs.liburing ];
+
+    buildPhase = ''
+      runHook preBuild
+      $CC -std=gnu11 -O2 -Wall -Wextra -Werror "$src" \
+        -o core-io-operation $(pkg-config --cflags --libs liburing)
+      runHook postBuild
+    '';
+
+    installPhase = ''
+      runHook preInstall
+      install -Dm0755 core-io-operation $out/bin/core-io-operation
+      runHook postInstall
+    '';
+  };
+
+  coredumpRunnerSource = pkgs.writeText "${fixId}-coredump-runner.c" ''
+    #include <pthread.h>
+    #include <sched.h>
+    #include <signal.h>
+    #include <stdatomic.h>
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <sys/wait.h>
+    #include <unistd.h>
+
+    static atomic_uint parked;
+
+    static void *park_thread(void *unused)
+    {
+      (void)unused;
+      atomic_fetch_add_explicit(&parked, 1, memory_order_release);
+      for (;;)
+        pause();
+      return NULL;
+    }
+
+    int main(void)
+    {
+      pthread_t threads[4];
+      pid_t child = fork();
+      int status;
+
+      if (child < 0)
+        return 1;
+      if (child == 0) {
+        for (unsigned int i = 0; i < 4; i++)
+          if (pthread_create(&threads[i], NULL, park_thread, NULL) != 0)
+            _exit(1);
+        while (atomic_load_explicit(&parked, memory_order_acquire) != 4)
+          sched_yield();
+        abort();
+      }
+
+      if (waitpid(child, &status, 0) != child)
+        return 1;
+      if (!WIFSIGNALED(status) || WTERMSIG(status) != SIGABRT)
+        return 1;
+      puts("threads=4 signal=SIGABRT");
+      return 0;
+    }
+  '';
+
+  coredumpRunner = pkgs.stdenv.mkDerivation {
+    pname = "${fixId}-coredump-runner";
+    version = "1";
+    dontUnpack = true;
+    src = coredumpRunnerSource;
+
+    buildPhase = ''
+      runHook preBuild
+      $CC -std=gnu11 -O2 -Wall -Wextra -Werror -pthread "$src" \
+        -o core-coredump-operation
+      runHook postBuild
+    '';
+
+    installPhase = ''
+      runHook preInstall
+      install -Dm0755 core-coredump-operation $out/bin/core-coredump-operation
+      runHook postInstall
+    '';
+  };
+
+  operationTool = pkgs.writeShellScriptBin "${fixId}-operation" ''
+    set -euo pipefail
+
+    state_dir=/run/${fixId}-operation
+    operation_kind=${operationKind}
+
+    fail() {
+      echo "${fixId}-operation: $*" >&2
+      exit 1
+    }
+
+    run_mount_operation() {
+      kind=$1
+      unshare --mount --fork sh -eu -c '
+        kind=$1
+        root=$(mktemp -d /run/core-mount-operation.XXXXXX)
+        cleanup() {
+          mount --make-rprivate / 2>/dev/null || true
+          umount -R "$root" 2>/dev/null || true
+          rm -rf -- "$root"
+        }
+        trap cleanup EXIT HUP INT TERM
+        mount --make-rprivate /
+        case "$kind" in
+          mount-expiry)
+            mount -t tmpfs tmpfs "$root"
+            mkdir -p "$root/source" "$root/covered" "$root/nested"
+            printf ordinary > "$root/source/value"
+            mount --bind "$root/source" "$root/covered"
+            mount --bind "$root/covered" "$root/nested"
+            grep -Fx ordinary "$root/nested/value" >/dev/null
+            umount "$root/nested"
+            umount "$root/covered"
+            ;;
+          pivot-root)
+            mount --bind / "$root"
+            mkdir -p "$root/old-root"
+            cd "$root"
+            pivot_root . old-root
+            cd /
+            test -r /proc/self/status
+            umount -l /old-root
+            ;;
+          recursive-bind)
+            mount -t tmpfs tmpfs "$root"
+            mkdir -p "$root/source/sub" "$root/copy"
+            printf ordinary > "$root/source/sub/value"
+            mount --rbind "$root/source" "$root/copy"
+            grep -Fx ordinary "$root/copy/sub/value" >/dev/null
+            umount -R "$root/copy"
+            ;;
+          mount-propagation)
+            mount -t tmpfs tmpfs "$root"
+            mount --make-shared "$root"
+            mkdir -p "$root/source" "$root/peer"
+            mount --bind "$root/source" "$root/peer"
+            mountpoint -q "$root/peer"
+            umount "$root/peer"
+            ;;
+          *) exit 2 ;;
+        esac
+      ' sh "$kind"
+    }
+
+    run_key_operation() {
+      session=$(keyctl new_session core-livepatch)
+      key=$(printf ordinary | keyctl padd user core-livepatch-key "$session")
+      keyctl search "$session" user core-livepatch-key >/dev/null
+      keyctl pipe "$key" | grep -Fx ordinary >/dev/null
+      case "$operation_kind" in
+        asymmetric-key)
+          trust=$(keyctl newring core-livepatch-trust "$session")
+          restricted=$(keyctl newring core-livepatch-restricted "$session")
+          keyctl restrict_keyring "$restricted" asymmetric "key_or_keyring:$trust"
+          keyctl unlink "$restricted" "$session"
+          keyctl unlink "$trust" "$session"
+          ;;
+        request-key)
+          requested=$(keyctl request2 user core-livepatch-key ordinary "$session")
+          test "$requested" = "$key"
+          ;;
+        *)
+          fail "unsupported key operation: $operation_kind"
+          ;;
+      esac
+      keyctl unlink "$key" "$session"
+      keyctl clear "$session"
+    }
+
+    run_pidns_reaper_operation() {
+      result=$(mktemp -d "$state_dir/pidns-freezer.XXXXXX")
+      mkfifo "$result/release"
+
+      timeout --kill-after=1 15 unshare --pid --fork --mount-proc sh -eu -c '
+        result=$1
+        test "$$" -eq 1
+        for name in one two three; do
+          (
+            trap "" HUP INT TERM
+            exec sleep 3600
+          ) &
+          child=$!
+          kill -0 "$child"
+        done
+        printf "ready\n" > "$result/ready"
+        IFS= read -r release < "$result/release"
+        test "$release" = release
+        exit 0
+      ' sh "$result" &
+      timeout_pid=$!
+
+      abort_pidns_fixture() {
+        message=$1
+        printf "release\n" > "$result/release"
+        wait "$timeout_pid" 2>/dev/null || true
+        rm -rf -- "$result"
+        fail "$message"
+      }
+
+      attempts=0
+      while test ! -e "$result/ready" && test "$attempts" -lt 500; do
+        attempts=$((attempts + 1))
+        sleep 0.02
+      done
+      if test ! -e "$result/ready"; then
+        wait "$timeout_pid" 2>/dev/null || true
+        rm -rf -- "$result"
+        fail "PID namespace fixture did not become ready within its bound"
+      fi
+
+      grep -Fx ready "$result/ready" >/dev/null
+
+      timeout_children=$(cat "/proc/$timeout_pid/task/$timeout_pid/children")
+      set -- $timeout_children
+      test "$#" -eq 1 || abort_pidns_fixture \
+        "PID namespace timeout wrapper has an unexpected process tree"
+      unshare_pid=$1
+
+      unshare_children=$(cat "/proc/$unshare_pid/task/$unshare_pid/children")
+      set -- $unshare_children
+      test "$#" -eq 1 || abort_pidns_fixture \
+        "PID namespace launcher has an unexpected process tree"
+      init_pid=$1
+      init_start=$(awk '{print $22}' "/proc/$init_pid/stat")
+      case "$init_pid:$init_start" in
+        *[!0-9:]*|:*)
+          abort_pidns_fixture "PID namespace init identity is invalid"
+          ;;
+      esac
+
+      init_children=$(cat "/proc/$init_pid/task/$init_pid/children")
+      set -- $init_children
+      test "$#" -eq 3 || abort_pidns_fixture \
+        "PID namespace live-descendant inventory is incomplete"
+      : > "$result/descendants"
+      for host_pid in "$@"; do
+        start_time=$(awk '{print $22}' "/proc/$host_pid/stat")
+        case "$host_pid:$start_time" in
+          *[!0-9:]*|:*)
+            abort_pidns_fixture \
+              "PID namespace descendant identity is invalid"
+            ;;
+        esac
+        printf "%s %s\n" "$host_pid" "$start_time" \
+          >> "$result/descendants"
+      done
+
+      printf "release\n" > "$result/release"
+      if ! wait "$timeout_pid"; then
+        rm -rf -- "$result"
+        fail "PID namespace reaper did not complete within its bound"
+      fi
+
+      if test -r "/proc/$init_pid/stat"; then
+        current_start=$(awk '{print $22}' "/proc/$init_pid/stat")
+        test "$current_start" != "$init_start" || {
+          rm -rf -- "$result"
+          fail "PID namespace init survived reaper completion"
+        }
+      fi
+      while read -r host_pid start_time; do
+        if test -r "/proc/$host_pid/stat"; then
+          current_start=$(awk '{print $22}' "/proc/$host_pid/stat")
+          test "$current_start" != "$start_time" || {
+            rm -rf -- "$result"
+            fail "PID namespace descendant survived reaper completion"
+          }
+        fi
+      done < "$result/descendants"
+
+      printf "descendants=3 reaper=completed\n"
+      rm -rf -- "$result"
+    }
+
+    run_once() {
+      case "$operation_kind" in
+        mount-expiry|pivot-root|recursive-bind|mount-propagation)
+          run_mount_operation "$operation_kind"
+          ;;
+        asymmetric-key|request-key)
+          run_key_operation
+          ;;
+        coredump)
+          ulimit -c 0
+          core-coredump-operation >/dev/null
+          ;;
+        pidns)
+          unshare --pid --fork --mount-proc sh -eu -c 'test "$$" -eq 1; (exit 0) & wait $!'
+          ;;
+        pidns-freezer)
+          run_pidns_reaper_operation
+          ;;
+        io-cancel|io-cancel-task-work|io-cq-wait|io-waitid|io-wq)
+          core-io-operation "$operation_kind" >/dev/null
+          ;;
+        *)
+          fail "unsupported operation kind: $operation_kind"
+          ;;
+      esac
+    }
+
+    write_status() {
+      status=$1
+      operations=$2
+      tmp="$state_dir/status.$$"
+      printf 'status=%s\noperations=%s\n' "$status" "$operations" > "$tmp"
+      chmod 0600 "$tmp"
+      mv -T "$tmp" "$state_dir/status"
+    }
+
+    command=''${1-}
+    case "$command" in
+      prepare)
+        install -d -m 0700 "$state_dir"
+        test ! -e "$state_dir/pid" || fail "workload pid already exists"
+        test ! -e "$state_dir/status" || fail "workload status already exists"
+        test ! -e "$state_dir/stop" || fail "workload stop already exists"
+        run_once
+        ;;
+      start)
+        test -d "$state_dir" || fail "state directory is missing"
+        nohup "$0" worker > "$state_dir/workload.log" 2>&1 < /dev/null &
+        pid=$!
+        printf '%s\n' "$pid" > "$state_dir/pid"
+        kill -0 "$pid"
+        ;;
+      worker)
+        operations=0
+        while test ! -e "$state_dir/stop"; do
+          run_once
+          operations=$((operations + 1))
+          if test "$operations" -ge 20000; then
+            write_status exhausted "$operations"
+            exit 1
+          fi
+          sleep 0.02
+        done
+        write_status ok "$operations"
+        ;;
+      operate)
+        run_once
+        ;;
+      stop)
+        pid=$(cat "$state_dir/pid")
+        [[ "$pid" =~ ^[0-9]+$ ]] || fail "invalid workload pid"
+        kill -0 "$pid" || fail "workload is not running"
+        : > "$state_dir/stop"
+        timeout 30 tail --pid="$pid" -f /dev/null
+        ! kill -0 "$pid" 2>/dev/null || fail "workload did not stop"
+        grep -Fx 'status=ok' "$state_dir/status" >/dev/null
+        cat "$state_dir/status"
+        ;;
+      cleanup)
+        pid=$(cat "$state_dir/pid")
+        ! kill -0 "$pid" 2>/dev/null || fail "workload is still running"
+        grep -Fx 'status=ok' "$state_dir/status" >/dev/null
+        ;;
+      *)
+        fail "unsupported command: $command"
+        ;;
+    esac
+  '';
+
+  expectedSetJson = builtins.toJSON qualificationSet;
+  fixIdJson = builtins.toJSON fixId;
+  oracleIdJson = builtins.toJSON oracleId;
+  operationKindJson = builtins.toJSON operationKind;
+  adapterPathJson = builtins.toJSON adapterPath;
+  validatorPathJson = builtins.toJSON validatorPath;
+  operationCommandJson = builtins.toJSON "${fixId}-operation";
+
+  oracleScript = ''
+    require 'json'
+    require 'shellwords'
+
+    FIX_ID = ${fixIdJson}
+    ORACLE_ID = ${oracleIdJson}
+    OPERATION_KIND = ${operationKindJson}
+    ADAPTER_PATH = ${adapterPathJson}
+    VALIDATOR_PATH = ${validatorPathJson}
+    OPERATION_COMMAND = ${operationCommandJson}
+
+    def wait_core_enabled(machine, patch_dir)
+      machine.wait_until_succeeds(
+        "test -d #{Shellwords.escape(patch_dir)} && " \
+          "test \"$(cat #{Shellwords.escape(patch_dir)}/enabled)\" = 1 && " \
+          "test \"$(cat #{Shellwords.escape(patch_dir)}/transition)\" = 0 && " \
+          "test \"$(cat #{Shellwords.escape(patch_dir)}/replace)\" = 0",
+        timeout: 180,
+      )
+    end
+
+    def wait_core_disabled(machine, patch_dir, module_name)
+      machine.wait_until_succeeds(
+        "test ! -d #{Shellwords.escape(patch_dir)} && " \
+          "test -d /sys/module/#{Shellwords.escape(module_name)}",
+        timeout: 180,
+      )
+    end
+
+    def wait_core_module_removed(machine, module_name)
+      machine.wait_until_succeeds(
+        "test ! -d /sys/module/#{Shellwords.escape(module_name)}",
+        timeout: 180,
+      )
+    end
+
+    expected_set = JSON.parse(${builtins.toJSON expectedSetJson})
+    plan_set = @plan.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }.fetch(0)
+    captured_set = @capture.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }.fetch(0)
+    expect(plan_set).to eq(expected_set)
+    expect(plan_set.fetch('members').map { |member| member.fetch('release') }).to eq([
+      '6.12.113.1',
+      '6.12.113.2',
+    ])
+    expect(captured_set.fetch('members').length).to eq(2)
+    expect(ROW.fetch('scope')).to eq('fix')
+    expect(ROW.fetch('role')).to eq('operation-safety')
+    expect(ROW.fetch('oracleIds')).to eq([ORACLE_ID])
+    expect(ROW.fetch('profileId')).to eq("fix/#{FIX_ID}/#{ORACLE_ID}")
+    expect(ROW.fetch('testAdapter')).to eq(ADAPTER_PATH)
+    expect(ROW.fetch('validator')).to eq(VALIDATOR_PATH)
+
+    expected_vendor = {
+      'amd' => 'AuthenticAMD',
+      'intel' => 'GenuineIntel',
+    }.fetch(ROW.fetch('platformId'))
+    vendor = machine.succeeds("awk -F: '/vendor_id/{gsub(/ /, \"\", $2); print $2; exit}' /proc/cpuinfo")[1].strip
+    expect(vendor).to eq(expected_vendor)
+
+    members = captured_set.fetch('members')
+    members.each_with_index do |member, index|
+      expect(member.fetch('release')).to eq(plan_set.fetch('members').fetch(index).fetch('release'))
+      identity = member.fetch('identity')
+      expect(identity.keys.sort).to eq(%w[
+        closureSha256 flakeLockSha256 inputDigest inspectionSha256 manifestSha256
+        module moduleName moduleSha256 producer sourceRevision targetId vermagic
+      ].sort)
+      producer = Shellwords.escape(identity.fetch('producer'))
+      module_path = Shellwords.escape(identity.fetch('module'))
+      module_name = Shellwords.escape(identity.fetch('moduleName'))
+      evidence = "#{producer}/share/vpsadminos-livepatch"
+      machine.all_succeed(
+        "test -f #{module_path}",
+        "test \"$(sha256sum #{module_path} | cut -d' ' -f1)\" = #{identity.fetch('moduleSha256')}",
+        "jq -e '.matches == true and .mismatches == {}' #{evidence}/closure.json",
+        "jq -e --arg name #{module_name} '.module.name == $name and .buildInvocation.nonReplaceRequested == true' #{evidence}/inspection.json",
+      )
+    end
+
+    predecessor = members.fetch(0)
+    target = members.fetch(1)
+    predecessor_identity = predecessor.fetch('identity')
+    target_identity = target.fetch('identity')
+    predecessor_module = Shellwords.escape(predecessor_identity.fetch('module'))
+    predecessor_name = predecessor_identity.fetch('moduleName')
+    target_module = Shellwords.escape(target_identity.fetch('module'))
+    target_name = target_identity.fetch('moduleName')
+    predecessor_patch_dir = "/sys/kernel/livepatch/#{predecessor_name}"
+    target_patch_dir = "/sys/kernel/livepatch/#{target_name}"
+
+    machine.succeeds('test "$(uname -r)" = 6.12.113')
+    dmesg_start = machine.succeeds('dmesg | wc -l')[1].to_i
+    machine.succeeds("insmod #{predecessor_module}", timeout: 60)
+    wait_core_enabled(machine, predecessor_patch_dir)
+    machine.succeeds('test "$(uname -r)" = 6.12.113.1')
+    machine.succeeds("#{OPERATION_COMMAND} prepare")
+    machine.succeeds("#{OPERATION_COMMAND} start")
+    machine.succeeds("insmod #{target_module}", timeout: 60)
+    wait_core_enabled(machine, target_patch_dir)
+    machine.succeeds('test "$(uname -r)" = 6.12.113.2')
+    machine.succeeds("#{OPERATION_COMMAND} operate")
+
+    machine.succeeds("sh -c 'echo 0 > #{Shellwords.escape(target_patch_dir)}/enabled'", timeout: 60)
+    wait_core_disabled(machine, target_patch_dir, target_name)
+    machine.succeeds("rmmod #{Shellwords.escape(target_name)}", timeout: 60)
+    wait_core_module_removed(machine, target_name)
+    machine.succeeds('test "$(uname -r)" = 6.12.113.1')
+    machine.succeeds("#{OPERATION_COMMAND} operate")
+    workload = machine.succeeds("#{OPERATION_COMMAND} stop")[1]
+    operations = Integer(workload.match(/^operations=([0-9]+)$/)[1], 10)
+    expect(operations).to be > 0
+    machine.succeeds("#{OPERATION_COMMAND} cleanup")
+
+    machine.succeeds("sh -c 'echo 0 > #{Shellwords.escape(predecessor_patch_dir)}/enabled'", timeout: 60)
+    wait_core_disabled(machine, predecessor_patch_dir, predecessor_name)
+    machine.succeeds("rmmod #{Shellwords.escape(predecessor_name)}", timeout: 60)
+    wait_core_module_removed(machine, predecessor_name)
+    machine.succeeds('test "$(uname -r)" = 6.12.113')
+
+    kernel_output = machine.succeeds("dmesg | tail -n +#{dmesg_start + 1}")[1]
+    fatal_pattern = /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|blocked for more than|soft lockup|hard LOCKUP|(?:rcu|RCU).*stall|livepatch.*(?:error|failed)/
+    expect(kernel_output).not_to match(fatal_pattern)
+
+    marker = {
+      schemaVersion: 1,
+      fixId: FIX_ID,
+      oracleId: ORACLE_ID,
+      operationKind: OPERATION_KIND,
+      platformId: ROW.fetch('platformId'),
+      runnerClass: ROW.fetch('runnerClass'),
+      rowId: ROW.fetch('rowId'),
+      setId: ROW.fetch('setId'),
+      release: target.fetch('release'),
+      nativeRelease: '6.12.113',
+      members: members.map { |member| member.fetch('identity') },
+      workload: { operations: operations },
+      forward: { release: target.fetch('release'), converged: true },
+      reverse: { release: predecessor.fetch('release'), targetModuleRemoved: true },
+      cleanup: { release: '6.12.113', predecessorModuleRemoved: true },
+      kernelHealth: 'clean',
+    }
+    puts "VPSADMINOS_LIVEPATCH_ORACLE_RESULT #{JSON.generate(marker)}"
+  '';
+in
+{
+  modules = [
+    (
+      { ... }:
+      {
+        environment.systemPackages = [
+          coredumpRunner
+          operationTool
+          ioRunner
+          pkgs.coreutils
+          pkgs.gawk
+          pkgs.gnugrep
+          pkgs.jq
+          pkgs.keyutils
+          pkgs.kmod
+          pkgs.util-linux
+        ];
+      }
+    )
+  ];
+
+  prepareScript = "";
+  busyScript = "";
+  heldScript = "";
+  failureScript = "";
+  fixedScript = "";
+  recoveryScript = "";
+
+  oracleScripts.operation-safety = oracleScript;
+}

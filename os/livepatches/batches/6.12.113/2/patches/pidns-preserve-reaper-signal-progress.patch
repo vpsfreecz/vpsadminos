@@ -1,0 +1,56 @@
+From 30b274508c743f243c82904954c4e416d7143d4c Mon Sep 17 00:00:00 2001
+From: Christian Brauner <brauner@kernel.org>
+Date: Mon, 24 Aug 2026 14:08:20 +0200
+Subject: [PATCH] pid_namespace: prevent TIF_NOTIFY_SIGNAL from interrupting
+ the reaper
+
+commit 5c0985dd3c32fc2bbd0e8beaf13cf52cd97376a2 upstream.
+
+Since commit 7fea700e04bd ("zap_pid_ns_processes: clear
+TIF_NOTIFY_SIGNAL along with TIF_SIGPENDING") zap_pid_ns_processes()
+clears TIF_NOTIFY_SIGNAL before every kernel_wait4() call. Otherwise
+kernel_wait4() doesn't sleep and returns -ERESTARTSYS if
+signal_pending() is true and the reaper busy-waits.
+
+But clearing TIF_NOTIFY_SIGNAL doesn't fix it. It can get raised again.
+For example, klp_send_signals() sets it raw against any task that hasn't
+transitioned yet. And it keeps sending it until the livepatch finishes.
+
+The sleep loop waiting for pid_allocated to drop has the same problem
+and it doesn't even clear anything. So a schedule() in
+TASK_INTERRUPTIBLE returns immediately.
+
+Use a no_notify_signal guard. signal_pending() will ignore
+TIF_NOTIFY_SIGNAL and the pid namespace reaper sleeps until a child
+exits or free_pid() wakes it.
+
+Link: https://patch.msgid.link/20260824-work-tif_notify_signal-v2-5-6609e42b3157@kernel.org
+Fixes: 7fea700e04bd ("zap_pid_ns_processes: clear TIF_NOTIFY_SIGNAL along with TIF_SIGPENDING")
+Reviewed-by: Oleg Nesterov <oleg@redhat.com>
+Cc: stable@vger.kernel.org
+Suggested-by: Oleg Nesterov <oleg@redhat.com>
+Signed-off-by: Christian Brauner (Amutable) <brauner@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ kernel/pid_namespace.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/pid_namespace.c b/kernel/pid_namespace.c
+index ae5ade3cdad04..2c8c67753f3cb 100644
+--- a/kernel/pid_namespace.c
++++ b/kernel/pid_namespace.c
+@@ -216,9 +216,10 @@ void zap_pid_ns_processes(struct pid_namespace *pid_ns)
+ 	 * kernel_wait4() will also block until our children traced from the
+ 	 * parent namespace are detached and become EXIT_DEAD.
+ 	 */
++	/* Task work must not busy-loop the reaper, see signal_pending(). */
++	guard(no_notify_signal)();
+ 	do {
+ 		clear_thread_flag(TIF_SIGPENDING);
+-		clear_thread_flag(TIF_NOTIFY_SIGNAL);
+ 		rc = kernel_wait4(-1, NULL, __WALL, NULL);
+ 	} while (rc != -ECHILD);
+ 
+-- 
+2.54.0
+

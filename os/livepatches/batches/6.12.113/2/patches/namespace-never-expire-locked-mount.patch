@@ -1,0 +1,71 @@
+From 6c8013ea84fcc51cf26aa870b61b5388c7196ed5 Mon Sep 17 00:00:00 2001
+From: Christian Brauner <brauner@kernel.org>
+Date: Fri, 2 Oct 2026 15:52:39 +0200
+Subject: [PATCH] namespace: never expire a locked mount
+
+[ Upstream commit f78ddcc872248c7aa1d7e904928441a0be4c6d5d ]
+
+Locked mounts are special. They protect the underlying files and
+directories from being revealed. do_umount() refuses to unmount locked
+mounts but shrink_submounts() doesn't.
+
+A shrinkable mount can become locked once the owner of a user namespace
+puts it beneath a locked mount with MOVE_MOUNT_BENEATH. The locked
+property now moves to the mount at the bottom making it possible to
+unmount the top mount.
+
+So umount() of an unlocked ancestor now expires the bottom mount first
+and the covered directory is revealed:
+
+  move_mount(c -> x/hidden, MOVE_MOUNT_BENEATH) = 0
+  the cover after the lock moved:  umount2(x/hidden) = 0
+  the holder of the lock:          umount2(x/hidden) = EINVAL
+  the root of the copy, busy:      umount2(x) = EBUSY
+  reads x/hidden/secret: "covered-by-root"
+
+So leave a locked mount alone as it dies together with its parent. A
+plain umount() of an unlocked mount with a locked one below it is EBUSY
+from now on. It's the same for any other locked child. A lazy umount
+still takes the whole tree.
+
+mark_mounts_for_expiry() never sees a locked mount. lock_mnt_tree()
+leaves a mount on an expiry list alone and nothing else puts a locked
+one on such a list. Add an assert for this.
+
+Fixes: 5ff9d8a65ce8 ("vfs: Lock in place mounts from more privileged users")
+Fixes: c62a4766937e ("move_mount: transfer MNT_LOCKED")
+Cc: stable@vger.kernel.org
+Link: https://patch.msgid.link/20261002-work-mount-fixes-4-v1-8-dd44b89d44ce@kernel.org
+Signed-off-by: Christian Brauner (Amutable) <brauner@kernel.org>
+[ sashal: Dropped the missing is_mounted() context lines and replaced VFS_WARN_ON_ONCE() with WARN_ON_ONCE(), since the former macro doesn't exist here. ]
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+---
+ fs/namespace.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index ebdc223c142e0..d02a4bbb75d37 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -3710,6 +3710,8 @@ void mark_mounts_for_expiry(struct list_head *mounts)
+ 	 *   cleared by mntput())
+ 	 */
+ 	list_for_each_entry_safe(mnt, next, mounts, mnt_expire) {
++		/* lock_mnt_tree() leaves expirable mounts alone */
++		WARN_ON_ONCE(IS_MNT_LOCKED(mnt));
+ 		if (!xchg(&mnt->mnt_expiry_mark, 1) ||
+ 			propagate_mount_busy(mnt, 1))
+ 			continue;
+@@ -3738,7 +3740,8 @@ EXPORT_SYMBOL_GPL(mark_mounts_for_expiry);
+  */
+ static bool shrink_submount(struct mount *mnt)
+ {
+-	if (propagate_mount_busy(mnt, 1))
++	/* not the kernel's to remove either */
++	if (IS_MNT_LOCKED(mnt) || propagate_mount_busy(mnt, 1))
+ 		return false;
+ 	touch_mnt_namespace(mnt->mnt_ns);
+ 	umount_tree(mnt, UMOUNT_PROPAGATE|UMOUNT_SYNC);
+-- 
+2.54.0
+

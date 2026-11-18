@@ -1,0 +1,80 @@
+From b82f3c1131456537a514595c3991b62652507c9d Mon Sep 17 00:00:00 2001
+From: Christian Brauner <brauner@kernel.org>
+Date: Wed, 30 Sep 2026 15:31:56 +0200
+Subject: [PATCH] namespace: check a recursive bind mount for mount namespace
+ loops
+
+[ Upstream commit c640a01a78e42302879006ed7b7d5a9a943ba815 ]
+
+do_loopback() refuses to bind mount the file of a mount namespace that
+is as old as the caller's or older because a mount namespace that holds
+a mount of its own file, or of an ancestor's, would cause a cycle. But
+it only checks the dentry the bind mount starts from. With MS_REC
+everything below it is copied and do_loopback() passes
+CL_COPY_MNT_NS_FILE so mount namespace files below the source are
+copied.
+
+That's fine for a source in the caller's own mount namespace. Every
+mount namespace file in there passed the same check when it was
+bind-mounted. It isn't fine for a source in another mount namespace.
+may_copy_tree() accepts a bind mount of any nsfs or pidfs file no matter
+what mount namespace it lives in so that /proc/<pid>/ns/<ns> and pidfds
+can be bind mounted. If we create a bind-mount stack of mount namespaces
+file descriptors the kernel will copy them irrespective of their
+ancestoral relationship to the mount namespace in question:
+
+  151 146 0:7 net:[4026531833] /tmp/nrc/y rw - nsfs nsfs rw
+  152 151 0:7 mnt:[4026532293] /tmp/nrc/y rw - nsfs nsfs rw
+
+Mount 152 is a mount of the mount namespace file of mount namespace
+4026532293 inside mount namespace 4026532293. That namespace and every
+mount in it are leaked... All it takes is a process in an older mount
+namespace that stacks the file and repeating it leaks without limit:
+
+  after control: Shmem:               380 kB
+  child: mount(/proc/self/fd/6, MS_BIND|MS_REC): ok
+  after cycle: Shmem:             65916 kB
+
+do_move_mount() runs check_for_nsfs_mounts() over a detached tree for
+exactly that reason. Do the same for the copy before it is grafted.
+
+Fixes: e149ed2b805f ("take the targets of /proc/*/ns/* symlinks to separate fs")
+Fixes: ef4144ac2dec ("pidfs: allow bind-mounts")
+Cc: stable@vger.kernel.org
+Link: https://patch.msgid.link/20260930-work-mount-fixes-3-v1-4-be34c83956ae@kernel.org
+Signed-off-by: Christian Brauner (Amutable) <brauner@kernel.org>
+[ sashal: Uses lock_mount() with separate parent and mp, so the call is graft_tree(mnt, parent, mp), and adds a forward declaration of check_for_nsfs_mounts() ahead of its use. ]
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+---
+ fs/namespace.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 036d56df28289..ebdc223c142e0 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -2805,6 +2805,8 @@ static int do_change_type(struct path *path, int ms_flags)
+ 	return err;
+ }
+ 
++static bool check_for_nsfs_mounts(struct mount *subtree);
++
+ static struct mount *__do_loopback(struct path *old_path, int recurse)
+ {
+ 	struct mount *mnt = ERR_PTR(-EINVAL), *old = real_mount(old_path->mnt);
+@@ -2872,7 +2874,11 @@ static int do_loopback(struct path *path, const char *old_name,
+ 		goto out2;
+ 	}
+ 
+-	err = graft_tree(mnt, parent, mp);
++	/* the copy may carry mount namespace files from below the source */
++	if (recurse && !check_for_nsfs_mounts(mnt))
++		err = -EINVAL;
++	else
++		err = graft_tree(mnt, parent, mp);
+ 	if (err) {
+ 		lock_mount_hash();
+ 		umount_tree(mnt, UMOUNT_SYNC);
+-- 
+2.54.0
+
