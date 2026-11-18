@@ -1,0 +1,85 @@
+From 564f9982a87625e006b8465bdb4a7deb51cf55e0 Mon Sep 17 00:00:00 2001
+From: Hyunwoo Kim <imv4bel@gmail.com>
+Date: Fri, 30 Oct 2026 06:42:16 +0900
+Subject: [PATCH] inet: reject unhashed sockets during established lookups
+
+Stable commit d69100340b4cae08d40f898f1b601032403f6be6
+([ Upstream commit 4e2b3ef19e0e04adca38442f07dd6bc93c712bf1 ])
+combines request-socket lifetime cleanup with the established-lookup guards
+that consume those objects. The preceding downstream split contains the five
+lifetime functions. This second split contains only the two lookup guards and
+must follow the lifetime stage.
+
+TCP established ehash lookups are lockless. The socket caches involved use
+SLAB_TYPESAFE_BY_RCU, so memory can be reused before an RCU reader that
+retained its old address has finished.
+
+After a tuple match, __inet_lookup_established() and
+__inet6_lookup_established() acquire a reference and repeat the tuple check.
+They did not check whether the new object was hashed. If the address was
+reused for a socket with the same tuple, the lookup could acquire a reference
+to the new object and return it while its nulls node was unhashed.
+
+After taking a reference, check whether the nulls node is unhashed in both
+IPv4 and IPv6 established lookups. If it is unhashed or the tuple no longer
+matches, drop the reference and restart the lookup. Lookups racing with the
+TIME_WAIT hashdance, or with a request being replaced by its child, then
+restart and find the new socket instead of returning the old one.
+
+This stage changes only __inet_lookup_established() and
+__inet6_lookup_established(). Together with the preceding lifetime split it
+reconstructs the stable change and first completes the CVE-2026-99288
+correction.
+
+The split retains the stable commit's code exactly in these two functions.
+The final two-stage tree-equivalence proof is recorded with the livepatch
+release evidence.
+
+Fixes: 079096f103fa ("tcp/dccp: install syn_recv requests into ehash table")
+Cc: stable@vger.kernel.org
+Signed-off-by: Hyunwoo Kim <imv4bel@gmail.com>
+Reviewed-by: Eric Dumazet <edumazet@google.com>
+Reviewed-by: Kuniyuki Iwashima <kuniyu@google.com>
+Link: https://patch.msgid.link/20261029214219.1035176-2-imv4bel@gmail.com
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Assisted-by: LLM
+---
+ net/ipv4/inet_hashtables.c  | 5 +++--
+ net/ipv6/inet6_hashtables.c | 4 +++-
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/net/ipv4/inet_hashtables.c b/net/ipv4/inet_hashtables.c
+index 37a6acff537e6..e8adf8530596c 100644
+--- a/net/ipv4/inet_hashtables.c
++++ b/net/ipv4/inet_hashtables.c
+@@ -512,8 +512,9 @@ struct sock *__inet_lookup_established(const struct net *net,
+ 		if (likely(inet_match(net, sk, acookie, ports, dif, sdif))) {
+ 			if (unlikely(!refcount_inc_not_zero(&sk->sk_refcnt)))
+ 				goto out;
+-			if (unlikely(!inet_match(net, sk, acookie,
+-						 ports, dif, sdif))) {
++			if (unlikely(hlist_nulls_unhashed_lockless(&sk->sk_nulls_node) ||
++				     !inet_match(net, sk, acookie, ports, dif,
++						 sdif))) {
+ 				sock_gen_put(sk);
+ 				goto begin;
+ 			}
+diff --git a/net/ipv6/inet6_hashtables.c b/net/ipv6/inet6_hashtables.c
+index 9ec05e354baa6..70633fed6e6af 100644
+--- a/net/ipv6/inet6_hashtables.c
++++ b/net/ipv6/inet6_hashtables.c
+@@ -74,7 +74,9 @@ struct sock *__inet6_lookup_established(const struct net *net,
+ 		if (unlikely(!refcount_inc_not_zero(&sk->sk_refcnt)))
+ 			goto out;
+ 
+-		if (unlikely(!inet6_match(net, sk, saddr, daddr, ports, dif, sdif))) {
++		if (unlikely(hlist_nulls_unhashed_lockless(&sk->sk_nulls_node) ||
++			     !inet6_match(net, sk, saddr, daddr, ports, dif,
++					  sdif))) {
+ 			sock_gen_put(sk);
+ 			goto begin;
+ 		}
+-- 
+2.54.0
+

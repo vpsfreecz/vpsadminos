@@ -1,0 +1,112 @@
+From f19526fa0c6573f82828edf109f471f30e3c987c Mon Sep 17 00:00:00 2001
+From: Hyunwoo Kim <imv4bel@gmail.com>
+Date: Fri, 30 Oct 2026 06:42:16 +0900
+Subject: [PATCH] inet: release failed request sockets by refcount
+
+Stable commit d69100340b4cae08d40f898f1b601032403f6be6
+([ Upstream commit 4e2b3ef19e0e04adca38442f07dd6bc93c712bf1 ])
+combines request-socket lifetime cleanup with two established-lookup guards.
+Split the lifetime cleanup into an earlier downstream commit so a livepatch
+can converge these ownership rules before enabling the lockless lookup
+guards.
+
+Request sockets that were never inserted into ehash can have a nonzero
+refcount, and a stale lookup can hold a transient reference. When SYN cookie,
+Fast Open, and request migration paths fail after setting a nonzero refcount,
+release the references held by those paths with reqsk_put() instead of freeing
+the request directly.
+
+This stage changes only reqsk_timer_handler(),
+inet_csk_complete_hashdance(), inet_csk_listen_stop(),
+tcp_get_cookie_sock(), and tcp_conn_request(). It deliberately omits the IPv4
+and IPv6 established-lookup guards. It is preparation for the later lookup
+fix and does not by itself correct CVE-2026-99288.
+
+The split retains the stable commit's code exactly in these five functions.
+The final two-stage tree-equivalence proof is recorded with the livepatch
+release evidence.
+
+Fixes: 079096f103fa ("tcp/dccp: install syn_recv requests into ehash table")
+Cc: stable@vger.kernel.org
+Signed-off-by: Hyunwoo Kim <imv4bel@gmail.com>
+Reviewed-by: Eric Dumazet <edumazet@google.com>
+Reviewed-by: Kuniyuki Iwashima <kuniyu@google.com>
+Link: https://patch.msgid.link/20261029214219.1035176-2-imv4bel@gmail.com
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Assisted-by: LLM
+---
+ net/ipv4/inet_connection_sock.c | 10 +++++++---
+ net/ipv4/syncookies.c           |  2 ++
+ net/ipv4/tcp_input.c            |  4 +++-
+ 3 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/net/ipv4/inet_connection_sock.c b/net/ipv4/inet_connection_sock.c
+index 14f54dc8e0179..4093bbbd687ab 100644
+--- a/net/ipv4/inet_connection_sock.c
++++ b/net/ipv4/inet_connection_sock.c
+@@ -1177,10 +1177,14 @@ static void reqsk_timer_handler(struct timer_list *t)
+ 	 */
+ 	if (nreq) {
+ 		__NET_INC_STATS(net, LINUX_MIB_TCPMIGRATEREQFAILURE);
++		/* The timer was not armed, drop its reference here. */
++		reqsk_put(nreq);
+ no_ownership:
+ 		reqsk_migrate_reset(nreq);
+ 		reqsk_queue_removed(queue, nreq);
+-		__reqsk_free(nreq);
++		/* Drop the temporary reference and the one reserved for ehash. */
++		reqsk_put(nreq);
++		reqsk_put(nreq);
+ 	}
+ 
+ drop:
+@@ -1467,7 +1471,7 @@ struct sock *inet_csk_complete_hashdance(struct sock *sk, struct sock *child,
+ 
+ 			__NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPMIGRATEREQFAILURE);
+ 			reqsk_migrate_reset(nreq);
+-			__reqsk_free(nreq);
++			reqsk_put(nreq);
+ 		} else if (inet_csk_reqsk_queue_add(sk, req, child)) {
+ 			return child;
+ 		}
+@@ -1523,7 +1527,7 @@ void inet_csk_listen_stop(struct sock *sk)
+ 					__NET_INC_STATS(sock_net(nsk),
+ 							LINUX_MIB_TCPMIGRATEREQFAILURE);
+ 					reqsk_migrate_reset(nreq);
+-					__reqsk_free(nreq);
++					reqsk_put(nreq);
+ 				}
+ 				rcu_read_unlock();
+ 
+diff --git a/net/ipv4/syncookies.c b/net/ipv4/syncookies.c
+index 66d5272c5abb9..16361ce3e8062 100644
+--- a/net/ipv4/syncookies.c
++++ b/net/ipv4/syncookies.c
+@@ -217,6 +217,8 @@ struct sock *tcp_get_cookie_sock(struct sock *sk, struct sk_buff *skb,
+ 
+ 		bh_unlock_sock(child);
+ 		sock_put(child);
++		reqsk_put(req);
++		return NULL;
+ 	}
+ 	__reqsk_free(req);
+ 
+diff --git a/net/ipv4/tcp_input.c b/net/ipv4/tcp_input.c
+index 5c581d4821c1d..f0bc057a12dd3 100644
+--- a/net/ipv4/tcp_input.c
++++ b/net/ipv4/tcp_input.c
+@@ -7382,7 +7382,9 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
+ 		if (!inet_csk_reqsk_queue_add(sk, req, fastopen_sk)) {
+ 			bh_unlock_sock(fastopen_sk);
+ 			sock_put(fastopen_sk);
+-			goto drop_and_free;
++			/* tcp_disconnect() already dropped one reqsk ref. */
++			reqsk_put(req);
++			goto drop;
+ 		}
+ 		READ_ONCE(sk->sk_data_ready)(sk);
+ 		bh_unlock_sock(fastopen_sk);
+-- 
+2.54.0
+
