@@ -365,6 +365,32 @@ let
     VALIDATOR_PATH = ${validatorPathJson}
     OPERATION_COMMAND = ${operationCommandJson}
 
+    def validate_bpf_capture_relation(plan_set, captured_set)
+      planned_members = plan_set.fetch('members')
+      captured_members = captured_set.fetch('members')
+      raise 'planned member set does not include release 6.12.113.2' if planned_members.length < 2
+      raise 'capture member count does not match plan' unless captured_members.length == planned_members.length
+      raise 'planned set does not start at 6.12.113.1' unless planned_members.first.fetch('release') == '6.12.113.1'
+      raise 'planned set does not contain release 6.12.113.2' unless planned_members.fetch(1).fetch('release') == '6.12.113.2'
+      raise 'planned set ID does not match its tip' unless plan_set.fetch('id') == planned_members.last.fetch('release')
+      raise 'planned tip release does not match its members' unless
+        plan_set.fetch('tipRelease') == planned_members.last.fetch('release')
+
+      captured_members.each_with_index do |member, index|
+        planned_member = planned_members.fetch(index)
+        expected_release = "6.12.113.#{index + 1}"
+        expected_predecessor = index.zero? ? nil : planned_members.fetch(index - 1).fetch('release')
+        raise 'planned member release is not contiguous' unless planned_member.fetch('release') == expected_release
+        raise 'planned member ordinal is not contiguous' unless planned_member.fetch('releaseOrdinal') == index + 1
+        raise 'planned member predecessor is inconsistent' unless
+          planned_member.fetch('predecessorRelease') == expected_predecessor
+        raise 'planned member target does not match set target' unless
+          planned_member.fetch('kernelVersion') == plan_set.fetch('kernelVersion')
+        raise 'capture member release does not match plan' unless
+          member.fetch('release') == planned_member.fetch('release')
+      end
+    end
+
     def wait_bpf_enabled(machine, patch_dir)
       machine.wait_until_succeeds(
         "test -d #{Shellwords.escape(patch_dir)} && " \
@@ -383,6 +409,39 @@ let
       )
     end
 
+    def enable_bpf_member(machine, member)
+      machine.succeeds("insmod #{member.fetch(:module_path)}", timeout: 60)
+      wait_bpf_enabled(machine, member.fetch(:patch_dir))
+      machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(member.fetch(:release))}")
+      {
+        release: member.fetch(:release),
+        enabled: 1,
+        transition: 0,
+        replace: 0,
+      }
+    end
+
+    def disable_bpf_member(machine, members, index, native_release)
+      member = members.fetch(index)
+      predecessor_release = index.zero? ? native_release : members.fetch(index - 1).fetch(:release)
+      patch_dir = member.fetch(:patch_dir)
+      module_name = member.fetch(:module_name)
+      module_name_shell = Shellwords.escape(module_name)
+      machine.succeeds("sh -c 'echo 0 > #{Shellwords.escape(patch_dir)}/enabled'", timeout: 60)
+      wait_bpf_disabled(machine, patch_dir, module_name)
+      machine.succeeds("rmmod #{module_name_shell}", timeout: 60)
+      machine.wait_until_succeeds(
+        "test ! -d #{Shellwords.escape(patch_dir)} && test ! -d /sys/module/#{module_name_shell}",
+        timeout: 180,
+      )
+      machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(predecessor_release)}")
+      {
+        removedRelease: member.fetch(:release),
+        release: predecessor_release,
+        moduleRemoved: true,
+      }
+    end
+
     expected_set = JSON.parse(${builtins.toJSON expectedSetJson})
     plan_sets = @plan.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }
     captured_sets = @capture.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }
@@ -391,11 +450,7 @@ let
     plan_set = plan_sets.fetch(0)
     captured_set = captured_sets.fetch(0)
     expect(plan_set).to eq(expected_set)
-    expect(captured_set.fetch('members').length).to eq(plan_set.fetch('members').length)
-    expect(plan_set.fetch('members').map { |member| member.fetch('release') }).to eq([
-      '6.12.113.1',
-      '6.12.113.2',
-    ])
+    validate_bpf_capture_relation(plan_set, captured_set)
 
     expect(ROW.fetch('scope')).to eq('fix')
     expect(ROW.fetch('role')).to eq('operation-safety')
@@ -414,8 +469,8 @@ let
     vendor = machine.succeeds("awk -F: '/vendor_id/{gsub(/ /, \"\", $2); print $2; exit}' /proc/cpuinfo")[1].strip
     expect(vendor).to eq(expected_vendor)
 
-    members = captured_set.fetch('members')
-    members.each_with_index do |member, index|
+    captured_members = captured_set.fetch('members')
+    members = captured_members.each_with_index.map do |member, index|
       planned_member = plan_set.fetch('members').fetch(index)
       expect(member.fetch('release')).to eq(planned_member.fetch('release'))
       expect(planned_member.fetch('kernelVersion')).to eq(plan_set.fetch('kernelVersion'))
@@ -438,46 +493,37 @@ let
         "jq -e --arg name #{module_name} '.module.name == $name and .buildInvocation.nonReplaceRequested == true' #{evidence}/inspection.json",
         "test ! -e /sys/kernel/livepatch/#{module_name}",
       )
+      {
+        release: member.fetch('release'),
+        identity: identity,
+        module_path: module_path,
+        module_name: identity.fetch('moduleName'),
+        patch_dir: "/sys/kernel/livepatch/#{identity.fetch('moduleName')}",
+      }
     end
 
-    predecessor = members.fetch(0)
-    target = members.fetch(1)
-    predecessor_identity = predecessor.fetch('identity')
-    target_identity = target.fetch('identity')
-    predecessor_module = Shellwords.escape(predecessor_identity.fetch('module'))
-    predecessor_name = predecessor_identity.fetch('moduleName')
-    predecessor_name_shell = Shellwords.escape(predecessor_name)
-    target_module = Shellwords.escape(target_identity.fetch('module'))
-    target_name = target_identity.fetch('moduleName')
-    target_name_shell = Shellwords.escape(target_name)
-    predecessor_patch_dir = "/sys/kernel/livepatch/#{predecessor_name}"
-    target_patch_dir = "/sys/kernel/livepatch/#{target_name}"
+    target_identity = members.fetch(1).fetch(:identity)
 
     machine.succeeds('test "$(uname -r)" = 6.12.113')
     dmesg_start = machine.succeeds('dmesg | wc -l')[1].to_i
 
-    machine.succeeds("insmod #{predecessor_module}", timeout: 60)
-    wait_bpf_enabled(machine, predecessor_patch_dir)
-    machine.succeeds('test "$(uname -r)" = 6.12.113.1')
+    forward = [enable_bpf_member(machine, members.fetch(0))]
 
     prepare = machine.succeeds("#{OPERATION_COMMAND} prepare")[1]
     expect(prepare).to include('result=ok retval=64 test-bytes=64 socket-bytes=64')
     machine.succeeds("#{OPERATION_COMMAND} start")
-
-    machine.succeeds("insmod #{target_module}", timeout: 60)
-    wait_bpf_enabled(machine, target_patch_dir)
-    machine.succeeds('test "$(uname -r)" = 6.12.113.2')
     machine.succeeds("#{OPERATION_COMMAND} operate")
 
-    machine.succeeds("sh -c 'echo 0 > #{Shellwords.escape(target_patch_dir)}/enabled'", timeout: 60)
-    wait_bpf_disabled(machine, target_patch_dir, target_name)
-    machine.succeeds("rmmod #{target_name_shell}", timeout: 60)
-    machine.wait_until_succeeds(
-      "test ! -d #{Shellwords.escape(target_patch_dir)} && test ! -d /sys/module/#{target_name_shell}",
-      timeout: 180,
-    )
-    machine.succeeds('test "$(uname -r)" = 6.12.113.1')
-    machine.succeeds("#{OPERATION_COMMAND} operate")
+    members.drop(1).each do |member|
+      forward << enable_bpf_member(machine, member)
+      machine.succeeds("#{OPERATION_COMMAND} operate")
+    end
+
+    reverse = members.each_index.reverse_each.map do |index|
+      boundary = disable_bpf_member(machine, members, index, '6.12.113')
+      machine.succeeds("#{OPERATION_COMMAND} operate")
+      boundary
+    end
 
     workload = machine.succeeds("#{OPERATION_COMMAND} stop")[1]
     operations_match = workload.match(/^operations=([0-9]+)$/)
@@ -485,15 +531,6 @@ let
     operations = Integer(operations_match[1], 10)
     expect(operations).to be > 0
     machine.succeeds("#{OPERATION_COMMAND} cleanup")
-
-    machine.succeeds("sh -c 'echo 0 > #{Shellwords.escape(predecessor_patch_dir)}/enabled'", timeout: 60)
-    wait_bpf_disabled(machine, predecessor_patch_dir, predecessor_name)
-    machine.succeeds("rmmod #{predecessor_name_shell}", timeout: 60)
-    machine.wait_until_succeeds(
-      "test ! -d #{Shellwords.escape(predecessor_patch_dir)} && test ! -d /sys/module/#{predecessor_name_shell}",
-      timeout: 180,
-    )
-    machine.succeeds('test "$(uname -r)" = 6.12.113')
 
     kernel_output = machine.succeeds("dmesg | tail -n +#{dmesg_start + 1}")[1]
     fatal_pattern = /BUG:|kernel BUG at|WARNING:|Oops:|general protection fault|[Kk]ernel panic|blocked for more than|soft lockup|hard LOCKUP|(?:rcu|RCU).*stall|livepatch.*(?:error|failed)|BPF:.*(?:fatal|error)/
@@ -507,29 +544,31 @@ let
       runnerClass: ROW.fetch('runnerClass'),
       rowId: ROW.fetch('rowId'),
       setId: ROW.fetch('setId'),
-      release: target.fetch('release'),
+      release: plan_set.fetch('tipRelease'),
       nativeRelease: '6.12.113',
       identity: target_identity,
+      memberReleases: captured_members.map { |member| member.fetch('release') },
+      members: captured_members.map { |member| member.fetch('identity') },
       workload: {
         backgroundOperations: operations,
-        serialOperations: 3,
-        verifierLoads: operations + 3,
-        testRuns: operations + 3,
-        socketPackets: operations + 3,
+        serialOperations: 1 + (2 * members.length),
+        verifierLoads: operations + 1 + (2 * members.length),
+        testRuns: operations + 1 + (2 * members.length),
+        socketPackets: operations + 1 + (2 * members.length),
       },
       stack: {
-        predecessorRelease: predecessor.fetch('release'),
+        predecessorRelease: '6.12.113.1',
         predecessorPresentDuringReverse: true,
       },
       forward: {
-        enabled: 1,
-        transition: 0,
-        replace: 0,
-        release: target.fetch('release'),
+        release: plan_set.fetch('tipRelease'),
+        converged: true,
+        boundaries: forward,
       },
       reverse: {
-        targetModuleRemoved: true,
-        release: predecessor.fetch('release'),
+        release: '6.12.113',
+        modulesRemoved: true,
+        boundaries: reverse,
       },
       cleanup: {
         predecessorModuleRemoved: true,

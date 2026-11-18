@@ -304,6 +304,33 @@ let
     require 'shellwords'
 
     oracle_id = ${builtins.toJSON oracleId}
+
+    def validate_storage_capture_relation(plan_set, captured_set)
+      planned_members = plan_set.fetch('members')
+      captured_members = captured_set.fetch('members')
+      raise 'planned member set does not include release 6.12.113.2' if planned_members.length < 2
+      raise 'capture member count does not match plan' unless captured_members.length == planned_members.length
+      raise 'planned set does not start at 6.12.113.1' unless planned_members.first.fetch('release') == '6.12.113.1'
+      raise 'planned set does not contain release 6.12.113.2' unless planned_members.fetch(1).fetch('release') == '6.12.113.2'
+      raise 'planned set ID does not match its tip' unless plan_set.fetch('id') == planned_members.last.fetch('release')
+      raise 'planned tip release does not match its members' unless
+        plan_set.fetch('tipRelease') == planned_members.last.fetch('release')
+
+      captured_members.each_with_index do |member, index|
+        planned_member = planned_members.fetch(index)
+        expected_release = "6.12.113.#{index + 1}"
+        expected_predecessor = index.zero? ? nil : planned_members.fetch(index - 1).fetch('release')
+        raise 'planned member release is not contiguous' unless planned_member.fetch('release') == expected_release
+        raise 'planned member ordinal is not contiguous' unless planned_member.fetch('releaseOrdinal') == index + 1
+        raise 'planned member predecessor is inconsistent' unless
+          planned_member.fetch('predecessorRelease') == expected_predecessor
+        raise 'planned member target does not match set target' unless
+          planned_member.fetch('kernelVersion') == plan_set.fetch('kernelVersion')
+        raise 'capture member release does not match plan' unless
+          member.fetch('release') == planned_member.fetch('release')
+      end
+    end
+
     expected_set = JSON.parse(${builtins.toJSON expectedSetJson})
     plan_sets = @plan.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }
     captured_sets = @capture.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }
@@ -312,6 +339,7 @@ let
     plan_set = plan_sets.fetch(0)
     captured_set = captured_sets.fetch(0)
     expect(plan_set).to eq(expected_set)
+    validate_storage_capture_relation(plan_set, captured_set)
     expect(ROW.fetch('scope')).to eq('fix')
     expect(ROW.fetch('role')).to eq('operation-safety')
     expect(ROW.fetch('oracleIds')).to eq([oracle_id])
@@ -319,7 +347,6 @@ let
 
     planned_releases = plan_set.fetch('members').map { |member| member.fetch('release') }
     captured_members = captured_set.fetch('members')
-    expect(planned_releases).to eq(['6.12.113.1', '6.12.113.2'])
     expect(captured_members.map { |member| member.fetch('release') }).to eq(planned_releases)
 
     expected_vendor = {
@@ -331,13 +358,23 @@ let
 
     captured_members.each do |member|
       identity = member.fetch('identity')
+      expect(identity.keys.sort).to eq(%w[
+        closureSha256 flakeLockSha256 inputDigest inspectionSha256 manifestSha256
+        module moduleName moduleSha256 producer sourceRevision targetId vermagic
+      ].sort)
       producer = Shellwords.escape(identity.fetch('producer'))
       module_path = Shellwords.escape(identity.fetch('module'))
+      module_name = Shellwords.escape(identity.fetch('moduleName'))
       evidence = "#{producer}/share/vpsadminos-livepatch"
       machine.all_succeed(
         "test -f #{module_path}",
         "test \"$(sha256sum #{module_path} | cut -d' ' -f1)\" = #{identity.fetch('moduleSha256')}",
+        "test \"$(sha256sum #{evidence}/manifest.json | cut -d' ' -f1)\" = #{identity.fetch('manifestSha256')}",
+        "test \"$(sha256sum #{evidence}/inspection.json | cut -d' ' -f1)\" = #{identity.fetch('inspectionSha256')}",
+        "test \"$(sha256sum #{evidence}/closure.json | cut -d' ' -f1)\" = #{identity.fetch('closureSha256')}",
         "jq -e '.matches == true and .mismatches == {}' #{evidence}/closure.json",
+        "jq -e --arg name #{module_name} '.module.name == $name and .buildInvocation.nonReplaceRequested == true' #{evidence}/inspection.json",
+        "test ! -e /sys/kernel/livepatch/#{module_name}",
       )
     end
 
@@ -352,6 +389,7 @@ let
       )
     end
 
+    machine.succeeds('test "$(uname -r)" = 6.12.113')
     dmesg_start = machine.succeeds('dmesg | wc -l')[1].to_i
     prepare = machine.succeeds('ceph-livepatch-operation prepare', timeout: 300)[1]
     integrity_match = prepare.match(/^checksum=([0-9a-f]{64})$/)
@@ -359,15 +397,26 @@ let
     integrity_sha256 = integrity_match[1]
     machine.succeeds('ceph-livepatch-operation start')
 
-    captured_members.each do |member|
+    forward = captured_members.map do |member|
       identity = member.fetch('identity')
       machine.succeeds("insmod #{Shellwords.escape(identity.fetch('module'))}", timeout: 60)
       wait_ceph_transition(machine, identity.fetch('moduleName'), 1)
       machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(member.fetch('release'))}")
+      machine.succeeds(
+        "ceph-livepatch-operation operate #{Shellwords.escape(oracle_id)} " \
+          "#{Shellwords.escape("after-forward-#{member.fetch('release')}")}",
+        timeout: 180,
+      )
+      {
+        release: member.fetch('release'),
+        enabled: 1,
+        transition: 0,
+        replace: 0,
+      }
     end
-    machine.succeeds("ceph-livepatch-operation operate #{Shellwords.escape(oracle_id)} after-forward", timeout: 180)
 
-    captured_members.reverse_each do |member|
+    reverse = captured_members.each_index.reverse_each.map do |index|
+      member = captured_members.fetch(index)
       identity = member.fetch('identity')
       module_name = identity.fetch('moduleName')
       patch_dir = "/sys/kernel/livepatch/#{module_name}"
@@ -381,9 +430,19 @@ let
         "test ! -d #{Shellwords.escape(patch_dir)} && test ! -d /sys/module/#{Shellwords.escape(module_name)}",
         timeout: 180,
       )
+      predecessor_release = index.zero? ? '6.12.113' : captured_members.fetch(index - 1).fetch('release')
+      machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(predecessor_release)}")
+      machine.succeeds(
+        "ceph-livepatch-operation operate #{Shellwords.escape(oracle_id)} " \
+          "#{Shellwords.escape("after-reverse-#{member.fetch('release')}")}",
+        timeout: 180,
+      )
+      {
+        removedRelease: member.fetch('release'),
+        release: predecessor_release,
+        moduleRemoved: true,
+      }
     end
-    machine.succeeds('test "$(uname -r)" = 6.12.113')
-    machine.succeeds("ceph-livepatch-operation operate #{Shellwords.escape(oracle_id)} after-reverse", timeout: 180)
 
     workload = machine.succeeds('ceph-livepatch-operation stop')[1]
     operations_match = workload.match(/^operations=([0-9]+)$/)
@@ -406,8 +465,9 @@ let
       runnerClass: ROW.fetch('runnerClass'),
       rowId: ROW.fetch('rowId'),
       setId: ROW.fetch('setId'),
-      release: '6.12.113.2',
+      release: plan_set.fetch('tipRelease'),
       nativeRelease: '6.12.113',
+      memberReleases: captured_members.map { |member| member.fetch('release') },
       members: captured_members.map { |member| member.fetch('identity') },
       workload: {
         operations: operations,
@@ -415,12 +475,14 @@ let
         operation: oracle_id,
       },
       forward: {
-        release: '6.12.113.2',
+        release: plan_set.fetch('tipRelease'),
         converged: true,
+        boundaries: forward,
       },
       reverse: {
         release: '6.12.113',
         modulesRemoved: true,
+        boundaries: reverse,
       },
       kernelHealth: 'clean',
     }

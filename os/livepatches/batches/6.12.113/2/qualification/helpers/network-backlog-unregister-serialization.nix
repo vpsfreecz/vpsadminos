@@ -177,6 +177,32 @@ let
     require 'json'
     require 'shellwords'
 
+    def validate_network_capture_relation(plan_set, captured_set)
+      planned_members = plan_set.fetch('members')
+      captured_members = captured_set.fetch('members')
+      raise 'planned member set does not include release 6.12.113.2' if planned_members.length < 2
+      raise 'capture member count does not match plan' unless captured_members.length == planned_members.length
+      raise 'planned set does not start at 6.12.113.1' unless planned_members.first.fetch('release') == '6.12.113.1'
+      raise 'planned set does not contain release 6.12.113.2' unless planned_members.fetch(1).fetch('release') == '6.12.113.2'
+      raise 'planned set ID does not match its tip' unless plan_set.fetch('id') == planned_members.last.fetch('release')
+      raise 'planned tip release does not match its members' unless
+        plan_set.fetch('tipRelease') == planned_members.last.fetch('release')
+
+      captured_members.each_with_index do |member, index|
+        planned_member = planned_members.fetch(index)
+        expected_release = "6.12.113.#{index + 1}"
+        expected_predecessor = index.zero? ? nil : planned_members.fetch(index - 1).fetch('release')
+        raise 'planned member release is not contiguous' unless planned_member.fetch('release') == expected_release
+        raise 'planned member ordinal is not contiguous' unless planned_member.fetch('releaseOrdinal') == index + 1
+        raise 'planned member predecessor is inconsistent' unless
+          planned_member.fetch('predecessorRelease') == expected_predecessor
+        raise 'planned member target does not match set target' unless
+          planned_member.fetch('kernelVersion') == plan_set.fetch('kernelVersion')
+        raise 'capture member release does not match plan' unless
+          member.fetch('release') == planned_member.fetch('release')
+      end
+    end
+
     expected_set = JSON.parse(${builtins.toJSON expectedSetJson})
     plan_sets = @plan.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }
     captured_sets = @capture.fetch('sets').select { |candidate| candidate.fetch('id') == ROW.fetch('setId') }
@@ -185,17 +211,17 @@ let
     plan_set = plan_sets.fetch(0)
     captured_set = captured_sets.fetch(0)
     expect(plan_set).to eq(expected_set)
+    validate_network_capture_relation(plan_set, captured_set)
     planned_members = plan_set.fetch('members')
     captured_members = captured_set.fetch('members')
-    expect(planned_members.map { |member| member.fetch('release') }).to eq(%w[6.12.113.1 6.12.113.2])
-    expect(captured_members.map { |member| member.fetch('release') }).to eq(%w[6.12.113.1 6.12.113.2])
-    expect(captured_members.length).to eq(planned_members.length)
+    expect(captured_members.map { |member| member.fetch('release') }).to eq(
+      planned_members.map { |member| member.fetch('release') },
+    )
     captured_members.each_with_index do |member, index|
       expect(member.fetch('release')).to eq(planned_members.fetch(index).fetch('release'))
       expect(planned_members.fetch(index).fetch('kernelVersion')).to eq(plan_set.fetch('kernelVersion'))
     end
     expect(plan_set.fetch('kernelVersion')).to eq('6.12.113')
-    expect(plan_set.fetch('tipRelease')).to eq('6.12.113.2')
     expect(ROW.fetch('scope')).to eq('fix')
     expect(ROW.fetch('role')).to eq('operation-safety')
     expect(ROW.fetch('oracleIds')).to eq([${builtins.toJSON oracleId}])
@@ -216,7 +242,7 @@ let
     ]
     captured_members.each do |member|
       identity = member.fetch('identity')
-      expect(identity.keys).to include(*required_identity)
+      expect(identity.keys.sort).to eq(required_identity.sort)
       producer = Shellwords.escape(identity.fetch('producer'))
       module_path = Shellwords.escape(identity.fetch('module'))
       module_name = Shellwords.escape(identity.fetch('moduleName'))
@@ -248,6 +274,12 @@ let
         timeout: 180,
       )
       machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(member.fetch('release'))}")
+      {
+        release: member.fetch('release'),
+        enabled: 1,
+        transition: 0,
+        replace: 0,
+      }
     end
 
     disable_member = lambda do |member, expected_release|
@@ -266,6 +298,11 @@ let
         timeout: 180,
       )
       machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(expected_release)}")
+      {
+        removedRelease: member.fetch('release'),
+        release: expected_release,
+        moduleRemoved: true,
+      }
     end
 
     progress = lambda do |previous|
@@ -281,15 +318,18 @@ let
     machine.succeeds('${toolName} start')
     checkpoints = [progress.call(-1)]
 
-    captured_members.each do |member|
-      enable_member.call(member)
+    forward = captured_members.map do |member|
+      boundary = enable_member.call(member)
       checkpoints << progress.call(checkpoints.last)
+      boundary
     end
 
-    disable_member.call(captured_members.fetch(1), '6.12.113.1')
-    checkpoints << progress.call(checkpoints.last)
-    disable_member.call(captured_members.fetch(0), '6.12.113')
-    checkpoints << progress.call(checkpoints.last)
+    reverse = captured_members.each_index.reverse_each.map do |index|
+      predecessor_release = index.zero? ? '6.12.113' : captured_members.fetch(index - 1).fetch('release')
+      boundary = disable_member.call(captured_members.fetch(index), predecessor_release)
+      checkpoints << progress.call(checkpoints.last)
+      boundary
+    end
 
     workload = machine.succeeds('${toolName} stop')[1]
     operations_match = workload.match(/^operations=([0-9]+)$/)
@@ -309,8 +349,9 @@ let
       runnerClass: ROW.fetch('runnerClass'),
       rowId: ROW.fetch('rowId'),
       setId: ROW.fetch('setId'),
-      release: '6.12.113.2',
+      release: plan_set.fetch('tipRelease'),
       nativeRelease: '6.12.113',
+      memberReleases: captured_members.map { |member| member.fetch('release') },
       identities: captured_members.map { |member| member.fetch('identity') },
       workload: {
         operations: operations,
@@ -318,12 +359,14 @@ let
         ordinaryOperation: ${builtins.toJSON operationLabel},
       },
       forward: {
-        orderedReleases: %w[6.12.113.1 6.12.113.2],
+        orderedReleases: captured_members.map { |member| member.fetch('release') },
         replace: 0,
+        boundaries: forward,
       },
       reverse: {
-        orderedReleases: %w[6.12.113.1 6.12.113],
+        orderedReleases: reverse.map { |boundary| boundary.fetch(:release) },
         modulesRemoved: true,
+        boundaries: reverse,
       },
       kernelHealth: 'clean',
     }
