@@ -1,0 +1,65 @@
+From 45dd007c6a06b193ede8592f2fed3b24f0490e7b Mon Sep 17 00:00:00 2001
+From: Peilin Ye <yepeilin@google.com>
+Date: Mon, 3 Mar 2025 05:37:07 +0000
+Subject: [PATCH] bpf: Factor out atomic_ptr_type_ok()
+
+[ Upstream commit 66faaea94e1a8e8197d98de6e9d07591970837d6 ]
+
+Factor out atomic_ptr_type_ok() as a helper function to be used later.
+
+Signed-off-by: Peilin Ye <yepeilin@google.com>
+Link: https://lore.kernel.org/r/e5ef8b3116f3fffce78117a14060ddce05eba52a.1740978603.git.yepeilin@google.com
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Stable-dep-of: 179ee84a8911 ("bpf: Fix incorrect pruning due to atomic fetch precision tracking")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+---
+ kernel/bpf/verifier.c | 26 +++++++++++++++++++++-----
+ 1 file changed, 21 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c
+index 4978c1d68bd98..1f5c8b5b74ffb 100644
+--- a/kernel/bpf/verifier.c
++++ b/kernel/bpf/verifier.c
+@@ -5986,6 +5986,26 @@ static bool is_arena_reg(struct bpf_verifier_env *env, int regno)
+ 	return reg->type == PTR_TO_ARENA;
+ }
+ 
++/* Return false if @regno contains a pointer whose type isn't supported for
++ * atomic instruction @insn.
++ */
++static bool atomic_ptr_type_ok(struct bpf_verifier_env *env, int regno,
++			       struct bpf_insn *insn)
++{
++	if (is_ctx_reg(env, regno))
++		return false;
++	if (is_pkt_reg(env, regno))
++		return false;
++	if (is_flow_key_reg(env, regno))
++		return false;
++	if (is_sk_reg(env, regno))
++		return false;
++	if (is_arena_reg(env, regno))
++		return bpf_jit_supports_insn(insn, true);
++
++	return true;
++}
++
+ static u32 *reg2btf_ids[__BPF_REG_TYPE_MAX] = {
+ #ifdef CONFIG_NET
+ 	[PTR_TO_SOCKET] = &btf_sock_ids[BTF_SOCK_TYPE_SOCK],
+@@ -7439,11 +7459,7 @@ static int check_atomic(struct bpf_verifier_env *env, int insn_idx, struct bpf_i
+ 		return -EACCES;
+ 	}
+ 
+-	if (is_ctx_reg(env, insn->dst_reg) ||
+-	    is_pkt_reg(env, insn->dst_reg) ||
+-	    is_flow_key_reg(env, insn->dst_reg) ||
+-	    is_sk_reg(env, insn->dst_reg) ||
+-	    (is_arena_reg(env, insn->dst_reg) && !bpf_jit_supports_insn(insn, true))) {
++	if (!atomic_ptr_type_ok(env, insn->dst_reg, insn)) {
+ 		verbose(env, "BPF_ATOMIC stores into R%d %s is not allowed\n",
+ 			insn->dst_reg,
+ 			reg_type_str(env, reg_state(env, insn->dst_reg)->type));
+-- 
+2.54.0
+
