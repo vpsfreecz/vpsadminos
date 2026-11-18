@@ -129,20 +129,39 @@ row=$(jq -cer --arg rowId "$row_id" '
   [.rows[] | select(.rowId == $rowId)]
   | if length == 1 then .[0] else error("row selection is not unique") end
 ' "$plan")
+set_id=$(jq -er '.setId' <<<"$row")
 
-jq -e --arg rowId "$row_id" '
-  .schemaVersion == 1
+jq -e \
+  --arg rowId "$row_id" \
+  --arg setId "$set_id" \
+  --arg fixId "$expected_fix_id" \
+  --arg oracleId "$expected_oracle_id" '
+  . as $plan
+  | ([.sets[] | select(.id == $setId)]
+    | if length == 1 then .[0] else error("set selection is not unique") end) as $set
+  | .schemaVersion == 1
   and .dormant == false
   and .selectedSets == 1
-  and .counts.plannedMembers == 2
+  and .counts.plannedMembers == ($set.members | length)
   and .counts.plannedRows == (.rows | length)
-  and .counts.matrixRows == (.rows | length)
+  and .counts.matrixRows == (.matrix.include | length)
   and (.sets | length) == 1
-  and .sets[0].id == "6.12.113.2"
-  and .sets[0].kernelVersion == "6.12.113"
-  and .sets[0].tipRelease == "6.12.113.2"
-  and (.sets[0].members | map(.release)) == ["6.12.113.1", "6.12.113.2"]
-  and (.sets[0].members | all(.kernelVersion == "6.12.113"))
+  and $set.kernelVersion == "6.12.113"
+  and ($set.members | length) >= 2
+  and $set.members[0].release == "6.12.113.1"
+  and $set.members[1].release == "6.12.113.2"
+  and $set.id == $set.tipRelease
+  and $set.tipRelease == $set.members[-1].release
+  and ([range(0; ($set.members | length)) as $index
+    | $set.members[$index].kernelVersion == $set.kernelVersion
+      and $set.members[$index].releaseOrdinal == ($index + 1)
+      and $set.members[$index].release
+        == ("6.12.113." + (($index + 1) | tostring))
+      and $set.members[$index].predecessorRelease
+        == (if $index == 0 then null else $set.members[$index - 1].release end)
+  ] | all)
+  and ([$set.oracles[] | select(.fixId == $fixId and .id == $oracleId)] | length) == 1
+  and ($plan.rows | all(.setId == $set.id))
   and ([.rows[] | select(.rowId == $rowId)] | length) == 1
 ' "$plan" >/dev/null
 
@@ -171,24 +190,32 @@ jq -e \
   and .validator == $validator
 ' <<<"$row" >/dev/null
 
-jq -e --arg setId "$(jq -er '.setId' <<<"$row")" --slurpfile plan "$plan" '
+jq -e --arg setId "$set_id" --slurpfile plan "$plan" '
   def sha: type == "string" and test("^[0-9a-f]{64}$");
   def nonempty: type == "string" and length > 0;
   . as $capture
-  |
-  .schemaVersion == 1
+  | ([.sets[] | select(.id == $setId)]
+    | if length == 1 then .[0] else error("capture set selection is not unique") end) as $set
+  | ([$plan[0].sets[] | select(.id == $setId)]
+    | if length == 1 then .[0] else error("plan set selection is not unique") end) as $planSet
+  | .schemaVersion == 1
   and .rawBuildLogIdentity == "per-realization-only"
   and (.sourceRevision | nonempty)
   and (.flakeLockSha256 | sha)
   and .selectedSets == 1
-  and .counts.plannedMembers == 2
-  and .counts.capturedMembers == 2
+  and .counts.plannedMembers == ($planSet.members | length)
+  and .counts.capturedMembers == ($set.members | length)
   and (.sets | length) == 1
-  and .sets[0].id == $setId
-  and (.sets[0].members | length) == 2
-  and (.sets[0].members | map(.release)) == ["6.12.113.1", "6.12.113.2"]
-  and (.sets[0].members | all(
-    (.identity.sourceRevision == $capture.sourceRevision)
+  and ($set.members | length) == ($planSet.members | length)
+  and ($set.members | map(.release)) == ($planSet.members | map(.release))
+  and ($set.members | all(
+    (keys | sort) == ["audit", "identity", "release"]
+    and (.identity | keys | sort) == [
+      "closureSha256", "flakeLockSha256", "inputDigest", "inspectionSha256",
+      "manifestSha256", "module", "moduleName", "moduleSha256", "producer",
+      "sourceRevision", "targetId", "vermagic"
+    ]
+    and (.identity.sourceRevision == $capture.sourceRevision)
     and (.identity.flakeLockSha256 == $capture.flakeLockSha256)
     and (.identity.moduleSha256 | sha)
     and (.identity.manifestSha256 | sha)
@@ -198,7 +225,6 @@ jq -e --arg setId "$(jq -er '.setId' <<<"$row")" --slurpfile plan "$plan" '
     and (.identity.moduleName | nonempty)
     and (.identity.producer | nonempty)
   ))
-  and (.sets[0].members | map(.release)) == ($plan[0].sets[0].members | map(.release))
 ' "$capture" >/dev/null
 
 grep -F '1 tests successful' "$runner_log" >/dev/null || fail "runner summary is missing"
@@ -231,19 +257,32 @@ jq -e \
   --arg oracleId "$expected_oracle_id" \
   --arg operationLabel "$expected_operation_label" \
   --argjson row "$row" \
-  --slurpfile capture "$capture" '
-  .schemaVersion == 1
+  --arg setId "$set_id" \
+  --slurpfile capture "$capture" \
+  --slurpfile plan "$plan" '
+  ([$plan[0].sets[] | select(.id == $setId)][0]) as $set
+  | ([$capture[0].sets[] | select(.id == $setId)][0]) as $capturedSet
+  | ($set.members | map(.release)) as $releases
+  | [range(($releases | length) - 1; -1; -1) as $index
+      | {
+          removedRelease: $releases[$index],
+          release: (if $index == 0 then $set.kernelVersion else $releases[$index - 1] end),
+          moduleRemoved: true
+        }
+    ] as $reverse
+  | .schemaVersion == 1
   and .oracleId == $oracleId
   and .rowId == $row.rowId
   and .setId == $row.setId
   and .platformId == $row.platformId
   and .runnerClass == $row.runnerClass
-  and .release == "6.12.113.2"
+  and .release == $set.tipRelease
   and .nativeRelease == "6.12.113"
-  and .identities == ($capture[0].sets[0].members | map(.identity))
+  and .memberReleases == $releases
+  and .identities == ($capturedSet.members | map(.identity))
   and (.workload.operations | type == "number" and floor == . and . > 0)
   and .workload.ordinaryOperation == $operationLabel
-  and (.workload.checkpoints | length) == 5
+  and (.workload.checkpoints | length) == (1 + (2 * ($releases | length)))
   and (.workload.checkpoints | all(type == "number" and floor == . and . >= 0))
   and (.workload.checkpoints as $points
     | [range(1; $points | length) as $index
@@ -251,12 +290,14 @@ jq -e \
     | all)
   and .workload.operations >= .workload.checkpoints[-1]
   and .forward == {
-    orderedReleases: ["6.12.113.1", "6.12.113.2"],
-    replace: 0
+    orderedReleases: $releases,
+    replace: 0,
+    boundaries: ($releases | map({release: ., enabled: 1, transition: 0, replace: 0}))
   }
   and .reverse == {
-    orderedReleases: ["6.12.113.1", "6.12.113"],
-    modulesRemoved: true
+    orderedReleases: ($reverse | map(.release)),
+    modulesRemoved: true,
+    boundaries: $reverse
   }
   and .kernelHealth == "clean"
 ' "$marker_tmp" >/dev/null
@@ -281,6 +322,8 @@ jq -n \
       status: "accepted",
       markerSha256: $markerSha256,
       platformId: $marker[0].platformId,
+      tipRelease: $marker[0].release,
+      members: $marker[0].memberReleases,
       operations: $marker[0].workload.operations,
       checkpoints: $marker[0].workload.checkpoints
     }
@@ -293,9 +336,11 @@ jq -e --arg rowId "$row_id" --arg oracleId "$expected_oracle_id" '
   and .accepted == true
   and .validator.id == $oracleId
   and .validator.status == "accepted"
+  and (.validator.members | type == "array" and length >= 2)
+  and .validator.tipRelease == .validator.members[-1]
   and (.validator.markerSha256 | test("^[0-9a-f]{64}$"))
   and (.validator.operations | type == "number" and floor == . and . > 0)
-  and (.validator.checkpoints | length) == 5
+  and (.validator.checkpoints | length) == (1 + (2 * (.validator.members | length)))
 ' "$result_tmp" >/dev/null
 
 mv -T -- "$result_tmp" "$output"
