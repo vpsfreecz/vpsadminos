@@ -156,10 +156,21 @@ let
     def validate_nfs_capture_relation(plan_set, captured_set)
       planned_members = plan_set.fetch('members')
       captured_members = captured_set.fetch('members')
+      raise 'planned member set is empty' if planned_members.empty?
       raise 'capture member count does not match plan' unless captured_members.length == planned_members.length
+      raise 'planned set does not start at 6.12.113.1' unless planned_members.first.fetch('release') == '6.12.113.1'
+      raise 'planned set ID does not match its tip' unless plan_set.fetch('id') == planned_members.last.fetch('release')
+      raise 'planned tip release does not match its members' unless
+        plan_set.fetch('tipRelease') == planned_members.last.fetch('release')
 
       captured_members.each_with_index do |member, index|
         planned_member = planned_members.fetch(index)
+        expected_release = "6.12.113.#{index + 1}"
+        expected_predecessor = index.zero? ? nil : planned_members.fetch(index - 1).fetch('release')
+        raise 'planned member release is not contiguous' unless planned_member.fetch('release') == expected_release
+        raise 'planned member ordinal is not contiguous' unless planned_member.fetch('releaseOrdinal') == index + 1
+        raise 'planned member predecessor is inconsistent' unless
+          planned_member.fetch('predecessorRelease') == expected_predecessor
         raise 'capture member release does not match plan' unless member.fetch('release') == planned_member.fetch('release')
         raise 'planned member target does not match set target' unless planned_member.fetch('kernelVersion') == plan_set.fetch('kernelVersion')
       end
@@ -174,11 +185,14 @@ let
     plan_set = plan_sets.fetch(0)
     captured_set = captured_sets.fetch(0)
     expect(plan_set).to eq(expected_set)
-    expect(plan_set.fetch('members').length).to eq(1)
-    expect(captured_set.fetch('members').length).to eq(1)
     validate_nfs_capture_relation(plan_set, captured_set)
-    expect(@plan.fetch('counts').fetch('matrixRows')).to eq(10)
-    expect(@plan.fetch('counts').fetch('plannedRows')).to eq(10)
+    expect(@plan.fetch('counts').fetch('catalogReleases')).to eq(@plan.fetch('releases').length)
+    expect(@plan.fetch('counts').fetch('normalizedReleases')).to eq(@plan.fetch('releases').length)
+    expect(@plan.fetch('counts').fetch('plannedMembers')).to eq(plan_set.fetch('members').length)
+    expect(@plan.fetch('counts').fetch('activeOracles')).to eq(plan_set.fetch('oracleIds').length)
+    expect(@plan.fetch('counts').fetch('coverageTuples')).to eq(@plan.fetch('coverage').length)
+    expect(@plan.fetch('counts').fetch('plannedRows')).to eq(@plan.fetch('rows').length)
+    expect(@plan.fetch('counts').fetch('matrixRows')).to eq(@plan.fetch('matrix').fetch('include').length)
     expect(ROW.fetch('scope')).to eq('fix')
     expect(ROW.fetch('role')).to eq('operation-safety')
     expect(ROW.fetch('oracleIds')).to eq(['nfs-client-operation-safety'])
@@ -201,37 +215,96 @@ let
     end
     # F9_NFS_COMPLETED_DISABLE_END
 
+    # D7_NFS_STACK_LIFECYCLE_BEGIN
+    def load_nfs_set(machine, members)
+      members.map do |member|
+        machine.succeeds("insmod #{member.fetch(:module_path)}", timeout: 60)
+        patch_dir = member.fetch(:patch_dir)
+        machine.wait_until_succeeds(
+          "test -d #{Shellwords.escape(patch_dir)} && " \
+            "test \"$(cat #{Shellwords.escape(patch_dir)}/enabled)\" = 1 && " \
+            "test \"$(cat #{Shellwords.escape(patch_dir)}/transition)\" = 0 && " \
+            "test \"$(cat #{Shellwords.escape(patch_dir)}/replace)\" = 0",
+          timeout: 180,
+        )
+        machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(member.fetch(:release))}")
+        {
+          release: member.fetch(:release),
+          enabled: 1,
+          transition: 0,
+          replace: 0,
+        }
+      end
+    end
+
+    def reverse_nfs_set(machine, members, native_release)
+      members.each_index.reverse_each.map do |index|
+        member = members.fetch(index)
+        predecessor_release = index.zero? ? native_release : members.fetch(index - 1).fetch(:release)
+        patch_dir = member.fetch(:patch_dir)
+        module_name = member.fetch(:module_name)
+        module_name_shell = Shellwords.escape(module_name)
+
+        # F9_NFS_REVERSE_BOUNDARY_BEGIN
+        machine.succeeds("sh -c 'echo 0 > #{Shellwords.escape(patch_dir)}/enabled'", timeout: 60)
+        wait_nfs_completed_disable(machine, patch_dir, module_name)
+        machine.succeeds("rmmod #{module_name_shell}", timeout: 60)
+        machine.wait_until_succeeds(
+          "test ! -d #{Shellwords.escape(patch_dir)} && test ! -d /sys/module/#{module_name_shell}",
+          timeout: 180,
+        )
+        machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(predecessor_release)}")
+        # F9_NFS_REVERSE_BOUNDARY_END
+        {
+          removedRelease: member.fetch(:release),
+          release: predecessor_release,
+          moduleRemoved: true,
+        }
+      end
+    end
+    # D7_NFS_STACK_LIFECYCLE_END
+
     vendor = machine.succeeds("awk -F: '/vendor_id/{gsub(/ /, \"\", $2); print $2; exit}' /proc/cpuinfo")[1].strip
     expect(vendor).to eq(expected_vendor)
 
-    member = captured_set.fetch('members').fetch(0)
-    expected_member = plan_set.fetch('members').fetch(0)
-    expect(member.fetch('release')).to eq('6.12.113.1')
-    expect(member.fetch('release')).to eq(expected_member.fetch('release'))
     expect(plan_set.fetch('kernelVersion')).to eq('6.12.113')
-    identity = member.fetch('identity')
-    expect(identity.keys.sort).to eq(%w[
-      closureSha256 flakeLockSha256 inputDigest inspectionSha256 manifestSha256
-      module moduleName moduleSha256 producer sourceRevision targetId vermagic
-    ].sort)
+    captured_members = captured_set.fetch('members')
+    member_records = captured_members.map do |member|
+      identity = member.fetch('identity')
+      expect(identity.keys.sort).to eq(%w[
+        closureSha256 flakeLockSha256 inputDigest inspectionSha256 manifestSha256
+        module moduleName moduleSha256 producer sourceRevision targetId vermagic
+      ].sort)
+      {
+        release: member.fetch('release'),
+        identity: identity,
+        module_path: Shellwords.escape(identity.fetch('module')),
+        module_name: identity.fetch('moduleName'),
+        patch_dir: "/sys/kernel/livepatch/#{identity.fetch('moduleName')}",
+      }
+    end
 
-    producer = Shellwords.escape(identity.fetch('producer'))
-    module_path = Shellwords.escape(identity.fetch('module'))
-    module_name = identity.fetch('moduleName')
-    module_name_shell = Shellwords.escape(module_name)
-    evidence = "#{producer}/share/vpsadminos-livepatch"
     machine.all_succeed(
-      "test -f #{module_path}",
-      "test \"$(sha256sum #{module_path} | cut -d' ' -f1)\" = #{identity.fetch('moduleSha256')}",
-      "test \"$(sha256sum #{evidence}/manifest.json | cut -d' ' -f1)\" = #{identity.fetch('manifestSha256')}",
-      "test \"$(sha256sum #{evidence}/inspection.json | cut -d' ' -f1)\" = #{identity.fetch('inspectionSha256')}",
-      "test \"$(sha256sum #{evidence}/closure.json | cut -d' ' -f1)\" = #{identity.fetch('closureSha256')}",
-      "jq -e '.matches == true and .mismatches == {}' #{evidence}/closure.json",
-      "jq -e --arg name #{module_name_shell} '.module.name == $name and .buildInvocation.nonReplaceRequested == true' #{evidence}/inspection.json",
       "test \"$(uname -r)\" = 6.12.113",
-      "test ! -e /sys/kernel/livepatch/#{module_name_shell}",
       "sv check nfsd",
     )
+    member_records.each do |member|
+      identity = member.fetch(:identity)
+      producer = Shellwords.escape(identity.fetch('producer'))
+      evidence = "#{producer}/share/vpsadminos-livepatch"
+      module_path = member.fetch(:module_path)
+      module_name_shell = Shellwords.escape(member.fetch(:module_name))
+      machine.all_succeed(
+        "test -f #{module_path}",
+        "test \"$(sha256sum #{module_path} | cut -d' ' -f1)\" = #{identity.fetch('moduleSha256')}",
+        "test \"$(sha256sum #{evidence}/manifest.json | cut -d' ' -f1)\" = #{identity.fetch('manifestSha256')}",
+        "test \"$(sha256sum #{evidence}/inspection.json | cut -d' ' -f1)\" = #{identity.fetch('inspectionSha256')}",
+        "test \"$(sha256sum #{evidence}/closure.json | cut -d' ' -f1)\" = #{identity.fetch('closureSha256')}",
+        "jq -e '.matches == true and .mismatches == {}' #{evidence}/closure.json",
+        "jq -e --arg name #{module_name_shell} '.module.name == $name and .buildInvocation.nonReplaceRequested == true' #{evidence}/inspection.json",
+        "test ! -e #{Shellwords.escape(member.fetch(:patch_dir))}",
+      )
+    end
 
     dmesg_start = machine.succeeds('dmesg | wc -l')[1].to_i
     prepare = machine.succeeds('nfs-livepatch-operation prepare')[1]
@@ -240,29 +313,11 @@ let
     integrity_sha256 = integrity_match[1]
     machine.succeeds('nfs-livepatch-operation start')
 
-    machine.succeeds("insmod #{module_path}", timeout: 60)
-    patch_dir = "/sys/kernel/livepatch/#{module_name}"
-    machine.wait_until_succeeds(
-      "test -d #{Shellwords.escape(patch_dir)} && " \
-        "test \"$(cat #{Shellwords.escape(patch_dir)}/enabled)\" = 1 && " \
-        "test \"$(cat #{Shellwords.escape(patch_dir)}/transition)\" = 0 && " \
-        "test \"$(cat #{Shellwords.escape(patch_dir)}/replace)\" = 0",
-      timeout: 180,
-    )
-    machine.succeeds('test "$(uname -r)" = 6.12.113.1')
+    forward = load_nfs_set(machine, member_records)
     machine.succeeds('nfs-livepatch-operation operate')
     machine.succeeds('nfs-livepatch-operation fresh after-forward')
 
-    # F9_NFS_REVERSE_BOUNDARY_BEGIN
-    machine.succeeds("sh -c 'echo 0 > #{Shellwords.escape(patch_dir)}/enabled'", timeout: 60)
-    wait_nfs_completed_disable(machine, patch_dir, module_name)
-    machine.succeeds("rmmod #{module_name_shell}", timeout: 60)
-    machine.wait_until_succeeds(
-      "test ! -d #{Shellwords.escape(patch_dir)} && test ! -d /sys/module/#{module_name_shell}",
-      timeout: 180,
-    )
-    machine.succeeds('test "$(uname -r)" = 6.12.113')
-    # F9_NFS_REVERSE_BOUNDARY_END
+    reverse = reverse_nfs_set(machine, member_records, '6.12.113')
     machine.succeeds('nfs-livepatch-operation operate')
     machine.succeeds('nfs-livepatch-operation fresh after-reverse')
 
@@ -288,9 +343,14 @@ let
       runnerClass: ROW.fetch('runnerClass'),
       rowId: ROW.fetch('rowId'),
       setId: ROW.fetch('setId'),
-      release: member.fetch('release'),
       nativeRelease: '6.12.113',
-      identity: identity,
+      tipRelease: plan_set.fetch('tipRelease'),
+      members: captured_members.map { |member|
+        {
+          release: member.fetch('release'),
+          identity: member.fetch('identity'),
+        }
+      },
       workload: {
         mounts: 2,
         freshMounts: 2,
@@ -302,16 +362,8 @@ let
         finalUnmount: true,
         shutdownSysfsWrites: true,
       },
-      forward: {
-        enabled: 1,
-        transition: 0,
-        replace: 0,
-        release: '6.12.113.1',
-      },
-      reverse: {
-        moduleRemoved: true,
-        release: '6.12.113',
-      },
+      forward: forward,
+      reverse: reverse,
       kernelHealth: 'clean',
     }
     puts "VPSADMINOS_LIVEPATCH_ORACLE_RESULT #{JSON.generate(marker)}"

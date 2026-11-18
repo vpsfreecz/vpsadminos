@@ -21,8 +21,15 @@ trap 'rm -rf -- "$work"' EXIT HUP INT TERM
 [[ -f "$nfs_plan" && ! -L "$nfs_plan" ]]
 [[ -f "$nfs_capture" && ! -L "$nfs_capture" ]]
 jq -e '
-  .counts.plannedRows == 10
-  and .counts.matrixRows == 10
+  . as $plan
+  | .sets[0] as $set
+  | .counts.catalogReleases == ($plan.releases | length)
+  and .counts.normalizedReleases == ($plan.releases | length)
+  and .counts.plannedMembers == ($set.members | length)
+  and .counts.activeOracles == ($set.oracleIds | length)
+  and .counts.coverageTuples == ($plan.coverage | length)
+  and .counts.plannedRows == ($plan.rows | length)
+  and .counts.matrixRows == ($plan.matrix.include | length)
   and ([.rows[] | select(.role == "aged-transition")] | length) == 2
   and ([.rows[] | select(.role == "aged-transition") | .aging] | all(
     . == {
@@ -40,6 +47,8 @@ extract_method F9_NFS_COMPLETED_DISABLE_BEGIN F9_NFS_COMPLETED_DISABLE_END \
   "$nfs_oracle_script" "$work/nfs-completed-disable.rb"
 extract_method F9_NFS_REVERSE_BOUNDARY_BEGIN F9_NFS_REVERSE_BOUNDARY_END \
   "$nfs_oracle_script" "$work/nfs-reverse-boundary.rb"
+extract_method D7_NFS_STACK_LIFECYCLE_BEGIN D7_NFS_STACK_LIFECYCLE_END \
+  "$nfs_oracle_script" "$work/nfs-stack-lifecycle.rb"
 
 {
   write_reverse_fixture
@@ -47,7 +56,53 @@ extract_method F9_NFS_REVERSE_BOUNDARY_BEGIN F9_NFS_REVERSE_BOUNDARY_END \
 class NfsConsumer
 RUBY
   cat "$work/nfs-completed-disable.rb"
+  cat "$work/nfs-stack-lifecycle.rb"
   cat <<'RUBY'
+end
+
+class NfsStackMachine
+  attr_reader :events
+
+  def initialize
+    @events = []
+  end
+
+  def succeeds(command, timeout: nil)
+    raise 'unexpected NFS succeeds timeout' unless [60, nil].include?(timeout)
+
+    case command
+    when /\Ainsmod /
+      events << [:insmod, Shellwords.split(command).last]
+    when /echo 0 > \/sys\/kernel\/livepatch\/([^\/]+)\/enabled/
+      events << [:disable, Regexp.last_match(1)]
+    when /\Armmod /
+      events << [:rmmod, Shellwords.split(command).last]
+    when /uname -r/
+      events << [:release, Shellwords.split(command).last]
+    else
+      raise "unexpected NFS succeeds command: #{command}"
+    end
+    ['', '']
+  end
+
+  def wait_until_succeeds(command, timeout:)
+    raise 'unexpected NFS wait timeout' unless timeout == 180
+
+    event =
+      if command.include?('enabled')
+        [:forward_converged, command.match(%r{/sys/kernel/livepatch/([^/ ]+)})&.captures&.first]
+      elsif command.include?('test -d /sys/module/')
+        [:completed_disable, command.match(%r{/sys/module/([^ ]+)})&.captures&.first]
+      elsif command.include?('test ! -d /sys/module/')
+        [:removed, command.match(%r{/sys/module/([^ ]+)})&.captures&.first]
+      else
+        raise "unexpected NFS wait command: #{command}"
+      end
+    raise "NFS wait command did not identify a module: #{command}" if event.last.nil?
+
+    events << event
+    ['', '']
+  end
 end
 
 Dir.mktmpdir('livepatch-nfs-reverse-convergence-') do |root|
@@ -57,6 +112,58 @@ Dir.mktmpdir('livepatch-nfs-reverse-convergence-') do |root|
   check_completed_disable(machine, 'NFS') do
     nfs.wait_nfs_completed_disable(machine, machine.patch_path.to_s, module_name)
   end
+end
+
+nfs = NfsConsumer.new
+one_member = [{
+  release: '6.12.113.1',
+  module_path: '/nix/store/synthetic-one.ko',
+  module_name: 'lp_612113_1_one',
+  patch_dir: '/sys/kernel/livepatch/lp_612113_1_one',
+}]
+two_members = one_member + [{
+  release: '6.12.113.2',
+  module_path: '/nix/store/synthetic-two.ko',
+  module_name: 'lp_612113_2_two',
+  patch_dir: '/sys/kernel/livepatch/lp_612113_2_two',
+}]
+
+[one_member, two_members].each do |members|
+  machine = NfsStackMachine.new
+  forward = nfs.load_nfs_set(machine, members)
+  reverse = nfs.reverse_nfs_set(machine, members, '6.12.113')
+  expected_forward = members.map do |member|
+    {release: member.fetch(:release), enabled: 1, transition: 0, replace: 0}
+  end
+  expected_reverse = members.each_index.reverse_each.map do |index|
+    {
+      removedRelease: members.fetch(index).fetch(:release),
+      release: index.zero? ? '6.12.113' : members.fetch(index - 1).fetch(:release),
+      moduleRemoved: true,
+    }
+  end
+  expected_events = members.flat_map do |member|
+    [
+      [:insmod, member.fetch(:module_path)],
+      [:forward_converged, member.fetch(:module_name)],
+      [:release, member.fetch(:release)],
+    ]
+  end
+  expected_events += members.each_index.reverse_each.flat_map do |index|
+    member = members.fetch(index)
+    predecessor = index.zero? ? '6.12.113' : members.fetch(index - 1).fetch(:release)
+    [
+      [:disable, member.fetch(:module_name)],
+      [:completed_disable, member.fetch(:module_name)],
+      [:rmmod, member.fetch(:module_name)],
+      [:removed, member.fetch(:module_name)],
+      [:release, predecessor],
+    ]
+  end
+  raise 'NFS forward observations mismatch' unless forward == expected_forward
+  raise 'NFS reverse observations mismatch' unless reverse == expected_reverse
+  raise "NFS stack lifecycle order mismatch: #{machine.events.inspect}" unless
+    machine.events == expected_events
 end
 
 nfs_boundary = File.binread(ARGV.fetch(0))
@@ -78,29 +185,29 @@ F9_TEST_BASH=$BASH "$ruby" -c "$work/nfs-reverse-convergence.rb" >/dev/null
 F9_TEST_BASH=$BASH "$ruby" "$work/nfs-reverse-convergence.rb" \
   "$work/nfs-reverse-boundary.rb"
 
-awk '
-  /F6_NFS_CAPTURE_RELATION_BEGIN/ { capture = 1; next }
-  /F6_NFS_CAPTURE_RELATION_END/ { capture = 0 }
-  capture { print }
-' "$nfs_oracle_script" >"$work/nfs-capture-relation-method.rb"
-[[ -s "$work/nfs-capture-relation-method.rb" ]]
+  awk '
+    /F6_NFS_CAPTURE_RELATION_BEGIN/ { capture = 1; next }
+    /F6_NFS_CAPTURE_RELATION_END/ { capture = 0 }
+    capture { print }
+  ' "$nfs_oracle_script" >"$work/nfs-capture-relation-method.rb"
+  [[ -s "$work/nfs-capture-relation-method.rb" ]]
 
-{
-  printf 'require "json"\n\nclass NfsCaptureRelation\n'
-  cat "$work/nfs-capture-relation-method.rb"
-  cat <<'RUBY'
+  {
+    printf 'require "json"\n\nclass NfsCaptureRelation\n'
+    cat "$work/nfs-capture-relation-method.rb"
+    cat <<'RUBY'
 end
 
 def deep_copy(value)
-Marshal.load(Marshal.dump(value))
+  Marshal.load(Marshal.dump(value))
 end
 
 def refuse(label)
-yield
+  yield
 rescue KeyError, RuntimeError
-return
+  return
 else
-raise "NFS capture relation unexpectedly accepted #{label}"
+  raise "NFS capture relation unexpectedly accepted #{label}"
 end
 
 plan = JSON.parse(File.binread(ARGV.fetch(0)))
@@ -113,249 +220,350 @@ relation.validate_nfs_capture_relation(planned_set, captured_set)
 missing_target = deep_copy(planned_set)
 missing_target.fetch('members').fetch(0).delete('kernelVersion')
 refuse('missing planned member target') do
-relation.validate_nfs_capture_relation(missing_target, captured_set)
+  relation.validate_nfs_capture_relation(missing_target, captured_set)
 end
 
 mismatched_target = deep_copy(planned_set)
 mismatched_target.fetch('members').fetch(0)['kernelVersion'] = '6.12.114'
 refuse('mismatched planned member target') do
-relation.validate_nfs_capture_relation(mismatched_target, captured_set)
+  relation.validate_nfs_capture_relation(mismatched_target, captured_set)
 end
 
 mismatched_release = deep_copy(captured_set)
 mismatched_release.fetch('members').fetch(0)['release'] = '6.12.113.2'
 refuse('capture/plan release mismatch') do
-relation.validate_nfs_capture_relation(planned_set, mismatched_release)
+  relation.validate_nfs_capture_relation(planned_set, mismatched_release)
 end
 
 two_member_plan = deep_copy(planned_set)
+two_member_plan['id'] = '6.12.113.2'
+two_member_plan['tipRelease'] = '6.12.113.2'
 two_member_plan.fetch('members') << deep_copy(two_member_plan.fetch('members').fetch(0)).merge(
-'release' => '6.12.113.2',
+  'release' => '6.12.113.2',
+  'releaseOrdinal' => 2,
+  'predecessorRelease' => '6.12.113.1',
 )
-reordered_capture = deep_copy(captured_set)
-reordered_capture.fetch('members') << deep_copy(reordered_capture.fetch('members').fetch(0)).merge(
-'release' => '6.12.113.2',
+two_member_capture = deep_copy(captured_set)
+two_member_capture.fetch('members') << deep_copy(two_member_capture.fetch('members').fetch(0)).merge(
+  'release' => '6.12.113.2',
 )
-reordered_capture['members'].reverse!
-refuse('reordered members') do
-relation.validate_nfs_capture_relation(two_member_plan, reordered_capture)
+relation.validate_nfs_capture_relation(two_member_plan, two_member_capture)
+
+missing_capture = deep_copy(two_member_capture)
+missing_capture.fetch('members').pop
+refuse('missing captured member') do
+  relation.validate_nfs_capture_relation(two_member_plan, missing_capture)
 end
 
-extra_capture = deep_copy(captured_set)
-extra_capture.fetch('members') << deep_copy(extra_capture.fetch('members').fetch(0))
+reordered_capture = deep_copy(two_member_capture)
+reordered_capture['members'].reverse!
+refuse('reordered members') do
+  relation.validate_nfs_capture_relation(two_member_plan, reordered_capture)
+end
+
+extra_capture = deep_copy(two_member_capture)
+extra_capture.fetch('members') << deep_copy(extra_capture.fetch('members').fetch(0)).merge(
+  'release' => '6.12.113.3',
+)
 refuse('extra captured member') do
-relation.validate_nfs_capture_relation(planned_set, extra_capture)
+  relation.validate_nfs_capture_relation(two_member_plan, extra_capture)
 end
 
 puts 'NFS livepatch capture relation passed'
 RUBY
-} >"$work/nfs-capture-relation.rb"
+  } >"$work/nfs-capture-relation.rb"
 
-"$ruby" "$work/nfs-capture-relation.rb" "$nfs_plan" "$nfs_capture"
+  "$ruby" "$work/nfs-capture-relation.rb" "$nfs_plan" "$nfs_capture"
 
-cat >"$work/nfs-count-admission.rb" <<'RUBY'
-require 'json'
+  "$ruby" -c "$nfs_oracle_script" >/dev/null
 
-class AdmissionReached < RuntimeError
-end
+  jq '
+    . as $source
+    | ($source.rows | map(select(
+        .scope == "fix"
+        and .oracleIds == ["nfs-client-operation-safety"]
+      ))) as $nfsRows
+    | ($nfsRows | map(
+        .setId = "6.12.113.2"
+        | .rowId = (
+            "6.12.113.2--fix-synthetic-successor-synthetic-successor-oracle--"
+            + .platformId
+          )
+        | .profileId = "fix/synthetic-successor/synthetic-successor-oracle"
+        | .role = "fixed-path"
+        | .oracleIds = ["synthetic-successor-oracle"]
+        | .oracleShard = "synthetic-successor-oracle"
+        | .testAdapter
+          = "os/livepatches/batches/6.12.113/2/qualification/helpers/synthetic-successor.nix"
+        | .validator
+          = "os/livepatches/batches/6.12.113/2/qualification/validators/synthetic-successor.sh"
+      )) as $successorRows
+    | .releases += [
+        (.releases[0]
+          | .release = "6.12.113.2"
+          | .releaseOrdinal = 2)
+      ]
+    | .sets[0].id = "6.12.113.2"
+    | .sets[0].tipRelease = "6.12.113.2"
+    | .sets[0].members += [
+        (.sets[0].members[0]
+          | .release = "6.12.113.2"
+          | .releaseOrdinal = 2
+          | .predecessorRelease = "6.12.113.1"
+          | .producerAttr = "livepatch-6.12.113.2"
+          | .fixIds = ["synthetic-successor"]
+          | .oracleIds = ["synthetic-successor-oracle"])
+      ]
+    | .sets[0].oracleIds += ["synthetic-successor-oracle"]
+    | .sets[0].oracles += [
+        (.sets[0].oracles[0]
+          | .fixId = "synthetic-successor"
+          | .id = "synthetic-successor-oracle"
+          | .role = "fixed-path"
+          | .testAdapter
+            = "os/livepatches/batches/6.12.113/2/qualification/helpers/synthetic-successor.nix"
+          | .validator
+            = "os/livepatches/batches/6.12.113/2/qualification/validators/synthetic-successor.sh")
+      ]
+    | .rows |= map(
+        .setId = "6.12.113.2"
+        | .rowId |= sub("^6\\.12\\.113\\.1--"; "6.12.113.2--")
+      )
+    | .rows += $successorRows
+    | .coverage |= map(
+        .setId = "6.12.113.2"
+        | .rowId |= sub("^6\\.12\\.113\\.1--"; "6.12.113.2--")
+      )
+    | .coverage += ($successorRows | map({
+        oracleId: .oracleIds[0],
+        platformId,
+        profileId,
+        rowId,
+        setId
+      }))
+    | .matrix.include |= map(
+        .setId = "6.12.113.2"
+        | .rowId |= sub("^6\\.12\\.113\\.1--"; "6.12.113.2--")
+      )
+    | .matrix.include += ($successorRows | map({
+        expectedOutcome,
+        profileId,
+        rowId,
+        runnerClass,
+        setId,
+        timeoutClass
+      }))
+    | .counts.catalogReleases = (.releases | length)
+    | .counts.normalizedReleases = (.releases | length)
+    | .counts.plannedMembers = (.sets[0].members | length)
+    | .counts.activeOracles = (.sets[0].oracleIds | length)
+    | .counts.coverageTuples = (.coverage | length)
+    | .counts.plannedRows = (.rows | length)
+    | .counts.matrixRows = (.matrix.include | length)
+  ' "$nfs_plan" >"$work/nfs-plan-two.json"
 
-class AdmissionRefused < RuntimeError
-end
+  jq '
+    .sets[0].id = "6.12.113.2"
+    | .sets[0].members += [
+        (.sets[0].members[0]
+          | .release = "6.12.113.2"
+          | .identity.producer
+            = "/nix/store/11111111111111111111111111111111-synthetic-producer-2"
+          | .identity.module
+            = "/nix/store/11111111111111111111111111111111-synthetic-producer-2/synthetic-2.ko"
+          | .identity.moduleName = "synthetic_livepatch_2"
+          | .identity.moduleSha256
+            = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          | .identity.inputDigest
+            = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+      ]
+    | .counts.plannedMembers = (.sets[0].members | length)
+    | .counts.capturedMembers = (.sets[0].members | length)
+  ' "$nfs_capture" >"$work/nfs-capture-two.json"
 
-class EqualityMatcher
-def initialize(expected)
-  @expected = expected
-end
+  printf 'NFS rendered one/two-member stack admission passed\n'
 
-def match(actual)
-  return if actual == @expected
+  nfs_row=$(jq -cer '[.rows[] | select(
+      .scope == "fix"
+      and .platformId == "amd"
+      and .oracleIds == ["nfs-client-operation-safety"]
+    )]
+    | if length == 1 then .[0] else error("AMD NFS row is not unique") end' "$nfs_plan")
+  nfs_row_id=$(jq -er '.rowId' <<<"$nfs_row")
+  nfs_other_row_id=$(jq -er '.rows[] | select(
+    .scope == "fix"
+    and .platformId == "intel"
+    and .oracleIds == ["nfs-client-operation-safety"]
+  ) | .rowId' "$nfs_plan")
+  nfs_two_row=$(jq -cer '[.rows[] | select(
+      .scope == "fix"
+      and .platformId == "amd"
+      and .oracleIds == ["nfs-client-operation-safety"]
+    )]
+    | if length == 1 then .[0] else error("two-member AMD NFS row is not unique") end' \
+    "$work/nfs-plan-two.json")
+  nfs_two_row_id=$(jq -er '.rowId' <<<"$nfs_two_row")
 
-  raise AdmissionRefused, "expected #{actual.inspect} to equal #{@expected.inspect}"
-end
-end
+  write_nfs_marker() {
+    local plan_file=$1
+    local capture_file=$2
+    local selected_row=$3
+    local output_file=$4
+    jq -cn \
+      --argjson row "$selected_row" \
+      --slurpfile plan "$plan_file" \
+      --slurpfile capture "$capture_file" '
+      ($plan[0].sets[0].members | map(.release)) as $releases
+      | {
+        schemaVersion: 1,
+        oracleId: "nfs-client-operation-safety",
+        platformId: $row.platformId,
+        runnerClass: $row.runnerClass,
+        rowId: $row.rowId,
+        setId: $row.setId,
+        nativeRelease: $plan[0].sets[0].kernelVersion,
+        tipRelease: $plan[0].sets[0].tipRelease,
+        members: ($capture[0].sets[0].members | map({release, identity})),
+        workload: {
+          mounts: 2,
+          freshMounts: 2,
+          operations: 1,
+          integritySha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        quiescence: {
+          mountCreation: true,
+          finalUnmount: true,
+          shutdownSysfsWrites: true
+        },
+        forward: ($releases | map({release: ., enabled: 1, transition: 0, replace: 0})),
+        reverse: [
+          range(($releases | length) - 1; -1; -1) as $index
+          | {
+              removedRelease: $releases[$index],
+              release: (
+                if $index == 0 then $plan[0].sets[0].kernelVersion
+                else $releases[$index - 1]
+                end
+              ),
+              moduleRemoved: true
+            }
+        ],
+        kernelHealth: "clean"
+      }
+    ' >"$output_file"
+  }
 
-class Expectation
-def initialize(actual)
-  @actual = actual
-end
+  write_nfs_marker "$nfs_plan" "$nfs_capture" "$nfs_row" "$work/nfs-marker.json"
+  write_nfs_marker "$work/nfs-plan-two.json" "$work/nfs-capture-two.json" \
+    "$nfs_two_row" "$work/nfs-marker-two.json"
 
-def to(matcher)
-  matcher.match(@actual)
-end
-end
+  run_nfs_validator() {
+    local label=$1
+    local plan_file=$2
+    local capture_file=$3
+    local selected_row=$4
+    local marker_file=$5
+    local state="$work/nfs-$label"
+    local result_state="$state/os-test-nfs"
 
-class AdmissionMachine
-def succeeds(_command)
-  raise AdmissionReached, 'NFS operation boundary reached'
-end
-end
-
-class OracleAdmission
-def initialize(plan, capture)
-  @plan = plan
-  @capture = capture
-end
-
-def eq(expected)
-  EqualityMatcher.new(expected)
-end
-
-def expect(actual)
-  Expectation.new(actual)
-end
-
-def machine
-  @machine ||= AdmissionMachine.new
-end
-
-def run(source, source_path)
-  instance_eval(source, source_path, 1)
-end
-end
-
-source_path, plan_path, capture_path, platform_id, expected = ARGV
-plan = JSON.parse(File.binread(plan_path))
-capture = JSON.parse(File.binread(capture_path))
-rows = plan.fetch('rows').select do |row|
-row.fetch('scope') == 'fix' && row.fetch('platformId') == platform_id
-end
-raise "#{platform_id} NFS row is not unique" unless rows.length == 1
-
-Object.const_set(:ROW, rows.fetch(0))
-begin
-OracleAdmission.new(plan, capture).run(File.binread(source_path), source_path)
-rescue AdmissionReached
-raise "#{platform_id} old-count plan reached NFS operations" unless expected == 'accept'
-rescue AdmissionRefused => error
-raise if expected != 'refuse'
-raise "#{platform_id} refusal was not the ten-row admission: #{error.message}" unless
-  error.message == 'expected 8 to equal 10'
-else
-raise "#{platform_id} NFS admission did not reach its operation boundary"
-end
-RUBY
-
-jq '.counts.matrixRows = 8 | .counts.plannedRows = 8' \
-  "$nfs_plan" >"$work/nfs-plan-old-counts.json"
-for platform_id in amd intel; do
-  "$ruby" "$work/nfs-count-admission.rb" \
-    "$nfs_oracle_script" "$nfs_plan" "$nfs_capture" "$platform_id" accept
-  "$ruby" "$work/nfs-count-admission.rb" \
-    "$nfs_oracle_script" "$work/nfs-plan-old-counts.json" "$nfs_capture" \
-    "$platform_id" refuse
-done
-printf 'NFS rendered ten-row count admission passed\n'
-
-nfs_row=$(jq -cer '[.rows[] | select(.scope == "fix" and .platformId == "amd")]
-  | if length == 1 then .[0] else error("AMD NFS row is not unique") end' "$nfs_plan")
-nfs_row_id=$(jq -er '.rowId' <<<"$nfs_row")
-nfs_other_row_id=$(jq -er '.rows[] | select(.scope == "fix" and .platformId == "intel") | .rowId' "$nfs_plan")
-
-jq -cn \
-  --argjson row "$nfs_row" \
-  --slurpfile plan "$nfs_plan" \
-  --slurpfile capture "$nfs_capture" '
+    mkdir -p "$result_state"
+    printf '0\n' >"$state/runner.status"
+    printf '1 tests successful\n' >"$state/test.log"
     {
-      schemaVersion: 1,
-      oracleId: "nfs-client-operation-safety",
-      platformId: $row.platformId,
-      runnerClass: $row.runnerClass,
-      rowId: $row.rowId,
-      setId: $row.setId,
-      release: $capture[0].sets[0].members[0].release,
-      nativeRelease: $plan[0].sets[0].kernelVersion,
-      identity: $capture[0].sets[0].members[0].identity,
-      workload: {
-        mounts: 2,
-        freshMounts: 2,
-        operations: 1,
-        integritySha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      },
-      quiescence: {
-        mountCreation: true,
-        finalUnmount: true,
-        shutdownSysfsWrites: true
-      },
-      forward: {
-        enabled: 1,
-        transition: 0,
-        replace: 0,
-        release: $capture[0].sets[0].members[0].release
-      },
-      reverse: {
-        moduleRemoved: true,
-        release: $plan[0].sets[0].kernelVersion
-      },
-      kernelHealth: "clean"
-    }
-  ' >"$work/nfs-marker.json"
+      printf 'VPSADMINOS_LIVEPATCH_ORACLE_RESULT '
+      cat "$marker_file"
+      printf '\n'
+    } >"$result_state/test-runner.log"
+    "$nfs_validator" \
+      --plan "$plan_file" \
+      --capture "$capture_file" \
+      --row-id "$selected_row" \
+      --state-dir "$state" \
+      --runner-log "$state/test.log" \
+      --semantic-log "$result_state/test-runner.log" \
+      --runner-status 0 \
+      --output "$state/result.json"
+  }
 
-run_nfs_validator() {
-  local label=$1
-  local plan_file=$2
-  local capture_file=$3
-  local selected_row=$4
-  local marker_file=$5
-  local state="$work/nfs-$label"
-  local result_state="$state/os-test-nfs"
+  expect_nfs_refuse() {
+    local label=$1
+    shift
+    if run_nfs_validator "$label" "$@" >"$work/nfs-$label.stdout" 2>"$work/nfs-$label.stderr"; then
+      echo "NFS validator refusal case unexpectedly succeeded: $label" >&2
+      exit 1
+    fi
+    [[ ! -e "$work/nfs-$label/result.json" ]]
+  }
 
-  mkdir -p "$result_state"
-  printf '0\n' >"$state/runner.status"
-  printf '1 tests successful\n' >"$state/test.log"
-  {
-    printf 'VPSADMINOS_LIVEPATCH_ORACLE_RESULT '
-    cat "$marker_file"
-    printf '\n'
-  } >"$result_state/test-runner.log"
-  "$nfs_validator" \
-    --plan "$plan_file" \
-    --capture "$capture_file" \
-    --row-id "$selected_row" \
-    --state-dir "$state" \
-    --runner-log "$state/test.log" \
-    --semantic-log "$result_state/test-runner.log" \
-    --runner-status 0 \
-    --output "$state/result.json"
-}
+  run_nfs_validator valid "$nfs_plan" "$nfs_capture" "$nfs_row_id" "$work/nfs-marker.json"
+  jq -e '
+    .schemaVersion == 1
+    and .accepted == true
+    and .validator.status == "accepted"
+    and .validator.members == ["6.12.113.1"]
+    and .validator.tipRelease == "6.12.113.1"
+  ' \
+    "$work/nfs-valid/result.json" >/dev/null
+  run_nfs_validator two-member "$work/nfs-plan-two.json" "$work/nfs-capture-two.json" \
+    "$nfs_two_row_id" "$work/nfs-marker-two.json"
+  jq -e '
+    .schemaVersion == 1
+    and .accepted == true
+    and .validator.status == "accepted"
+    and .validator.members == ["6.12.113.1", "6.12.113.2"]
+    and .validator.tipRelease == "6.12.113.2"
+  ' "$work/nfs-two-member/result.json" >/dev/null
 
-expect_nfs_refuse() {
-  local label=$1
-  shift
-  if run_nfs_validator "$label" "$@" >"$work/nfs-$label.stdout" 2>"$work/nfs-$label.stderr"; then
-    echo "NFS validator refusal case unexpectedly succeeded: $label" >&2
-    exit 1
-  fi
-  [[ ! -e "$work/nfs-$label/result.json" ]]
-}
+  jq '.sets[0].members[0].kernelVersion = "6.12.114"' "$nfs_plan" >"$work/nfs-plan-target-mismatch.json"
+  jq 'del(.sets[0].members[0].kernelVersion)' "$nfs_plan" >"$work/nfs-plan-target-missing.json"
+  jq '.sets[0].members[0].release = "6.12.113.2"' "$nfs_capture" >"$work/nfs-capture-release-mismatch.json"
+  jq '.sets[0].members |= reverse' \
+    "$work/nfs-capture-two.json" >"$work/nfs-capture-two-reordered.json"
+  jq 'del(.sets[0].members[1]) | .counts.capturedMembers = 1' \
+    "$work/nfs-capture-two.json" >"$work/nfs-capture-two-missing.json"
+  jq '
+    .sets[0].members += [(.sets[0].members[1] | .release = "6.12.113.3")]
+    | .counts.capturedMembers = 3
+  ' "$work/nfs-capture-two.json" >"$work/nfs-capture-two-extra.json"
+  jq '.members[0].identity.moduleSha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"' \
+    "$work/nfs-marker.json" >"$work/nfs-marker-identity-mismatch.json"
+  jq '.members |= reverse' \
+    "$work/nfs-marker-two.json" >"$work/nfs-marker-two-reordered.json"
+  jq '.tipRelease = "6.12.113.1"' \
+    "$work/nfs-marker-two.json" >"$work/nfs-marker-two-tip-mismatch.json"
+  jq '.reverse |= reverse' \
+    "$work/nfs-marker-two.json" >"$work/nfs-marker-two-reverse-mismatch.json"
+  jq '.platformId = "intel"' "$work/nfs-marker.json" >"$work/nfs-marker-wrong-platform.json"
+  printf '{invalid-json\n' >"$work/nfs-marker-malformed.json"
 
-run_nfs_validator valid "$nfs_plan" "$nfs_capture" "$nfs_row_id" "$work/nfs-marker.json"
-jq -e '.schemaVersion == 1 and .accepted == true and .validator.status == "accepted"' \
-  "$work/nfs-valid/result.json" >/dev/null
+  expect_nfs_refuse target-mismatch "$work/nfs-plan-target-mismatch.json" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker.json"
+  expect_nfs_refuse target-missing "$work/nfs-plan-target-missing.json" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker.json"
+  expect_nfs_refuse release-mismatch "$nfs_plan" "$work/nfs-capture-release-mismatch.json" \
+    "$nfs_row_id" "$work/nfs-marker.json"
+  expect_nfs_refuse two-reordered "$work/nfs-plan-two.json" \
+    "$work/nfs-capture-two-reordered.json" "$nfs_two_row_id" "$work/nfs-marker-two.json"
+  expect_nfs_refuse two-missing "$work/nfs-plan-two.json" \
+    "$work/nfs-capture-two-missing.json" "$nfs_two_row_id" "$work/nfs-marker-two.json"
+  expect_nfs_refuse two-extra "$work/nfs-plan-two.json" \
+    "$work/nfs-capture-two-extra.json" "$nfs_two_row_id" "$work/nfs-marker-two.json"
+  expect_nfs_refuse identity-mismatch "$nfs_plan" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker-identity-mismatch.json"
+  expect_nfs_refuse marker-two-reordered "$work/nfs-plan-two.json" \
+    "$work/nfs-capture-two.json" "$nfs_two_row_id" "$work/nfs-marker-two-reordered.json"
+  expect_nfs_refuse marker-two-tip "$work/nfs-plan-two.json" \
+    "$work/nfs-capture-two.json" "$nfs_two_row_id" "$work/nfs-marker-two-tip-mismatch.json"
+  expect_nfs_refuse marker-two-reverse "$work/nfs-plan-two.json" \
+    "$work/nfs-capture-two.json" "$nfs_two_row_id" "$work/nfs-marker-two-reverse-mismatch.json"
+  expect_nfs_refuse wrong-row "$nfs_plan" "$nfs_capture" \
+    "$nfs_other_row_id" "$work/nfs-marker.json"
+  expect_nfs_refuse wrong-platform "$nfs_plan" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker-wrong-platform.json"
+  expect_nfs_refuse malformed-marker "$nfs_plan" "$nfs_capture" \
+    "$nfs_row_id" "$work/nfs-marker-malformed.json"
 
-jq '.sets[0].members[0].kernelVersion = "6.12.114"' "$nfs_plan" >"$work/nfs-plan-target-mismatch.json"
-jq 'del(.sets[0].members[0].kernelVersion)' "$nfs_plan" >"$work/nfs-plan-target-missing.json"
-jq '.sets[0].members[0].release = "6.12.113.2"' "$nfs_capture" >"$work/nfs-capture-release-mismatch.json"
-jq '.identity.moduleSha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"' \
-  "$work/nfs-marker.json" >"$work/nfs-marker-identity-mismatch.json"
-jq '.platformId = "intel"' "$work/nfs-marker.json" >"$work/nfs-marker-wrong-platform.json"
-printf '{invalid-json\n' >"$work/nfs-marker-malformed.json"
-
-expect_nfs_refuse target-mismatch "$work/nfs-plan-target-mismatch.json" "$nfs_capture" \
-  "$nfs_row_id" "$work/nfs-marker.json"
-expect_nfs_refuse target-missing "$work/nfs-plan-target-missing.json" "$nfs_capture" \
-  "$nfs_row_id" "$work/nfs-marker.json"
-expect_nfs_refuse release-mismatch "$nfs_plan" "$work/nfs-capture-release-mismatch.json" \
-  "$nfs_row_id" "$work/nfs-marker.json"
-expect_nfs_refuse identity-mismatch "$nfs_plan" "$nfs_capture" \
-  "$nfs_row_id" "$work/nfs-marker-identity-mismatch.json"
-expect_nfs_refuse wrong-row "$nfs_plan" "$nfs_capture" \
-  "$nfs_other_row_id" "$work/nfs-marker.json"
-expect_nfs_refuse wrong-platform "$nfs_plan" "$nfs_capture" \
-  "$nfs_row_id" "$work/nfs-marker-wrong-platform.json"
-expect_nfs_refuse malformed-marker "$nfs_plan" "$nfs_capture" \
-  "$nfs_row_id" "$work/nfs-marker-malformed.json"
-
-printf 'NFS livepatch validator matrix passed\n'
+  printf 'NFS livepatch validator matrix passed\n'
 
 source "$profile_fixture"
 mkdir -p \
