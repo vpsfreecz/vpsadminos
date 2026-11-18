@@ -1,0 +1,66 @@
+From 8a241d7ca23be2695a1fbe587ee12eae061c31af Mon Sep 17 00:00:00 2001
+From: "Cen Zhang (Microsoft Security FORGE Labs)"
+ <cenzhang@linux.microsoft.com>
+Date: Thu, 22 Oct 2026 10:50:03 -0400
+Subject: [PATCH] io_uring/cancel: don't spin on local work the task can't run
+
+[ Upstream commit fddcf4c5321b3ea5f72166c3fd36a9d1c34f80c7 ]
+
+io_uring_cancel_generic() refuses to sleep while any ring on the exiting
+task's tctx has local work pending. It assumes the task is that ring's
+submitter and that the next io_uring_try_cancel_requests() pass will run
+the work. This does not hold for a ring that was still
+IORING_SETUP_R_DISABLED when the task got its tctx node from
+io_uring_create() or io_ringfd_register(). The submitter is set later by
+IORING_REGISTER_ENABLE_RINGS, possibly from another task, and only the
+submitter may run local work on an IORING_SETUP_DEFER_TASKRUN ring. To
+the exiting task the work stays pending forever, the loop never reaches
+schedule(), and the task trips the WARN_ON_ONCE() once and then spins in
+do_exit().
+
+An unprivileged user can set this up at will by creating a disabled
+ring, having a child enable it and stop, posting to the ring with
+IORING_OP_MSG_RING and exiting with a request in flight that only the
+child can complete. The exiting thread burns a CPU until the child runs
+or dies, and with panic_on_warn set the WARN panics the kernel.
+
+Fix by skipping the sleep only when io_allowed_defer_tw_run() allows the
+task to run the work. This is reasonable since work it cannot run cannot
+complete any of its requests either, so nothing is lost by sleeping.
+Drop the WARN_ON_ONCE() since handing a disabled ring to another thread
+is a supported scenario, not a bug state.
+
+Fixes: 360cd42c4e95 ("io_uring: optimise io_req_local_work_add")
+Reported-by: AutonomousCodeSecurity@microsoft.com
+Signed-off-by: Cen Zhang (Microsoft Security FORGE Labs) <cenzhang@linux.microsoft.com>
+Link: https://patch.msgid.link/20261008191602.45101-1-cenzhang@linux.microsoft.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+[ sashal: Used !llist_empty(&node->ctx->work_llist) instead of the unavailable io_local_work_pending() helper. ]
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+---
+ io_uring/io_uring.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/io_uring/io_uring.c b/io_uring/io_uring.c
+index 0076c7599c947..68a21552a186f 100644
+--- a/io_uring/io_uring.c
++++ b/io_uring/io_uring.c
+@@ -3190,12 +3190,11 @@ __cold void io_uring_cancel_generic(bool cancel_all, struct io_sq_data *sqd)
+ 		prepare_to_wait(&tctx->wait, &wait, TASK_INTERRUPTIBLE);
+ 		io_run_task_work();
+ 		io_uring_drop_tctx_refs(current);
++		/* only skip the sleep for local work this task may run */
+ 		xa_for_each(&tctx->xa, index, node) {
+-			if (!llist_empty(&node->ctx->work_llist)) {
+-				WARN_ON_ONCE(node->ctx->submitter_task &&
+-					     node->ctx->submitter_task != current);
++			if (!llist_empty(&node->ctx->work_llist) &&
++			    io_allowed_defer_tw_run(node->ctx))
+ 				goto end_wait;
+-			}
+ 		}
+ 		/*
+ 		 * If we've seen completions, retry without waiting. This
+-- 
+2.54.0
+

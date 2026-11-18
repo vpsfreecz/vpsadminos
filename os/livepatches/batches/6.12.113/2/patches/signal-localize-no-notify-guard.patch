@@ -1,0 +1,95 @@
+From 1415ca4c3fcd945a940b99210281a3dd2889e8fb Mon Sep 17 00:00:00 2001
+From: Jakub Skokan <jakub.skokan@havefun.cz>
+Date: Thu, 19 Nov 2026 12:24:10 +0100
+Subject: [PATCH] [vpsAdminOS] signal: localize the no-notify guard
+
+Stable commit 4a52a339587ed193e1d956c9d609283ae3f7a377 carries
+upstream commit 22b7f491be8f93ff72de0a3fe02b8ee9e64d3f21. It names
+the unused task flag bit, adds save and restore helpers, and changes the
+global inline signal_pending() predicate.
+
+The global inline change would broaden a livepatch to hundreds of source
+callers. Preserve the same bit, masked restore, guard, and predicate, but
+localize them to the two functions used by PID namespace teardown. The
+guard helpers live beside zap_pid_ns_processes(), and do_wait() evaluates
+the exact predicate only for its interrupt decision.
+
+The guarded synchronous path has no other signal_pending() consumer.
+acct_exit_ns() uses uninterruptible waits and delegates file operations to
+a separate worker task. IRQ, softirq, and x86 entry paths do not require
+the predicate while inheriting the reaper task as current.
+
+This is a source adaptation of the existing upstream fix, not a new fix
+algorithm. The following canonical correction remains a separate commit.
+---
+ kernel/exit.c          |  7 ++++++-
+ kernel/pid_namespace.c | 24 ++++++++++++++++++++++++
+ 2 files changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/exit.c b/kernel/exit.c
+index ad841217dcdff..da89b96045396 100644
+--- a/kernel/exit.c
++++ b/kernel/exit.c
+@@ -77,6 +77,9 @@
+ 
+ #include "exit.h"
+ 
++/* Localized from PF_NO_NOTIFY_SIGNAL in upstream commit 22b7f491be8f. */
++#define PF_NO_NOTIFY_SIGNAL PF__HOLE__00800000
++
+ /*
+  * The default value should be high enough to not crash a system that randomly
+  * crashes its kernel from time to time, but low enough to at least not permit
+@@ -1701,7 +1704,9 @@ static long do_wait(struct wait_opts *wo)
+ 		retval = __do_wait(wo);
+ 		if (retval != -ERESTARTSYS)
+ 			break;
+-		if (signal_pending(current))
++		if ((unlikely(test_tsk_thread_flag(current, TIF_NOTIFY_SIGNAL)) &&
++		     likely(!(READ_ONCE(current->flags) & PF_NO_NOTIFY_SIGNAL))) ||
++		    task_sigpending(current))
+ 			break;
+ 		schedule();
+ 	} while (1);
+diff --git a/kernel/pid_namespace.c b/kernel/pid_namespace.c
+index ae5ade3cdad04..7dae6524ddee0 100644
+--- a/kernel/pid_namespace.c
++++ b/kernel/pid_namespace.c
+@@ -22,10 +22,34 @@
+ #include <linux/export.h>
+ #include <linux/sched/task.h>
+ #include <linux/sched/signal.h>
++#include <linux/cleanup.h>
+ #include <linux/idr.h>
+ #include <uapi/linux/wait.h>
+ #include "pid_sysctl.h"
+ 
++/* Localized from PF_NO_NOTIFY_SIGNAL in upstream commit 22b7f491be8f. */
++#define PF_NO_NOTIFY_SIGNAL PF__HOLE__00800000
++
++/* Prevent TIF_NOTIFY_SIGNAL from interrupting this task. */
++static inline unsigned int no_notify_signal_save(void)
++{
++	unsigned int flags = current->flags;
++
++	current->flags |= PF_NO_NOTIFY_SIGNAL;
++	return flags;
++}
++
++/* Restore the previous PF_NO_NOTIFY_SIGNAL state. */
++static inline void no_notify_signal_restore(unsigned int flags)
++{
++	current_restore_flags(flags, PF_NO_NOTIFY_SIGNAL);
++}
++
++DEFINE_LOCK_GUARD_0(no_notify_signal,
++		    _T->flags = no_notify_signal_save(),
++		    no_notify_signal_restore(_T->flags),
++		    unsigned int flags)
++
+ static DEFINE_MUTEX(pid_caches_mutex);
+ static struct kmem_cache *pid_ns_cachep;
+ /* Write once array, filled from the beginning. */
+-- 
+2.54.0
+
