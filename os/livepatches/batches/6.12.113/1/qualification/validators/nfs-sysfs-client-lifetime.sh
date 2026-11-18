@@ -100,34 +100,66 @@ row=$(jq -cer --arg rowId "$row_id" '
 ' "$plan")
 
 jq -e --arg rowId "$row_id" '
-  .schemaVersion == 1
+  . as $plan
+  | .sets[0] as $set
+  | [.rows[] | select(
+      .scope == "fix"
+      and .oracleIds == ["nfs-client-operation-safety"]
+    )] as $nfsRows
+  | .schemaVersion == 1
   and .dormant == false
   and .selectedSets == 1
-  and .counts.catalogReleases == 1
-  and .counts.normalizedReleases == 1
-  and .counts.plannedMembers == 1
-  and .counts.requiredProfilePlatformTuples == 8
-  and .counts.activeOracles == 1
-  and .counts.coverageTuples == 2
-  and .counts.plannedRows == 10
-  and .counts.matrixRows == 10
   and (.sets | length) == 1
-  and (.sets[0].members | length) == 1
-  and .sets[0].id == "6.12.113.1"
-  and .sets[0].kernelVersion == "6.12.113"
-  and .sets[0].members[0].kernelVersion == .sets[0].kernelVersion
-  and .sets[0].tipRelease == "6.12.113.1"
-  and .sets[0].oracleIds == ["nfs-client-operation-safety"]
-  and ([.rows[] | select(.scope == "set")] | length) == 8
-  and ([.rows[] | select(.scope == "fix")] | length) == 2
+  and ($plan.releases | length) > 0
+  and ($set.members | length) > 0
+  and .counts.catalogReleases == ($plan.releases | length)
+  and .counts.normalizedReleases == ($plan.releases | length)
+  and .counts.plannedMembers == ($set.members | length)
+  and .counts.requiredProfilePlatformTuples
+    == ([$plan.rows[] | select(.scope == "set")] | length)
+  and .counts.activeOracles == ($set.oracleIds | length)
+  and .counts.activeOracles == ($set.oracles | length)
+  and .counts.coverageTuples == ($plan.coverage | length)
+  and .counts.plannedRows == ($plan.rows | length)
+  and .counts.matrixRows == ($plan.matrix.include | length)
+  and .counts.plannedRows == .counts.matrixRows
+  and ([$plan.rows[].rowId] | sort) == ([$plan.matrix.include[].rowId] | sort)
+  and ([$plan.releases[].release]) == ([$set.members[].release])
+  and $set.id == $set.tipRelease
+  and $set.kernelVersion == "6.12.113"
+  and $set.members[0].release == "6.12.113.1"
+  and $set.tipRelease == $set.members[-1].release
+  and ([range(0; ($set.members | length)) as $index
+    | $set.members[$index].kernelVersion == $set.kernelVersion
+      and $set.members[$index].releaseOrdinal == ($index + 1)
+      and $set.members[$index].release
+        == ("6.12.113." + (($index + 1) | tostring))
+      and $set.members[$index].predecessorRelease
+        == (if $index == 0 then null else $set.members[$index - 1].release end)
+  ] | all)
+  and ($set.oracleIds | index("nfs-client-operation-safety")) != null
+  and ([$set.oracles[] | select(
+    .fixId == "nfs-sysfs-client-lifetime"
+    and .id == "nfs-client-operation-safety"
+    and .role == "operation-safety"
+  )] | length) == 1
   and ([.rows[] | select(.scope == "set") | .role] | unique | sort)
     == ["aged-transition", "busy-transition", "failure-recovery", "lifecycle"]
   and ([.rows[] | select(.scope == "set") | .oracleIds] | all(. == []))
   and ([.rows[] | select(.scope == "set") | .oracleShard] | all(. == "none"))
   and ([.rows[] | select(.scope == "set") | .validator]
     | all(. == "builtin/generic-livepatch-safety-v1"))
-  and ([.rows[] | select(.scope == "fix") | .platformId] | sort) == ["amd", "intel"]
-  and ([.rows[] | select(.scope == "fix") | .runnerClass] | sort) == ["amd-livepatch", "intel-kvm"]
+  and ($nfsRows | length) == 2
+  and ([$nfsRows[].platformId] | sort) == ["amd", "intel"]
+  and ([$nfsRows[].runnerClass] | sort) == ["amd-livepatch", "intel-kvm"]
+  and ($nfsRows | all(
+    .profileId == "fix/nfs-sysfs-client-lifetime/nfs-client-operation-safety"
+    and .testAdapter
+      == "os/livepatches/batches/6.12.113/1/qualification/helpers/nfs-sysfs-client-lifetime.nix"
+    and .validator
+      == "os/livepatches/batches/6.12.113/1/qualification/validators/nfs-sysfs-client-lifetime.sh"
+  ))
+  and ($plan.rows | all(.setId == $set.id))
   and ([.rows[] | select(.rowId == $rowId)] | length) == 1
 ' "$plan" >/dev/null
 
@@ -155,26 +187,31 @@ jq -e '
 jq -e --arg setId "$(jq -er '.setId' <<<"$row")" --slurpfile plan "$plan" '
   def sha: type == "string" and test("^[0-9a-f]{64}$");
   def nonempty: type == "string" and length > 0;
-  .schemaVersion == 1
+  . as $capture
+  | $plan[0].sets[0] as $set
+  | .schemaVersion == 1
   and .rawBuildLogIdentity == "per-realization-only"
   and (.sourceRevision | nonempty)
+  and .sourceRevision == $plan[0].sourceRevision
   and (.flakeLockSha256 | sha)
   and .selectedSets == 1
-  and .counts.plannedMembers == 1
-  and .counts.capturedMembers == 1
+  and .counts.plannedMembers == ($set.members | length)
+  and .counts.capturedMembers == ($capture.sets[0].members | length)
   and (.sets | length) == 1
   and .sets[0].id == $setId
-  and (.sets[0].members | length) == 1
-  and (.sets[0].members[0] | keys | sort) == ["audit", "identity", "release"]
-  and .sets[0].members[0].release == "6.12.113.1"
-  and .sets[0].members[0].identity.sourceRevision == .sourceRevision
-  and .sets[0].members[0].identity.flakeLockSha256 == .flakeLockSha256
-  and (.sets[0].members[0].identity | keys | sort) == [
-    "closureSha256", "flakeLockSha256", "inputDigest", "inspectionSha256",
-    "manifestSha256", "module", "moduleName", "moduleSha256", "producer",
-    "sourceRevision", "targetId", "vermagic"
-  ]
-  and .sets[0].members[0].release == $plan[0].sets[0].members[0].release
+  and .sets[0].id == $set.id
+  and (.sets[0].members | length) == ($set.members | length)
+  and ([.sets[0].members[].release]) == ([$set.members[].release])
+  and (.sets[0].members | all(
+    (keys | sort) == ["audit", "identity", "release"]
+    and .identity.sourceRevision == $capture.sourceRevision
+    and .identity.flakeLockSha256 == $capture.flakeLockSha256
+    and (.identity | keys | sort) == [
+      "closureSha256", "flakeLockSha256", "inputDigest", "inspectionSha256",
+      "manifestSha256", "module", "moduleName", "moduleSha256", "producer",
+      "sourceRevision", "targetId", "vermagic"
+    ]
+  ))
 ' "$capture" >/dev/null
 
 grep -F '1 tests successful' "$runner_log" >/dev/null || fail "runner summary is missing"
@@ -203,16 +240,34 @@ trap cleanup EXIT HUP INT TERM
 chmod 0600 "$marker_tmp" "$result_tmp"
 printf '%s\n' "$marker_json" > "$marker_tmp"
 
-jq -e --argjson row "$row" --slurpfile capture "$capture" '
-  .schemaVersion == 1
+jq -e --argjson row "$row" --slurpfile plan "$plan" --slurpfile capture "$capture" '
+  ($plan[0].sets[0].members | map(.release)) as $releases
+  | ($capture[0].sets[0].members | map({release, identity})) as $members
+  | [range(($releases | length) - 1; -1; -1) as $index
+      | {
+          removedRelease: $releases[$index],
+          release: (
+            if $index == 0 then $plan[0].sets[0].kernelVersion
+            else $releases[$index - 1]
+            end
+          ),
+          moduleRemoved: true
+        }
+    ] as $reverse
+  | .schemaVersion == 1
+  and (keys | sort) == [
+    "forward", "kernelHealth", "members", "nativeRelease", "oracleId",
+    "platformId", "quiescence", "reverse", "rowId", "runnerClass",
+    "schemaVersion", "setId", "tipRelease", "workload"
+  ]
   and .oracleId == "nfs-client-operation-safety"
   and .rowId == $row.rowId
   and .setId == $row.setId
   and .platformId == $row.platformId
   and .runnerClass == $row.runnerClass
-  and .release == "6.12.113.1"
   and .nativeRelease == "6.12.113"
-  and .identity == $capture[0].sets[0].members[0].identity
+  and .tipRelease == $plan[0].sets[0].tipRelease
+  and .members == $members
   and .workload.mounts == 2
   and .workload.freshMounts == 2
   and (.workload.operations | type == "number" and floor == . and . > 0)
@@ -222,16 +277,8 @@ jq -e --argjson row "$row" --slurpfile capture "$capture" '
     finalUnmount: true,
     shutdownSysfsWrites: true
   }
-  and .forward == {
-    enabled: 1,
-    transition: 0,
-    replace: 0,
-    release: "6.12.113.1"
-  }
-  and .reverse == {
-    moduleRemoved: true,
-    release: "6.12.113"
-  }
+  and .forward == ($releases | map({release: ., enabled: 1, transition: 0, replace: 0}))
+  and .reverse == $reverse
   and .kernelHealth == "clean"
 ' "$marker_tmp" >/dev/null
 
@@ -254,6 +301,8 @@ jq -n \
       status: "accepted",
       markerSha256: $markerSha256,
       platformId: $marker[0].platformId,
+      tipRelease: $marker[0].tipRelease,
+      members: ($marker[0].members | map(.release)),
       operations: $marker[0].workload.operations,
       integritySha256: $marker[0].workload.integritySha256
     }
@@ -266,6 +315,9 @@ jq -e --arg rowId "$row_id" '
   and .accepted == true
   and .validator.id == "nfs-client-operation-safety"
   and .validator.status == "accepted"
+  and (.validator.tipRelease | type == "string" and length > 0)
+  and (.validator.members | type == "array" and length > 0)
+  and .validator.tipRelease == .validator.members[-1]
   and (.validator.markerSha256 | test("^[0-9a-f]{64}$"))
   and (.validator.operations | type == "number" and floor == . and . > 0)
   and (.validator.integritySha256 | test("^[0-9a-f]{64}$"))
