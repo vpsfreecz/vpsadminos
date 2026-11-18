@@ -1,0 +1,56 @@
+From 0fce73efee40c65ce26641c5d93942462f9e8307 Mon Sep 17 00:00:00 2001
+From: Christian Brauner <brauner@kernel.org>
+Date: Mon, 21 Sep 2026 15:44:50 +0200
+Subject: [PATCH] coredump: hold RCU while releasing parked threads
+
+commit 61d58591aa0188bf2463e263962256316ff8b576 upstream.
+
+coredump_finish() releases the parked threads by clearing ->task in
+their core_thread entry and calling wake_up_process() on each of them.
+It does that without holding a reference on the task and without being
+inside rcu.
+
+But calling wake_up_process(task) without rcu here isn't safe. A parked
+thread doesn't need that wakeup to leave. A spurious wakeup or a
+preemption after the store is enough for the task to go away.
+
+So if the coredump client is preempted between the store and
+wake_up_process() the thread can exit and be freed in the meantime and
+try_to_wake_up() takes pi_lock in freed memory.
+
+Hold rcu across the loop.
+
+Fixes: a94e2d408eae ("coredump: kill mm->core_done")
+Cc: stable@vger.kernel.org
+Acked-by: Oleg Nesterov <oleg@redhat.com>
+Link: https://patch.msgid.link/20260921-work-coredump-fixes-v3-1-8e4adb1619e6@kernel.org
+Signed-off-by: Christian Brauner (Amutable) <brauner@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ fs/coredump.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/fs/coredump.c b/fs/coredump.c
+index 64894ba6efca4..e3a0f621d3ca0 100644
+--- a/fs/coredump.c
++++ b/fs/coredump.c
+@@ -474,6 +474,8 @@ static void coredump_finish(bool core_dumped)
+ 	current->signal->core_state = NULL;
+ 	spin_unlock_irq(&current->sighand->siglock);
+ 
++	/* A released thread may exit and be freed before it is woken. */
++	guard(rcu)();
+ 	while ((curr = next) != NULL) {
+ 		next = curr->next;
+ 		task = curr->task;
+@@ -482,6 +484,7 @@ static void coredump_finish(bool core_dumped)
+ 		 * ->task == NULL before we read ->next.
+ 		 */
+ 		smp_mb();
++		/* Any wakeup now lets the thread exit, rcu keeps it alive. */
+ 		curr->task = NULL;
+ 		wake_up_process(task);
+ 	}
+-- 
+2.54.0
+
