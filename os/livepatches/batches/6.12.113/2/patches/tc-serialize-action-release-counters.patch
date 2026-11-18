@@ -1,0 +1,65 @@
+From 969ad6f2b266f383b44194d50d15631969b26222 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?J=C3=A9r=C3=A9my=20Jean?= <Jeremy.Jean@oss.cyber.gouv.fr>
+Date: Thu, 8 Oct 2026 18:13:49 +0000
+Subject: [PATCH] net/sched: fix use-after-free in __tcf_action_put()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+commit 7b16eb911091aae237a8673da94e4dfb9cd21d54 upstream.
+
+__tcf_action_put() decrements the reference count before decrementing the
+binding count. Another thread can free the action between these operations,
+causing the binding-count update to access freed memory. KASAN reports it
+as:
+
+  BUG: KASAN: slab-use-after-free in __tcf_action_put+0x327/0x340
+  Write of size 4 at addr ff11000000d46420 by task tc-put-pause/64
+
+Hold the action IDR mutex across both counter updates and IDR removal,
+keeping cleanup outside the lock.
+
+Fixes: 16af6067392c ("net: sched: implement reference counted action release")
+Cc: stable@vger.kernel.org
+Assisted-by: LLM
+Signed-off-by: Jérémy Jean <Jeremy.Jean@oss.cyber.gouv.fr>
+Reviewed-by: Simon Horman <horms@kernel.org>
+Link: https://patch.msgid.link/20261008181348.527035-2-Jeremy.Jean@oss.cyber.gouv.fr
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ net/sched/act_api.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/net/sched/act_api.c b/net/sched/act_api.c
+index 94feb3961dcd2..29a6bf8630838 100644
+--- a/net/sched/act_api.c
++++ b/net/sched/act_api.c
+@@ -372,9 +372,10 @@ static int __tcf_action_put(struct tc_action *p, bool bind)
+ {
+ 	struct tcf_idrinfo *idrinfo = p->idrinfo;
+ 
+-	if (refcount_dec_and_mutex_lock(&p->tcfa_refcnt, &idrinfo->lock)) {
+-		if (bind)
+-			atomic_dec(&p->tcfa_bindcnt);
++	mutex_lock(&idrinfo->lock);
++	if (bind)
++		atomic_dec(&p->tcfa_bindcnt);
++	if (refcount_dec_and_test(&p->tcfa_refcnt)) {
+ 		idr_remove(&idrinfo->action_idr, p->tcfa_index);
+ 		mutex_unlock(&idrinfo->lock);
+ 
+@@ -382,9 +383,7 @@ static int __tcf_action_put(struct tc_action *p, bool bind)
+ 		return 1;
+ 	}
+ 
+-	if (bind)
+-		atomic_dec(&p->tcfa_bindcnt);
+-
++	mutex_unlock(&idrinfo->lock);
+ 	return 0;
+ }
+ 
+-- 
+2.54.0
+

@@ -1,0 +1,70 @@
+From 42ef371466d5648f5c9e8bc219f0af0a2c2bbf8c Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Tue, 18 Aug 2026 17:27:55 +0000
+Subject: [PATCH] ip6mr: do not clone dst in ip6mr_cache_report()
+
+[ Upstream commit 235b42b5860189eb8c27c36435ad932cae65a734 ]
+
+IPv6 input attaches a non-refcounted (NOREF) dst to skbs under RCU.
+When an ingress multicast packet misses MFC lookup,
+ip6mr_cache_unresolved() places the skb onto the unresolved queue,
+escaping the receive-side RCU grace period.
+
+If the underlying route is deleted and freed, and the MFC queue is later
+resolved with a wrong parent interface, ip6_mr_forward() invokes
+ip6mr_cache_report(..., MRT6MSG_WRONGMIF), which executes
+dst_clone(skb_dst(pkt)) on the freed dst entry, triggering a slab
+use-after-free.
+
+Report packets queued to mroute6_sk (a raw socket) and netlink
+notifications do not require an attached dst entry.
+
+Fix this by:
+1. Removing dst_clone() in ip6mr_cache_report() and ensuring report skbs
+   do not hold a dst.
+2. Dropping skb_dst before queuing unresolved skbs in
+   ip6mr_cache_unresolved(), matching the fact that multicast
+   forwarding resolves outgoing routes anew via ip6_route_output().
+
+Fixes: 67f415dd2906 ("ipv6: convert rx data path to not take refcnt on dst")
+Reported-by: Zero Day Initiative <zdi-disclosures@trendmicro.com>
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Reviewed-by: Hangbin Liu <liuhangbin@kylinos.cn>
+Link: https://patch.msgid.link/20260818172755.4083692-1-edumazet@google.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+---
+ net/ipv6/ip6mr.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/net/ipv6/ip6mr.c b/net/ipv6/ip6mr.c
+index ac0120b75ff2b..d95b988be4afe 100644
+--- a/net/ipv6/ip6mr.c
++++ b/net/ipv6/ip6mr.c
+@@ -1128,7 +1128,6 @@ static int ip6mr_cache_report(const struct mr_table *mrt, struct sk_buff *pkt,
+ 	msg->im6_src = ipv6_hdr(pkt)->saddr;
+ 	msg->im6_dst = ipv6_hdr(pkt)->daddr;
+ 
+-	skb_dst_set(skb, dst_clone(skb_dst(pkt)));
+ 	skb->ip_summed = CHECKSUM_UNNECESSARY;
+ 	}
+ 
+@@ -1138,6 +1137,7 @@ static int ip6mr_cache_report(const struct mr_table *mrt, struct sk_buff *pkt,
+ 		return -EINVAL;
+ 	}
+ 
++	skb_dst_drop(skb);
+ 	mrt6msg_netlink_event(mrt, skb);
+ 
+ 	/* Deliver to user space multicast routing algorithms */
+@@ -1217,6 +1217,7 @@ static int ip6mr_cache_unresolved(struct mr_table *mrt, mifi_t mifi,
+ 			skb->dev = dev;
+ 			skb->skb_iif = dev->ifindex;
+ 		}
++		skb_dst_drop(skb);
+ 		skb_queue_tail(&c->_c.mfc_un.unres.unresolved, skb);
+ 		err = 0;
+ 	}
+-- 
+2.54.0
+

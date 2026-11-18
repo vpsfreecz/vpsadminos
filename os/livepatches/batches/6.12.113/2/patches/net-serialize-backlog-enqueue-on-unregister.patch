@@ -1,0 +1,89 @@
+From ec9793c2279c5210a8f2d0191ef34c3891ac4e2b Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Tue, 16 Jun 2026 14:13:17 +0000
+Subject: [PATCH] net: serialize netif_running() check in enqueue_to_backlog()
+
+[ Upstream commit 46762cefe7f4e5bffc1eb467810a7bbb02e461d7 ]
+
+Syzbot reported a KASAN slab-use-after-free in fib_rules_lookup().
+
+The root cause is a race condition where packets can escape the backlog
+flushing during device unregistration (e.g., during netns exit).
+
+Commit e9e4dd3267d0 ("net: do not process device backlog during unregistration")
+introduced a lockless netif_running() check in enqueue_to_backlog() to
+prevent queuing packets to an unregistering device.
+
+However, this creates a TOCTOU race window.
+
+A lockless transmitter (like veth_xmit) can pass
+the check before dev_close() clears IFF_UP. If the transmitter is then
+delayed, flush_all_backlogs() can run and finish before the transmitter
+grabs the backlog lock and queues the packet. The packet then escapes
+the flush and triggers UAF later when processed.
+
+Fix this by moving the netif_running() check inside the backlog lock.
+This serializes the check with the flush work (which also grabs the lock).
+We then either queue the packet before the flush runs (so it gets flushed),
+or check netif_running() after the flush/close completes (so it gets dropped).
+
+[vpsAdminOS: The canonical stable patch adds one source line to
+enqueue_to_backlog(). Remove one existing blank line inside that function so
+later unchanged functions retain their target source-line metadata. This
+changes no C tokens from stable commit
+cbe10ea090ea9d6fa5ff50c9b44f2a86fe56f0b7 and avoids a line-only
+register_netdevice() replacement in the livepatch producer.]
+
+Fixes: e9e4dd3267d0 ("net: do not process device backlog during unregistration")
+Reported-by: syzbot+965506b59a2de0b6905c@syzkaller.appspotmail.com
+Closes:
+    https://lore.kernel.org/netdev/6a315824.b0403584.28d0ff.0000.GAE@google.com/T/#u
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Cc: Julian Anastasov <ja@ssi.bg>
+Reviewed-by: Kuniyuki Iwashima <kuniyu@google.com>
+Link: https://patch.msgid.link/20260616141317.407791-1-edumazet@google.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Assisted-by: LLM
+---
+ net/core/dev.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/net/core/dev.c b/net/core/dev.c
+index 48f099f9e804c..a6a726cfd4776 100644
+--- a/net/core/dev.c
++++ b/net/core/dev.c
+@@ -5022,10 +5022,6 @@ static int enqueue_to_backlog(struct sk_buff *skb, int cpu,
+ 	int max_backlog;
+ 	u32 tail;
+ 
+-	reason = SKB_DROP_REASON_DEV_READY;
+-	if (!netif_running(skb->dev))
+-		goto bad_dev;
+-
+ 	reason = SKB_DROP_REASON_CPU_BACKLOG;
+ 	sd = &per_cpu(softnet_data, cpu);
+ 
+@@ -5036,6 +5032,11 @@ static int enqueue_to_backlog(struct sk_buff *skb, int cpu,
+ 	backlog_lock_irq_save(sd, &flags);
+ 	qlen = skb_queue_len(&sd->input_pkt_queue);
+ 	if (qlen <= max_backlog && !skb_flow_limit(skb, qlen)) {
++		if (unlikely(!netif_running(skb->dev))) {
++			backlog_unlock_irq_restore(sd, &flags);
++			reason = SKB_DROP_REASON_DEV_READY;
++			goto bad_dev;
++		}
+ 		if (!qlen) {
+ 			/* Schedule NAPI for backlog device. We can use
+ 			 * non atomic operation as we own the queue lock.
+@@ -5047,7 +5048,6 @@ static int enqueue_to_backlog(struct sk_buff *skb, int cpu,
+ 		__skb_queue_tail(&sd->input_pkt_queue, skb);
+ 		tail = rps_input_queue_tail_incr(sd);
+ 		backlog_unlock_irq_restore(sd, &flags);
+-
+ 		/* save the tail outside of the critical section */
+ 		rps_input_queue_tail_save(qtail, tail);
+ 		return NET_RX_SUCCESS;
+-- 
+2.54.0
+

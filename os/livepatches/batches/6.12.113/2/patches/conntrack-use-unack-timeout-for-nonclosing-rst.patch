@@ -1,0 +1,70 @@
+From 4d39a039d0b7737f8475c2431f18572b3b186a3b Mon Sep 17 00:00:00 2001
+From: Minghao Zhang <zhangmh25@mails.tsinghua.edu.cn>
+Date: Wed, 29 Jul 2026 15:46:52 +0000
+Subject: [PATCH] netfilter: conntrack: tcp: use UNACK timeout for non-closing
+ RST packets
+
+[ Upstream commit bf80e6802273a900311b44e47c9b1a59c6d2473c ]
+
+Commit be0502a3f2e9 ("netfilter: conntrack: tcp: only close if RST
+matches exact sequence") keeps an established conntrack entry in
+ESTABLISHED when an in-window RST does not match the expected sequence
+number exactly, so the endpoint can validate the RST with a challenge
+ACK.
+
+The timeout selection nevertheless uses the CLOSE timeout for every RST
+packet.  The bug is that timeout selection is based on the packet type,
+not on the state transition result: even when RST validation keeps
+new_state in ESTABLISHED, the timeout is still forced to
+TCP_CONNTRACK_CLOSE.
+
+Linux TCP independently rate limits challenge ACKs per socket.  A second
+non-exact RST can therefore arrive after the first challenge ACK has
+restored the timeout but before the rate limit expires.  The second RST
+lowers the timeout to 10 seconds again while the endpoint suppresses the
+second challenge ACK, allowing the conntrack entry to expire while both
+TCP endpoints remain established.
+
+Using the ESTABLISHED timeout for such RSTs would avoid this short
+expiration window, but it could also retain stale entries for the
+five-day default because conntrack cannot reliably match the endpoint's
+exact TCP state.
+
+Use the UNACK timeout for RST packets that leave the conntrack entry in
+TCP_CONNTRACK_ESTABLISHED.  Exact-match RSTs and accepted RST packet
+trains still fall through to timeouts[new_state], which preserves the
+CLOSE timeout when conntrack accepts the RST as closing the flow.
+
+This avoids the aggressive 10-second expiration window for non-exact
+RSTs while preserving the short timeout for RSTs that conntrack accepts
+as closing the flow.
+
+Suggested-by: Florian Westphal <fw@strlen.de>
+Reported-by: Minghao Zhang <zhangmh25@mails.tsinghua.edu.cn>
+Reported-by: Jianjun Chen <jianjun@tsinghua.edu.cn>
+Signed-off-by: Minghao Zhang <zhangmh25@mails.tsinghua.edu.cn>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+---
+ net/netfilter/nf_conntrack_proto_tcp.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/net/netfilter/nf_conntrack_proto_tcp.c b/net/netfilter/nf_conntrack_proto_tcp.c
+index 91da35e2b0d8d..456721e40ed0c 100644
+--- a/net/netfilter/nf_conntrack_proto_tcp.c
++++ b/net/netfilter/nf_conntrack_proto_tcp.c
+@@ -1325,8 +1325,9 @@ int nf_conntrack_tcp_packet(struct nf_conn *ct,
+ 	if (ct->proto.tcp.retrans >= tn->tcp_max_retrans &&
+ 	    timeouts[new_state] > timeouts[TCP_CONNTRACK_RETRANS])
+ 		timeout = timeouts[TCP_CONNTRACK_RETRANS];
+-	else if (unlikely(index == TCP_RST_SET))
+-		timeout = timeouts[TCP_CONNTRACK_CLOSE];
++	else if (unlikely(index == TCP_RST_SET &&
++			  new_state == TCP_CONNTRACK_ESTABLISHED))
++		timeout = timeouts[TCP_CONNTRACK_UNACK];
+ 	else if ((ct->proto.tcp.seen[0].flags | ct->proto.tcp.seen[1].flags) &
+ 		 IP_CT_TCP_FLAG_DATA_UNACKNOWLEDGED &&
+ 		 timeouts[new_state] > timeouts[TCP_CONNTRACK_UNACK])
+-- 
+2.54.0
+
