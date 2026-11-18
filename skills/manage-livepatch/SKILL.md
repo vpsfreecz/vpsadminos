@@ -8,6 +8,13 @@ description: Route vpsAdminOS numbered kernel livepatch work to the repository-o
 This skill is a router. It does not replace the repository process or a target
 page's release-specific safety instructions.
 
+When the task is to discover or select security fixes from a stable release
+range, first follow the
+[security backport selection guide](../../docs/os/livepatches/security-backports.md)
+and obtain approval for its exact fix groups. Then use this router for the
+approved fixes. When the request already supplies an exact fix, use this
+router directly.
+
 1. Read the repository [agent instructions](../../AGENTS.md).
 2. Read the [canonical livepatch process](../../docs/os/livepatches/process.md)
    and [downstream patch-series policy](../../docs/os/patch-series-policy.md).
