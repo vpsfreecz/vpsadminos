@@ -57,6 +57,23 @@ For example, the base component of a 6.12.113 release is `612113`. The digest
 binds the normalized semantic, target, builder and lineage inputs. Do not use a
 derived module name as the release identity.
 
+<a id="ordered-fix-stages"></a>
+### Ordered fix stages
+
+Use consecutive additive batches when a complete fix requires ordered
+transitions. For example, an earlier batch can establish lifetime handling
+before a later batch enables new lookup behavior. Require full normal
+convergence of each batch before loading its successor. Keep predecessors
+enabled until their descendants are removed, and reverse the stages newest
+first.
+
+Give each stage truthful source provenance and fix/oracle ownership. Document
+which intermediate stages provide only part of the correction and which release
+first completes it. Qualify every forward and reverse boundary, including
+failure and recovery while an earlier stage remains active. Splitting a fix
+across batches establishes order; every stage still requires a valid old/new
+transition argument and artifact qualification.
+
 ## Repository unit
 
 Group releases by kernel version, with one subdirectory per batch ordinal:
@@ -185,6 +202,20 @@ an earlier tracked hash.
 
 ## Backport selection and livepatch safety
 
+When the task is to discover and select security fixes from a stable release
+range, first use the [security backport selection guide](security-backports.md)
+and obtain approval for its exact fix groups. Use this process to create and
+qualify a batch from the approved fixes. An already selected exact fix enters
+this process directly.
+
+Every authored batch records its addressed issues on the existing target page
+using the [target-page template](template.md). The coverage index summarizes
+source coverage and the recorded qualification and operator status, with the
+linked release sections and fix descriptors as authorities. Per-node activation
+requires separate runtime evidence. Link the first complete, effective
+correcting release. An additive successor does not replace that first release,
+and an ineffective earlier attempt does not qualify as the correction.
+
 Source provenance and newer-kernel evidence select the backport. Record the
 source repository and full commit, prerequisites, affected functions, source
 review, target applicability and expected emitted closure. This input review is
@@ -266,6 +297,11 @@ tree.
    replacement, symbol position, livepatch relocation, import, callback,
    changed object and generated release-level function. Missing, extra or
    ambiguous entries fail the candidate.
+8. Before batch readiness, compare the target page's coverage index and release
+   section with the final fix descriptors and ordered payload ownership. They
+   must identify the same immutable fix, source and payload mapping. An
+   explicitly verified later CVE association may enrich a published page while
+   its original producer CVE metadata remains unchanged.
 
 The [downstream patch-series policy](../patch-series-policy.md) applies to the
 payload and repository history. Fold development repairs into their logical

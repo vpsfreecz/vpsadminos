@@ -52,6 +52,10 @@ Check the following before adding the target-page section:
 - A fix-named helper or validator directory exists only when several support
   files justify it.
 - Qualification and documentation values are excluded from producer identity.
+- The target-page coverage index and release section identify the same
+  immutable fix, source and payload mapping as the descriptors and ordered
+  series. A verified later CVE association may enrich a published page without
+  rewriting its original producer CVE metadata.
 
 See the [canonical process](process.md) for normalization, build, qualification
 and rollout requirements. Use its [fast checks before a campaign](process.md#fast-checks-before-a-campaign)
@@ -104,6 +108,31 @@ qualification for deployment across kernel builds.
 Do not activate a preventive livepatch on a boot that has already hit the
 target failure, has an unexplained Oops, or is otherwise unreliable. Follow the
 recovery section instead.
+
+## Addressed issue coverage
+
+This index is a quick lookup over the authoritative release sections and fix
+descriptors. It does not establish per-node activation.
+
+| Issue / CVE | Correction and scope | First correcting livepatch | Fix IDs and source | Qualification / operator status |
+| --- | --- | --- | --- | --- |
+| <stable issue or fix ID; all CVEs, or `none assigned`> | <concise defect, affected subsystem and correction scope> | [<first complete effective release>](#release-<kernel-version-with-dashes>-<ordinal>) | <fix IDs; canonical repository and full commits; first stable release or truthful provenance> | <authored but unqualified/blocked, qualified for recorded scope, available for approved rollout, or retired; link details> |
+
+Keep the first complete, effective correcting release when additive successors
+continue to provide the fix. An ineffective earlier attempt is not the first
+correction. Do not list skipped or merely proposed work as addressed. Describe
+an authored but unqualified batch as blocked or unqualified, never delivered or
+available. Source inclusion, qualification, operator availability and per-node
+activation are separate facts.
+
+Before readiness, compare each row and release section with the final fix
+descriptors and ordered payload ownership. They must identify the same immutable
+fix, source and payload mapping. A CVE assigned after publication may be added
+as an explicitly verified later association to that same mapping while the
+original producer CVE metadata remains unchanged. Preserve the first correcting
+release and do not imply a new payload, qualification or deployment. For an
+unpublished candidate, update its descriptor and repeat the required identity
+and build checks. Keep captures, store paths and checksums in release evidence.
 
 ## Release set
 
@@ -233,6 +262,14 @@ preventive and is not recovery for a boot that already hit the failure.
 
 - The release table is contiguous from native to the selected tip.
 - Every section matches one catalog unit and its documentation anchor.
+- Every addressed issue, including an issue without a CVE, has one coverage
+  row linked to its first complete, effective correcting release. Skipped or
+  merely proposed work is not presented as addressed.
+- The coverage index, release section, descriptors and ordered series identify
+  the same immutable fix, source and payload mapping. A later CVE association
+  is explicit and verified when published producer CVE metadata is unchanged.
+- Coverage status distinguishes source inclusion, qualification, operator
+  availability and per-node activation, and copies no volatile evidence.
 - Provenance and function/patch/oracle IDs agree with the descriptors and
   `series.nix`.
 - Same-function overlap has an explicit semantic-union successor.
