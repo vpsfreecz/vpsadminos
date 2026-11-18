@@ -1,0 +1,41 @@
+From f62db2f88d7bd211a7eb95aae4ad55d89ff0d206 Mon Sep 17 00:00:00 2001
+From: Jakub Skokan <jakub.skokan@havefun.cz>
+Date: Thu, 19 Nov 2026 15:21:34 +0100
+Subject: [PATCH] net: ipv4: keep route metric extack data caller-owned
+
+Adapt stable commit 0a978359afe76aadfbc57acee88c08999543a7ae
+(upstream 363c8c79220d0db4d65dcd570529ddda15067cb5, first released in
+6.12.117) for livepatch module removal.
+
+NL_SET_ERR_MSG leaves its static string address in the caller's extack after
+ip_fib_metrics_init returns. Format the diagnostic into the extack-owned
+buffer when extack is present. Keep the ordinary macro in the NULL case so
+the original trace-only behavior is unchanged.
+
+The stable validation predicate, error, and diagnostic bytes are unchanged.
+---
+ net/ipv4/metrics.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/net/ipv4/metrics.c b/net/ipv4/metrics.c
+index 8ddac1f595ed8..0d1ed7f99ca34 100644
+--- a/net/ipv4/metrics.c
++++ b/net/ipv4/metrics.c
+@@ -60,6 +60,14 @@ static int ip_metrics_convert(struct nlattr *fc_mx,
+ 	if (ecn_ca)
+ 		metrics[RTAX_FEATURES - 1] |= DST_FEATURE_ECN_CA;
+ 
++	if ((metrics[RTAX_LOCK - 1] & (1 << RTAX_CWND)) && !metrics[RTAX_CWND - 1]) {
++		if (extack)
++			NL_SET_ERR_MSG_FMT(extack, "Locked cwnd metric must be non zero");
++		else
++			NL_SET_ERR_MSG(NULL, "Locked cwnd metric must be non zero");
++		return -EINVAL;
++	}
++
+ 	return 0;
+ }
+ 
+-- 
+2.54.0
+
