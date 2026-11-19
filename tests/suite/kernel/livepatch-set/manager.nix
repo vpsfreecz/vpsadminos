@@ -533,6 +533,7 @@ let
       name = "kernel-livepatch-production-manager-stack";
       description = "Production livepatch manager with a private three-batch stack";
       tags = [ "ci" ];
+      labels.livepatchRegressionFixture = "production-manager";
 
       machines = {
         machine = import ../../../machines/vpsadminos/with-empty.nix {

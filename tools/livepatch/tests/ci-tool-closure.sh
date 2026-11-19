@@ -119,6 +119,7 @@ cat >"$expected_qualification_paths" <<'EOF'
 .github/workflows/livepatch-qualification.yml
 flake.nix
 flake.lock
+nix/flake/**
 libosctl/**
 os/default.nix
 os/configs/qemu.nix
@@ -144,11 +145,13 @@ tests/all-tests.nix
 tests/make-template.nix
 tests/make-test.nix
 tests/test-configs/ci.nix
+tests/test-configs/livepatch-regression.nix
 tests/configs/vpsadminos/base.nix
 tests/configs/vpsadminos/livepatch*.nix
 tests/machines/vpsadminos/**
 tests/suite/kernel/livepatch*.nix
 tests/suite/kernel/livepatch*/**
+tests/suite/upgrade/impermanence-from-2abbe3cc1c10.nix
 tools/livepatch/**
 EOF
 
@@ -274,17 +277,17 @@ EOF
 
 sort -c "$inventory"
 cmp -- "$expected" "$inventory"
-[[ $(grep -Fc 'name: Prepare locked livepatch CI tools' "$workflow") -eq 4 ]] ||
+[[ $(grep -Fc 'name: Prepare locked livepatch CI tools' "$workflow") -eq 5 ]] ||
   fail 'workflow setup-name count changed'
-[[ $(grep -Fc 'run: tools/livepatch/prepare-ci-tools.sh' "$workflow") -eq 4 ]] ||
+[[ $(grep -Fc 'run: tools/livepatch/prepare-ci-tools.sh' "$workflow") -eq 5 ]] ||
   fail 'workflow setup-command count changed'
 profile_state_environment='LIVEPATCH_PROFILE_STATE: ${{ steps.prepare-profile.outputs.state-directory }}/profile'
 profile_state_argument='--state-dir "$LIVEPATCH_PROFILE_STATE"'
 profile_state_upload='path: ${{ steps.prepare-profile.outputs.state-directory }}/profile'
 profile_artifact_name='name: livepatch-result-${{ matrix.rowId }}-${{ github.run_id }}-${{ github.run_attempt }}'
-[[ $(grep -Fc -- 'uses: ./.github/actions/prepare-test-state' "$workflow") -eq 1 ]] ||
+[[ $(grep -Fc -- 'uses: ./.github/actions/prepare-test-state' "$workflow") -eq 2 ]] ||
   fail 'workflow profile state preparation changed'
-[[ $(grep -Fc -- 'uses: ./.github/actions/cleanup-test-state' "$workflow") -eq 1 ]] ||
+[[ $(grep -Fc -- 'uses: ./.github/actions/cleanup-test-state' "$workflow") -eq 2 ]] ||
   fail 'workflow profile state cleanup changed'
 [[ $(grep -Fc -- "$profile_state_environment" "$workflow") -eq 1 ]] ||
   fail 'workflow profile state environment changed'

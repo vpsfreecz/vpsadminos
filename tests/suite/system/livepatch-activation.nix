@@ -80,6 +80,7 @@ let
       '';
 
       tags = [ "ci" ];
+      labels.livepatchRegressionFixture = "activation-policy";
 
       machines = {
         machine = import ../../machines/vpsadminos/with-tank.nix {

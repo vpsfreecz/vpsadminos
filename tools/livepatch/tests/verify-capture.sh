@@ -188,6 +188,10 @@ EOF
 set -euo pipefail
 case "$*" in
   "--option fallback false --realise $FAKE_PRODUCER")
+    [[ "${FAKE_PRODUCER_AVAILABLE:-true}" == true ]] || {
+      echo "captured producer is unavailable" >&2
+      exit 1
+    }
     printf '%s\n' "$FAKE_PRODUCER"
     ;;
   "--query --deriver $FAKE_PRODUCER")
@@ -218,6 +222,10 @@ run_verifier() {
     export PATH="$root/bin:$PATH"
     export FAKE_SOURCE_REVISION=$source_revision
     export FAKE_PRODUCER="$root/producer"
+    export FAKE_PRODUCER_AVAILABLE=true
+    if [[ -e "$root/missing-producer" ]]; then
+      FAKE_PRODUCER_AVAILABLE=false
+    fi
     export FAKE_DERIVER=$deriver
     export FAKE_REQUISITE_ONE=${fake_requisites[0]}
     export FAKE_REQUISITE_TWO=${fake_requisites[1]}
@@ -296,8 +304,10 @@ symlink_current_log() {
   mv -- "$path" "$1/current-build.log"
   ln -s -- "$1/current-build.log" "$path"
 }
+remove_producer_from_store() { : > "$1/missing-producer"; }
 
 run_case different-current-log accept unchanged
+run_case missing-producer refuse remove_producer_from_store
 run_case missing-capture-log refuse remove_capture_log
 run_case tampered-capture-log refuse tamper_capture_log
 run_case symlink-capture-log refuse symlink_capture_log
@@ -672,23 +682,31 @@ EOF
 }
 
 workflow_interface() {
-  local job
+  local capture_line coverage_line field job publish_line upload_line
 
-  [[ $(grep -Fc 'tools/livepatch/ci-workspace.sh prepare' "$workflow") -eq 4 ]]
-  [[ $(grep -Fc 'tools/livepatch/ci-workspace.sh cleanup' "$workflow") -eq 4 ]]
-  [[ $(grep -Fc -- '--directory "$LIVEPATCH_CI_WORKSPACE"' "$workflow") -eq 4 ]]
-  [[ $(grep -Fc 'id: workspace' "$workflow") -eq 4 ]]
-  for job in discover capture qualify results; do
+  [[ $(grep -Fc 'if ! git cat-file -e "$base^{commit}" 2>/dev/null; then' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'git fetch --no-tags --depth=1 origin "$base"' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'git cat-file -e "$base^{commit}"' "$workflow") -eq 2 ]]
+  for field in event base head sourceRevision changedPathsSha256; do
+    [[ $(grep -Fc "${field}: \$${field}" "$workflow") -eq 1 ]]
+  done
+  [[ $(grep -Fc 'tools/livepatch/ci-workspace.sh prepare' "$workflow") -eq 5 ]]
+  [[ $(grep -Fc 'tools/livepatch/ci-workspace.sh cleanup' "$workflow") -eq 5 ]]
+  [[ $(grep -Fc -- '--directory "$LIVEPATCH_CI_WORKSPACE"' "$workflow") -eq 5 ]]
+  [[ $(grep -Fc 'id: workspace' "$workflow") -eq 5 ]]
+  for job in discover capture qualify; do
     [[ $(grep -Fc "LIVEPATCH_CI_JOB: $job" "$workflow") -eq 2 ]]
   done
+  [[ $(grep -Fc 'LIVEPATCH_CI_JOB: results' "$workflow") -eq 4 ]]
   if grep -Eq '\$RUNNER_TEMP/livepatch-(discovery|input|capture|results)|\$\{\{ runner[.]temp \}\}/livepatch-(discovery|input|capture|results)' \
     "$workflow"; then
     echo 'workflow retains an active fixed livepatch scratch path' >&2
     exit 1
   fi
 
-  [[ $(grep -Fc 'uses: ./.github/actions/prepare-test-state' "$workflow") -eq 1 ]]
-  [[ $(grep -Fc 'uses: ./.github/actions/cleanup-test-state' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'uses: ./.github/actions/prepare-test-state' "$workflow") -eq 2 ]]
+  [[ $(grep -Fc 'uses: ./.github/actions/cleanup-test-state' "$workflow") -eq 2 ]]
   [[ $(grep -Fc 'LIVEPATCH_PROFILE_STATE: ${{ steps.prepare-profile.outputs.state-directory }}/profile' \
     "$workflow") -eq 1 ]]
   [[ $(grep -Fc 'path: ${{ steps.prepare-profile.outputs.state-directory }}/profile' \
@@ -697,12 +715,45 @@ workflow_interface() {
     "$workflow") -eq 1 ]]
   [[ $(grep -Fc 'steps.cleanup-profile.outcome == '\''success'\''' "$workflow") -eq 1 ]]
   [[ $(grep -Fc 'steps.upload-result.outcome == '\''success'\''' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'TEST_RUNNER_STATE_DIR: ${{ steps.prepare-tests.outputs.state-directory }}' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'state-directory: ${{ steps.prepare-tests.outputs.state-directory }}' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'prepare-outcome: ${{ steps.prepare-tests.outcome }}' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'test-outcome: ${{ steps.run-tests.outcome }}' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'upload-outcome: ${{ steps.upload-test-logs.outcome }}' "$workflow") -eq 1 ]]
   [[ $(grep -Ec '^[[:space:]]*path: \$\{\{ steps[.]workspace[.]outputs[.]directory \}\}$' \
     "$workflow") -eq 1 ]]
   [[ $(grep -Ec '^[[:space:]]*path: \$\{\{ steps[.]workspace[.]outputs[.]directory \}\}/capture$' \
     "$workflow") -eq 1 ]]
   [[ $(grep -Ec '^[[:space:]]*path: \$\{\{ steps[.]workspace[.]outputs[.]directory \}\}/results$' \
     "$workflow") -eq 2 ]]
+
+  capture_line=$(grep -nF 'name: Capture one dynamic producer identity set' \
+    "$workflow" | cut -d: -f1)
+  publish_line=$(grep -nF 'name: Publish and prove captured producer closures' \
+    "$workflow" | cut -d: -f1)
+  coverage_line=$(grep -nF 'name: Decide ordinary workload coverage from exact tuples' \
+    "$workflow" | cut -d: -f1)
+  upload_line=$(grep -nF 'name: Upload captured modules and realization evidence' \
+    "$workflow" | cut -d: -f1)
+  [[ -n "$capture_line" && -n "$publish_line" && -n "$coverage_line" && -n "$upload_line" ]]
+  ((capture_line < publish_line && publish_line < coverage_line && coverage_line < upload_line))
+  [[ $(grep -Fc 'expected_members=$(jq -er '"'"'.counts.capturedMembers'"'"' "$capture")' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'jq -er '"'"'.sets[].members[].identity.producer'"'"' "$capture"' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'jq -er '"'"'.sets[].members[].audit.requisites[]'"'"' "$capture"' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'nix-store --query --requisites "${producers[@]}"' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'nix-copy-closure --to push@cache.int.vpsadminos.org "${producers[@]}"' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'sudo push-ci-generation "$branch" "$producer"' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc "nix store verify \\" "$workflow") -eq 1 ]]
+  [[ $(grep -Fc "nix store dump-path \\" "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'nix store dump-path "$producer"' "$workflow") -eq 1 ]]
 }
 
 capture_interface
