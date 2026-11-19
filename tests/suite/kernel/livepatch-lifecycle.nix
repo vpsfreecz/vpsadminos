@@ -93,6 +93,7 @@ import ../../make-template.nix (
       {
         name = "kernel-livepatch-lifecycle-${instance}";
         description = "Validate native ${kernelVersion} continuity on real x86 host CPUs";
+        labels.livepatchRegressionFixture = "native-lifecycle";
 
         machines.machine = import ../../machines/vpsadminos/with-empty.nix {
           inherit pkgs;
