@@ -6,6 +6,7 @@ usage() {
   cat >&2 <<'EOF'
 usage: tools/livepatch/discover.sh --plan FILE --matrix FILE [--system SYSTEM]
        tools/livepatch/discover.sh --input FILE --plan FILE --matrix FILE
+         [--changed-paths FILE | --kernel-version VERSION ...]
 EOF
   exit 2
 }
@@ -14,12 +15,24 @@ plan_output=
 matrix_output=
 input=
 system=x86_64-linux
+changed_paths=
+kernel_versions=()
 
 while (($#)); do
   case "$1" in
     --input)
       (($# >= 2)) || usage
       input=$2
+      shift 2
+      ;;
+    --changed-paths)
+      (($# >= 2)) || usage
+      changed_paths=$2
+      shift 2
+      ;;
+    --kernel-version)
+      (($# >= 2)) || usage
+      kernel_versions+=("$2")
       shift 2
       ;;
     --matrix)
@@ -42,6 +55,7 @@ while (($#)); do
 done
 
 [[ -n "$plan_output" && -n "$matrix_output" ]] || usage
+[[ -z "$changed_paths" || ${#kernel_versions[@]} -eq 0 ]] || usage
 [[ "$system" =~ ^[a-z0-9_+-]+-linux$ ]] || {
   echo "invalid Nix system: $system" >&2
   exit 1
@@ -78,6 +92,88 @@ else
   jq --arg sourceRevision "$source_revision" \
     '.sourceRevision = $sourceRevision' "$plan_tmp" >"$plan_tmp.source"
   mv -T -- "$plan_tmp.source" "$plan_tmp"
+fi
+
+selected_versions=()
+if [[ -n "$changed_paths" ]]; then
+  [[ -f "$changed_paths" && ! -L "$changed_paths" ]] || {
+    echo "changed-path input must be a regular non-symlink file" >&2
+    exit 1
+  }
+
+  declare -A changed_kernels=()
+  while IFS= read -r path || [[ -n "$path" ]]; do
+    [[ -n "$path" ]] || continue
+    if [[ "$path" =~ ^os/livepatches/batches/([^/]+)/([1-9][0-9]*)/(.+)$ ]]; then
+      kernel_version=${BASH_REMATCH[1]}
+      [[ "$kernel_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+        echo "malformed livepatch batch path: $path" >&2
+        exit 1
+      }
+      changed_kernels["$kernel_version"]=1
+    elif [[ "$path" == os/livepatches/batches/* ]]; then
+      echo "malformed livepatch batch path: $path" >&2
+      exit 1
+    fi
+  done <"$changed_paths"
+
+  if ((${#changed_kernels[@]})); then
+    mapfile -t selected_versions < <(printf '%s\n' "${!changed_kernels[@]}" | LC_ALL=C sort)
+  fi
+elif ((${#kernel_versions[@]})); then
+  declare -A requested_kernels=()
+  for kernel_version in "${kernel_versions[@]}"; do
+    [[ "$kernel_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+      echo "invalid kernel version: $kernel_version" >&2
+      exit 1
+    }
+    [[ -z "${requested_kernels[$kernel_version]:-}" ]] || {
+      echo "duplicate requested kernel version: $kernel_version" >&2
+      exit 1
+    }
+    requested_kernels["$kernel_version"]=1
+    selected_versions+=("$kernel_version")
+  done
+fi
+
+if [[ -n "$changed_paths" || ${#kernel_versions[@]} -gt 0 ]]; then
+  selected_json=$(printf '%s\n' "${selected_versions[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')
+  jq --argjson selectedVersions "$selected_json" '
+    . as $plan
+    | [
+        $selectedVersions[] as $kernelVersion
+        | [$plan.sets[] | select(.kernelVersion == $kernelVersion)] as $matches
+        | if ($matches | length) == 1 then
+            $matches[0]
+          elif ($matches | length) == 0 then
+            error("requested kernel is absent from the canonical plan: \($kernelVersion)")
+          else
+            error("canonical plan has duplicate sets for kernel: \($kernelVersion)")
+          end
+      ] as $sets
+    | [$sets[].id] as $setIds
+    | [$sets[].members[].release] as $memberReleases
+    | [.releases[] | select(.release as $release | $memberReleases | index($release))] as $releases
+    | [.rows[] | select(.setId as $setId | $setIds | index($setId))] as $rows
+    | [.coverage[] | select(.setId as $setId | $setIds | index($setId))] as $coverage
+    | [.matrix.include[] | select(.setId as $setId | $setIds | index($setId))] as $matrix
+    | .sets = $sets
+    | .releases = $releases
+    | .rows = $rows
+    | .coverage = $coverage
+    | .matrix.include = $matrix
+    | .selectedSets = ($sets | length)
+    | .dormant = (($sets | length) == 0)
+    | .counts.catalogReleases = ($releases | length)
+    | .counts.normalizedReleases = ($releases | length)
+    | .counts.plannedMembers = ([$sets[].members[]] | length)
+    | .counts.requiredProfilePlatformTuples = ([$rows[] | select(.scope == "set")] | length)
+    | .counts.activeOracles = ([$sets[].oracleIds[]] | length)
+    | .counts.coverageTuples = ($coverage | length)
+    | .counts.plannedRows = ($rows | length)
+    | .counts.matrixRows = ($matrix | length)
+  ' "$plan_tmp" >"$plan_tmp.selected"
+  mv -T -- "$plan_tmp.selected" "$plan_tmp"
 fi
 
 jq -e '

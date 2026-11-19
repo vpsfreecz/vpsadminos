@@ -549,6 +549,20 @@ pkgs.runCommand "livepatch-qualification-6.12.113.1-check" { nativeBuildInputs =
     ))
   ' "$actual" >/dev/null
 
+  for release in ${
+    pkgs.lib.concatStringsSep " " (
+      map pkgs.lib.escapeShellArg (map (member: member.release) qualificationActualNfsSet.members)
+    )
+  }; do
+    grep -F "$release" ${qualificationActualNfsOracleFile} >/dev/null
+  done
+  grep -F ${pkgs.lib.escapeShellArg qualificationNfsCompatibilitySetId} ${qualificationNfsCompatibilityOracleFile} >/dev/null
+  if grep -F ${pkgs.lib.escapeShellArg qualificationActualNfsSet.tipRelease} ${qualificationNfsCompatibilityOracleFile} >/dev/null \
+    && test ${pkgs.lib.escapeShellArg qualificationNfsCompatibilitySetId} != ${pkgs.lib.escapeShellArg qualificationActualNfsSet.tipRelease}; then
+    echo 'one-member NFS render retained the full-stack tip' >&2
+    exit 1
+  fi
+
   mkdir "$out"
   ${pkgs.bash}/bin/bash ${./nfs-acceptance.sh} \
     ${qualificationNfsValidator} \

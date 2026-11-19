@@ -1,4 +1,6 @@
 {
+  livepatchAutoloadReadiness.enable = true;
+
   docker = {
     registryMirrors = [
       "https://docker-registry.vpsadminos.org"

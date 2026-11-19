@@ -2,6 +2,12 @@ name: Generic livepatch qualification
 
 on:
   workflow_call:
+    inputs:
+      kernel-versions:
+        description: Optional exact target kernels, one per line
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -14,9 +20,13 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       selected-sets: ${{ steps.plan.outputs.selected-sets }}
       source-revision: ${{ steps.plan.outputs.source-revision }}
+      affected-matrix: ${{ steps.plan.outputs.affected-matrix }}
+      affected-selected-sets: ${{ steps.plan.outputs.affected-selected-sets }}
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
         env:
           GIT_CONFIG_COUNT: "1"
           GIT_CONFIG_KEY_0: maintenance.auto
@@ -41,21 +51,120 @@ jobs:
             --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT")
           printf 'directory=%s\n' "$workspace" >> "$GITHUB_OUTPUT"
 
-      - name: Discover a count-closed qualification plan
+      - name: Resolve the affected push range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_HEAD: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+        run: |
+          set -euo pipefail
+          changed="$LIVEPATCH_CI_WORKSPACE/changed-paths.txt"
+          source_revision=$(git rev-parse HEAD)
+          base=$source_revision
+          head=$source_revision
+          : > "$changed"
+
+          if [[ "$EVENT_NAME" == push ]]; then
+            head=$EVENT_HEAD
+            test -n "$head"
+            if [[ "$EVENT_BEFORE" =~ ^0+$ ]]; then
+              test -n "$DEFAULT_BRANCH"
+              git fetch --no-tags --prune origin \
+                "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+              base=$(git merge-base "refs/remotes/origin/$DEFAULT_BRANCH" "$head")
+            else
+              base=$EVENT_BEFORE
+              if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+                git fetch --no-tags --depth=1 origin "$base"
+              fi
+            fi
+            git cat-file -e "$base^{commit}"
+            git cat-file -e "$head^{commit}"
+            git diff --name-only "$base" "$head" > "$changed"
+          elif [[ "$EVENT_NAME" != workflow_dispatch ]]; then
+            echo "unsupported livepatch workflow event: $EVENT_NAME" >&2
+            exit 1
+          fi
+
+          jq -n \
+            --arg event "$EVENT_NAME" \
+            --arg base "$base" \
+            --arg head "$head" \
+            --arg sourceRevision "$source_revision" \
+            --arg changedPathsSha256 "$(sha256sum "$changed" | cut -d' ' -f1)" \
+            '{
+              event: $event,
+              base: $base,
+              head: $head,
+              sourceRevision: $sourceRevision,
+              changedPathsSha256: $changedPathsSha256
+            }' \
+            > "$LIVEPATCH_CI_WORKSPACE/range.json"
+
+      - name: Discover one canonical plan and its affected view
         id: plan
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_KERNELS: ${{ inputs['kernel-versions'] }}
           LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
         run: |
           set -euo pipefail
           tools/livepatch/discover.sh \
-            --plan "$LIVEPATCH_CI_WORKSPACE/plan.json" \
-            --matrix "$LIVEPATCH_CI_WORKSPACE/matrix.json"
+            --plan "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
+            --matrix "$LIVEPATCH_CI_WORKSPACE/full-matrix.json"
+
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            selector=()
+            while IFS= read -r kernel || [[ -n "$kernel" ]]; do
+              [[ -n "$kernel" ]] || continue
+              selector+=(--kernel-version "$kernel")
+            done <<< "$MANUAL_KERNELS"
+            if ((${#selector[@]})); then
+              tools/livepatch/discover.sh \
+                --input "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
+                --plan "$LIVEPATCH_CI_WORKSPACE/plan.json" \
+                --matrix "$LIVEPATCH_CI_WORKSPACE/matrix.json" \
+                "${selector[@]}"
+              cp "$LIVEPATCH_CI_WORKSPACE/plan.json" "$LIVEPATCH_CI_WORKSPACE/affected-plan.json"
+            else
+              cp "$LIVEPATCH_CI_WORKSPACE/full-plan.json" "$LIVEPATCH_CI_WORKSPACE/plan.json"
+              cp "$LIVEPATCH_CI_WORKSPACE/full-matrix.json" "$LIVEPATCH_CI_WORKSPACE/matrix.json"
+              tools/livepatch/discover.sh \
+                --input "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
+                --plan "$LIVEPATCH_CI_WORKSPACE/affected-plan.json" \
+                --matrix "$LIVEPATCH_CI_WORKSPACE/affected-qualification-matrix.json" \
+                --changed-paths "$LIVEPATCH_CI_WORKSPACE/changed-paths.txt"
+            fi
+          else
+            cp "$LIVEPATCH_CI_WORKSPACE/full-plan.json" "$LIVEPATCH_CI_WORKSPACE/plan.json"
+            cp "$LIVEPATCH_CI_WORKSPACE/full-matrix.json" "$LIVEPATCH_CI_WORKSPACE/matrix.json"
+            tools/livepatch/discover.sh \
+              --input "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
+              --plan "$LIVEPATCH_CI_WORKSPACE/affected-plan.json" \
+              --matrix "$LIVEPATCH_CI_WORKSPACE/affected-qualification-matrix.json" \
+              --changed-paths "$LIVEPATCH_CI_WORKSPACE/changed-paths.txt"
+          fi
+
+          jq -c '{include: [.sets[] | {
+            setId: .id,
+            kernelVersion,
+            tipRelease,
+            memberCount: (.members | length)
+          }]}' "$LIVEPATCH_CI_WORKSPACE/affected-plan.json" \
+            > "$LIVEPATCH_CI_WORKSPACE/affected-matrix.json"
           matrix=$(cat "$LIVEPATCH_CI_WORKSPACE/matrix.json")
+          affected_matrix=$(cat "$LIVEPATCH_CI_WORKSPACE/affected-matrix.json")
           test "${#matrix}" -lt 65536
+          test "${#affected_matrix}" -lt 65536
           {
             printf 'matrix=%s\n' "$matrix"
             printf 'selected-sets=%s\n' "$(jq -er '.selectedSets' "$LIVEPATCH_CI_WORKSPACE/plan.json")"
             printf 'source-revision=%s\n' "$(jq -er '.sourceRevision' "$LIVEPATCH_CI_WORKSPACE/plan.json")"
+            printf 'affected-matrix=%s\n' "$affected_matrix"
+            printf 'affected-selected-sets=%s\n' \
+              "$(jq -er '.selectedSets' "$LIVEPATCH_CI_WORKSPACE/affected-plan.json")"
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload the detailed qualification plan
@@ -89,6 +198,8 @@ jobs:
     runs-on: self-hosted
     outputs:
       capture-sha256: ${{ steps.capture.outputs.sha256 }}
+      workload-matrix: ${{ steps.coverage.outputs.workload-matrix }}
+      workload-selected-sets: ${{ steps.coverage.outputs.workload-selected-sets }}
 
     steps:
       - uses: actions/checkout@v7
@@ -144,6 +255,146 @@ jobs:
           printf 'sha256=%s\n' \
             "$(sha256sum "$LIVEPATCH_CI_WORKSPACE/capture/capture.json" | cut -d' ' -f1)" \
             >> "$GITHUB_OUTPUT"
+
+      - name: Publish and prove captured producer closures
+        env:
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+          VPSADMINOS_CACHE_SSH_KEY: ${{ secrets.VPSADMINOS_CACHE_SSH_KEY }}
+          VPSADMINOS_PUBLIC_CACHE: https://cache.vpsadminos.org
+          VPSADMINOS_PUBLIC_CACHE_KEY: cache.vpsadminos.org:wpIJlNZQIhS+0gFf1U3MC9sLZdLW3sh5qakOWGDoDrE=
+        run: |
+          set -euo pipefail
+          capture="$LIVEPATCH_CI_WORKSPACE/capture/capture.json"
+          local_requisites="$LIVEPATCH_CI_WORKSPACE/capture/local-requisites.txt"
+          recorded_requisites="$LIVEPATCH_CI_WORKSPACE/capture/recorded-requisites.txt"
+          public_requisites="$LIVEPATCH_CI_WORKSPACE/capture/public-requisites.txt"
+          local_info="$LIVEPATCH_CI_WORKSPACE/capture/local-path-info.json"
+          public_info="$LIVEPATCH_CI_WORKSPACE/capture/public-path-info.json"
+          producer_nars="$LIVEPATCH_CI_WORKSPACE/capture/producer-nar-sha256.tsv"
+          expected_members=$(jq -er '.counts.capturedMembers' "$capture")
+          [[ "$expected_members" =~ ^[1-9][0-9]*$ ]]
+          mapfile -t producers < <(
+            jq -er '.sets[].members[].identity.producer' "$capture"
+          )
+          ((${#producers[@]} == expected_members))
+          unique_producers=$(printf '%s\n' "${producers[@]}" \
+            | LC_ALL=C sort -u | wc -l)
+          ((unique_producers == expected_members))
+
+          jq -er '.sets[].members[].audit.requisites[]' "$capture" \
+            | LC_ALL=C sort -u > "$recorded_requisites"
+          nix-store --query --requisites "${producers[@]}" \
+            | LC_ALL=C sort -u > "$local_requisites"
+          cmp -- "$recorded_requisites" "$local_requisites"
+
+          install -m 600 -D <(printf '%s\n' "$VPSADMINOS_CACHE_SSH_KEY") .ssh/cache_id
+          export NIX_SSHOPTS='-i .ssh/cache_id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+          nix-copy-closure --to push@cache.int.vpsadminos.org "${producers[@]}"
+
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}-livepatch"
+          [[ -n "$branch" && "$branch" != -livepatch ]]
+          for producer in "${producers[@]}"; do
+            ssh -i .ssh/cache_id \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              push@cache.int.vpsadminos.org \
+              sudo push-ci-generation "$branch" "$producer"
+          done
+
+          nix path-info --json --json-format 1 --recursive "${producers[@]}" \
+            > "$local_info"
+          nix path-info --store "$VPSADMINOS_PUBLIC_CACHE" \
+            --json --json-format 1 --recursive "${producers[@]}" \
+            > "$public_info"
+          jq -r 'keys[]' "$public_info" | LC_ALL=C sort -u > "$public_requisites"
+          cmp -- "$recorded_requisites" "$public_requisites"
+          nix store verify \
+            --store "$VPSADMINOS_PUBLIC_CACHE" \
+            --recursive \
+            --no-contents \
+            --sigs-needed 1 \
+            --option trusted-public-keys "$VPSADMINOS_PUBLIC_CACHE_KEY" \
+            "${producers[@]}"
+
+          : > "$producer_nars"
+          for producer in "${producers[@]}"; do
+            jq -S --arg producer "$producer" '
+              .[$producer]
+              | {
+                  narHash,
+                  narSize,
+                  references: (.references | sort),
+                  deriver
+                }
+            ' "$local_info" > "$LIVEPATCH_CI_WORKSPACE/local-producer.json"
+            jq -S --arg producer "$producer" '
+              .[$producer]
+              | {
+                  narHash,
+                  narSize,
+                  references: (.references | sort),
+                  deriver
+                }
+            ' "$public_info" > "$LIVEPATCH_CI_WORKSPACE/public-producer.json"
+            cmp -- "$LIVEPATCH_CI_WORKSPACE/local-producer.json" \
+              "$LIVEPATCH_CI_WORKSPACE/public-producer.json"
+            local_nar=$(nix store dump-path "$producer" | sha256sum | cut -d' ' -f1)
+            public_nar=$(nix store dump-path \
+              --store "$VPSADMINOS_PUBLIC_CACHE" "$producer" \
+              | sha256sum | cut -d' ' -f1)
+            [[ "$local_nar" == "$public_nar" ]]
+            printf '%s\t%s\n' "$producer" "$local_nar" >> "$producer_nars"
+          done
+          rm -- "$LIVEPATCH_CI_WORKSPACE/local-producer.json" \
+            "$LIVEPATCH_CI_WORKSPACE/public-producer.json"
+
+      - name: Decide ordinary workload coverage from exact tuples
+        id: coverage
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_HEAD_REF_NAME: ${{ github.head_ref }}
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+        run: |
+          set -euo pipefail
+          plan="$LIVEPATCH_CI_WORKSPACE/input/plan.json"
+          affected="$LIVEPATCH_CI_WORKSPACE/input/affected-plan.json"
+          capture="$LIVEPATCH_CI_WORKSPACE/capture/capture.json"
+          reference="$LIVEPATCH_CI_WORKSPACE/capture/ordinary-reference.json"
+          coverage="$LIVEPATCH_CI_WORKSPACE/capture/ordinary-coverage.json"
+          configuration=null
+          source_revision=$(git rev-parse HEAD)
+          if [[ "$GITHUB_REF" == refs/heads/snajpa-6.18 || "$GITHUB_HEAD_REF_NAME" == snajpa-6.18 ]]; then
+            configuration='import ./os/configs/unstable.nix'
+          fi
+          EVENT_NAME="$EVENT_NAME" \
+          SOURCE_REVISION="$source_revision" \
+          LIVEPATCH_PLAN="$plan" \
+          LIVEPATCH_AFFECTED_PLAN="$affected" \
+          LIVEPATCH_CAPTURE="$capture" \
+          nix eval --json --impure --expr "
+            let flake = builtins.getFlake (toString ./.); in
+            import ./tools/livepatch/ordinary-coverage.nix {
+              inherit flake;
+              root = ./.;
+              system = \"x86_64-linux\";
+              configuration = $configuration;
+              sourceRevision = builtins.getEnv \"SOURCE_REVISION\";
+              event = builtins.getEnv \"EVENT_NAME\";
+              plan = builtins.fromJSON (builtins.readFile (builtins.getEnv \"LIVEPATCH_PLAN\"));
+              affectedPlan = builtins.fromJSON (builtins.readFile (builtins.getEnv \"LIVEPATCH_AFFECTED_PLAN\"));
+              capture = builtins.fromJSON (builtins.readFile (builtins.getEnv \"LIVEPATCH_CAPTURE\"));
+            }
+          " > "$coverage"
+          jq '.normal' "$coverage" > "$reference"
+          jq -c '.workloadMatrix' "$coverage" \
+            > "$LIVEPATCH_CI_WORKSPACE/capture/workload-matrix.json"
+          workload_matrix=$(cat "$LIVEPATCH_CI_WORKSPACE/capture/workload-matrix.json")
+          workload_count=$(jq -er '.include | length' "$LIVEPATCH_CI_WORKSPACE/capture/workload-matrix.json")
+          test "${#workload_matrix}" -lt 65536
+          {
+            printf 'workload-matrix=%s\n' "$workload_matrix"
+            printf 'workload-selected-sets=%s\n' "$workload_count"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload captured modules and realization evidence
         uses: actions/upload-artifact@v7
@@ -278,6 +529,214 @@ jobs:
         env:
           LIVEPATCH_CI_ROOT: ${{ runner.temp }}
           LIVEPATCH_CI_JOB: qualify
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+        run: |
+          tools/livepatch/ci-workspace.sh cleanup \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT" \
+            --directory "$LIVEPATCH_CI_WORKSPACE"
+
+  affected-regression:
+    name: Ordinary CI on ${{ matrix.tipRelease }}
+    if: ${{ needs.capture.outputs.workload-selected-sets != '0' }}
+    needs:
+      - discover
+      - capture
+    runs-on: self-hosted
+    timeout-minutes: 360
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.capture.outputs.workload-matrix) }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.discover.outputs.source-revision }}
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: maintenance.auto
+          GIT_CONFIG_VALUE_0: "false"
+
+      - name: Prepare locked livepatch CI tools
+        run: tools/livepatch/prepare-ci-tools.sh
+
+      - name: Prepare affected-target test workspace
+        id: workspace
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: results
+          LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
+          LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          workspace=$(tools/livepatch/ci-workspace.sh prepare \
+            --root "$LIVEPATCH_CI_ROOT" \
+            --job "$LIVEPATCH_CI_JOB" \
+            --run-id "$LIVEPATCH_CI_RUN_ID" \
+            --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT")
+          printf 'directory=%s\n' "$workspace" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare affected-target test state
+        id: prepare-tests
+        uses: ./.github/actions/prepare-test-state
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.directory }}/input
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.directory }}/input/capture
+
+      - name: Verify capture and count-close ordinary CI
+        env:
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+          VPSADMINOS_CONFIG: ${{ github.workspace }}/tests/configs/vpsadminos/livepatch-regression.nix
+          VPSADMINOS_LIVEPATCH_PLAN: ${{ steps.workspace.outputs.directory }}/input/plan.json
+          VPSADMINOS_LIVEPATCH_CAPTURE: ${{ steps.workspace.outputs.directory }}/input/capture/capture.json
+          VPSADMINOS_LIVEPATCH_SET_ID: ${{ matrix.setId }}
+        run: |
+          set -euo pipefail
+          plan="$VPSADMINOS_LIVEPATCH_PLAN"
+          capture="$VPSADMINOS_LIVEPATCH_CAPTURE"
+          evidence="$LIVEPATCH_CI_WORKSPACE/input/capture/evidence"
+          test "$(git rev-parse HEAD)" = "$(jq -er '.sourceRevision' "$plan")"
+          tools/livepatch/verify.sh \
+            --plan "$plan" \
+            --capture "$capture" \
+            --evidence-dir "$evidence" \
+            > "$LIVEPATCH_CI_WORKSPACE/capture-verification.json"
+
+          nix-instantiate --eval --strict --json \
+            test-runner/nix/evaluate-tests.nix \
+            --arg repoRoot "$GITHUB_WORKSPACE" \
+            --argstr system x86_64-linux \
+            --argstr mode testsMetaAll \
+            --arg testConfigPath "$GITHUB_WORKSPACE/tests/test-configs/livepatch-regression.nix" \
+            > "$LIVEPATCH_CI_WORKSPACE/tests-meta.json"
+          jq -r '
+            [
+              to_entries[] as $test
+              | ($test.value.testScripts | to_entries[]) as $script
+              | (($test.value.tags // []) + ($script.value.tags // [])) as $tags
+              | (($test.value.labels // {}) + ($script.value.labels // {})) as $labels
+              | select($tags | index("ci"))
+              | {
+                  path: (
+                    if (($test.value.testScripts | length) == 1 and ($test.value.testScripts | has("default")))
+                    then $test.key
+                    else "\($test.key)#\($script.key)"
+                    end
+                  ),
+                  status: $labels["livepatch-regression"],
+                  reason: $labels["livepatch-regression-reason"]
+                }
+            ] | sort_by(.path)
+          ' "$LIVEPATCH_CI_WORKSPACE/tests-meta.json" \
+            > "$LIVEPATCH_CI_WORKSPACE/ordinary-ci-inventory.json"
+          jq -e '
+            length > 0
+            and (all(.status == "eligible" or .status == "excluded"))
+            and (all(.reason != null and (.reason | length) > 0))
+            and ([.[].path] | length == (unique | length))
+            and ([.[] | select(.status == "eligible")] | length > 0)
+            and ([.[] | select(.status == "excluded" and (
+              .reason != "no-vpsadminos"
+              and .reason != "firmware-boot"
+              and .reason != "configuration-bypassed"
+              and .reason != "fixture:production-manager"
+              and .reason != "fixture:native-lifecycle"
+              and .reason != "fixture:activation-policy"
+            ))] | length == 0)
+          ' "$LIVEPATCH_CI_WORKSPACE/ordinary-ci-inventory.json" >/dev/null
+          jq -r '.[] | [.path, .status, .reason] | @tsv' \
+            "$LIVEPATCH_CI_WORKSPACE/ordinary-ci-inventory.json" \
+            > "$LIVEPATCH_CI_WORKSPACE/ordinary-ci-inventory.tsv"
+          jq '{
+            total: length,
+            eligible: ([.[] | select(.status == "eligible")] | length),
+            excluded: ([.[] | select(.status == "excluded")] | length),
+            excludedReasons: ([.[] | select(.status == "excluded") | .reason]
+              | group_by(.) | map({reason: .[0], count: length}))
+          }' "$LIVEPATCH_CI_WORKSPACE/ordinary-ci-inventory.json" \
+            > "$LIVEPATCH_CI_WORKSPACE/ordinary-ci-counts.json"
+
+      - name: Run ordinary CI with the captured stack active
+        id: run-tests
+        timeout-minutes: 350
+        env:
+          TEST_RUNNER_STATE_DIR: ${{ steps.prepare-tests.outputs.state-directory }}
+          VPSADMINOS_CONFIG: ${{ github.workspace }}/tests/configs/vpsadminos/livepatch-regression.nix
+          VPSADMINOS_LIVEPATCH_PLAN: ${{ steps.workspace.outputs.directory }}/input/plan.json
+          VPSADMINOS_LIVEPATCH_CAPTURE: ${{ steps.workspace.outputs.directory }}/input/capture/capture.json
+          VPSADMINOS_LIVEPATCH_SET_ID: ${{ matrix.setId }}
+        run: |
+          set -o pipefail
+          args=(
+            test
+            --test-config tests/test-configs/livepatch-regression.nix
+            --state-dir "$TEST_RUNNER_STATE_DIR"
+            --jobs auto
+            --prebuild
+            -f
+            -t ci
+            -l livepatch-regression=eligible
+          )
+          ./test-runner.sh "${args[@]}" | tee "$TEST_RUNNER_STATE_DIR/test.log"
+
+      - name: Upload affected-target test evidence
+        id: upload-test-logs
+        if: ${{ always() && steps.prepare-tests.outcome == 'success' && steps.run-tests.outcome != 'skipped' }}
+        uses: ./.github/actions/upload-test-logs
+        with:
+          name: os-test-logs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.setId }}
+          retention-days: 30
+          paths: |
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.log
+            ${{ steps.prepare-tests.outputs.state-directory }}/**/*.txt
+            ${{ steps.workspace.outputs.directory }}/input/plan.json
+            ${{ steps.workspace.outputs.directory }}/input/capture/capture.json
+            ${{ steps.workspace.outputs.directory }}/input/capture/ordinary-coverage.json
+            ${{ steps.workspace.outputs.directory }}/ordinary-ci-inventory.json
+            ${{ steps.workspace.outputs.directory }}/ordinary-ci-inventory.tsv
+            ${{ steps.workspace.outputs.directory }}/ordinary-ci-counts.json
+
+      - name: Evaluate affected-target test results
+        if: ${{ always() && steps.prepare-tests.outcome == 'success' && steps.run-tests.outcome != 'skipped' }}
+        uses: ./.github/actions/evaluate-test-results
+        with:
+          log-file: ${{ steps.prepare-tests.outputs.state-directory }}/test.log
+
+      - name: Summarise affected-target test logs
+        if: ${{ always() && steps.prepare-tests.outcome == 'success' && steps.run-tests.outcome != 'skipped' }}
+        uses: ./.github/actions/summarise-test-logs
+        with:
+          logs-root: ${{ steps.prepare-tests.outputs.state-directory }}
+
+      - name: Cleanup affected-target test state
+        if: ${{ always() }}
+        uses: ./.github/actions/cleanup-test-state
+        with:
+          state-directory: ${{ steps.prepare-tests.outputs.state-directory }}
+          prepare-outcome: ${{ steps.prepare-tests.outcome }}
+          test-outcome: ${{ steps.run-tests.outcome }}
+          upload-outcome: ${{ steps.upload-test-logs.outcome }}
+
+      - name: Cleanup affected-target test workspace
+        if: >-
+          always() &&
+          steps.workspace.outcome == 'success' &&
+          (steps.run-tests.outcome == 'success' || steps.upload-test-logs.outcome == 'success')
+        env:
+          LIVEPATCH_CI_ROOT: ${{ runner.temp }}
+          LIVEPATCH_CI_JOB: results
           LIVEPATCH_CI_RUN_ID: ${{ github.run_id }}
           LIVEPATCH_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
           LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}

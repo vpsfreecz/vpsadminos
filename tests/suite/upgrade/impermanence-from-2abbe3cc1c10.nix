@@ -50,6 +50,10 @@ import (production.outPath + "/tests/make-template.nix")
           "upgrade"
           "ci"
         ];
+        labels = {
+          livepatch-regression = "excluded";
+          livepatch-regression-reason = "configuration-bypassed";
+        };
         attempts = 1;
         machine = import (production.outPath + "/tests/machines/vpsadminos/with-tank.nix") {
           inherit pkgs;

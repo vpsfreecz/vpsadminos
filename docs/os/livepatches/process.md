@@ -339,6 +339,19 @@ requisites. A workflow row must rehash and validate the capture before it uses
 the module. It must not independently discover or rebuild a different current
 producer and call the result equivalent.
 
+The capture artifact carries identity and verification evidence. CI transfers
+Nix store objects separately. After local verification, the capture job checks
+the producer count and complete recursive requisite set against the capture,
+copies those exact closures to the signed vpsAdminOS binary cache, and retains
+each producer in the branch's `-livepatch` profile generations. Before other
+jobs can use the capture, it verifies public availability and signatures for
+the whole closure and compares each producer's NAR contents, hash, size,
+references and deriver with the local object.
+
+Consumer jobs realise the exact captured producer paths with fallback disabled,
+then verify the module and evidence. Cache availability does not permit an
+equivalent rebuild, a different producer or weaker capture checks.
+
 The stable maintainer entry points are:
 
 ```sh
@@ -375,6 +388,54 @@ Qualification covers these layers:
 4. Every active fix-local safety, operation or behavioral profile, including
    predecessor profiles exposed at each rollback level.
 5. Whole-stack loading root-to-tip and reversal tip-to-root.
+
+### Regression tests on the livepatch target
+
+By default, normal CI builds the latest stable configuration and runs the
+complete requested ordinary test suite. Each direct-boot vpsAdminOS test
+machine that selects modules for automatic loading checks its livepatch state
+after the production manager runs. The complete configured stack must be
+present, active and converged, and `uname -r` must report the configured tip.
+The check creates a fresh `/run` marker only after it passes. On failure, it
+records the reason and forces the no-reboot test VM to terminate before runit
+can start a test shell. Every real reboot repeats the check. Configurations
+without selected modules, configurations with automatic loading disabled, and
+intentional livepatch-state fixtures keep their existing behavior.
+
+The standalone Livepatch qualification workflow calls `livepatch.yml` to
+discover and capture the selected releases. It evaluates one canonical plan,
+then captures and verifies each selected producer once. On a push, changes
+below `os/livepatches/batches/<kernel>/<ordinal>/` select the latest complete
+set for each affected kernel, including every contiguous predecessor. Other
+relevant livepatch changes run the full dedicated qualification campaign
+without selecting an extra ordinary-test target. A manual dispatch may select
+exact kernel versions; an empty selection runs the full dedicated campaign
+without an affected-target ordinary row. An inaccessible comparison range
+fails the workflow.
+
+After capture, the workflow compares each affected set with the normal CI
+generation from the same source revision. Reuse requires matching source and
+lock identities, automatic-load policy, target ID, ordered releases, producer
+and module store paths, and module names. On a push, an exact match records
+that normal CI covers that ordinary workload row. Any missing or unequal value
+runs the serial affected-target row instead. A manual exact-target dispatch
+always runs its ordinary row. This comparison selects coverage; it does not
+establish that normal CI has passed.
+
+An affected-target row downloads the existing plan and capture, verifies them
+again after transfer, and runs the eligible ordinary `ci` scripts with the
+complete captured stack. Its inventory accounts for every ordinary `ci`
+script as eligible or excluded and records each exclusion reason. Before a
+test shell becomes ready, the boot gate checks the native target, captured
+module bytes, full manager inventory, livepatch state and tip release. Every
+reboot repeats the gate. Tests use the captured modules directly.
+
+Ordinary workload regression and dedicated livepatch qualification must both
+pass at the final source revision. Dedicated qualification covers native and
+intermediate stages, transitions, failure recovery, rollback and fix-oracle
+evidence. Normal CI or the affected-target row covers ordinary workloads.
+These results do not authorize integration, deployment, production activation
+or rollout.
 
 ### Fast checks before a campaign
 

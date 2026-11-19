@@ -1,6 +1,11 @@
 import ../../make-test.nix (
   { pkgs }:
   let
+    availableKernels = import ../../../os/packages/linux/available-kernels.nix {
+      inherit (pkgs) lib;
+    };
+    inherit (availableKernels) unstableKernelVersion;
+
     syslogNsProbe = pkgs.stdenv.mkDerivation {
       pname = "vpsadminos-syslog-ns-probe";
       version = "1";
@@ -145,6 +150,7 @@ import ../../make-test.nix (
           {
             # The selected 6.18 source owns these downstream selftests.
             system.vpsadminos.enableUnstable = true;
+            boot.kernelVersion = lib.mkForce unstableKernelVersion;
             boot.qemu = {
               memory = lib.mkForce 4096;
               cpus = lib.mkForce 1;
