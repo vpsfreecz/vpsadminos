@@ -1,6 +1,6 @@
 From: Pavel Snajdr <snajpa@snajpa.net>
 Date: Sun, 20 Sep 2026 00:00:00 +0200
-Subject: [PATCH] kpatch-build: skip objects that cannot be reconciled on 6.12.95
+Subject: [PATCH v4] kpatch-build: skip unreconcilable 6.12.95 objects
 
 Two objects in the 6.12.95 vpsadminos build cannot be processed by
 create-diff-object:
@@ -16,17 +16,38 @@ create-diff-object:
     rebuild shows identical code, rodata, relocation and symbol tables;
     only debug line-number data differs.  Zero changed functions.
 
-Both objects contribute no patchable content to this module; skip them
-the same way usr/initramfs_data.o is skipped.
+Two BPF-side header fan-out objects also contain no patchable content:
+
+  - net/bpf/test_run.o and kernel/bpf/helpers.o contain only debug,
+    BTF-ID and unselected init-text bookkeeping differences.  Neither is
+    a direct payload object or contributes a changed function.
+
+An earlier revision also skipped net/core/filter.o.  With the exact
+producer inputs, create-diff-object now returns its normal no-difference
+status and emits no diff object for that original/patched pair.  Leave it
+on the normal create-diff-object path so any later functional difference
+cannot be hidden by an early skip.
+
+Skip the four remaining objects the same way usr/initramfs_data.o is
+skipped.
+
+Development history:
+
+  v2: Record the boot-only ring-buffer disposition and the exact
+      debug-only t4_hw.o classification.
+  v3: Add the three BPF-side header fan-out objects that the then-current
+      create-diff-object could not reconcile.
+  v4: Remove filter.o from the early skip after exact retained-object
+      admission proved the pinned producer reports no functional diff.
 
 Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
 ---
- kpatch-build/kpatch-build | 6 ++++++
- 1 file changed, 6 insertions(+)
+ kpatch-build/kpatch-build | 7 +++++++
+ 1 file changed, 7 insertions(+)
 
 --- a/kpatch-build/kpatch-build
 +++ b/kpatch-build/kpatch-build
-@@ -1445,6 +1445,14 @@
+@@ -1445,6 +1445,13 @@
  		[[ "$i" = arch/x86/lib/copy_user_64.o ]] && continue
  
  	[[ "$i" = usr/initramfs_data.o ]] && continue
@@ -35,7 +56,6 @@ Signed-off-by: Pavel Snajdr <snajpa@snajpa.net>
 +	# ring_buffer.o's row is carried boot-only, t4_hw.o is debug-only.
 +	[[ "$i" = kernel/trace/ring_buffer.o ]] && continue
 +	[[ "$i" = net/bpf/test_run.o ]] && continue
-+	[[ "$i" = net/core/filter.o ]] && continue
 +	[[ "$i" = kernel/bpf/helpers.o ]] && continue
 +	[[ "$i" = drivers/net/ethernet/chelsio/cxgb4/t4_hw.o ]] && continue
  
