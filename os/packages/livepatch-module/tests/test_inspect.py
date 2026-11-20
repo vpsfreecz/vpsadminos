@@ -292,7 +292,7 @@ class CompareClosureTest(unittest.TestCase):
     def test_payload_and_generated_closure_violations_fail(self):
         actual = self.actual()
         actual["shadowImports"] = ["klp_shadow_get"]
-        actual["skippedChangedObjects"] = ["net/core/filter.o"]
+        actual["skippedChangedObjects"] = ["net/bpf/test_run.o"]
         actual["imports"].append(".klp.sym.vmlinux.unexpected,0")
         actual["relocations"].append(".klp.rela.vmlinux.text.unexpected")
         replacement = {
