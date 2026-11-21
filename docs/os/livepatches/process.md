@@ -204,6 +204,19 @@ vulnerable or corrected bug reproduction, bug-specific failure injection, or a
 native-fixed comparison. A separate kernel-fix investigation may provide
 selection evidence, but it does not silently become a livepatch release gate.
 
+vpsAdminOS does not control the workloads users run in containers, including
+KVM VMs. Livepatch qualification must demonstrate clean forward and supported
+reverse transitions, continued ordinary workload progress, and system stability
+while those workloads keep running. Normal livepatching must not depend on
+stopping, resetting, restarting or recreating user workloads, denying their
+device access, or proving that no earlier bad state exists.
+
+A preventive livepatch protects future execution; it does not repair damage
+from earlier failures. Keep known failures under the existing recovery
+procedure. If source or artifact analysis shows that a correction cannot
+transition safely without controlling user-owned workloads, treat it as
+unsupported for livepatching under that operating contract.
+
 Every fix still has one qualification manifest so catalog and coverage closure
 remain exact. The manifest contains only executable oracle identity, role,
 applicable platforms, timeout, expected outcome, adapter and validator. A
@@ -677,8 +690,9 @@ Before loading each node:
    realization.
 3. Confirm the current native or predecessor release is exactly the state
    required by the target page.
-4. Quiesce or bound affected work as required by the fix and establish
-   monitoring before loading.
+4. Establish monitoring and keep user-owned workloads running. Quiesce or bound
+   only operator-owned work when the release requires it; this must not
+   substitute for proving safe transitions with user-owned workloads.
 5. Load only the next contiguous release. Wait for `enabled=1`, `transition=0`,
    `replace=0` and the expected published release before continuing.
 6. Run every active fix oracle and the required health/workload checks. Preserve
