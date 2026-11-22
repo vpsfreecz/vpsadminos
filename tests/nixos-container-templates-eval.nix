@@ -6,6 +6,8 @@ let
   vpsadminos = builtins.getFlake "git+file://${toString ../.}";
   stable = vpsadminos.inputs.nixpkgs;
   unstable = vpsadminos.inputs.nixpkgsUnstable;
+  historical = import ../os/lib/nixos-container/stable/historical-nixpkgs.nix;
+  system = "x86_64-linux";
   lib = stable.lib;
   lock = builtins.fromJSON (builtins.readFile ../flake.lock);
   stableNixpkgsNode = lock.nodes.${lock.nodes.root.inputs.nixpkgs};
@@ -16,38 +18,76 @@ let
   revision = vpsadminos.rev or (builtins.substring 0 40 vpsadminos.dirtyRev);
   check = name: condition: if condition then true else throw "NixOS template check failed: ${name}";
   evaluateTemplate =
-    channel: includeImpermanence:
+    route: includeImpermanence:
     let
-      nixpkgs = if channel == "stable" then stable else unstable;
-      nixpkgsNode = if channel == "stable" then stableNixpkgsNode else unstableNixpkgsNode;
+      isUnstable = route == "unstable";
+      expectedRelease =
+        if route == "stable" then
+          "26.11"
+        else if isUnstable then
+          unstable.lib.trivial.release
+        else
+          route;
+      nixpkgs =
+        if route == "stable" then
+          stable
+        else if isUnstable then
+          unstable
+        else
+          historical.${route}.input;
+      nixpkgsNode =
+        if route == "stable" then
+          stableNixpkgsNode
+        else if isUnstable then
+          unstableNixpkgsNode
+        else
+          historical.${route}.node;
       guestLib = nixpkgs.lib;
-      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      pkgs = nixpkgs.legacyPackages.${system};
+      variant = if includeImpermanence then "impermanence" else "minimal";
+      channel = if isUnstable then "unstable" else "stable";
+      moduleDir = vpsadminos.outPath + "/os/lib/nixos-container/${channel}";
+      template = moduleDir + "/${variant}.nix";
+      modulesPath = "${nixpkgs}/nixos/modules";
+      specialArgs = {
+        inherit
+          impermanenceNode
+          impermanenceNixpkgsNode
+          homeManagerNode
+          nixpkgsNode
+          stableNixpkgsNode
+          unstableNixpkgsNode
+          ;
+        impermanence = vpsadminos.inputs.impermanence;
+        vpsadminosGithubRev = revision;
+      };
       # The first-boot cp commands identify each file as actually emitted by the
       # template. No second implementation of the renderer is used here.
-      rendered =
-        import
-          (
-            ../os/lib/nixos-container
-            + "/${channel}/${if includeImpermanence then "impermanence" else "minimal"}.nix"
-          )
-          {
-            inherit
-              impermanenceNode
-              impermanenceNixpkgsNode
-              homeManagerNode
-              nixpkgsNode
-              stableNixpkgsNode
-              unstableNixpkgsNode
-              ;
-            impermanence = vpsadminos.inputs.impermanence;
-            vpsadminosGithubRev = revision;
-            lib = guestLib;
-            pkgs = pkgs // {
-              writeText = builtins.toFile;
-            };
-            modulesPath = "${nixpkgs}/nixos/modules";
-            config.nix.package.out = "/nix-package";
+      rendered = import template (
+        specialArgs
+        // {
+          inherit modulesPath;
+          lib = guestLib;
+          pkgs = pkgs // {
+            writeText = builtins.toFile;
           };
+          config.nix.package.out = "/nix-package";
+        }
+      );
+      imageConfig =
+        (nixpkgs.lib.nixosSystem {
+          inherit system pkgs specialArgs;
+          modules = [ template ];
+        }).config;
+      suffix = lib.replaceStrings [ "." ] [ "_" ] route;
+      package = "template-${lib.optionalString includeImpermanence "impermanence-"}${suffix}";
+      build = if includeImpermanence then "impermanenceTarball" else "tarball";
+      rawFile = if isUnstable then "vpsadminos.nix" else "vpsadminos-${expectedRelease}.nix";
+      baseImports =
+        (import (moduleDir + "/base.nix") {
+          inherit modulesPath pkgs;
+          lib = guestLib;
+        }).imports;
       copyLines = lib.filter (line: lib.hasPrefix "cp /nix/store/" line) (
         map lib.trim (lib.splitString "\n" rendered.boot.postBootCommands)
       );
@@ -65,6 +105,16 @@ let
       );
       guestLock = builtins.fromJSON (builtins.readFile files."flake.lock");
       guestFlake = import files."flake.nix";
+      expectedRev =
+        {
+          "25.11" = "b6018f87da91d19d0ab4cf979885689b469cdd41";
+          "26.05" = "94c3211b0ee8ba969a3f12eb4aff8ba0f72971dd";
+          stable = "fe08e4f8a90a7db0eeaa0916247187cf09ea4c71";
+          unstable = unstable.rev;
+        }
+        .${route};
+      expectedUrl =
+        "github:NixOS/nixpkgs/" + (if route == "stable" then expectedRev else "nixos-${route}");
       # Resolve ./configuration.nix next to the real generated flake text.
       # builtins.toFile cannot create a directory; rewrite only this file path.
       resolvedFlake = builtins.toFile "resolved-template-flake.nix" (
@@ -80,10 +130,14 @@ let
       };
       evaluated = (import resolvedFlake).outputs guestInputs;
       config = evaluated.nixosConfigurations.vps.config;
-      moduleName = if channel == "stable" then "containerStable" else "containerUnstable";
-      expectedModule = vpsadminos.nixosModules.${moduleName};
+      moduleName = if isUnstable then "containerUnstable" else "containerStable";
+      expectedModule =
+        if isUnstable then
+          vpsadminos.nixosModules.containerUnstable
+        else
+          vpsadminos.nixosModules.containers.${expectedRelease};
       explicit = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
+        inherit system;
         modules = [
           expectedModule
           files."configuration.nix"
@@ -103,11 +157,14 @@ let
             "impermanence"
             "nixpkgs"
           ];
-      name = "${channel}/${if includeImpermanence then "impermanence" else "minimal"}";
+      name = "${route}/${variant}";
     in
     rec {
       inputLock = check "${name} input lock" (
-        builtins.parseFlakeRef guestFlake.inputs.nixpkgs.url == nixpkgsNode.original
+        guestFlake.inputs.nixpkgs.url == expectedUrl
+        && guestLock.nodes.nixpkgs.original == builtins.parseFlakeRef expectedUrl
+        && guestLock.nodes.nixpkgs.locked.rev == expectedRev
+        && builtins.parseFlakeRef guestFlake.inputs.nixpkgs.url == nixpkgsNode.original
         && builtins.parseFlakeRef guestFlake.inputs.vpsadminos.url == guestLock.nodes.vpsadminos.original
         && (
           !includeImpermanence
@@ -115,6 +172,8 @@ let
         )
         && guestLock.version == 7
         && guestLock.nodes.root.inputs.nixpkgs == "nixpkgs"
+        && nixpkgs.rev == nixpkgsNode.locked.rev
+        && nixpkgs.narHash == nixpkgsNode.locked.narHash
         && guestLock.nodes.root.inputs.vpsadminos == "vpsadminos"
         && (guestLock.nodes.root.inputs ? impermanence) == includeImpermanence
         &&
@@ -136,7 +195,8 @@ let
       guest =
         inputLock
         && check name (
-          config.system.stateVersion == guestLib.trivial.release
+          config.system.nixos.release == expectedRelease
+          && config.system.stateVersion == expectedRelease
           && config.boot.isContainer
           && config.system.build.toplevel.drvPath == explicit.config.system.build.toplevel.drvPath
           && lib.hasInfix "vpsadminos.nixosModules.${moduleName}" (builtins.readFile files."flake.nix")
@@ -150,8 +210,26 @@ let
             )
           )
         );
+      image =
+        assert check "${name} tarball release, module, and package" (
+          imageConfig.system.nixos.release == expectedRelease
+          && imageConfig.system.stateVersion == expectedRelease
+          && builtins.elem (toString (moduleDir + "/${rawFile}")) (map toString baseImports)
+          && imageConfig.system.build.${build}.drvPath == vpsadminos.packages.${system}.${package}.drvPath
+        );
+        {
+          inherit package variant;
+          release = imageConfig.system.nixos.release;
+          rev = nixpkgsNode.locked.rev;
+          module = "${channel}/${rawFile}";
+          drvPath = vpsadminos.packages.${system}.${package}.drvPath;
+        };
     };
   templates = {
+    "25.11" = evaluateTemplate "25.11" false;
+    "25.11-impermanence" = evaluateTemplate "25.11" true;
+    "26.05" = evaluateTemplate "26.05" false;
+    "26.05-impermanence" = evaluateTemplate "26.05" true;
     stable = evaluateTemplate "stable" false;
     stableImpermanence = evaluateTemplate "stable" true;
     unstable = evaluateTemplate "unstable" false;
@@ -161,4 +239,5 @@ in
 builtins.mapAttrs (_: template: template.guest) templates
 // {
   inputLocks = builtins.mapAttrs (_: template: template.inputLock) templates;
+  images = builtins.mapAttrs (_: template: template.image) templates;
 }

@@ -1,7 +1,21 @@
+function nixos-template-channel {
+	case "$1" in
+		nixos-25.11) printf '%s\n' 25_11 ;;
+		nixos-26.05) printf '%s\n' 26_05 ;;
+		nixos-26.11) printf '%s\n' stable ;;
+		nixos-unstable) printf '%s\n' unstable ;;
+		*) return 1 ;;
+	esac
+}
+
 function build-nixos {
 	local vpsadminos=
 	local vpsadminos_rev=
 	local nix_config=
+	local template_channel=
+
+	template_channel="$(nixos-template-channel "$CHANNEL")" \
+		|| fail "unsupported NixOS image channel: $CHANNEL"
 
 	[ -n "${OSCTL_IMAGE_VPSADMINOS_DIR-}" ] \
 		|| fail "path to vpsadminos sources not provided"
@@ -35,12 +49,6 @@ function build-nixos {
 			result_dir=template
 	esac
 
-	if [ "$CHANNEL" == "nixos-unstable" ] ; then
-		TEMPLATE_CHANNEL=unstable
-	else
-		TEMPLATE_CHANNEL=stable
-	fi
-
 	if [ -n "${NIX_CONFIG-}" ] ; then
 		nix_config="$NIX_CONFIG
 experimental-features = nix-command flakes"
@@ -49,7 +57,7 @@ experimental-features = nix-command flakes"
 	fi
 
 	NIX_CONFIG="$nix_config" \
-		$build_command TEMPLATE_CHANNEL=$TEMPLATE_CHANNEL || fail "failed to build the template"
+		$build_command TEMPLATE_CHANNEL="$template_channel" || fail "failed to build the template"
 
 	tar -xzf result/$result_dir/tarball/*.tar.gz -C "$INSTALL"
 	mv "$INSTALL/nix-path-registration" "$INSTALL/nix/nix-path-registration"

@@ -161,6 +161,7 @@
             "stable"
           ];
         };
+        "26.11" = { };
         "unstable" = {
           tags = [ "unstable" ];
         };
@@ -172,6 +173,7 @@
             "stable"
           ];
         };
+        "26.11-impermanence" = { };
         "unstable-impermanence" = {
           tags = [ "unstable" ];
         };

@@ -1,11 +1,11 @@
 # Immutable sources shared by the pure check and registered upgrade suite.
 {
   system,
-  nixpkgs ? null,
   nixpkgsUnstable ? null,
   impermanence ? null,
 }:
 let
+  historical = import ../../os/lib/nixos-container/stable/historical-nixpkgs.nix;
   lock = builtins.fromJSON (builtins.readFile ../../flake.lock);
   fetch = locked: builtins.fetchTree ({ type = "github"; } // locked);
   fromLock = name: fetch lock.nodes.${lock.nodes.root.inputs.${name}}.locked;
@@ -23,20 +23,20 @@ let
   };
 in
 {
-  releases = {
-    "25.11" =
-      release
-        (fetch {
-          owner = "NixOS";
-          repo = "nixpkgs";
-          rev = "b6018f87da91d19d0ab4cf979885689b469cdd41";
-          narHash = "sha256-twXPFqFsrrY5r28Zh7Homgcp2gUMBgQ6WDS98Q/3xFI=";
-        }).outPath;
-    "26.05" = release (if nixpkgs == null then (fromLock "nixpkgs").outPath else nixpkgs.outPath);
-    unstable = release (
-      if nixpkgsUnstable == null then (fromLock "nixpkgsUnstable").outPath else nixpkgsUnstable.outPath
-    );
-  };
+  releases =
+    builtins.mapAttrs (
+      version: pin:
+      let
+        guest = release (fetch pin.node.locked).outPath;
+      in
+      assert guest.lib.trivial.release == version;
+      guest
+    ) historical
+    // {
+      unstable = release (
+        if nixpkgsUnstable == null then (fromLock "nixpkgsUnstable").outPath else nixpkgsUnstable.outPath
+      );
+    };
   impermanenceModule =
     (if impermanence == null then (fromLock "impermanence").outPath else impermanence.outPath)
     + "/nixos.nix";

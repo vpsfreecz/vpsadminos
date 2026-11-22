@@ -81,6 +81,7 @@
         "25.05" = import ./os/lib/nixos-container/stable/vpsadminos-25.05.nix;
         "25.11" = import ./os/lib/nixos-container/stable/vpsadminos-25.11.nix;
         "26.05" = import ./os/lib/nixos-container/stable/vpsadminos-26.05.nix;
+        "26.11" = import ./os/lib/nixos-container/stable/vpsadminos-26.11.nix;
       };
       containerReleaseAliases = nixpkgs.lib.mapAttrs' (release: module: {
         name = "container_${nixpkgs.lib.replaceStrings [ "." ] [ "_" ] release}";
@@ -513,6 +514,27 @@
             nixpkgsInput = nixpkgs;
             nixpkgsNode = stableNixpkgsNode;
           };
+          historicalTemplates = nixpkgs.lib.concatMapAttrs (
+            release:
+            { input, node }:
+            let
+              mkTemplate =
+                module:
+                mkNixosTemplate {
+                  inherit module;
+                  nixpkgsInput = input;
+                  nixpkgsNode = node;
+                };
+              minimal = mkTemplate ./os/lib/nixos-container/stable/minimal.nix;
+              impermanent = mkTemplate ./os/lib/nixos-container/stable/impermanence.nix;
+              # Make's flake fragments use unquoted attribute paths.
+              suffix = nixpkgs.lib.replaceStrings [ "." ] [ "_" ] release;
+            in
+            {
+              "template-${suffix}" = minimal.config.system.build.tarball;
+              "template-impermanence-${suffix}" = impermanent.config.system.build.impermanenceTarball;
+            }
+          ) (import ./os/lib/nixos-container/stable/historical-nixpkgs.nix);
           templateUnstableSystem = mkNixosTemplate {
             module = ./os/lib/nixos-container/unstable/minimal.nix;
             nixpkgsInput = nixpkgsUnstable;
@@ -549,6 +571,7 @@
               pkgs = pkgsWithOverlays;
             };
           }
+          // historicalTemplates
           // ciKernelToplevelPackages
           // (mkLivepatchContext system).packages
         )
@@ -1775,7 +1798,6 @@
             source = self.outPath;
             inherit
               system
-              nixpkgs
               nixpkgsUnstable
               impermanence
               ;

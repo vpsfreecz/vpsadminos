@@ -3,9 +3,22 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+. image-scripts/include/nixos.sh
+for route in 25.11:25_11 26.05:26_05 26.11:stable unstable:unstable; do
+  if [[ "$(nixos-template-channel "nixos-${route%:*}")" != "${route#*:}" ]]; then
+    echo "Wrong template channel for nixos-${route%:*}" >&2
+    exit 1
+  fi
+done
+if nixos-template-channel nixos-99.99; then
+  echo 'Unsupported NixOS image channel unexpectedly succeeded' >&2
+  exit 1
+fi
+
 nix eval --impure --json --file tests/nixos-container-modules-eval.nix
 nix eval --impure --json --file tests/nixos-container-templates-eval.nix
 nix eval --impure --json --file tests/nixos-container-standalone-eval.nix
+nix eval --impure --json --file tests/nixos-container-image-repository-eval.nix
 
 error_log=$(mktemp)
 trap 'rm -f "$error_log"' EXIT
@@ -18,7 +31,7 @@ for release in 21.11 99.99 26_05 unstable ''; do
   error_text=$(cat "$error_log")
   for expected in \
     "unsupported stable NixOS release '$release'" \
-    'Known stable releases: 22.11, 23.05, 23.11, 24.05, 24.11, 25.05, 25.11, 26.05' \
+    'Known stable releases: 22.11, 23.05, 23.11, 24.05, 24.11, 25.05, 25.11, 26.05, 26.11' \
     'Update the vpsadminos input' \
     'nixosModules.containerUnstable'; do
     if [[ "$error_text" != *"$expected"* ]]; then

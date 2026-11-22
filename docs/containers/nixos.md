@@ -36,8 +36,10 @@ does not require changing stateVersion. The vpsAdminOS flake's own nixpkgs input
 also does not determine which guest module is selected.
 
 The release map contains `22.11`, `23.05`, `23.11`, `24.05`,
-`24.11`, `25.05`, `25.11` and `26.05`. These modules remain available for
+`24.11`, `25.05`, `25.11`, `26.05` and `26.11`. These modules are available for
 compatibility; their availability does not imply upstream security support.
+The `26.11` entry supports the nixpkgs snapshot pinned for the pre-release
+port. It does not require an upstream `nixos-26.11` channel.
 You can select a release explicitly with a literal key:
 
 ```nix
@@ -81,6 +83,11 @@ templates generate `nixosModules.containerUnstable`. The ordinary and
 impermanence variants use the same choice. First boot copies configuration files
 only when they are absent, so an image update does not rewrite an existing
 guest configuration.
+
+The pre-release images `nixos-26.11` and `nixos-26.11-impermanence` are
+available by explicit name in the image repository configuration. The
+`stable` and `latest` image tags and the unversioned standalone stable
+module continue to select 26.05 until promotion to the released channel.
 
 The grouped exports and release-aware selectors require a vpsAdminOS revision
 that provides this interface. Earlier revisions accept `containerStable` but

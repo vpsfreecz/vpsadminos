@@ -7,7 +7,8 @@
 {
   imports = [
     "${modulesPath}/virtualisation/container-config.nix"
-    ./vpsadminos.nix
+    # The image build must use the same guest support as the generated flake.
+    (./. + "/vpsadminos-${lib.trivial.release}.nix")
   ];
 
   environment.systemPackages = with pkgs; [ vim ];

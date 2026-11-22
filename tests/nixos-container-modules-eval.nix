@@ -15,6 +15,7 @@ let
     "25.05"
     "25.11"
     "26.05"
+    "26.11"
   ];
   alias = release: "container_${lib.replaceStrings [ "." ] [ "_" ] release}";
   nameservers = [
@@ -123,7 +124,8 @@ let
       && !automatic.audit
       && automatic.runKeys == "tmpfs"
     );
-  stable = fixtures."26.05";
+  retained = fixtures."26.05";
+  stable = fixtures."26.11";
   unstable = fixtures.unstable;
   rawStable = import ../os/lib/nixos-container/stable/vpsadminos.nix;
   rawUnstable = import ../os/lib/nixos-container/unstable/vpsadminos.nix;
@@ -167,18 +169,20 @@ in
       )).success
     ) unknownReleases
   );
-  realReleases = lib.genAttrs [ "24.11" "25.11" "26.05" ] (
+  realReleases = lib.genAttrs [ "24.11" "25.11" "26.05" "26.11" ] (
     release: realReleaseCheck release fixtures.${release}
   );
-  guestLibrary = check "24.11 guest is distinct from captured 26.05 input" (
-    lib.trivial.release == "26.05" && fixtures."24.11".lib.trivial.release == "24.11"
+  guestLibrary = check "retained 26.05 and candidate 26.11 inputs are distinct" (
+    lib.trivial.release == "26.11"
+    && fixtures."26.05".lib.trivial.release == "26.05"
+    && fixtures."26.05".rev != stable.rev
   );
   legacy = check "legacy latest stable and unstable exports retain raw behavior" (
-    configuration (evaluate stable vpsadminos.nixosConfigurations.container)
-    == configuration (evaluate stable rawStable)
+    configuration (evaluate retained vpsadminos.nixosConfigurations.container)
+    == configuration (evaluate retained rawStable)
     &&
-      configuration (evaluate stable vpsadminos.nixosConfigurations.containerStable)
-      == configuration (evaluate stable rawStable)
+      configuration (evaluate retained vpsadminos.nixosConfigurations.containerStable)
+      == configuration (evaluate retained rawStable)
     &&
       configuration (evaluate unstable vpsadminos.nixosConfigurations.containerUnstable)
       == configuration (evaluate unstable rawUnstable)
@@ -188,7 +192,7 @@ in
   );
   # Literal quoted and guest-nixpkgs interpolated lookups must both import a leaf.
   groupedSyntax = check "quoted and interpolated release keys" (
-    configuration (evaluate stable modules.containers."26.05")
+    configuration (evaluate stable modules.containers."26.11")
     == configuration (evaluate stable modules.containers.${stable.lib.trivial.release})
   );
 }

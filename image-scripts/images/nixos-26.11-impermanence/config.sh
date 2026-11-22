@@ -1,0 +1,5 @@
+BUILDER=nixos
+RELVER=26.11
+ARCH=x86_64
+VARIANT=impermanence
+DATASETS=nix=/nix

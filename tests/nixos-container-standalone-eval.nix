@@ -2,14 +2,11 @@
 # Any accidental relative companion dependency must fail this evaluation.
 let
   vpsadminos = builtins.getFlake (toString ../.);
+  fixtures = import ./fixtures/nixos-container-releases.nix { inherit vpsadminos; };
   evaluate =
-    channel:
+    file: nixpkgs:
     let
-      standalone = builtins.toFile "vpsadminos-${channel}.nix" (
-        builtins.readFile (../os/lib/nixos-container + "/${channel}/vpsadminos.nix")
-      );
-      nixpkgs =
-        if channel == "stable" then vpsadminos.inputs.nixpkgs else vpsadminos.inputs.nixpkgsUnstable;
+      standalone = builtins.toFile "vpsadminos-standalone.nix" (builtins.readFile file);
       evaluated = import (nixpkgs + "/nixos/lib/eval-config.nix") {
         system = builtins.currentSystem;
         modules = [
@@ -20,7 +17,10 @@ let
     in
     evaluated.config.system.build.toplevel.drvPath;
 in
-builtins.map evaluate [
-  "stable"
-  "unstable"
-]
+{
+  "25.11" = evaluate ../os/lib/nixos-container/stable/vpsadminos-25.11.nix fixtures."25.11";
+  "26.05" = evaluate ../os/lib/nixos-container/stable/vpsadminos-26.05.nix fixtures."26.05";
+  "26.11" = evaluate ../os/lib/nixos-container/stable/vpsadminos-26.11.nix fixtures."26.11";
+  stable = evaluate ../os/lib/nixos-container/stable/vpsadminos.nix fixtures."26.05";
+  unstable = evaluate ../os/lib/nixos-container/unstable/vpsadminos.nix fixtures.unstable;
+}

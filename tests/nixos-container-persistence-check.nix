@@ -2,7 +2,6 @@
   pkgs,
   source,
   system,
-  nixpkgs,
   nixpkgsUnstable,
   impermanence,
 }:
@@ -10,7 +9,6 @@ let
   fixtures = import ./fixtures/nixos-container-persistence.nix {
     inherit
       system
-      nixpkgs
       nixpkgsUnstable
       impermanence
       ;
