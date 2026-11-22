@@ -57,8 +57,9 @@ module OsCtl::Oomd
       end
 
       def valid_row?(row)
-        return false unless row.is_a?(Hash) && %w[pool id group_path].all? { |field| string?(row[field]) }
+        return false unless row.is_a?(Hash) && %w[pool id].all? { |field| string?(row[field]) }
         return false if row['id'] == '[host]' || ![true, false].include?(row['run_verified'])
+        return false unless row.has_key?('group_path') && (row['group_path'].nil? || string?(row['group_path']))
         return false unless row['errors'].is_a?(Hash) && row['errors'].all? { |field, reason| string?(field) && string?(reason) }
         return false unless %w[cpu_usage memory].all? { |field| row.has_key?(field) && (row[field].nil? || reading?(row[field])) }
         return false unless row.has_key?('loadavg') && (row['loadavg'].nil? || load?(row['loadavg']))
@@ -75,9 +76,12 @@ module OsCtl::Oomd
         end
 
         if row['run_verified']
-          !row['errors'].has_key?('run') && positive_integer?(row['init_pid']) && positive_integer?(row['init_start_time_ticks'])
+          string?(row['group_path']) && !row['errors'].has_key?('run') &&
+            positive_integer?(row['init_pid']) && positive_integer?(row['init_start_time_ticks'])
         else
-          %w[init_pid init_start_time_ticks cpu_usage memory nproc loadavg].all? { |field| row[field].nil? } &&
+          return false if row['group_path'].nil? && !row['errors'].has_key?('run')
+
+          %w[init_pid init_start_time_ticks cpu_usage cpu_us memory nproc loadavg tx rx zfsio].all? { |field| row[field].nil? } &&
             %w[cpu_limit_state memory_limit_state].all? { |field| row[field] == 'unknown' }
         end
       end

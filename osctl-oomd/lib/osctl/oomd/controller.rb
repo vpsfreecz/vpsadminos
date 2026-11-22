@@ -167,7 +167,7 @@ module OsCtl::Oomd
                  elsif score_restart && record.restart_hits >= restart_hits
                    :restart
                  end
-        dispatch(ct, key, run, action, now_ns + monotonic_ns - processing_started) if action
+        dispatch(ct, key, run, action, now_ns, processing_started) if action
       end
       # Disappearance invalidates restart evidence; stop history retains the
       # ordinary success/reset semantics across restarts and inventory sweeps.
@@ -327,7 +327,7 @@ module OsCtl::Oomd
 
         record.public_send(hit ? :hit : :miss, restart: true, stop: false)
         if hit && record.restart_hits >= restart_hits
-          dispatch(row, key, run, :restart, now + monotonic_ns - processing_started, partial: data, cold_gate:)
+          dispatch(row, key, run, :restart, now, processing_started, partial: data, cold_gate:)
         end
       end
       (@records.keys - rows.keys).each { |key| @records.fetch(key).reset_restart_hits }
@@ -386,21 +386,18 @@ module OsCtl::Oomd
       @runs[key] = identity
     end
 
-    def dispatch(ct, key, run, action, now, partial: nil, cold_gate: nil)
+    def dispatch(ct, key, run, action, now, processing_started, partial: nil, cold_gate: nil)
       # Re-read the independent host gate and effective threshold at grant,
       # even if scoring or another candidate took time since the first tick.
-      grant_started = monotonic_ns
-      tick(now_ns: now)
-      now += monotonic_ns - grant_started
+      tick(now_ns: now + (monotonic_ns - processing_started))
       # No deferred permit queue: recheck this exact current frame/run at grant.
       frame = @raw.data
       return if @stopping || @inflight.has_key?(key) || @raw_broken
-      return if now - frame.fetch('sample_completed_monotonic_ns') > @sample_max_age_ns
-      return unless @runs[key] == run_identity(ct) && run == ct.values_at('init_pid', 'init_start_time_ticks')
+      return unless @raw.rows[key].equal?(ct) && @runs[key] == run_identity(ct) && run == ct.values_at('init_pid', 'init_start_time_ticks')
 
       record = @records.fetch(key)
       if partial
-        return unless action == :restart && frame.equal?(partial) && @raw.rows[key].equal?(ct)
+        return unless action == :restart && frame.equal?(partial)
 
         gate = partial_load_gate(partial)
         return unless restart_gate?(partial, gate.nil? ? cold_gate : gate) && !stop_has_priority?(record, gate)
@@ -410,8 +407,11 @@ module OsCtl::Oomd
       end
       return if action == :restart && record.restart_hits < restart_hits
 
+      deadline = frame.fetch('sample_completed_monotonic_ns') + @sample_max_age_ns
       permit = { pool: key[0], id: key[1], run:, action:, epoch: frame['epoch'], sequence: frame['sequence'],
                  watchdog_episode: @episode, time: Time.now.to_i }
+      # This is an enqueue deadline, not a deadline on the daemon's action.
+      return if now + (monotonic_ns - processing_started) > deadline
       return unless @workers.dispatch(permit)
 
       @inflight[key] = permit

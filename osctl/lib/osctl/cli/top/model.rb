@@ -219,10 +219,6 @@ module OsCtl::Cli
         raise InvalidSample, 'invalid_inventory' if keys.include?(key)
 
         keys << key
-        next unless ct[:state] == 'running'
-        unless ct[:group_path].is_a?(String) && !ct[:group_path].empty? && ct[:init_pid].is_a?(Integer) && ct[:init_pid] > 0
-          raise InvalidSample, 'invalid_inventory'
-        end
       end
       rows
     end
