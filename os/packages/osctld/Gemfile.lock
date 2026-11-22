@@ -10,7 +10,7 @@ GEM
       ostruct
     ipaddress (0.8.3)
     json (3.1.0)
-    libosctl (26.05.0)
+    libosctl (26.11.0)
       fiddle
       logger
       rainbow (~> 3.1.1)
@@ -18,30 +18,30 @@ GEM
       syslog
     logger (1.7.0)
     netlinkrb (0.18.vpsadminos.0)
-    osctl-repo (26.05.0)
+    osctl-repo (26.11.0)
       filelock
       gli (~> 2.22.0)
       json
-      libosctl (= 26.05.0)
+      libosctl (= 26.11.0)
       require_all (~> 2.0.0)
-    osctld (26.05.0)
+    osctld (26.11.0)
       base64
       bindata (~> 2.5.0)
       concurrent-ruby (~> 1.3.4)
       fiddle
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 26.05.0)
+      libosctl (= 26.11.0)
       netlinkrb (= 0.18.vpsadminos.0)
-      osctl-repo (= 26.05.0)
-      osup (= 26.05.0)
+      osctl-repo (= 26.11.0)
+      osup (= 26.11.0)
       require_all (~> 2.0.0)
       ruby-lxc (= 1.2.4.vpsadminos.6)
     ostruct (0.6.3)
-    osup (26.05.0)
+    osup (26.11.0)
       gli (~> 2.22.0)
       json
-      libosctl (= 26.05.0)
+      libosctl (= 26.11.0)
       require_all (~> 2.0.0)
     rainbow (3.1.1)
     require_all (2.0.0)
@@ -57,7 +57,7 @@ DEPENDENCIES
   libosctl!
   netlinkrb!
   osctl-repo!
-  osctld (= 26.05.0)!
+  osctld (= 26.11.0)!
   osup!
   ruby-lxc!
 

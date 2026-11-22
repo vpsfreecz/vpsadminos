@@ -73,7 +73,7 @@
     source = {
       type = "gem";
     };
-    version = "26.05.0";
+    version = "26.11.0";
   };
   logger = {
     groups = [ "default" ];
@@ -116,7 +116,7 @@
     source = {
       type = "gem";
     };
-    version = "26.05.0";
+    version = "26.11.0";
   };
   pry = {
     dependencies = [
@@ -212,6 +212,6 @@
     source = {
       type = "gem";
     };
-    version = "26.05.0";
+    version = "26.11.0";
   };
 }

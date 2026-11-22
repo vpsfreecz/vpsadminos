@@ -11,21 +11,21 @@ GEM
     io-console (0.9.5)
     ipaddress (0.8.3)
     json (3.1.0)
-    libosctl (26.05.0)
+    libosctl (26.11.0)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
     logger (1.7.0)
-    osctl (26.05.0)
+    osctl (26.11.0)
       base64
       curses
       gli (~> 2.22.0)
       highline (~> 3.1.1)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 26.05.0)
+      libosctl (= 26.11.0)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.13.0)
@@ -48,7 +48,7 @@ PLATFORMS
 
 DEPENDENCIES
   libosctl!
-  osctl (= 26.05.0)!
+  osctl (= 26.11.0)!
 
 BUNDLED WITH
    2.7.2

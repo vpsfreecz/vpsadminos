@@ -1,4 +1,4 @@
 source 'https://rubygems.org'
 
 gem 'libosctl'
-gem 'osctl', '26.05.0'
+gem 'osctl', '26.11.0'

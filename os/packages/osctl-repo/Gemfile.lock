@@ -6,18 +6,18 @@ GEM
     gli (2.22.2)
       ostruct
     json (3.1.0)
-    libosctl (26.05.0)
+    libosctl (26.11.0)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
     logger (1.7.0)
-    osctl-repo (26.05.0)
+    osctl-repo (26.11.0)
       filelock
       gli (~> 2.22.0)
       json
-      libosctl (= 26.05.0)
+      libosctl (= 26.11.0)
       require_all (~> 2.0.0)
     ostruct (0.6.3)
     rainbow (3.1.1)
@@ -30,7 +30,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-repo (= 26.05.0)!
+  osctl-repo (= 26.11.0)!
 
 BUNDLED WITH
    2.7.2

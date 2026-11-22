@@ -8,7 +8,7 @@ GEM
     gli (2.22.2)
       ostruct
     io-console (0.9.5)
-    libosctl (26.05.0)
+    libosctl (26.11.0)
       fiddle
       logger
       rainbow (~> 3.1.1)
@@ -17,10 +17,10 @@ GEM
     logger (1.7.0)
     method_source (1.1.0)
     ostruct (0.6.3)
-    osvm (26.05.0)
+    osvm (26.11.0)
       base64
       gli (~> 2.22.0)
-      libosctl (= 26.05.0)
+      libosctl (= 26.11.0)
     pry (0.16.1)
       coderay (~> 1.1)
       method_source (~> 1.0)
@@ -35,10 +35,10 @@ GEM
     rspec-support (3.13.8)
     syslog (0.4.0)
       logger
-    test-runner (26.05.0)
+    test-runner (26.11.0)
       gli (~> 2.22.0)
-      libosctl (= 26.05.0)
-      osvm (= 26.05.0)
+      libosctl (= 26.11.0)
+      osvm (= 26.11.0)
       pry (~> 0.16.0)
       rspec-expectations (~> 3.13)
 
@@ -47,7 +47,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  test-runner (= 26.05.0)!
+  test-runner (= 26.11.0)!
 
 BUNDLED WITH
    2.7.2
