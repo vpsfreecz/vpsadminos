@@ -430,6 +430,26 @@ RSpec.describe OsCtl::Oomd::Controller do
     end
   end
 
+  [0, 1].each do |over_ns|
+    it "counts a clock jump at default observation entry (deadline + #{over_ns}ns)" do
+      enter_episode
+      observe(1, 2)
+      # A scheduling gap between the old default-argument and body reads
+      # must count toward the age at dispatch. Do not inject now_ns here.
+      allow(controller).to receive(:monotonic_ns).and_return(ns(17), ns(22) + over_ns)
+      expect(controller.observe(frame(2, 17))).to be(true)
+
+      if over_ns == 0
+        expect(permits).to contain_exactly(include(action: :restart, sequence: 3))
+        expect(controller.inflight.values).to eq(permits)
+      else
+        expect(permits).to be_empty
+        expect(controller.inflight).to be_empty
+        expect(score.restart_hits).to eq(2)
+      end
+    end
+  end
+
   it 'does not dispatch from old, overlong, missing-schema or run-invalid input' do
     enter_episode
     samples = [frame(1, 2).merge('top_schema' => nil),

@@ -124,8 +124,9 @@ module OsCtl::Oomd
       false
     end
 
-    def observe(data, now_ns: monotonic_ns)
+    def observe(data, now_ns: nil)
       processing_started = monotonic_ns
+      now_ns ||= processing_started
       tick(now_ns:)
       bootstrap = @bootstrap
       @bootstrap = false
