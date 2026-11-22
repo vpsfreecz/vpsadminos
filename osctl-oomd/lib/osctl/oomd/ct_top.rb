@@ -7,60 +7,72 @@ module OsCtl::Oomd
 
     MAX_FRAME_BYTES = 16 * 1024 * 1024
 
-    def self.run(rate, **, &)
-      new(rate, **).run(&)
+    def self.run(rate, &)
+      new(rate).run(&)
     end
 
-    def initialize(rate, watchdog: false)
+    def initialize(rate)
       @rate = rate
-      @watchdog = watchdog
     end
 
-    def run
+    def run(&)
       loop do
         r, w = IO.pipe
-
-        command = ['osctl', '-j', 'ct', 'top', '--rate', @rate.to_s]
-        command.push('--no-netif', '--no-zfs') if @watchdog
-        command.push('--no-iostat', '--no-processes')
+        command = ['osctl', '-j', 'ct', 'top', '--rate', @rate.to_s,
+                   '--no-netif', '--no-zfs', '--no-iostat', '--no-processes']
         pid = Process.spawn(*command, out: w, close_others: true)
         w.close
-
         log(:info, "Started with pid #{pid}")
 
-        until r.eof?
-          begin
-            if @watchdog
-              line = r.gets("\n", MAX_FRAME_BYTES + 1)
-              if line.nil? || line.bytesize > MAX_FRAME_BYTES || !line.end_with?("\n")
-                # Reject the frame, drain bounded chunks to the next boundary.
-                yield({})
-                line = r.gets("\n", MAX_FRAME_BYTES + 1) until line.nil? || line.end_with?("\n")
-                next
-              end
-              data = JSON.parse(line)
-            else
-              data = JSON.parse(r.readline)
-            end
-          rescue StandardError => e
-            yield({}) if @watchdog
-            message = @watchdog ? e.message.byteslice(0, 256) : e.message
-            log(:warn, "Unable to parse output from ct top as JSON: #{message} (#{e.class})")
-            next
-          end
-
-          yield(data)
-        end
-
+        yield(:child_started)
+        read_child(r, &)
+        r.close
+        yield({})
         Process.wait(pid)
-        log(:info, "Exited with pid #{$?.exitstatus}")
-
+        log(:warn, "ct top exited (status #{$?.exitstatus.inspect}); retrying in 5 seconds")
         sleep(5)
       end
     end
 
     def log_type
       'ct-top'
+    end
+
+    protected
+
+    def read_child(reader)
+      epoch = nil
+      diagnosed = false
+      while (line = reader.gets("\n", MAX_FRAME_BYTES + 1))
+        if line.bytesize > MAX_FRAME_BYTES || !line.end_with?("\n")
+          yield({})
+          line = reader.gets("\n", MAX_FRAME_BYTES + 1) until line.nil? || line.end_with?("\n")
+          next
+        end
+
+        data = parse(line)
+        unless typed_record?(data) && (epoch.nil? || data['epoch'] == epoch)
+          yield({})
+          unless diagnosed
+            log(:warn, 'Ignoring invalid or unsupported ct top output')
+            diagnosed = true
+          end
+          next
+        end
+        epoch ||= data['epoch']
+        yield(data)
+      end
+    end
+
+    def parse(line)
+      JSON.parse(line)
+    rescue JSON::ParserError, ArgumentError
+      nil
+    end
+
+    def typed_record?(data)
+      data.is_a?(Hash) && 2.eql?(data['top_schema']) && !data.has_key?('observation') &&
+        data['epoch'].is_a?(String) && data['epoch'].bytesize.between?(1, 95)
     end
   end
 end

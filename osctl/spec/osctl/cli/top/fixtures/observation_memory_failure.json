@@ -1,0 +1,88 @@
+{
+  "collectors": {
+    "iostat": false,
+    "netif": false,
+    "zfs": false
+  },
+  "complete": false,
+  "containers": [
+    {
+      "cpu_baseline_sequence": 6,
+      "cpu_limit": 200.0,
+      "cpu_limit_state": "limited",
+      "cpu_usage": 180.0,
+      "cpu_window_started_monotonic_ns": 100000000000,
+      "errors": {},
+      "group_path": "ct101/user-owned",
+      "id": "101",
+      "init_pid": 201,
+      "init_start_time_ticks": 12345,
+      "loadavg": [
+        12.0,
+        7.0,
+        3.0
+      ],
+      "memory": 1006632960,
+      "memory_limit": 1048576000,
+      "memory_limit_state": "limited",
+      "nproc": 81,
+      "pool": "tank",
+      "run_verified": true
+    },
+    {
+      "cpu_baseline_sequence": 6,
+      "cpu_limit": null,
+      "cpu_limit_state": "unlimited",
+      "cpu_usage": 20.0,
+      "cpu_window_started_monotonic_ns": 100000000000,
+      "errors": {
+        "memory": "missing_cgroup_value"
+      },
+      "group_path": "ct102/user-owned",
+      "id": "102",
+      "init_pid": 202,
+      "init_start_time_ticks": 23456,
+      "loadavg": [
+        2.0,
+        1.0,
+        0.5
+      ],
+      "memory": null,
+      "memory_limit": 536870912,
+      "memory_limit_state": "limited",
+      "nproc": 9,
+      "pool": "tank",
+      "run_verified": true
+    },
+    {
+      "id": "[host]",
+      "init_pid": null,
+      "init_start_time_ticks": null,
+      "loadavg": [
+        20.0,
+        10.0,
+        5.0
+      ],
+      "pool": null
+    }
+  ],
+  "epoch": "fixture-e",
+  "invalid_reason": "missing_cgroup_value",
+  "inventory_complete": true,
+  "loadavg": [
+    20.0,
+    10.0,
+    5.0
+  ],
+  "measurement_window_completed_monotonic_ns": 115200000000,
+  "measurement_window_started_monotonic_ns": null,
+  "previous_sample_started_monotonic_ns": 100000000000,
+  "sample_completed_monotonic_ns": 115200000000,
+  "sample_started_monotonic_ns": 115000000000,
+  "sequence": 7,
+  "state_counts": {
+    "running": 2,
+    "stopped": 1
+  },
+  "top_schema": 2
+}

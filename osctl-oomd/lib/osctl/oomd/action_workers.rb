@@ -74,8 +74,12 @@ module OsCtl::Oomd
             break if permit == :stop
 
             begin
-              result = @dry_run || @executor.call(permit)
-              @results << [slot, permit, result ? :success : :failed]
+              result = if @dry_run
+                         :simulated
+                       else
+                         @executor.call(permit) ? :success : :failed
+                       end
+              @results << [slot, permit, result]
             rescue StandardError
               # The command's effects may be unknown. The controller retains
               # this physical slot; no timeout/replacement can imply completion.

@@ -26,10 +26,31 @@ module OsCtl::Oomd
       nil
     end
 
+    def established?
+      !@loads.empty?
+    end
+
     def median
-      length = @loads.length
+      median_of(@loads)
+    end
+
+    def median_with(lavg)
+      median_of((@loads + [lavg]).last(max_samples)) if established?
+    end
+
+    def cold_median_with(history, lavg)
+      median = median_of((history + [lavg]).last(max_samples)) unless history.empty?
+      history << lavg
+      history.shift if history.length > max_samples
+      median
+    end
+
+    protected
+
+    def median_of(loads)
+      length = loads.length
       center = length / 2
-      sorted_loads = @loads.sort
+      sorted_loads = loads.sort
 
       if length == 0
         0
@@ -39,8 +60,6 @@ module OsCtl::Oomd
         sorted_loads[center]
       end
     end
-
-    protected
 
     def load_state
       state = OsCtl::Lib::ConfigFile.load_yaml_file(STATE_FILE)

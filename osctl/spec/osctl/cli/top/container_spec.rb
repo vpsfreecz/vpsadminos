@@ -25,24 +25,19 @@ RSpec.describe OsCtl::Cli::Top::Container do
     expect(ct.container?).to be(true)
   end
 
-  it 'keeps a rolling measurement window and computes results' do
+  it 'leaves the old raw endpoint on a detached snapshot' do
     ct = described_class.new(attrs)
     host = double('host')
-    subsystems = {}
-    m1 = instance_double(OsCtl::Cli::Top::Measurement, measure: nil)
-    m2 = instance_double(OsCtl::Cli::Top::Measurement, measure: nil)
-    m3 = instance_double(OsCtl::Cli::Top::Measurement, measure: nil)
-    allow(m3).to receive(:diff_from).with(m2, :realtime).and_return(cpu: 1)
-    allow(m3).to receive(:diff_from).with(m1, :cumulative).and_return(cpu: 2)
-    allow(OsCtl::Cli::Top::Measurement).to receive(:new).and_return(m1, m2, m3)
+    clock = -> { 0 }
+    first = instance_double(OsCtl::Cli::Top::Measurement, measure: nil)
+    second = instance_double(OsCtl::Cli::Top::Measurement, measure: nil)
+    allow(OsCtl::Cli::Top::Measurement).to receive(:new).and_return(first, second)
 
-    ct.measure(host, subsystems)
-    ct.measure(host, subsystems)
-    ct.measure(host, subsystems)
-
-    expect(ct.setup?).to be(true)
-    expect(ct.result(:realtime)).to eq(cpu: 1)
-    expect(ct.result(:cumulative)).to eq(cpu: 2)
+    ct.measure(host, {}, clock:)
+    snapshot = ct.snapshot
+    ct.measure(host, {}, clock:)
+    expect(snapshot.current_measurement).to equal(first)
+    expect(ct.current_measurement).to equal(second)
   end
 
   it 'updates network interfaces' do

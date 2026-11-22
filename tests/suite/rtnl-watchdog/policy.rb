@@ -42,6 +42,7 @@ if ARGV.first == 'dispatch'
   %w[TERM INT].each { |sig| Signal.trap(sig) { stopping = true } }
   latest = SizedQueue.new(1)
   stream = IO.popen(%w[osctl -j ct top --rate 1 --no-netif --no-zfs --no-iostat --no-processes], 'r')
+  controller.child_started
   reader = Thread.new do
     stream.each_line do |line|
       row = JSON.parse(line)
@@ -94,7 +95,7 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
   boot = File.read('/proc/sys/kernel/random/boot_id').strip
   now = clock_ns
   state_sequence = 0
-  sample_sequence = 0
+  sample_sequence = 1
   dispatches = Queue.new
   workers = OsCtl::Oomd::ActionWorkers.new(
     size: 2, dry_run: false, executor: lambda { |permit|
@@ -129,26 +130,32 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
     sample_sequence += 1
     now += 100_000_000
     publish.call('distressed')
-    ct = { 'pool' => 'fixture', 'id' => 'a', 'valid' => true, 'invalid_reason' => nil,
-           'init_pid' => 123, 'init_start_time_ticks' => 456,
-           'memory' => memory, 'memory_limit' => 100, 'cpu_usage' => cpu, 'cpu_limit' => 100,
-           'loadavg' => [10, 0, 0], 'tx' => nil, 'rx' => nil, 'zfsio' => nil }
-    rows = [{ 'pool' => nil, 'id' => '[host]', 'valid' => true, 'invalid_reason' => nil,
-              'init_pid' => nil, 'init_start_time_ticks' => nil,
-              'memory' => 0, 'memory_limit' => nil, 'cpu_usage' => 0, 'cpu_limit' => nil,
-              'loadavg' => [20, 0, 0], 'tx' => nil, 'rx' => nil, 'zfsio' => nil }, ct]
-    rows << ct.merge('id' => 'b', 'loadavg' => [30, 0, 0], 'memory_limit' => nil) if extra
     sample_start = now - 50_000_000
     window_start = previous_sample_start || (sample_start - 100_000_000)
     previous_sample_start = sample_start
-    { 'top_schema' => 1, 'collectors' => { 'netif' => false, 'zfs' => false, 'iostat' => false },
+    ct = { 'pool' => 'fixture', 'id' => 'a', 'run_verified' => true,
+           'group_path' => 'ct.a/user-owned', 'init_pid' => 123, 'init_start_time_ticks' => 456,
+           'memory' => memory, 'memory_limit' => 100, 'cpu_usage' => cpu, 'cpu_limit' => 100,
+           'memory_limit_state' => 'limited', 'cpu_limit_state' => 'limited', 'nproc' => 1,
+           'cpu_baseline_sequence' => sample_sequence - 1, 'cpu_window_started_monotonic_ns' => window_start,
+           'errors' => {}, 'loadavg' => [10, 0, 0], 'tx' => nil, 'rx' => nil, 'zfsio' => nil }
+    peer = ct.merge('id' => 'b', 'group_path' => 'ct.b/user-owned', 'init_pid' => 124,
+                    'loadavg' => [extra ? load + 30 : 0, 0, 0], 'memory_limit' => nil, 'memory_limit_state' => 'unlimited')
+    host = { 'pool' => nil, 'id' => '[host]', 'init_pid' => nil, 'init_start_time_ticks' => nil,
+             'loadavg' => [load, 0, 0], 'tx' => nil, 'rx' => nil, 'zfsio' => nil }
+    # When testing the host-inclusive cutoff, both competitors outrank A.
+    host['loadavg'] = [20, 0, 0] if extra
+    { 'top_schema' => 2, 'collectors' => { 'netif' => false, 'zfs' => false, 'iostat' => false },
       'epoch' => 'sampler', 'sequence' => sample_sequence,
       'sample_started_monotonic_ns' => sample_start,
       'sample_completed_monotonic_ns' => now, 'complete' => complete,
-      'invalid_reason' => complete ? nil : 'controlled_incomplete', 'zfs' => nil,
-      'measurement_window_started_monotonic_ns' => window_start,
+      'invalid_reason' => complete ? nil : 'inventory_changed', 'zfs' => nil,
+      'previous_sample_started_monotonic_ns' => window_start,
+      'measurement_window_started_monotonic_ns' => complete ? window_start : nil,
       'measurement_window_completed_monotonic_ns' => now,
-      'loadavg' => [load, 0, 0], 'containers' => rows }
+      'inventory_complete' => complete, 'state_counts' => { 'running' => 2 },
+      'memory' => { 'used' => 200 }, 'cpu' => { 'user' => 10 },
+      'loadavg' => host['loadavg'], 'containers' => [ct, peer, host] }
   end
   score = -> { controller.export.find { |ct| ct.id == 'a' } }
   observe = lambda { |**options|
@@ -156,6 +163,7 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
     controller.observe(row, now_ns: now)
     row
   }
+  controller.child_started
   controller.start
   begin
     publish.call('healthy')
@@ -191,6 +199,9 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
     observe.call
     observe.call(complete: false)
     raise 'invalid required sample retained evidence' unless score.call.restart_hits == 0
+
+    observe.call
+    raise 'first recovered raw sweep scored instead of seeding' unless dispatches.empty? && score.call.restart_hits == 0
 
     observe.call
     raise 'invalid gap reused old hit' unless dispatches.empty? && score.call.restart_hits == 1

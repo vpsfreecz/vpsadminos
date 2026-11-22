@@ -3,56 +3,47 @@
 require 'spec_helper'
 
 RSpec.describe OsCtl::Oomd::CtTop do
-  it 'yields valid JSON lines, skips malformed input, and logs process exit' do
-    ct_top = described_class.new(15)
-    reader = instance_double(IO)
-    writer = instance_double(IO, close: nil)
-    child_pid = fork { exit 7 }
-    stop_error = Class.new(StandardError)
-    logged = []
+  let(:sampler) { described_class.new(15) }
 
-    allow(IO).to receive(:pipe).and_return([reader, writer])
-    allow(Process).to receive(:spawn).with('osctl', '-j', 'ct', 'top', '--rate', '15',
-                                           '--no-iostat', '--no-processes',
-                                           out: writer, close_others: true).and_return(child_pid)
-    allow(ct_top).to receive(:sleep).and_raise(stop_error)
-    allow(OsCtl::Lib::Logger).to receive(:log) do |level, message|
-      logged << [level, message]
-    end
-    allow(reader).to receive(:eof?).and_return(false, false, false, true)
-    allow(reader).to receive(:readline).and_return(
-      "{\"id\":\"ct1\"}\n",
-      "not-json\n",
-      "{\"id\":\"ct2\"}\n"
-    )
-
-    yielded = []
-
-    expect do
-      ct_top.run { |data| yielded << data }
-    end.to raise_error(stop_error)
-
-    expect(yielded).to eq([{ 'id' => 'ct1' }, { 'id' => 'ct2' }])
-    expect(logged.any? { |level, message| level == :warn && message.include?('Unable to parse output') }).to be(true)
-    expect(logged.any? { |level, message| level == :info && message == "[ct-top] Started with pid #{child_pid}" }).to be(true)
-    expect(logged.any? { |level, message| level == :info && message == '[ct-top] Exited with pid 7' }).to be(true)
+  def read_stream(*records)
+    data = records.map { |record| record.is_a?(String) ? record : "#{JSON.generate(record)}\n" }.join
+    frames = []
+    sampler.send(:read_child, StringIO.new(data)) { |frame| frames << frame }
+    frames
   end
 
-  it 'disables optional ordinary Top collectors and invalidates malformed/oversized bounded frames' do
+  it 'bounds and drains invalid lines, including unterminated last records' do
     stub_const('OsCtl::Oomd::CtTop::MAX_FRAME_BYTES', 64)
-    reader = StringIO.new("#{'x' * 100}\nnot-json\n{\"top_schema\":1}\n")
+    frame = { 'top_schema' => 2, 'epoch' => 'a' }
+    expect(read_stream("#{'x' * 100}\n", "not-json\n", frame, '{"top_schema":2,"epoch":"a"}'))
+      .to eq([{}, {}, frame, {}])
+  end
+
+  it 'binds epoch to one child and rejects all other formats without fallback' do
+    frame = { 'top_schema' => 2, 'epoch' => 'a' }
+    changed_epoch = frame.merge('epoch' => 'b')
+    expect(read_stream(frame, changed_epoch, frame)).to eq([frame, {}, frame])
+    expect(read_stream(changed_epoch)).to eq([changed_epoch])
+    expect(read_stream(frame.merge('top_schema' => 1), frame.merge('observation' => frame),
+                       frame.except('top_schema'), frame.merge('top_schema' => 2.0), frame)).to eq([{}, {}, {}, {}, frame])
+  end
+
+  it 'requests the single default stream with all optional reads disabled' do
+    frame = { 'top_schema' => 2, 'epoch' => 'a' }
+    reader = StringIO.new("#{JSON.generate(frame)}\n")
     writer = instance_double(IO, close: nil)
-    child = fork { exit 0 }
-    stop_error = Class.new(StandardError)
-    sampler = described_class.new(15, watchdog: true)
+    child = fork { exit 2 }
+    stopping = Class.new(StandardError)
     allow(IO).to receive(:pipe).and_return([reader, writer])
-    allow(Process).to receive(:spawn).with('osctl', '-j', 'ct', 'top', '--rate', '15',
-                                           '--no-netif', '--no-zfs', '--no-iostat', '--no-processes',
-                                           out: writer, close_others: true).and_return(child)
-    allow(sampler).to receive(:sleep).and_raise(stop_error)
+    allow(Process).to receive(:spawn).and_return(child)
+    allow(sampler).to receive(:sleep).with(5).and_raise(stopping)
     yielded = []
-    expect { sampler.run { |data| yielded << data } }.to raise_error(stop_error)
-    expect(yielded).to eq([{}, {}, { 'top_schema' => 1 }])
+    expect { sampler.run { |data| yielded << data } }.to raise_error(stopping)
+    expect(yielded).to eq([:child_started, frame, {}])
+    expect(reader).to be_closed
     expect(Process).to have_received(:spawn).once
+    expect(Process).to have_received(:spawn).with('osctl', '-j', 'ct', 'top', '--rate', '15',
+                                                  '--no-netif', '--no-zfs', '--no-iostat', '--no-processes',
+                                                  out: writer, close_others: true)
   end
 end

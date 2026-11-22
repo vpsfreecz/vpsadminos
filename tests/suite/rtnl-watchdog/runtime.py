@@ -394,7 +394,9 @@ class Stream:
 
 
 def check_raw(row, names, expected_runs=None, *, at_ns=None, collectors=None):
-    assert type(row['top_schema']) is int and row['top_schema'] == 1 and row['complete'] is True, row
+    assert type(row['top_schema']) is int and row['top_schema'] == 2 and row['complete'] is True, row
+    assert 'observation' not in row and row['inventory_complete'] is True, row
+    assert row['invalid_reason'] is None, row
     expected_collectors = collectors or {'netif': False, 'zfs': False, 'iostat': False}
     assert row['collectors'] == expected_collectors and all(type(v) is bool for v in row['collectors'].values()), row
     start, end = row['sample_started_monotonic_ns'], row['sample_completed_monotonic_ns']
@@ -403,6 +405,7 @@ def check_raw(row, names, expected_runs=None, *, at_ns=None, collectors=None):
     assert 0 <= end - start <= 5_000_000_000 and 0 <= now - end <= 5_000_000_000, row
     window_start, window_end = row['measurement_window_started_monotonic_ns'], row['measurement_window_completed_monotonic_ns']
     assert 0 < window_start < start <= end == window_end and window_end - window_start <= 6_000_000_000, row
+    assert window_start == row['previous_sample_started_monotonic_ns'], row
     if not expected_collectors['zfs']:
         assert row['zfs'] is None, row
     else:
@@ -417,12 +420,19 @@ def check_raw(row, names, expected_runs=None, *, at_ns=None, collectors=None):
             assert ct['zfsio'] is None, ct
         else:
             assert isinstance(ct['zfsio'], dict), ct
-    assert any(ct['pool'] is None and ct['id'] == '[host]' for ct in row['containers']), row
+    *containers, host = row['containers']
+    assert host['id'] == '[host]' and host['loadavg'] == row['loadavg'], row
+    assert all(host[key] is None for key in ('pool', 'init_pid', 'init_start_time_ticks')), host
+    assert all(ct['id'] != '[host]' and ct['run_verified'] is True for ct in containers), row
+    assert row['state_counts'].get('running', 0) == len(containers), row
     ranked = sorted(row['containers'], key=lambda ct: -ct['loadavg'][0])
     for name in names:
         ct, = [ct for ct in row['containers'] if ct['id'] == name]
         expected = identity(name) if expected_runs is None else expected_runs[name]
-        assert ct['valid'] and [ct['init_pid'], ct['init_start_time_ticks']] == expected, ct
+        assert [ct['init_pid'], ct['init_start_time_ticks']] == expected, ct
+        assert ct['cpu_window_started_monotonic_ns'] == window_start, ct
+        assert ct['cpu_baseline_sequence'] == row['sequence'] - 1, ct
+        assert ct['memory_limit_state'] == ct['cpu_limit_state'] == 'limited', ct
         assert ct['memory_limit'] and ct['memory'] / ct['memory_limit'] * 100 >= 1, ct
         assert ct['cpu_limit'] and ct['cpu_usage'] / ct['cpu_limit'] * 100 >= 10, ct
         assert ranked.index(ct) < 10, ranked
