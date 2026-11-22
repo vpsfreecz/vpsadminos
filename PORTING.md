@@ -33,10 +33,15 @@ Change `inputs.nixpkgs.url` in `flake.nix` to the target release:
 inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-<release>";
 ```
 
-Then update the lock file:
+If the release channel does not exist yet, use an exact nixpkgs revision
+from a channel that reports the target release in `lib/.version`. Do not pin
+the moving `nixos-unstable` branch as the primary input. Once the release
+channel exists, switch to it and repeat validation against the new lock.
+
+Update the primary lock entry:
 
 ```shell
-nix flake lock --update-input nixpkgs
+nix flake update nixpkgs
 ```
 
 Keep unrelated inputs unchanged unless evaluation or build failures show that
@@ -76,8 +81,11 @@ For a stable NixOS release port, update the stable container surface:
 4. Add image scripts under:
    - `image-scripts/images/nixos-<release>/`
    - `image-scripts/images/nixos-<release>-impermanence/`
-5. Move `latest` and `stable` tags in `os/configs/image-repository.nix` only
-   after the corresponding templates build.
+5. Keep the build input and guest compatibility module matched to each image's
+   release, including any previous releases still offered in the repository.
+   A pre-release image can be registered by name. Move `latest` and `stable`
+   tags in `os/configs/image-repository.nix` only once the release channel is
+   available and the corresponding templates build.
 
 Build the templates:
 
@@ -100,37 +108,23 @@ module fixes, package fixes, or template logic.
 
 ## Gem Rebuilds
 
-When Ruby code or gem versions change, rebuild packaged gems. Use one build id
-for the whole generated package set:
+The Nix packages build the vpsAdminOS gems from local source. When their
+versions change, update the exact local gem requirements in
+`os/packages/*/Gemfile`, then regenerate the package metadata:
 
 ```shell
-BUILD_ID=$(date -u +%Y%m%d%H%M%S)
-make gems BUILD_ID=$BUILD_ID
-make osctl-env-exec BUILD_ID=$BUILD_ID
+make -B gems
 ```
 
-`make gems` rebuilds the main vpsAdminOS gems. `osctl-env-exec` has a separate
-Makefile target and should be rebuilt with the same build id when its gemspec
-version changed.
+This includes `osctl-env-exec`. Forcing the targets also regenerates
+`osctl-exportfs` and `osctl-image`, whose target names match directories.
+This step does not need a build ID or a gem upload. If a native dependency
+fails against the new toolchain, fix the owning dependency and update its
+pin separately. Review external dependency changes rather than carrying
+unrelated version bumps in the port.
 
-If a native dependency fails to build, fix and publish that dependency first,
-then update the relevant vpsAdminOS gemspec and rerun the gem rebuild. For
-example, `osctld` depends on `ruby-lxc`, so a Ruby C API break in `ruby-lxc`
-must be fixed before regenerating the `osctld` package metadata.
-
-Generated gem metadata is committed separately. The generated gem commit should
-contain only:
-
-- `.build_id`;
-- `os/packages/**/Gemfile`;
-- `os/packages/**/Gemfile.lock`;
-- `os/packages/**/gemset.nix`.
-
-Use the existing generated commit subject style:
-
-```text
-os: update gems to <version>.build<build_id>
-```
+Commit the changes to `os/packages/*/{Gemfile,Gemfile.lock,gemset.nix}`
+separately. Use the subject-only message `os: update packaged gem dependencies`.
 
 ## Validation
 
@@ -143,12 +137,9 @@ nix build .#template-stable .#template-impermanence-stable --no-link
 nix build .#toplevel --no-link
 ```
 
-Search for stale generated pins after gem rebuilds:
-
-```shell
-rg '<old-version>|<old-build-id>|<old-native-gem-version>' \
-  os/packages osctld/osctld.gemspec .build_id
-```
+After regeneration, check the local gem versions in the package Gemfiles,
+locks and gemsets against the source gemspecs. Look for stale pins and
+unintended changes to external dependencies.
 
 Run targeted tests according to the affected surface. For container template
 ports, prefer image repository and NixOS container smoke tests first, then
@@ -165,7 +156,7 @@ Use this order:
    - Local overlay/package fixes.
    - Dependency version requirements such as native gem dependencies.
 2. vpsAdminOS version bump from `make version`.
-3. Generated packaged gem update from `make gems` and related targets.
+3. Generated packaged gem update from `make -B gems`.
 4. Documentation or follow-up notes.
 
 Each non-generated commit message must explain why the change is needed.
