@@ -1955,9 +1955,10 @@ transfer and start again.
 
   Unavailable measurements are null; the `errors` object gives reasons by
   field. A row with `run_verified: false` has no verified process identity or
-  attributed measurements. `inventory_complete` indicates whether Top verified
-  the running container list. `state_counts` is null when the inventory is
-  unavailable.
+  attributed measurements. Container rows always include `group_path`. It can
+  be `null` only when `run_verified` is `false`. `inventory_complete` indicates
+  whether Top verified the running container list. `state_counts` is null when
+  the inventory is unavailable.
   `cpu_baseline_sequence` and `cpu_window_started_monotonic_ns` identify a
   row's CPU baseline when CPU usage is available. They refer to the previous
   acquisition, whose start is `previous_sample_started_monotonic_ns`. Limit
