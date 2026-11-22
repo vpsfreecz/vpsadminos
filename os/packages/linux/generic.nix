@@ -50,17 +50,25 @@
   kernelPatches ? [ ],
   # C-only patches applied after the kernel configuration has been prepared.
   postConfigPatches ? [ ],
-  ignoreConfigErrors ?
-    stdenv.hostPlatform.linux-kernel.name != "pc" || stdenv.hostPlatform != stdenv.buildPlatform,
+  ignoreConfigErrors ? kernelConf.name != "pc" || stdenv.hostPlatform != stdenv.buildPlatform,
   extraMeta ? { },
 
   isZen ? false,
   isLibre ? false,
   isHardened ? false,
 
-  # easy overrides to stdenv.hostPlatform.linux-kernel members
-  autoModules ? stdenv.hostPlatform.linux-kernel.autoModules,
-  preferBuiltin ? stdenv.hostPlatform.linux-kernel.preferBuiltin or false,
+  # Nixpkgs 26.11 moved kernel settings out of the platform. Keep the
+  # previous PC defaults and honour explicit legacy platform overrides.
+  kernelConf ?
+    lib.optionalAttrs stdenv.hostPlatform.isx86 {
+      name = "pc";
+      baseConfig = "defconfig";
+      autoModules = true;
+      target = "bzImage";
+    }
+    // (stdenv.hostPlatform.linux-kernel or { }),
+  autoModules ? kernelConf.autoModules,
+  preferBuiltin ? kernelConf.preferBuiltin or false,
   kernelArch ? stdenv.hostPlatform.linuxArch,
   kernelTests ? [ ],
   zfsBuiltinPkg,
@@ -97,7 +105,7 @@ let
     configfile.moduleStructuredConfig.intermediateNixConfig
     # extra config in legacy string format
     + extraConfig
-    + stdenv.hostPlatform.linux-kernel.extraConfig or "";
+    + (kernelConf.extraConfig or "");
 
   structuredConfigFromPatches = map (
     {
@@ -151,12 +159,11 @@ let
       flex
     ];
 
-    platformName = stdenv.hostPlatform.linux-kernel.name;
+    platformName = kernelConf.name;
     # e.g. "defconfig"
-    kernelBaseConfig =
-      if defconfig != null then defconfig else stdenv.hostPlatform.linux-kernel.baseConfig;
+    kernelBaseConfig = if defconfig != null then defconfig else kernelConf.baseConfig;
     # e.g. "bzImage"
-    kernelTarget = stdenv.hostPlatform.linux-kernel.target;
+    kernelTarget = kernelConf.target;
 
     prePatch = configuredKernel.prePatch + ''
       # Patch kconfig to print "###" after every question so that
@@ -232,7 +239,7 @@ let
         && kernelArch == "x86_64"
         && defconfig == null
         && extraConfig == ""
-        && (stdenv.hostPlatform.linux-kernel.extraConfig or "") == ""
+        && (kernelConf.extraConfig or "") == ""
         && structuredExtraConfig == { }
         && !(kernelFeatures.preempt_rt or false)
         && lib.all (
@@ -262,6 +269,7 @@ let
       stdenv
       extraMeta
       configfile
+      kernelConf
       zfsBuiltinPkg
       enableBuildId
       ;

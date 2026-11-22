@@ -42,6 +42,8 @@ in
   lib,
   # Allow overriding stdenv on each buildLinux call
   stdenv,
+  # Kernel defaults and any explicit platform overrides from generic.nix.
+  kernelConf,
   # The kernel version
   version,
   # The version of the kernel module directory
@@ -103,9 +105,7 @@ let
   commonMakeFlags = [
     "O=$(buildRoot)"
   ]
-  ++ lib.optionals (
-    stdenv.hostPlatform.linux-kernel ? makeFlags
-  ) stdenv.hostPlatform.linux-kernel.makeFlags;
+  ++ (kernelConf.makeFlags or [ ]);
 
   drvAttrs =
     config_: kernelConf: kernelPatches: configfile:
@@ -157,6 +157,8 @@ let
           commonMakeFlags
           ;
         inherit isZen isHardened isLibre;
+        inherit (kernelConf) target;
+        buildDTBs = kernelConf.DTB or false;
         isXen = lib.warn "The isXen attribute is deprecated. All Nixpkgs kernels that support it now have Xen enabled." true;
         kernelOlder = lib.versionOlder version;
         kernelAtLeast = lib.versionAtLeast version;
@@ -419,7 +421,7 @@ assert (lib.versionAtLeast version "4.14" && lib.versionOlder version "5.8") -> 
 assert lib.versionAtLeast version "5.8" -> elfutils != null;
 
 stdenv.mkDerivation (
-  (drvAttrs config stdenv.hostPlatform.linux-kernel kernelPatches configfile)
+  (drvAttrs config kernelConf kernelPatches configfile)
   // {
     pname = "linux";
     inherit version;
@@ -442,7 +444,7 @@ stdenv.mkDerivation (
       zlib
       pahole
     ]
-    ++ optional (stdenv.hostPlatform.linux-kernel.target == "uImage") buildPackages.ubootTools
+    ++ optional (kernelConf.target == "uImage") buildPackages.ubootTools
     ++ optional (lib.versionAtLeast version "4.14" && lib.versionOlder version "5.8") libelf
     # Removed util-linuxMinimal since it should not be a dependency.
     ++ optionals (lib.versionAtLeast version "4.16") [

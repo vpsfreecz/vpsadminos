@@ -122,8 +122,8 @@ in
 
     system.boot.loader.kernelFile = mkOption {
       internal = true;
-      default = pkgs.stdenv.hostPlatform.linux-kernel.target;
-      defaultText = literalExpression "pkgs.stdenv.hostPlatform.linux-kernel.target";
+      default = config.boot.kernelPackages.kernel.target or pkgs.stdenv.hostPlatform.linux-kernel.target;
+      defaultText = literalExpression "config.boot.kernelPackages.kernel.target or pkgs.stdenv.hostPlatform.linux-kernel.target";
       type = types.str;
       description = lib.mdDoc ''
         Name of the kernel file to be passed to the bootloader.

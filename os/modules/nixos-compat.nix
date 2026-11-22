@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ config, lib, ... }:
 
 with lib;
 
@@ -81,6 +81,14 @@ with lib;
     security.pam.usb.enable = mkOption { type = types.unspecified; };
     security.pam.mount.enable = mkOption { type = types.unspecified; };
 
+    # The upstream nix-channel module contributes a warning about stale channel
+    # paths when channels are disabled. It does not block a switch, and the
+    # runit activator does not run NixOS pre-switch scripts.
+    system.preSwitchChecks.no-nix-channel = mkOption {
+      type = types.str;
+      internal = true;
+    };
+
     systemd = {
       generatorEnvironment = mkOption {
         type = types.attrsOf types.str;
@@ -110,6 +118,12 @@ with lib;
     };
   };
   config = {
+    # The upstream users module validates initrd IDs even for the non-systemd
+    # initrd. Supply the missing GID to that check, not to the host groups.
+    boot.initrd.systemd.groups.systemd-journal.gid = mkIf config.boot.initrd.enable (
+      mkDefault config.ids.gids.systemd-journal
+    );
+
     services = {
       avahi = {
         enable = false;
@@ -120,7 +134,10 @@ with lib;
       intune.enable = false;
       sssd.enable = false;
       nscd.enable = false;
-      fprintd.enable = false;
+      fprintd = {
+        enable = false;
+        enablePam = false;
+      };
       samba = {
         enable = false;
         syncPasswordsByPam = false;

@@ -12,7 +12,12 @@ let
     let
       base = "github:${node.original.owner}/${node.original.repo}";
     in
-    if node.original ? ref then "${base}/${node.original.ref}" else base;
+    if node.original ? rev then
+      "${base}/${node.original.rev}"
+    else if node.original ? ref then
+      "${base}/${node.original.ref}"
+    else
+      base;
 
   vpsadminosInputUrl = "github:vpsfreecz/vpsadminos";
   nixpkgsInputUrl = githubInputUrl nixpkgsNode;

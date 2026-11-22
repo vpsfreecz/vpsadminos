@@ -1,7 +1,8 @@
 {
   description = "vpsAdminOS flake";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+  # Prerelease 26.11 snapshot from staging-26.11; keep this input immutable.
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/fe08e4f8a90a7db0eeaa0916247187cf09ea4c71";
   inputs.nixpkgsUnstable.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.impermanence.url = "github:nix-community/impermanence";
   inputs.netlinkrb = {

@@ -12,16 +12,8 @@ let
   cfg = config.nix.daemon;
 in
 {
-  ###### interface
-
-  options = {
-    nix.daemon = {
-      enable = mkEnableOption "Enable nix daemon";
-    };
-  };
-
-  ###### implementation
-
+  # Reuse the upstream nix.daemon.enable option; config/defaults.nix sets the
+  # host default. The daemon itself is still managed by runit.
   config = mkMerge [
     (mkIf cfg.enable {
       runit.services.nix = {

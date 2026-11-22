@@ -132,7 +132,7 @@ let
   };
   customHostConfigStdenv = pkgs.stdenv // {
     hostPlatform = pkgs.stdenv.hostPlatform // {
-      linux-kernel = pkgs.stdenv.hostPlatform.linux-kernel // {
+      linux-kernel = (pkgs.stdenv.hostPlatform.linux-kernel or { }) // {
         extraConfig = "CONFIG_DEBUG_INFO y";
       };
     };

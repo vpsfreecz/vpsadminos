@@ -103,37 +103,62 @@ let
             "impermanence"
             "nixpkgs"
           ];
+      name = "${channel}/${if includeImpermanence then "impermanence" else "minimal"}";
     in
-    check "${channel}/${if includeImpermanence then "impermanence" else "minimal"}" (
-      guestFlake.inputs.nixpkgs.url
-      == "github:${nixpkgsNode.original.owner}/${nixpkgsNode.original.repo}/${nixpkgsNode.original.ref}"
-      && guestLock.version == 7
-      && guestLock.nodes.root.inputs.nixpkgs == "nixpkgs"
-      && guestLock.nodes.root.inputs.vpsadminos == "vpsadminos"
-      && (guestLock.nodes.root.inputs ? impermanence) == includeImpermanence
-      && guestLock.nodes.nixpkgs.locked == nixpkgsNode.locked
-      && guestLock.nodes.vpsadminos-nixpkgs.locked == stableNixpkgsNode.locked
-      && guestLock.nodes.vpsadminos-nixpkgs-unstable.locked == unstableNixpkgsNode.locked
-      && guestLock.nodes.vpsadminos.locked.rev == revision
-      && guestLock.nodes."home-manager".inputs.nixpkgs == follows
-      && config.system.stateVersion == guestLib.trivial.release
-      && config.boot.isContainer
-      && config.system.build.toplevel.drvPath == explicit.config.system.build.toplevel.drvPath
-      && lib.hasInfix "vpsadminos.nixosModules.${moduleName}" (builtins.readFile files."flake.nix")
-      && (
-        !includeImpermanence
-        || (
-          lib.any (
-            directory: directory.directory == "/var/lib/nixos"
-          ) config.environment.persistence."/persistent".directories
-          && lib.any (file: file.file == "/etc/machine-id") config.environment.persistence."/persistent".files
+    rec {
+      inputLock = check "${name} input lock" (
+        builtins.parseFlakeRef guestFlake.inputs.nixpkgs.url == nixpkgsNode.original
+        && builtins.parseFlakeRef guestFlake.inputs.vpsadminos.url == guestLock.nodes.vpsadminos.original
+        && (
+          !includeImpermanence
+          || builtins.parseFlakeRef guestFlake.inputs.impermanence.url == impermanenceNode.original
         )
-      )
-    );
+        && guestLock.version == 7
+        && guestLock.nodes.root.inputs.nixpkgs == "nixpkgs"
+        && guestLock.nodes.root.inputs.vpsadminos == "vpsadminos"
+        && (guestLock.nodes.root.inputs ? impermanence) == includeImpermanence
+        &&
+          guestLock.nodes.nixpkgs == {
+            inherit (nixpkgsNode) locked original;
+          }
+        &&
+          guestLock.nodes.vpsadminos-nixpkgs == {
+            inherit (stableNixpkgsNode) locked original;
+          }
+        &&
+          guestLock.nodes.vpsadminos-nixpkgs-unstable == {
+            inherit (unstableNixpkgsNode) locked original;
+          }
+        && guestLock.nodes.impermanence.original == impermanenceNode.original
+        && guestLock.nodes.vpsadminos.locked.rev == revision
+        && guestLock.nodes."home-manager".inputs.nixpkgs == follows
+      );
+      guest =
+        inputLock
+        && check name (
+          config.system.stateVersion == guestLib.trivial.release
+          && config.boot.isContainer
+          && config.system.build.toplevel.drvPath == explicit.config.system.build.toplevel.drvPath
+          && lib.hasInfix "vpsadminos.nixosModules.${moduleName}" (builtins.readFile files."flake.nix")
+          && (
+            !includeImpermanence
+            || (
+              lib.any (
+                directory: directory.directory == "/var/lib/nixos"
+              ) config.environment.persistence."/persistent".directories
+              && lib.any (file: file.file == "/etc/machine-id") config.environment.persistence."/persistent".files
+            )
+          )
+        );
+    };
+  templates = {
+    stable = evaluateTemplate "stable" false;
+    stableImpermanence = evaluateTemplate "stable" true;
+    unstable = evaluateTemplate "unstable" false;
+    unstableImpermanence = evaluateTemplate "unstable" true;
+  };
 in
-{
-  stable = evaluateTemplate "stable" false;
-  stableImpermanence = evaluateTemplate "stable" true;
-  unstable = evaluateTemplate "unstable" false;
-  unstableImpermanence = evaluateTemplate "unstable" true;
+builtins.mapAttrs (_: template: template.guest) templates
+// {
+  inputLocks = builtins.mapAttrs (_: template: template.inputLock) templates;
 }
