@@ -30,6 +30,37 @@ module OsCtl::Lib
       lavgs
     end
 
+    # Read from already verified, unique namespace IDs without resolving any PID
+    # again. Ambiguous or malformed records are unavailable for that namespace.
+    def self.read_namespaces(namespaces)
+      new.read_namespaces(namespaces)
+    end
+
+    def read_namespaces(namespaces)
+      results = {}
+      seen = {}
+      File.foreach(FILE) do |line|
+        id, *fields = line.split
+        next unless (ct = namespaces[id])
+
+        if seen[id]
+          results.delete(ct.ident)
+          next
+        end
+        seen[id] = true
+        next unless fields.size == 4 && fields.last.match?(%r{\A[0-9]+/[0-9]+\z})
+
+        values = fields.first(3).map { |v| Float(v, exception: false) }
+        next unless values.all? { |v| v && v.finite? && v >= 0 }
+
+        runnable, total = fields.last.split('/').map(&:to_i)
+        results[ct.ident] = LoadAvg.new(ct[:pool], ct[:id], [1, 5, 15].zip(values).to_h, runnable, total)
+      end
+      results
+    rescue SystemCallError, IOError
+      {}
+    end
+
     # Read container load averages
     # @param containers [Array<Hash>] list of containers as received from osctld
     # @yieldparam lavg [LoadAvg]

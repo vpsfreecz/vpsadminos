@@ -55,6 +55,11 @@ module OsCtl::Cli::Top
         pos = i + 2
       end
 
+      if pos + 4 < Curses.lines
+        Curses.setpos(pos + 2, 0)
+        Curses.addstr('~ marks a measured subtotal that excludes missing readings.')
+        pos += 2
+      end
       Curses.setpos(pos + 2, 0)
       Curses.addstr("Press 'q', '?' or <Esc> to continue")
     end

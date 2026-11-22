@@ -58,6 +58,10 @@ module OsCtl::Cli::Top
       @model.containers
     end
 
+    def current_run?(row, **)
+      @model.current_run?(row, **)
+    end
+
     protected
 
     def work

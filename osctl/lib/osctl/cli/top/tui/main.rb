@@ -12,17 +12,15 @@ module OsCtl::Cli::Top
 
     class Module
       attr_reader :name, :header_fmts, :header_labels, :row_fmt, :row_values,
-                  :sortable_fields, :stats_cts_values, :stats_all_values, :stats_iostat_values
+                  :sortable_fields, :stats_iostat_values
 
-      def initialize(name:, header_fmts:, header_labels:, row_fmt:, row_values:, stats_cts_values:, stats_all_values:, sortable_fields: [], stats_iostat_values: nil)
+      def initialize(name:, header_fmts:, header_labels:, row_fmt:, row_values:, sortable_fields: [], stats_iostat_values: nil)
         @name = name
         @header_fmts = header_fmts
         @header_labels = header_labels
         @row_fmt = row_fmt
         @row_values = row_values
         @sortable_fields = sortable_fields
-        @stats_cts_values = stats_cts_values
-        @stats_all_values = stats_all_values
         @stats_iostat_values = stats_iostat_values || proc { ['-'] * row_fmt.length }
       end
     end
@@ -236,9 +234,7 @@ module OsCtl::Cli::Top
         row_fmt: ['%-14s'],
         row_values: proc do |ct|
           [format_ctid(ct[:id])]
-        end,
-        stats_cts_values: [],
-        stats_all_values: []
+        end
       )
 
       @modules << Module.new(
@@ -257,25 +253,11 @@ module OsCtl::Cli::Top
                 else
                   (rt? ? format_percent(value) : humanize_time_us(value)).to_s
                 end
-          cpu << "/#{ct[:cpu_package_inuse]}" if ct[:cpu_package_inuse]
+          cpu << "/#{ct[:cpu_package_inuse]}" if !value.nil? && ct[:cpu_package_inuse]
           [cpu]
         end,
         sortable_fields: proc do
           rt? ? :cpu_usage : :cpu_us
-        end,
-        stats_cts_values: proc do |cts|
-          if rt?
-            [format_percent(sum(cts, :cpu_usage, false))]
-          else
-            [humanize_time_us(sum(cts, :cpu_us, false))]
-          end
-        end,
-        stats_all_values: proc do |cts|
-          if rt?
-            [format_percent(sum(cts, :cpu_usage, true))]
-          else
-            [humanize_time_us(sum(cts, :cpu_us, true))]
-          end
         end
       )
 
@@ -291,13 +273,7 @@ module OsCtl::Cli::Top
         row_values: proc do |ct|
           [ct[:memory].nil? ? '-' : humanize_data(ct[:memory])]
         end,
-        sortable_fields: :memory,
-        stats_cts_values: proc do |cts|
-          [humanize_data(sum(cts, :memory, false))]
-        end,
-        stats_all_values: proc do |cts|
-          [humanize_data(sum(cts, :memory, true))]
-        end
+        sortable_fields: :memory
       )
 
       @modules << Module.new(
@@ -312,13 +288,7 @@ module OsCtl::Cli::Top
         row_values: proc do |ct|
           [ct[:nproc]]
         end,
-        sortable_fields: :nproc,
-        stats_cts_values: proc do |cts|
-          [sum(cts, :nproc, false)]
-        end,
-        stats_all_values: proc do |cts|
-          [sum(cts, :nproc, true)]
-        end
+        sortable_fields: :nproc
       )
 
       if model_thread.zfs_enabled? && Curses.cols >= 114
@@ -347,22 +317,6 @@ module OsCtl::Cli::Top
             %i[zfsio bytes w],
             %i[zfsio ios w]
           ],
-          stats_cts_values: proc do |cts|
-            [
-              humanize_data(sum(cts, %i[zfsio bytes r], false)),
-              humanize_number(sum(cts, %i[zfsio ios r], false)),
-              humanize_data(sum(cts, %i[zfsio bytes w], false)),
-              humanize_number(sum(cts, %i[zfsio ios w], false))
-            ]
-          end,
-          stats_all_values: proc do |cts|
-            [
-              humanize_data(sum(cts, %i[zfsio bytes r], true)),
-              humanize_number(sum(cts, %i[zfsio ios r], true)),
-              humanize_data(sum(cts, %i[zfsio bytes w], true)),
-              humanize_number(sum(cts, %i[zfsio ios w], true))
-            ]
-          end,
           stats_iostat_values: proc do |iostat|
             [
               humanize_data(iostat[:bytes_read]),
@@ -397,19 +351,7 @@ module OsCtl::Cli::Top
               sortable_fields: [
                 %i[tx bytes],
                 %i[rx bytes]
-              ],
-              stats_cts_values: proc do |cts|
-                [
-                  humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
-                  humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1))
-                ]
-              end,
-              stats_all_values: proc do |cts|
-                [
-                  humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
-                  humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1))
-                ]
-              end
+              ]
             )
           else
             Module.new(
@@ -436,23 +378,7 @@ module OsCtl::Cli::Top
                 %i[tx packets],
                 %i[rx bytes],
                 %i[rx packets]
-              ],
-              stats_cts_values: proc do |cts|
-                [
-                  humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
-                  humanize_data(sum(cts, %i[tx packets], false)),
-                  humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1)),
-                  humanize_data(sum(cts, %i[rx packets], false))
-                ]
-              end,
-              stats_all_values: proc do |cts|
-                [
-                  humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
-                  humanize_data(sum(cts, %i[tx packets], true)),
-                  humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1)),
-                  humanize_data(sum(cts, %i[rx packets], true))
-                ]
-              end
+              ]
             )
           end
 
@@ -478,19 +404,7 @@ module OsCtl::Cli::Top
             sortable_fields: [
               [:loadavg, 0],
               [:loadavg, 1]
-            ],
-            stats_cts_values: proc do |cts|
-              [
-                format_loadavg(sum(cts, [:loadavg, 0], false)),
-                format_loadavg(sum(cts, [:loadavg, 1], false))
-              ]
-            end,
-            stats_all_values: proc do |_cts, data|
-              [
-                data[:loadavg] ? format_loadavg(data[:loadavg][0]) : '-',
-                data[:loadavg] ? format_loadavg(data[:loadavg][1]) : '-'
-              ]
-            end
+            ]
           )
         else
           Module.new(
@@ -513,21 +427,7 @@ module OsCtl::Cli::Top
               [:loadavg, 0],
               [:loadavg, 1],
               [:loadavg, 2]
-            ],
-            stats_cts_values: proc do |cts|
-              [
-                format_loadavg(sum(cts, [:loadavg, 0], false)),
-                format_loadavg(sum(cts, [:loadavg, 1], false)),
-                format_loadavg(sum(cts, [:loadavg, 2], false))
-              ]
-            end,
-            stats_all_values: proc do |_cts, data|
-              [
-                data[:loadavg] ? format_loadavg(data[:loadavg][0]) : '-',
-                data[:loadavg] ? format_loadavg(data[:loadavg][1]) : '-',
-                data[:loadavg] ? format_loadavg(data[:loadavg][2]) : '-'
-              ]
-            end
+            ]
           )
         end
     end
@@ -547,7 +447,13 @@ module OsCtl::Cli::Top
         Curses.addstr(" #{model_thread.mode} mode, load average #{lavg}")
       end
 
-      i = status_bar(1, t, procs_stats, data)
+      if data[:invalid_reason] == 'monitor_unavailable'
+        Curses.setpos(1, 0)
+        Curses.addstr('Event monitoring lost. Relaunch ct top.')
+        i = status_bar(2, t, procs_stats, data)
+      else
+        i = status_bar(1, t, procs_stats, data)
+      end
 
       Curses.attron(Curses.color_pair(1))
       i = header(i + 1)
@@ -558,17 +464,19 @@ module OsCtl::Cli::Top
       @view_offset, view_ct_count, @view_page_max, @view_page =
         view_window(ct_count, Curses.lines - stats_rows - i, view_page)
       shown_ct_count = [view_ct_count, ct_count - @view_offset].min
+      visible = @containers[@view_offset, shown_ct_count]
+      @current_row = visible.index { |ct| row_key(ct) == @selection_key } if @selection_key
 
-      @containers[@view_offset, shown_ct_count].each do |ct|
+      visible.each do |ct|
         Curses.setpos(i, 0)
 
-        attr = if current_row == j && highlighted_cts.include?(ct[:id])
+        attr = if current_row == j && highlighted_cts.include?(row_key(ct))
                  Curses.color_pair(Tui::SELECTED_HIGHLIGHTED)
 
                elsif current_row == j
                  Curses.color_pair(Tui::SELECTED)
 
-               elsif highlighted_cts.include?(ct[:id])
+               elsif highlighted_cts.include?(row_key(ct))
                  Curses.color_pair(Tui::HIGHLIGHTED)
 
                end
@@ -728,16 +636,12 @@ module OsCtl::Cli::Top
       # Containers
       Curses.setpos(pos += 1, 0)
       Curses.addstr('Containers: ')
-      bold { Curses.addstr(format('%3d', model_thread.containers.count)) }
-      Curses.addstr(' total, ')
-      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.state == :starting })) }
-      Curses.addstr(' starting, ')
-      bold { Curses.addstr(format('%3d', data[:containers].count - 1)) } # -1 for [host]
-      Curses.addstr(' running, ')
-      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.state == :stopping })) }
-      Curses.addstr(' stopping, ')
-      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.state == :stopped })) }
-      Curses.addstr(' stopped')
+      counts = data[:state_counts]
+      %w[total starting running stopping stopped].each_with_index do |state, i|
+        count = counts && (state == 'total' ? counts.values.sum : counts.fetch(state, 0))
+        bold { Curses.addstr(format('%3s', count || '-')) }
+        Curses.addstr(" #{state}#{i < 4 ? ', ' : ''}")
+      end
 
       @status_bar_cols += pos - orig_pos + 1
       pos + 1
@@ -809,24 +713,43 @@ module OsCtl::Cli::Top
       Curses.addstr(' ' * (Curses.cols - w)) if Curses.cols > w
     end
 
-    def module_totals(mod, cts, data, include_host)
-      fields = case mod.name
-               when 'network' then %i[tx rx]
-               when 'zfsio' then [:zfsio]
-               when 'cpu' then [rt? ? :cpu_usage : :cpu_us]
-               when 'memory' then [:memory]
-               when 'proc' then [:nproc]
-               when 'loadavg' then [:loadavg]
-               else []
-               end
-      unknown = cts.any? do |ct|
-        next false if !include_host && ct[:id] == '[host]'
+    def module_totals(mod, rows, data, include_host)
+      fields = mod.sortable_fields
+      fields = fields.call if fields.is_a?(Proc)
+      fields = [fields] unless fields.is_a?(Array)
+      rows = rows.reject { |ct| ct[:id] == '[host]' } unless include_host
+      node = include_host && data[:node_totals]
+      fields.map do |field|
+        # Independent whole-system measurements need not be reconstructed from
+        # container or residual rows.
+        direct = node && lookup_field(node, field)
+        next format_total(field, direct) if direct
 
-        fields.any? { |key| ct[key].nil? }
+        contributors = rows.reject { |ct| lookup_field(ct, field).nil? }
+        if contributors.empty?
+          next format_total(field, 0) if rows.empty? && data[:inventory_complete]
+
+          next '-'
+        end
+        next '-' if contributors.map { |ct| ct[:column_windows]&.[](Array(field).first) }.uniq.size > 1
+
+        reading = format_total(field, sum(contributors, field, true))
+        data[:inventory_complete] && contributors.size == rows.size ? reading : "~#{reading}"
       end
-      return ['-'] * mod.row_fmt.length if unknown
+    end
 
-      (include_host ? mod.stats_all_values : mod.stats_cts_values).call(cts, data)
+    def format_total(field, value)
+      case Array(field).first
+      when :cpu_usage then format_percent(value).to_s
+      when :cpu_us then humanize_time_us(value).to_s
+      when :memory then humanize_data(value).to_s
+      when :loadavg then format_loadavg(value).strip
+      when :tx, :rx
+        humanize_data(rt? && field.last == :bytes ? value * 8 : value).to_s
+      when :zfsio
+        field.include?(:bytes) ? humanize_data(value).to_s : humanize_number(value).to_s
+      else value.to_s
+      end
     end
 
     def stats_rows
@@ -985,6 +908,7 @@ module OsCtl::Cli::Top
       elsif @containers.any?
         @current_row = last_row
       end
+      remember_selection
     end
 
     def selection_down
@@ -1002,6 +926,17 @@ module OsCtl::Cli::Top
       elsif @containers.any?
         @current_row = 0
       end
+      remember_selection
+    end
+
+    def row_key(ct)
+      ct.values_at(:pool, :id)
+    end
+
+    def remember_selection
+      ct = @current_row && @containers[@view_offset + @current_row]
+      @selection_key = row_key(ct) if ct
+      @selection_key = nil unless ct
     end
 
     def selection_highlight
@@ -1010,13 +945,13 @@ module OsCtl::Cli::Top
       ct = @containers[@view_offset + @current_row]
       return unless ct
 
-      ctid = ct[:id]
+      key = row_key(ct)
 
-      if highlighted_cts.include?(ctid)
-        highlighted_cts.delete(ctid)
+      if highlighted_cts.include?(key)
+        highlighted_cts.delete(key)
 
       else
-        highlighted_cts << ctid
+        highlighted_cts << key
       end
     end
 
@@ -1039,27 +974,9 @@ module OsCtl::Cli::Top
           Curses.close_screen
           Process.exec(*block.call)
         end
-      elsif ct[:init_pid]
-        pid = Process.fork do
-          sys = OsCtl::Lib::Sys.new
-
-          sys.setns_path(
-            File.join('/proc', ct[:init_pid].to_s, 'ns/pid'),
-            OsCtl::Lib::Sys::CLONE_NEWPID
-          )
-          sys.unshare_ns(OsCtl::Lib::Sys::CLONE_NEWNS)
-
-          # Enter the PID namespace in a child process
-          child = Process.fork do
-            sys.mount_proc('/proc')
-
-            Curses.close_screen
-            Process.exec(*block.call)
-          end
-
-          Process.wait(child)
-          exit($?.exitstatus)
-        end
+      elsif ct[:run_verified]
+        pid = open_container_program(ct, &block)
+        return unless pid
       else
         return
       end
@@ -1071,8 +988,31 @@ module OsCtl::Cli::Top
       Curses.start_color
       Curses.crmode
       Curses.stdscr.keypad = true
-      Curses.curs_set(0)  # hide cursor
+      Curses.curs_set(0) # hide cursor
       Curses.clear
+    end
+
+    def open_container_program(ct)
+      File.open("/proc/#{ct[:init_pid]}/ns/pid", 'r') do |ns|
+        # Pin the namespace before rechecking the process identity, rather
+        # than verifying a PID and resolving it a second time in the child.
+        next unless model_thread.current_run?(ct, pid_namespace: ns)
+
+        Process.fork do
+          sys = OsCtl::Lib::Sys.new
+          sys.setns_io(ns, OsCtl::Lib::Sys::CLONE_NEWPID)
+          sys.unshare_ns(OsCtl::Lib::Sys::CLONE_NEWNS)
+          child = Process.fork do
+            sys.mount_proc('/proc')
+            Curses.close_screen
+            Process.exec(*yield)
+          end
+          Process.wait(child)
+          exit($?.exitstatus)
+        end
+      end
+    rescue Errno::ENOENT, Errno::EACCES, Errno::ESRCH
+      nil
     end
 
     def view_page_down

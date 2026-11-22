@@ -56,6 +56,19 @@ RSpec.describe OsCtl::Oomd::Eligibility do
     expect(eligible?(container, [])).to be(false)
   end
 
+  it 'bounds missing and tied competitors without depending on their order' do
+    candidate = { 'loadavg' => [12, 0, 0] }
+    host = { 'id' => '[host]', 'loadavg' => [12, 0, 0] }
+    roster = [candidate, host, { 'loadavg' => nil }]
+    expect(described_class.rank_proof(candidate, roster, nil, 2)).to be_nil
+    expect(described_class.rank_proof(candidate, roster, nil, 3)).to be(true)
+    host['loadavg'] = [20, 0, 0]
+    expect(described_class.rank_proof(candidate, roster, nil, 1)).to be(false)
+    candidate['loadavg'] = nil
+    expect(described_class.rank_proof(candidate, roster, nil, 2)).to be_nil
+    expect(described_class.rank_proof(candidate, roster, nil, 3)).to be(true)
+  end
+
   it 'includes the synthetic host row when applying the rank cutoff' do
     ranked = [{ 'pool' => nil, 'id' => '[host]' }, container]
     expect(eligible?(container, ranked, load_top: 1)).to be(false)

@@ -6,7 +6,8 @@ historical median. Candidates must meet the memory threshold, meet the CPU
 threshold when a CPU limit is set, and fall within the configured load ranking.
 The synthetic host row participates in that ranking.
 
-At the default interval, eight hits request a restart and forty request a stop.
+By default, the ordinary policy requires eight hits for a restart and forty
+for a stop. Both thresholds are configurable.
 A qualifying observation adds one to a score; a miss subtracts one, with a floor
 of zero. An inactive host gate leaves scores unchanged.
 
@@ -28,8 +29,8 @@ To let oomd react to watchdog distress:
 ```
 
 `osctl.oomd.settings.rtnl_watchdog.enable` defaults to `false`. With oomd enabled,
-this option also enables `services.rtnl-watchdog`. Oomd uses ordinary JSON
-`ct top` with network, ZFS, iostat and process collection disabled. A blocked
+this option also enables `services.rtnl-watchdog`. Oomd uses JSON `ct top`
+with network, ZFS, iostat and process collection disabled. A blocked
 required read can still prevent a fresh sample. Oomd reads the local watchdog
 state; its reaction does not depend on a Prometheus scrape or network request.
 
@@ -40,10 +41,10 @@ osctl -j ct top --rate 15 --no-netif --no-zfs --no-iostat --no-processes
 ```
 
 Ordinary `ct top` defaults to a one-second interval. Oomd supplies its configured
-observation interval, normally 15 seconds. The same Top model serves JSON and
-the interactive display. Network and ZFS collection are enabled by default;
-`--no-netif` skips interface inventory, events and statistics, while `--no-zfs`
-skips objset, ARC and iostat reads. The disabled JSON fields are null.
+observation interval, normally 15 seconds. Top enables network and ZFS
+collection by default. `--no-netif` skips interface inventory, events and
+statistics. `--no-zfs` skips objset, ARC and iostat reads. Disabled collectors
+provide no readings.
 
 Top collects cgroup v1/v2 CPU and memory counters and limits, host
 CPU/memory/load, and per-container load. It validates running inventory and init
@@ -52,14 +53,16 @@ Top's percentage-of-one-CPU convention and existing limit units. Unlimited
 limits are null. The synthetic `[host]` row has a null pool and run identity and
 participates in the full load ranking; it is never a container action target.
 
-The enabled watchdog consumer requires `top_schema: 1` and effective
-`collectors: {netif: false, zfs: false, iostat: false}`. Missing, malformed or
-unexpected collector settings cannot authorize actions. This requirement
-belongs to the consumer; ordinary Top can use any supported collector settings.
-Frames include sampler-process `epoch`, increasing `sequence`, `complete` and
-`invalid_reason`. Running container rows retain `pool`, `id`, `loadavg`,
-`memory`, `memory_limit`, `cpu_usage` and `cpu_limit`, with `init_pid`,
-`init_start_time_ticks`, `valid` and `invalid_reason` identifying usable runs.
+Oomd reads one bounded JSON stream. Each record must have `top_schema: 2` at
+the root and `collectors: {netif: false, zfs: false, iostat: false}`. This
+changes the output format of `osctl -j ct top`. Oomd rejects schema 1, wrapped
+records, malformed records and unexpected collector settings. Ordinary
+`ct top` still supports its own collector settings.
+
+Each record identifies the acquisition by `epoch` and `sequence` and carries
+verified container runs and individual CPU measurement windows. After a missed
+or invalid record within a sampler run, oomd waits for a fresh compatible pair
+before acting again.
 
 `sample_started_monotonic_ns` and `sample_completed_monotonic_ns` enclose the
 current acquisition and projection. `measurement_window_started_monotonic_ns`
@@ -83,9 +86,8 @@ require a fresh baseline. Setup takes an unpublished seed, so the first visible
 complete frame can use that seed. Disabled optional collectors do not invalidate
 coherent core data, and unavailable optional values are null.
 
-Consumers must reject incomplete or invalid rows before interpreting
-eligibility. Required read failures cannot certify zero activity. A blocked
-required read prevents fresh publication; no replacement reader is launched.
+A blocked required read prevents fresh publication. Oomd waits for new data
+rather than starting another reader or reusing an old sample.
 
 ## Scoring during watchdog distress
 
@@ -103,27 +105,49 @@ forty-hit threshold. Watchdog-only observations never increase or decrease it.
 A fresh healthy completion, stale or erroneous watchdog state, or an observer
 epoch change removes the override and clears accelerated restart evidence.
 Each new watchdog epoch needs two ordered fresh frames before it can open the
-gate. Invalid or incomplete samples, missing sequence numbers and sampler
-replacement also clear accelerated evidence.
+gate. Invalid packets, missing sequence numbers and sampler replacement also
+clear accelerated evidence. A valid partial observation can still support a
+restart hit for a verified run. An undecidable observation clears accelerated
+restart evidence for that run only.
 
 The sample freshness limit applies to acquisition and action dispatch. A hit
 survives the normal fifteen-second observation interval. If the next valid
 observation does not arrive within the interval plus the freshness limit,
-accelerated
-restart evidence clears without creating a miss. Same-run ordinary-mode scores
-survive invalid gaps and sampler replacement; dispatch still requires a fresh,
-complete current-run sample.
+accelerated restart evidence clears without creating a miss. Same-run ordinary-mode scores
+survive invalid gaps and sampler replacement. Dispatch still requires fresh
+measurements from the current run.
 
 Settings under `osctl.oomd.settings.rtnl_watchdog`:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `enable` | `false` | Enable the additional host gate and guarded action path |
+| `enable` | `false` | Enable the additional host gate |
 | `state_file` | `/run/rtnl-watchdog.json` | Root-owned schema 1 state file |
 | `max_age_seconds` | `1` | Maximum watchdog frame age |
 | `restart_hits` | `2` | Episode restart threshold, at least two |
 | `observation_max_age_seconds` | `5` | Maximum sweep duration and sample age at dispatch |
 | `action_workers` | `2` | Physical action slots, restricted to one or two |
+
+## Restart eligibility with partial samples
+
+A missing reading for one container need not prevent a restart of another.
+Oomd needs the full running roster, including the host in the ranking, and
+verified CPU, memory and limit readings for the target. If any load readings
+are missing, a target can qualify only if it stays in the configured top group
+regardless of the missing values. If oomd cannot establish a target's rank or
+required readings, it does not score that target.
+
+For ordinary restarts, oomd checks a fresh host load against the median that
+would result if it added that reading to the complete history. It does not
+modify the history. If there is no complete history yet, oomd temporarily
+keeps a bounded history of measured host loads in memory for restart decisions.
+The first reading on its own cannot open the gate. Oomd drops that temporary
+history once it has a strict baseline or replaces the sampler.
+
+Partial samples do not change stop scores or the persisted host-load median.
+They cannot authorize a stop or substitute a restart when a stop has priority.
+The RTNL watchdog remains optional. During watchdog distress, the same restart
+threshold and timing rules apply to qualifying partial observations.
 
 ## Guarded actions
 
@@ -163,14 +187,26 @@ metrics. A blocked notification worker cannot retain a completed action slot.
 
 ## Compatibility and rollback
 
-Install the matching Top sampler, watchdog and guarded osctld/osctl commands
-before enabling the option. Old or incomplete sampler output cannot authorize
-feature actions. An older replacement daemon rejects guarded actions by command
-name.
+Use schema-2 Top and oomd from the same release, with an osctld that supports
+the guarded commands. Do not connect an older oomd to schema-2 Top. An older
+daemon without the guarded commands rejects requests; oomd does not retry them
+as ordinary actions. Oomd and the watchdog remain off unless enabled.
 
-Disabling the option restores the original policy path and thresholds. It
-requires no persistent score or database migration. The host-load history keeps
-its existing format and cadence. Wait for outstanding actions to finish before
-replacing the service: changing settings does not cancel a blocked command.
-Follow the watchdog guide's lifetime-lock recovery rules when disabling or
-replacing that service.
+Stop oomd and the other Top JSON readers before switching binaries. Verify
+that outstanding actions have finished and reconcile any unknown outcomes
+before starting the new oomd. Replacing the sampler does not cancel a blocked
+command.
+Update Top and its readers together, then restart the readers so they launch a
+new Top process. Check that they receive fresh schema-2 records before allowing
+actions again. Follow the watchdog guide's lifetime-lock recovery rules when
+disabling or replacing the watchdog.
+
+Use `--dry-run` to check what oomd would restart or stop. In either gate mode,
+it logs simulated decisions without sending action commands or broadcasting
+action-success events. Sampling, scoring, metrics and host-load history still
+run.
+
+To roll back, stop the readers again and drain or reconcile any outstanding
+actions. Restore the previous matching Top and readers together before starting
+them. Check the older oomd's safeguards: older ordinary oomd did not use the
+run guard. The host-load history format is unchanged. No migration is required.
