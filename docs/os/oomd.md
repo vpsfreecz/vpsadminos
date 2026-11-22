@@ -196,12 +196,6 @@ Stop oomd and the other Top JSON readers before switching binaries. Verify
 that outstanding actions have finished and reconcile any unknown outcomes
 before starting the new oomd. Replacing the sampler does not cancel a blocked
 command.
-Update Top and its readers together, including `nodectld` on vpsAdmin nodes.
-Check that each reader service finds the matching `osctl` on its `PATH`.
-Changing the vpsAdmin input pin does not activate new binaries on a node.
-Restart the readers and check that they receive fresh schema-2 records before
-allowing actions again. Follow the watchdog guide's lifetime-lock recovery
-rules when disabling or replacing the watchdog.
 
 Use `--dry-run` to check what oomd would restart or stop. In either gate mode,
 it logs simulated decisions without sending action commands or broadcasting
