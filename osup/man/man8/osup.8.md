@@ -1,4 +1,4 @@
-# osup 8                          2026-06-03                               26.05
+# osup 8                          2026-11-22                               26.11
 
 ## NAME
 `osup` - system upgrade manager for vpsAdminOS

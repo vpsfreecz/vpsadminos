@@ -1,4 +1,4 @@
-# osctl 8                         2026-06-03                               26.05
+# osctl 8                         2026-11-22                               26.11
 
 ## NAME
 `osctl` - command line interface for container management.

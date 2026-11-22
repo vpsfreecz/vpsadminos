@@ -30,7 +30,7 @@ SYNOPSIS
     osctl-image [global options] command [command options] [arguments...]
 
 VERSION
-    26.05.0
+    26.11.0
 
 GLOBAL OPTIONS
     --build-scripts=dir - Path to directory with image build scripts
