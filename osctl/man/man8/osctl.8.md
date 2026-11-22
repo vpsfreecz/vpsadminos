@@ -1947,6 +1947,12 @@ transfer and start again.
   A `~` prefix in a total marks a measured subtotal that excludes missing
   contributors, not an estimate of the full total.
 
+  Container ZFS rates use counters summed over the root dataset and its
+  descendants. Top starts a new baseline if the tracked root dataset identity
+  changes or an aggregate counter decreases. It does not track descendant
+  identities separately, so replacing a descendant can skew the reported rate
+  without a detectable reset.
+
   Unavailable measurements are null; the `errors` object gives reasons by
   field. A row with `run_verified: false` has no verified process identity or
   attributed measurements. `inventory_complete` indicates whether Top verified

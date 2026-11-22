@@ -260,6 +260,10 @@ module OsCtl::Cli
       endings = Array(sweep.last).to_h { |attrs| [ident(attrs), attrs] }
       sweep.rows.each_value do |row|
         current = endings[row.ct.ident]
+        if current && current[:state] == 'running' && !run_fields?(current)
+          row.read_error ||= 'invalid_run'
+          next
+        end
         next unless matching_run?(row.ct, current)
 
         row.finish_run, error = read_run(current)
@@ -315,7 +319,15 @@ module OsCtl::Cli
       attrs && attrs[:state] == 'running' && attrs[:group_path] == ct.group_path && attrs[:init_pid] == ct.init_pid
     end
 
+    def run_fields?(attrs)
+      pid = attrs[:init_pid]
+      path = attrs[:group_path]
+      pid.is_a?(Integer) && pid > 0 && path.is_a?(String) && !path.empty?
+    end
+
     def read_run(attrs, pid_namespace: nil)
+      return [nil, 'invalid_run'] unless run_fields?(attrs)
+
       [Top::RunIdentity.new(pid: attrs[:init_pid], id: attrs[:id], group_path: attrs[:group_path],
                             v1: OsCtl::Lib::CGroup.v1?, pid_namespace:), nil]
     rescue Top::RunIdentity::Invalid, SystemCallError, IOError
@@ -504,8 +516,10 @@ module OsCtl::Cli
     def project_row(attrs, history, sweep, during, socket, mode, cpu, cpu_error)
       key = ident(attrs)
       row = history.rows[key]
+      path = attrs[:group_path]
+      path = nil unless path.is_a?(String) && !path.empty?
       row_data = unverified_fields(sweep.rows[key]&.read_error || 'run_changed').merge(
-        pool: attrs[:pool], id: attrs[:id], group_path: attrs[:group_path], cpu_package_inuse: socket, column_windows: {}
+        pool: attrs[:pool], id: attrs[:id], group_path: path, cpu_package_inuse: socket, column_windows: {}
       )
       return row_data unless row
 

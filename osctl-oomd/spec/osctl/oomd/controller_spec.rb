@@ -385,6 +385,51 @@ RSpec.describe OsCtl::Oomd::Controller do
     expect(permits).to be_empty
   end
 
+  [0, 1].each do |over_ns|
+    it "checks full grant freshness after building the permit (deadline + #{over_ns}ns)" do
+      enter_episode
+      observe(1, 2)
+      trace = []
+      ticks = 0
+      elapsed = 0
+      allow(controller).to receive(:tick).and_wrap_original do |tick, **args|
+        ticks += 1
+        tick.call(**args)
+      end
+      allow(controller).to receive(:monotonic_ns) do
+        trace << :clock
+        elapsed
+      end
+      allow(Time).to receive(:now).and_wrap_original do |clock|
+        if ticks == 2
+          trace << :permit_time
+          elapsed = ns(5) + over_ns
+        end
+        clock.call
+      end
+      allow(workers).to receive(:dispatch) do |permit|
+        trace << :dispatch
+        permits << permit
+        true
+      end
+
+      expect(observe(2, 17)).to be(true)
+      expect(trace).to eq(%i[clock clock permit_time clock] + (over_ns == 0 ? [:dispatch] : []))
+      expect(score.stop_hits).to eq(0)
+      expect(host_load).to have_received(:<<).with(10).twice
+      if over_ns == 0
+        expect(permits).to contain_exactly(include(action: :restart, sequence: 3, run: [42, 123]))
+        expect(controller.inflight.values).to eq(permits)
+      else
+        expect(permits).to be_empty
+        expect(controller.inflight).to be_empty
+        expect(score.restart_hits).to eq(2)
+        expect(workers).not_to have_received(:publish).with(include(type: 'osctl_oomd'))
+        expect(workers).not_to have_received(:publish).with(include(message: /guarded dispatch/))
+      end
+    end
+  end
+
   it 'does not dispatch from old, overlong, missing-schema or run-invalid input' do
     enter_episode
     samples = [frame(1, 2).merge('top_schema' => nil),

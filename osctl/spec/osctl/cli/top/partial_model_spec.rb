@@ -96,7 +96,9 @@ RSpec.describe OsCtl::Cli::Top::PartialModel do
     end
     allow(File).to receive(:open).and_call_original
     allow(File).to receive(:open).with(%r{\A/proc/\d+\z}) do |path, &block|
-      block.call(instance_double(File, fileno: path.split('/').last.to_i))
+      pid = path.split('/').last.to_i
+      state[:proc_reads]&.push(pid)
+      block.call(instance_double(File, fileno: pid))
     end
     allow(File).to receive(:foreach).and_call_original
     allow(File).to receive(:foreach).with(OsCtl::Lib::LoadAvgReader::FILE) do |_, &block|
@@ -198,6 +200,99 @@ RSpec.describe OsCtl::Cli::Top::PartialModel do
     state[:inventory] = []
     advance(partial)
     expect(partial.data).to include(inventory_complete: true, state_counts: {}, invalid_reason: 'initial_baseline')
+  end
+
+  [[:init_pid, nil], [:group_path, nil], [:group_path, '']].each do |field, missing|
+    it "keeps the running key and healthy peer when both endpoints lack #{field} (#{missing.inspect})" do
+      partial.setup
+      advance(partial)
+      ct = state[:inventory][1]
+      original = ct[field]
+      missing.nil? ? ct.delete(field) : ct[field] = missing
+      state[:proc_reads] = []
+      2.times do |i|
+        advance(partial)
+        wire = partial.json_data
+        expect(wire).to include(complete: false, invalid_reason: 'invalid_run', inventory_complete: false,
+                                measurement_window_started_monotonic_ns: nil, state_counts: { 'running' => 2, 'stopped' => 1 })
+        expect(wire[:containers].map { |item| item[:id] }).to eq(%w[101 102 [host]])
+        expect(row(wire, '101')).to include(
+          run_verified: true, cpu_usage: 180.0, cpu_baseline_sequence: i + 2, memory: 1_006_632_960, loadavg: [12.0, 7.0, 3.0]
+        )
+        expected_path = field == :group_path ? nil : ct[:group_path]
+        expect(row(wire, '102')).to include(
+          group_path: expected_path, run_verified: false, init_pid: nil, init_start_time_ticks: nil,
+          cpu_usage: nil, cpu_baseline_sequence: nil, cpu_window_started_monotonic_ns: nil, memory: nil, nproc: nil,
+          loadavg: nil, cpu_limit: nil, cpu_limit_state: 'unknown', memory_limit: nil,
+          memory_limit_state: 'unknown', errors: { run: 'invalid_run' }
+        )
+        expect(row(wire, '[host]').values_at(:memory, :cpu_usage)).to eq([nil, nil])
+        expect(partial.data[:node_totals]).to include(memory: 2_048_000_000, cpu_usage: a_kind_of(Numeric))
+        expect(wire[:memory]).to include(used: 2_048_000_000)
+        expect(partial.current_run?(row(wire, '102'))).to be(false)
+      end
+      expect(state[:proc_reads]).to eq([201] * 4)
+      expect(OsCtl::Lib::CGroup::PathReader).to have_received(:new).exactly(10).times
+      expect(OsCtl::Lib::CGroup::PathReader).to have_received(:new).with(anything, 'ct102/user-owned').twice
+      partial.mode = :cumulative
+      expect(row(partial.data, '101')).to include(cpu_us: 81_000_000)
+      expect(row(partial.data, '102')[:cpu_us]).to be_nil
+      expect(row(partial.data, '[host]')[:cpu_us]).to be_nil
+
+      ct[field] = original
+      advance(partial)
+      warmup = partial.json_data
+      expect(warmup).to include(complete: false, inventory_complete: true, invalid_reason: 'initial_baseline')
+      expect(row(warmup, '101')).to include(cpu_usage: 180.0, cpu_baseline_sequence: 4)
+      expect(row(warmup, '102')).to include(run_verified: true, cpu_usage: nil, memory: 250_000_000)
+      advance(partial)
+      expect(partial.json_data).to include(complete: true, inventory_complete: true)
+      expect(row(partial.json_data, '102')).to include(cpu_usage: 20.0, cpu_baseline_sequence: 5)
+    end
+  end
+
+  %i[init_pid group_path].each do |field|
+    it "withholds a running row that loses #{field} at the final endpoint" do
+      partial.setup
+      state[:proc_reads] = []
+      state[:during] = -> { state[:inventory][1][field] = nil }
+      advance(partial)
+      frame = partial.json_data
+      expect(frame).to include(complete: false, inventory_complete: false, invalid_reason: 'invalid_run',
+                               state_counts: { 'running' => 2, 'stopped' => 1 })
+      expect(row(frame, '101')).to include(cpu_usage: 180.0, cpu_baseline_sequence: 1)
+      expect(row(frame, '102')).to include(run_verified: false, init_pid: nil, loadavg: nil, errors: { run: 'invalid_run' })
+      expect(state[:proc_reads]).to eq([201, 202, 201])
+    end
+  end
+
+  it 'cannot use final-only run evidence to read a container or seed its CPU pair' do
+    partial.setup
+    state[:proc_reads] = []
+    ct = state[:inventory][1]
+    path = ct.delete(:group_path)
+    state[:during] = -> { ct[:group_path] = path }
+    advance(partial)
+    wire = partial.json_data
+    expect(wire).to include(complete: false, inventory_complete: false, invalid_reason: 'invalid_run')
+    expect(row(wire, '101')).to include(cpu_usage: 180.0, cpu_baseline_sequence: 1)
+    expect(row(wire, '102')).to include(group_path: path, run_verified: false, cpu_usage: nil, errors: { run: 'invalid_run' })
+    expect(state[:proc_reads]).to eq([201, 201])
+    advance(partial)
+    expect(row(partial.json_data, '102')).to include(run_verified: true, cpu_usage: nil)
+  end
+
+  [nil, { id: '[host]' }, { pool: '' }, { state: 42 }].each do |malformed|
+    it "fails the whole roster for malformed inventory #{malformed.inspect}" do
+      partial.setup
+      state[:proc_reads] = []
+      state[:inventory] = malformed && [state[:inventory].first, state[:inventory][1].merge(malformed)]
+      advance(partial)
+      expect(partial.json_data).to include(complete: false, inventory_complete: false, state_counts: nil,
+                                           invalid_reason: 'invalid_inventory')
+      expect(partial.json_data[:containers].map { |item| item[:id] }).to eq(['[host]'])
+      expect(state[:proc_reads]).to be_empty
+    end
   end
 
   it 'recovers running membership without losing another run’s cumulative readings' do

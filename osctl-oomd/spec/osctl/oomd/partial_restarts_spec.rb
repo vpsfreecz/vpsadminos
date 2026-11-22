@@ -261,12 +261,45 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     end
   end
 
-  it 'rejects a grant that becomes stale during its final check' do
-    observe(frame(6))
-    allow(controller).to receive(:monotonic_ns).and_return(ns(1), ns(1), ns(1), ns(7))
-    observe(fixture)
-    expect(permits).to be_empty
-    expect(score.stop_hits).to eq(1)
+  [0, 1].each do |over_ns|
+    it "checks partial grant freshness after the final gate (deadline + #{over_ns}ns)" do
+      observe(frame(6))
+      trace = []
+      elapsed = 0
+      allow(controller).to receive(:monotonic_ns) do
+        trace << :clock
+        elapsed
+      end
+      allow(host_load).to receive(:median_with) do
+        trace << :median
+        elapsed = ns(5) + over_ns if trace.count(:median) == 2
+        5
+      end
+      allow(workers).to receive(:dispatch) do |permit|
+        trace << :dispatch
+        permits << permit
+        true
+      end
+
+      expect(observe(fixture)).to be(true)
+      expect(trace).to eq(%i[clock median clock median clock] + (over_ns == 0 ? [:dispatch] : []))
+      expect(loads).to eq([20.0])
+      expect(score.stop_hits).to eq(1)
+      if over_ns == 0
+        expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 7, run: [201, 12_345]))
+        expect(controller.inflight.values).to eq(permits)
+      else
+        expect(permits).to be_empty
+        expect(controller.inflight).to be_empty
+        expect(score.restart_hits).to eq(2)
+        expect(workers).not_to have_received(:publish).with(include(type: 'osctl_oomd'))
+        expect(workers).not_to have_received(:publish).with(include(message: /guarded dispatch/))
+        controller.tick(now_ns: ns(121))
+        expect(permits).to be_empty
+        expect(observe(frame(8, reason: 'missing_cgroup_value'))).to be(true)
+        expect(permits).to contain_exactly(include(action: :restart, sequence: 8))
+      end
+    end
   end
 
   it 'rejects each overlong sweep and CPU envelope independently of completion freshness' do
@@ -316,6 +349,38 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       expect(permits).to be_empty
       expect(loads).to eq([20.0])
       expect([score.restart_hits, score.stop_hits]).to eq([1, 1])
+    end
+
+    it 'keeps an open receipt with an explicit null path without granting or advancing strict history' do
+      observe(frame(6))
+      raw = fixture.merge('inventory_complete' => false, 'invalid_reason' => 'invalid_run')
+      peer = raw['containers'][1]
+      %w[group_path init_pid init_start_time_ticks cpu_usage cpu_baseline_sequence cpu_window_started_monotonic_ns
+         cpu_limit memory_limit nproc loadavg].each { |key| peer[key] = nil }
+      peer.update('run_verified' => false, 'cpu_limit_state' => 'unknown', 'memory_limit_state' => 'unknown',
+                  'errors' => { 'run' => 'invalid_run' })
+      index = OsCtl::Oomd::Eligibility::Partial
+      expect(index.index(raw)).to include(%w[tank 102] => peer)
+      expect(index.index(raw.merge('inventory_complete' => true))).to be_nil
+      [peer.except('group_path'), peer.merge('run_verified' => true), peer.merge('tx' => {})].each do |invalid|
+        expect(index.index(raw.merge('containers' => [raw['containers'].first, invalid, raw['containers'].last]))).to be_nil
+      end
+      expect(observe(raw)).to be(false)
+      expect(permits).to be_empty
+      expect(controller.inflight).to be_empty
+      expect(loads).to eq([20.0])
+      expect([score.restart_hits, score.stop_hits]).to eq([1, 1])
+      warmup = frame(8, reason: 'initial_baseline')
+      warmup['containers'][1].update('cpu_usage' => nil, 'cpu_baseline_sequence' => nil,
+                                     'cpu_window_started_monotonic_ns' => nil, 'errors' => { 'cpu_usage' => 'initial_baseline' })
+      expect(observe(warmup)).to be(true)
+      expect(loads).to eq([20.0])
+      # The roster is closed again: A may qualify with its continuous pair,
+      # even though B must warm up and the stop policy still cannot run.
+      expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 8))
+      expect(observe(frame(9))).to be(true)
+      expect(loads).to eq([20.0, 20.0])
+      expect(permits.size).to eq(1)
     end
 
     it 'qualifies A even when B only lacks a load reading' do
