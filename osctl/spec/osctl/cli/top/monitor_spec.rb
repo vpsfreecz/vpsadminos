@@ -9,6 +9,9 @@ RSpec.describe OsCtl::Cli::Top::Monitor do
     allow(model).to receive(:sync).and_yield
     allow(model).to receive(:netif_enabled?).and_return(true)
     allow(model).to receive(:changed!)
+    allow(model).to receive(:missing_lifecycle)
+    allow(model).to receive(:monitor_ready)
+    allow(model).to receive(:monitor_unavailable)
   end
 
   it 'subscribes to events and starts a monitor thread' do
@@ -22,6 +25,41 @@ RSpec.describe OsCtl::Cli::Top::Monitor do
     monitor.subscribe
 
     expect(client.calls).to include([:cmd_data!, :event_subscribe, {}])
+  end
+
+  it 'fences a bad subscription acknowledgement without starting a worker' do
+    client = instance_double(OsCtl::Client, open: nil, close: nil)
+    allow(OsCtl::Client).to receive(:new).and_return(client)
+    allow(client).to receive(:cmd_data!).with(:event_subscribe).and_return(false)
+    monitor = described_class.new(model)
+    monitor.subscribe
+    monitor.start
+    monitor.stop
+    expect(model).to have_received(:monitor_unavailable).once
+    expect(model).not_to have_received(:monitor_ready)
+  end
+
+  it 'applies buffered events before acknowledging setup and fences subscriber EOF' do
+    client = instance_double(OsCtl::Client, open: nil, close: nil)
+    allow(OsCtl::Client).to receive(:new).and_return(client)
+    allow(client).to receive(:cmd_data!).with(:event_subscribe).and_return('subscribed')
+    allow(Thread).to receive(:new).and_return(instance_double(Thread))
+    monitor = described_class.new(model)
+    applied = []
+    allow(model).to receive(:missing_lifecycle) { |_, id| applied << id }
+    allow(model).to receive(:monitor_ready) { applied << :ready }
+    allow(model).to receive(:find_ct).and_return(nil)
+    monitor.subscribe
+    monitor.send(:save_event, type: 'ct_init_pid', opts: { pool: 'tank', id: 'before' })
+    monitor.start
+    allow(client).to receive(:response!).and_return(
+      double(data: { type: 'ct_init_pid', opts: { pool: 'tank', id: 'after' } }), double(data: nil)
+    )
+    # The earlier event was already applied at startup; no new event was
+    # required to flush it.
+    monitor.send(:monitor_loop)
+    expect(applied).to eq(['before', :ready, 'after'])
+    expect(model).to have_received(:monitor_unavailable).once
   end
 
   it 'updates container state, scheduling, init pid, and interfaces from events' do

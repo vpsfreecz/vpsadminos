@@ -16,7 +16,7 @@ module OsCtl::Cli
         queue.clear
 
         model.measure
-        puts model.data.to_json
+        puts model.json_data.to_json
         $stdout.flush
       end
     end

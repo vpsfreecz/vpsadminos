@@ -2,9 +2,11 @@ module OsCtl::Lib
   class NetifStats
     def initialize
       @cache = {}
+      @verified = {}
     end
 
     def reset
+      @verified.clear
       cache.clear
     end
 
@@ -20,6 +22,25 @@ module OsCtl::Lib
           packets: read_stat(netif, :rx, :packets)
         }
       }
+    end
+
+    def verified_stats(netif)
+      return @verified[netif] if @verified.has_key?(netif)
+
+      path = File.join('/sys/class/net', netif)
+      File.open(path) do |dir|
+        source = [dir.stat.dev, dir.stat.ino]
+        stats = %i[tx rx].to_h do |direction|
+          per_direction = %i[bytes packets].to_h do |kind|
+            file = "/proc/self/fd/#{dir.fileno}/statistics/#{direction}_#{kind}"
+            [kind, Integer(File.read(file).strip, 10)]
+          end
+          [direction, per_direction]
+        end
+        @verified[netif] = [source, stats]
+      end
+    rescue SystemCallError, IOError, ArgumentError
+      @verified[netif] = nil
     end
 
     def get_stats_for_all

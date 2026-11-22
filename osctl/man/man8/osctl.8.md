@@ -1911,31 +1911,56 @@ transfer and start again.
   `/`                       | Filter containers by ID. Confirm search by enter, cancel by escape.
   `?`                       | Show help message.
 
-  When global option `-j`, `--json` is used, the TUI is replaced by JSON
-  being periodically printed on standard output. Each line describes an acquired
-  snapshot. Send `SIGUSR1` to request an additional sample.
+  With the global option `-j` or `--json`, Top writes one JSON record per
+  sample to standard output instead of opening the TUI. Send `SIGUSR1` to
+  request an additional sample.
 
-  JSON includes `top_schema: 1`, sampler `epoch`, increasing `sequence`, core
-  `complete`/`invalid_reason` and effective `collectors` booleans for `netif`,
-  `zfs` and `iostat`. Container rows include `init_pid`,
-  `init_start_time_ticks`, `valid` and `invalid_reason`. The synthetic host row retains its place in the
-  load ranking and has no container run identity.
+  Each record uses `top_schema: 2`. Before switching to schema 2, stop readers
+  that expect schema 1, including local scripts. Update those readers for
+  schema 2 before restarting them.
+
+  `epoch` identifies the sampler process and `sequence` increases with each
+  acquisition. `collectors` reports whether `netif`, `zfs` and `iostat` are
+  enabled. The last row in `containers` is `[host]`. It participates in the
+  load ranking but has no container run identity.
 
   `sample_started_monotonic_ns` and `sample_completed_monotonic_ns` enclose
   acquisition and projection. `measurement_window_started_monotonic_ns` starts
   at the preceding coherent same-run raw sweep, and
-  `measurement_window_completed_monotonic_ns` is the current completion. This envelope contains the CPU reads, rather than
-  timestamping each read exactly. Serialization, redraw and mode changes do
+  `measurement_window_completed_monotonic_ns` is the current completion.
+  These timestamps bracket the CPU reads; they do not give the time of each
+  read. Serialization, redraw and mode changes do
   not acquire data or refresh these timestamps or the sequence. Consumers
   choose their freshness and CPU-window limits.
 
   A coherent initial or new-run sample seeds the next delta and is incomplete
   until a compatible baseline exists. Missing or inconsistent required input
-  invalidates the core snapshot and discards its old baseline. Disabled
-  optional collectors do not invalidate coherent core data. Disabled or
+  can invalidate the full sample without discarding verified readings for
+  other containers. `complete` is `false` for an incomplete sample, and
+  `invalid_reason` gives the reason. The full measurement window start is
+  null, but individual rows can still have usable readings and CPU windows.
+
+  Disabled optional collectors do not invalidate coherent core data. Disabled or
   unavailable optional JSON values are null; they are not zero usage. The TUI
   omits columns, sorts and totals for disabled collectors, and hides ARC panels
-  when ZFS collection is disabled.
+  when ZFS collection is disabled. A dash means a reading is unavailable.
+  A `~` prefix in a total marks a measured subtotal that excludes missing
+  contributors, not an estimate of the full total.
+
+  Unavailable measurements are null; the `errors` object gives reasons by
+  field. A row with `run_verified: false` has no verified process identity or
+  attributed measurements. Container rows always include `group_path`. It can
+  be `null` only when `run_verified` is `false`. `inventory_complete` indicates
+  whether Top verified the running container list. `state_counts` is null when
+  the inventory is unavailable.
+  `cpu_baseline_sequence` and `cpu_window_started_monotonic_ns` identify a
+  row's CPU baseline when CPU usage is available. They refer to the previous
+  acquisition, whose start is `previous_sample_started_monotonic_ns`. Limit
+  states distinguish `limited`, `unlimited`, and `unknown`.
+
+  `invalid_reason: "monitor_unavailable"` means Top cannot verify the running
+  container list because event monitoring failed. Relaunch `osctl ct top` to
+  restore event monitoring.
 
     `-r`, `--rate` *n*
       Refresh rate in seconds, defaults to 1 second.

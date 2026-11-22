@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'timeout'
 
 RSpec.describe OsCtl::Oomd::Controller do
   let(:watchdog) { instance_double(OsCtl::Oomd::WatchdogState, episode: nil) }
@@ -8,7 +9,7 @@ RSpec.describe OsCtl::Oomd::Controller do
     instance_double(OsCtl::Oomd::ActionWorkers, start: nil, stop: nil, publish: true,
                                                 completions: nil, notification_drops: 0, notification_failures: 0)
   end
-  let(:host_load) { instance_double(OsCtl::Oomd::HostLoad, median: 100) }
+  let(:host_load) { instance_double(OsCtl::Oomd::HostLoad, median: 100, median_with: 100) }
   let(:permits) { [] }
   let(:controller) do
     described_class.new(interval:, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
@@ -17,6 +18,7 @@ RSpec.describe OsCtl::Oomd::Controller do
   end
 
   before do
+    controller.child_started
     allow(host_load).to receive(:<<)
     allow(workers).to receive(:dispatch) { |permit|
       permits << permit
@@ -29,25 +31,45 @@ RSpec.describe OsCtl::Oomd::Controller do
 
   def row(id = 'a', **changes)
     {
-      'pool' => 'tank', 'id' => id, 'loadavg' => [10], 'memory' => 98,
+      'pool' => 'tank', 'id' => id, 'loadavg' => [10, 0, 0], 'memory' => 98,
       'memory_limit' => 100, 'cpu_usage' => 95.0, 'cpu_limit' => 100,
-      'init_pid' => 42, 'init_start_time_ticks' => 123, 'valid' => true
-    }.merge(changes.transform_keys(&:to_s))
+      'init_pid' => 42, 'init_start_time_ticks' => 123, 'group_path' => "ct.#{id}/user-owned",
+      'run_verified' => true, 'nproc' => 1, 'errors' => {}
+    }.merge(changes.transform_keys(&:to_s)).tap do |ct|
+      ct['loadavg'] = ct['loadavg'].first(3).fill(0, ct['loadavg'].length...3)
+      %w[memory_limit cpu_limit].each { |key| ct["#{key}_state"] = ct[key] ? 'limited' : 'unlimited' }
+    end
   end
 
   def frame(sequence, time, rows = [row], **changes)
-    {
-      'top_schema' => 1, 'epoch' => 'sampler', 'sequence' => sequence, 'complete' => true,
+    frame = {
+      'top_schema' => 2, 'epoch' => 'sampler', 'sequence' => sequence + 1, 'complete' => true, 'invalid_reason' => nil,
       'collectors' => { 'netif' => false, 'zfs' => false, 'iostat' => false },
       'sample_started_monotonic_ns' => ns(time) - ns(0.1), 'sample_completed_monotonic_ns' => ns(time),
       'measurement_window_started_monotonic_ns' => [ns(time) - ns(interval) - ns(0.1), ns(0.1)].max,
       'measurement_window_completed_monotonic_ns' => ns(time),
-      'loadavg' => [10], 'containers' => rows
+      'loadavg' => [10, 0, 0], 'memory' => { 'used' => 200 }, 'cpu' => { 'user' => 10 },
+      'inventory_complete' => true, 'state_counts' => { 'running' => rows.size }
     }.merge(changes.transform_keys(&:to_s))
+    window = frame['measurement_window_started_monotonic_ns'] || (ns(time) - ns(interval) - ns(0.1))
+    frame['previous_sample_started_monotonic_ns'] = window
+    frame['loadavg'] = frame['loadavg'].first(3).fill(0, frame['loadavg'].length...3)
+    host = { 'id' => '[host]', 'pool' => nil, 'init_pid' => nil, 'init_start_time_ticks' => nil,
+             'loadavg' => frame['loadavg'], 'memory' => 101 }
+    frame['containers'] = rows.map do |ct|
+      ct.merge('cpu_baseline_sequence' => ct['cpu_usage'] && sequence,
+               'cpu_window_started_monotonic_ns' => ct['cpu_usage'] && window)
+    end + [host]
+    frame
   end
 
   def observe(sequence, time, rows = [row], **changes)
     controller.observe(frame(sequence, time, rows, **changes), now_ns: ns(time))
+  end
+
+  def seed(sequence, time, rows = [row])
+    warmup = rows.map { |ct| ct.merge('cpu_usage' => nil, 'errors' => { 'cpu_usage' => 'initial_baseline' }) }
+    observe(sequence, time, warmup, complete: false, invalid_reason: 'initial_baseline', measurement_window_started_monotonic_ns: nil)
   end
 
   def enter_episode(time = 1, token = ['watchdog', 1])
@@ -67,7 +89,8 @@ RSpec.describe OsCtl::Oomd::Controller do
 
   it 'requires the generic schema without accepting the replaced oomd schema' do
     expect(controller.observe(frame(1, 100, top_schema: nil, oomd_schema: 1), now_ns: ns(100))).to be(false)
-    expect(controller.observe(frame(1, 100), now_ns: ns(100))).to be(true)
+    expect(controller.observe(frame(1, 100), now_ns: ns(100))).to be(false)
+    expect(controller.observe(frame(2, 115), now_ns: ns(115))).to be(true)
     expect(permits).to be_empty
   end
 
@@ -81,7 +104,8 @@ RSpec.describe OsCtl::Oomd::Controller do
     invalid.each do |collectors|
       expect(controller.observe(frame(1, 100, collectors:), now_ns: ns(100))).to be(false)
     end
-    expect(controller.observe(frame(1, 100), now_ns: ns(100))).to be(true)
+    expect(controller.observe(frame(1, 100), now_ns: ns(100))).to be(false)
+    expect(controller.observe(frame(2, 115), now_ns: ns(115))).to be(true)
     expect(permits).to be_empty
   end
 
@@ -112,7 +136,8 @@ RSpec.describe OsCtl::Oomd::Controller do
 
     it 'accepts a six-second CPU envelope and rejects one nanosecond longer' do
       expect(observe(1, 100, measurement_window_started_monotonic_ns: ns(94) - 1)).to be(false)
-      expect(observe(1, 100, measurement_window_started_monotonic_ns: ns(94))).to be(true)
+      expect(observe(1, 100, measurement_window_started_monotonic_ns: ns(94))).to be(false)
+      expect(observe(2, 101)).to be(true)
     end
   end
 
@@ -123,9 +148,11 @@ RSpec.describe OsCtl::Oomd::Controller do
     expect(observe(2, 115, measurement_window_started_monotonic_ns: ns(99))).to be(false)
     expect(score.restart_hits).to eq(0)
     expect(permits).to be_empty
-    expect(observe(3, 130)).to be(true)
-    expect(score.restart_hits).to eq(1)
+    expect(observe(3, 130)).to be(false)
+    expect(score.restart_hits).to eq(0)
     expect(observe(4, 145)).to be(true)
+    expect(score.restart_hits).to eq(1)
+    expect(observe(5, 160)).to be(true)
     expect(permits.size).to eq(1)
   end
 
@@ -135,7 +162,8 @@ RSpec.describe OsCtl::Oomd::Controller do
     expect(score.restart_hits).to eq(7)
     expect(score.stop_hits).to eq(7)
     expect(permits).to be_empty
-    expect(observe(9, 121, loadavg: [300])).to be(true)
+    expect(observe(9, 121, loadavg: [300])).to be(false)
+    expect(observe(10, 136, loadavg: [300])).to be(true)
     expect(permits.size).to eq(1)
   end
 
@@ -148,7 +176,7 @@ RSpec.describe OsCtl::Oomd::Controller do
     expect(permits).to be_empty
     observe(2, 17)
     expect(permits.size).to eq(1)
-    expect(permits.first).to include(action: :restart, run: [42, 123], sequence: 2)
+    expect(permits.first).to include(action: :restart, run: [42, 123], sequence: 3)
     expect(score.stop_hits).to eq(0)
     expect(score.restart_hits).to eq(0)
   end
@@ -174,9 +202,8 @@ RSpec.describe OsCtl::Oomd::Controller do
 
   it 'keeps the synthetic host row in top-N ranking' do
     enter_episode
-    host = { 'pool' => nil, 'id' => '[host]', 'loadavg' => [100] }
-    observe(1, 2, [host, row('b', loadavg: [90]), row])
-    observe(2, 17, [host, row('b', loadavg: [90]), row])
+    observe(1, 2, [row('b', loadavg: [90]), row], loadavg: [100])
+    observe(2, 17, [row('b', loadavg: [90]), row], loadavg: [100])
     expect(permits.map { |permit| permit[:id] }).to eq(['b'])
     expect(score.restart_hits).to eq(0)
   end
@@ -189,8 +216,64 @@ RSpec.describe OsCtl::Oomd::Controller do
     observe(3, 18, [row], complete: false)
     expect(score.stop_hits).to eq(1)
     allow(watchdog).to receive(:episode).and_return(nil)
-    observe(4, 33, [row(memory: 20)], loadavg: [300])
+    expect(observe(4, 33, [row(memory: 20)], loadavg: [300])).to be(false)
+    observe(5, 48, [row(memory: 20)], loadavg: [300])
     expect(score.stop_hits).to eq(0)
+  end
+
+  [false, true].product(%i[restart stop]).each do |enabled, action|
+    it "simulates #{action} without executor or real event (watchdog enabled: #{enabled})" do
+      executed = Queue.new
+      events = Queue.new
+      actual_workers = OsCtl::Oomd::ActionWorkers.new(size: 1, dry_run: true,
+                                                      executor: lambda { |permit|
+                                                        executed << permit
+                                                        true
+                                                      },
+                                                      notifier: ->(event) { events << event })
+      actor = described_class.new(interval:, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
+                                  load_top: 2, restart_hits: 2, stop_hits: action == :stop ? 2 : 40,
+                                  rtnl_watchdog: { 'enable' => enabled }, watchdog:, workers: actual_workers, host_load:)
+      allow(watchdog).to receive(:episode).and_return(['probe', 1]) if enabled
+      actor.start
+      actor.child_started
+      actor.tick(now_ns: ns(99))
+      load = enabled && action == :restart ? 100 : 300
+      [100, 115].each_with_index do |time, i|
+        expect(actor.observe(frame(i + 1, time, loadavg: [load]), now_ns: ns(time))).to be(true)
+      end
+      permit = actor.inflight.fetch(%w[tank a])
+      expect(permit).to include(action:, run: [42, 123], sequence: 3)
+      Timeout.timeout(1) do
+        until actor.inflight.empty?
+          actor.tick(now_ns: ns(116))
+          Thread.pass
+        end
+      end
+      expect(actor.export.first.restart_hits).to eq(0)
+      preserved = action == :restart && !enabled ? 2 : 0
+      expect(actor.export.first.stop_hits).to eq(preserved)
+      expect(actual_workers.dispatch(permit.merge(id: 'slot-probe'))).to be(true)
+      actor.stop
+      actor = nil
+      expect(executed).to be_empty
+      notices = Array.new(events.size) { events.pop }
+      expect(notices).to all(include(type: :log))
+      expect(notices).to include(include(message: /would #{action} tank:a.*result=simulated/))
+    ensure
+      actor&.stop
+    end
+  end
+
+  it 'suppresses zero-score miss logs without changing exported scores' do
+    observe(1, 100, [row(memory: 50)], loadavg: [300])
+    expect([score.restart_hits, score.stop_hits]).to eq([0, 0])
+    expect(workers).not_to have_received(:publish)
+    observe(2, 115, [row], loadavg: [300])
+    observe(3, 130, [row(memory: 50)], loadavg: [300])
+    expect(workers).to have_received(:publish).with(include(message: /tank:a miss/)).once
+    observe(4, 145, [row(memory: 50)], loadavg: [300])
+    expect(workers).to have_received(:publish).with(include(message: /tank:a miss/)).once
   end
 
   it 'uses ordinary eight-hit restart behavior when load alone activates the policy' do
@@ -206,17 +289,22 @@ RSpec.describe OsCtl::Oomd::Controller do
     controller.tick(now_ns: ns(150))
     expect(score.restart_hits).to eq(7)
     expect(permits).to be_empty
+    controller.child_started
     observe(1, 151, [row], epoch: 'replacement', loadavg: [300])
     expect(permits.size).to eq(1)
   end
 
-  it 'ignores retired sampler epochs without scoring duplicates or accepting a transition' do
+  it 'rejects a header-only transition and a retired epoch even after a child boundary' do
     enter_episode
     observe(1, 2)
-    observe(1, 3, epoch: 'replacement')
+    expect(observe(1, 3, epoch: 'replacement')).to be(false)
+    expect(score.restart_hits).to eq(0)
+    controller.child_started
+    expect(observe(1, 4, epoch: 'replacement')).to be(true)
     expect(score.restart_hits).to eq(1)
-    observe(2, 4)
-    expect(score.restart_hits).to eq(1)
+    controller.child_started
+    expect(observe(2, 17)).to be(false)
+    expect(score.restart_hits).to eq(0)
     expect(permits).to be_empty
   end
 
@@ -240,13 +328,15 @@ RSpec.describe OsCtl::Oomd::Controller do
     observe(1, 2)
     observe(2, 17, complete: false)
     expect(score.restart_hits).to eq(0)
-    observe(3, 32)
+    expect(seed(3, 32)).to be(false)
+    expect(observe(4, 47)).to be(true)
     expect(score.restart_hits).to eq(1)
-    observe(5, 47)
+    expect(observe(6, 62)).to be(false)
+    expect(score.restart_hits).to eq(0)
+    controller.child_started
+    observe(1, 77, epoch: 'replacement')
     expect(score.restart_hits).to eq(1)
-    observe(1, 62, epoch: 'replacement')
-    expect(score.restart_hits).to eq(1)
-    controller.tick(now_ns: ns(82.1))
+    controller.tick(now_ns: ns(97.1))
     expect(score.restart_hits).to eq(0)
     expect(permits).to be_empty
   end
@@ -295,6 +385,71 @@ RSpec.describe OsCtl::Oomd::Controller do
     expect(permits).to be_empty
   end
 
+  [0, 1].each do |over_ns|
+    it "checks full grant freshness after building the permit (deadline + #{over_ns}ns)" do
+      enter_episode
+      observe(1, 2)
+      trace = []
+      ticks = 0
+      elapsed = 0
+      allow(controller).to receive(:tick).and_wrap_original do |tick, **args|
+        ticks += 1
+        tick.call(**args)
+      end
+      allow(controller).to receive(:monotonic_ns) do
+        trace << :clock
+        elapsed
+      end
+      allow(Time).to receive(:now).and_wrap_original do |clock|
+        if ticks == 2
+          trace << :permit_time
+          elapsed = ns(5) + over_ns
+        end
+        clock.call
+      end
+      allow(workers).to receive(:dispatch) do |permit|
+        trace << :dispatch
+        permits << permit
+        true
+      end
+
+      expect(observe(2, 17)).to be(true)
+      expect(trace).to eq(%i[clock clock permit_time clock] + (over_ns == 0 ? [:dispatch] : []))
+      expect(score.stop_hits).to eq(0)
+      expect(host_load).to have_received(:<<).with(10).twice
+      if over_ns == 0
+        expect(permits).to contain_exactly(include(action: :restart, sequence: 3, run: [42, 123]))
+        expect(controller.inflight.values).to eq(permits)
+      else
+        expect(permits).to be_empty
+        expect(controller.inflight).to be_empty
+        expect(score.restart_hits).to eq(2)
+        expect(workers).not_to have_received(:publish).with(include(type: 'osctl_oomd'))
+        expect(workers).not_to have_received(:publish).with(include(message: /guarded dispatch/))
+      end
+    end
+  end
+
+  [0, 1].each do |over_ns|
+    it "counts a clock jump at default observation entry (deadline + #{over_ns}ns)" do
+      enter_episode
+      observe(1, 2)
+      # A scheduling gap between the old default-argument and body reads
+      # must count toward the age at dispatch. Do not inject now_ns here.
+      allow(controller).to receive(:monotonic_ns).and_return(ns(17), ns(22) + over_ns)
+      expect(controller.observe(frame(2, 17))).to be(true)
+
+      if over_ns == 0
+        expect(permits).to contain_exactly(include(action: :restart, sequence: 3))
+        expect(controller.inflight.values).to eq(permits)
+      else
+        expect(permits).to be_empty
+        expect(controller.inflight).to be_empty
+        expect(score.restart_hits).to eq(2)
+      end
+    end
+  end
+
   it 'does not dispatch from old, overlong, missing-schema or run-invalid input' do
     enter_episode
     samples = [frame(1, 2).merge('top_schema' => nil),
@@ -307,7 +462,8 @@ RSpec.describe OsCtl::Oomd::Controller do
   it 'does not reuse old-run hits for a replacement init' do
     enter_episode
     observe(1, 2)
-    observe(2, 17, [row(init_start_time_ticks: 124)])
+    seed(2, 17, [row(init_start_time_ticks: 124)])
+    observe(3, 32, [row(init_start_time_ticks: 124)])
     expect(score.restart_hits).to eq(1)
     expect(permits).to be_empty
   end

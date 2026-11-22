@@ -1,37 +1,45 @@
 module OsCtl::Cli
   class Top::Monitor
+    MAX_BUFFERED_EVENTS = 4096
+
     def initialize(model)
       @model = model
       @started = false
+      @acknowledged = false
+      @failed = false
+      @event_mutex = Mutex.new
       @buffer = []
     end
 
     def subscribe
       @client = OsCtl::Client.new
       client.open
+      @connected = true
 
       ret = client.cmd_data!(:event_subscribe)
-      return if ret != 'subscribed'
+      return lost_subscription unless ret == 'subscribed'
 
-      @thread = Thread.new do
-        monitor_loop do |event|
-          if started?
-            process_saved_events
-            process_event(event[:type].to_sym, event[:opts])
-          else
-            save_event(event)
-          end
-        end
-      end
+      @acknowledged = true
+      @thread = Thread.new { monitor_loop }
+    rescue StandardError
+      lost_subscription
     end
 
     def start
-      @started = true
+      @event_mutex.synchronize do
+        return unless @acknowledged && !@failed
+
+        process_saved_events
+        @started = true
+        model.monitor_ready
+      end
+    rescue StandardError
+      lost_subscription
     end
 
     def stop
-      client.close
-      thread.join
+      close_client
+      thread&.join
     end
 
     protected
@@ -40,11 +48,64 @@ module OsCtl::Cli
 
     def monitor_loop
       loop do
-        resp = client.response!
-        return if resp.data.nil?
+        event = client.response!.data
+        break unless event
 
-        return if yield(resp.data) == :stop
+        @event_mutex.synchronize do
+          break if @failed
+
+          @started ? deliver(event) : save_event(event)
+        end
+        break if @failed
       end
+    rescue StandardError
+      nil
+    ensure
+      lost_subscription
+    end
+
+    def lost_subscription
+      @event_mutex.synchronize do
+        @failed = true
+        @buffer.clear
+        model.monitor_unavailable
+      end
+      close_client
+    end
+
+    def close_client
+      return unless @connected
+
+      @connected = false
+      client.close
+    rescue IOError, SystemCallError
+      nil
+    end
+
+    def deliver(event)
+      raise ArgumentError, 'invalid event' unless event.is_a?(Hash) && event[:type].is_a?(String) && event[:opts].is_a?(Hash)
+
+      type = event[:type].to_sym
+      opts = event[:opts]
+      return if type == :ct_netif && !model.netif_enabled?
+
+      keys = case type
+             when :state then %i[pool id state]
+             when :ct_scheduled, :ct_init_pid then %i[pool id]
+             when :ct_netif then %i[pool id action name]
+             when :db
+               case opts[:object]
+               when 'pool' then %i[pool action]
+               when 'container' then %i[pool id action]
+               else []
+               end
+             else []
+             end
+      unless keys.all? { |key| opts[key].is_a?(String) && !opts[key].empty? }
+        raise ArgumentError, 'event cannot be attributed'
+      end
+
+      process_event(type, opts)
     end
 
     def process_event(type, opts)
@@ -54,13 +115,16 @@ module OsCtl::Cli
       when :state
         model.sync do
           ct = model.find_ct(opts[:pool], opts[:id])
-          next unless ct
+          unless ct
+            model.missing_lifecycle(opts[:pool], opts[:id])
+            next
+          end
 
           st = opts[:state].to_sym
 
           ct.state = st
           ct.init_pid = opts[:init_pid] if st == :running
-          model.changed!
+          model.changed!(:lifecycle, ct.ident)
         end
 
       when :db
@@ -78,13 +142,16 @@ module OsCtl::Cli
         elsif opts[:object] == 'container'
           case opts[:action].to_sym
           when :add
+            model.sync { model.missing_lifecycle(opts[:pool], opts[:id]) }
             unless model.has_ct?(opts[:pool], opts[:id])
               model.add_ct(opts[:pool], opts[:id])
             end
 
           when :remove
-            ct = model.find_ct(opts[:pool], opts[:id])
-            model.remove_ct(ct) if ct
+            model.sync do
+              ct = model.find_ct(opts[:pool], opts[:id])
+              ct ? model.remove_ct(ct) : model.missing_lifecycle(opts[:pool], opts[:id])
+            end
           end
         end
 
@@ -94,21 +161,28 @@ module OsCtl::Cli
           next unless ct
 
           ct.cpu_package_inuse = opts[:cpu_package_inuse]
-          model.changed!
+          model.changed!(:metadata, ct.ident)
         end
 
       when :ct_init_pid
         model.sync do
           ct = model.find_ct(opts[:pool], opts[:id])
-          next unless ct
+          unless ct
+            model.missing_lifecycle(opts[:pool], opts[:id])
+            next
+          end
 
           ct.init_pid = opts[:init_pid]
-          model.changed!
+          model.changed!(:lifecycle, ct.ident)
         end
 
       when :ct_netif
         if opts[:action] == 'add'
-          ct = model.find_ct(opts[:pool], opts[:id])
+          ct = model.sync do
+            current = model.find_ct(opts[:pool], opts[:id])
+            model.changed!(:netif, "#{opts[:pool]}:#{opts[:id]}")
+            current
+          end
           model.add_ct_netif(ct, opts[:name]) if ct && !ct.has_netif?(opts[:name])
           return
         end
@@ -135,7 +209,7 @@ module OsCtl::Cli
               ct.netif_down(opts[:name])
             end
           end
-          model.changed!
+          model.changed!(:netif, ct.ident)
         end
       end
     end
@@ -143,18 +217,14 @@ module OsCtl::Cli
     def save_event(event)
       return if event[:type].to_s == 'ct_netif' && !model.netif_enabled?
 
+      raise 'Top event buffer overflow' unless @buffer.size < MAX_BUFFERED_EVENTS
+
       @buffer << event
     end
 
     def process_saved_events
-      return if @buffer.empty?
-
-      @buffer.each { |event| process_event(event[:type].to_sym, event[:opts]) }
+      @buffer.each { |event| deliver(event) }
       @buffer.clear
-    end
-
-    def started?
-      @started
     end
   end
 end

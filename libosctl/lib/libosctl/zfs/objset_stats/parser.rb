@@ -21,7 +21,8 @@ module OsCtl::Lib
 
       File.open(path) do |f|
         # Skip the first two lines
-        f.readline
+        header = f.readline.split
+        objset.source_id = [File.basename(path), header[0], header[5]]
         f.readline
 
         # Parse the rest

@@ -233,8 +233,19 @@ usage. Instead of processes it monitors containers.
 It can work in two modes: real-time and cumulative. Real-time mode shows resource
 consumption since the last update, i.e. 1 second by default. Since measurements
 can take several seconds on systems under heavy load, delay from the current time
-is shown in square brackets. Cumulative mode shows resource usage since
-the program was started. Mode can be switched by pressing `m`.
+is shown in square brackets. Cumulative usage counts from the first usable
+reading of the current run. If a counter resets or its source changes, the
+cumulative total for that counter starts over. Press `m` to switch modes.
+
+One missing reading does not hide other containers or their measurements. A
+`-` means the reading is unavailable, for example while a newly started
+container is waiting for a second CPU reading. In the totals, `~` marks a
+measured subtotal that excludes missing contributors. It is not an estimate
+of the full total.
+
+If Top loses its connection to the event stream, it can still show readings,
+but it can no longer verify which containers are running. Relaunch
+`osctl ct top` to restore event monitoring.
 
 Left and right arrows can be used to change the sort column, `r` to reverse
 sort order. Up and down arrows move selection cursor up and down, spacebar will

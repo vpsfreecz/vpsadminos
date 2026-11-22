@@ -6,9 +6,9 @@ RSpec.describe OsCtl::Oomd::Exporter do
   it 'writes container and global metrics to the requested file' do
     with_tmpdir do |dir|
       file = File.join(dir, 'metrics', 'oomd.prom')
-      container = OsCtl::Oomd::Killer::Container.new('tank', 'ct1')
+      container = OsCtl::Oomd::ContainerScore.new('tank', 'ct1')
       2.times { container.hit }
-      killer = instance_double(OsCtl::Oomd::Killer, export: [container], restart_hits: 8, stop_hits: 40)
+      killer = instance_double(OsCtl::Oomd::Controller, export: [container], restart_hits: 8, stop_hits: 40)
       exporter = described_class.new(file:, killer:)
 
       exporter.send(:export_metrics)
@@ -24,7 +24,7 @@ RSpec.describe OsCtl::Oomd::Exporter do
   it 'creates parent directories and regenerates the metrics file' do
     with_tmpdir do |dir|
       file = File.join(dir, 'metrics', 'oomd.prom')
-      killer = instance_double(OsCtl::Oomd::Killer, export: [], restart_hits: 8, stop_hits: 40)
+      killer = instance_double(OsCtl::Oomd::Controller, export: [], restart_hits: 8, stop_hits: 40)
       exporter = described_class.new(file:, killer:)
 
       allow(FileUtils).to receive(:mkdir_p).and_call_original
@@ -39,7 +39,7 @@ RSpec.describe OsCtl::Oomd::Exporter do
 
   it 'stops the exporter loop when stop is requested' do
     with_tmpdir do |dir|
-      killer = instance_double(OsCtl::Oomd::Killer, export: [], restart_hits: 8, stop_hits: 40)
+      killer = instance_double(OsCtl::Oomd::Controller, export: [], restart_hits: 8, stop_hits: 40)
       exporter = described_class.new(file: File.join(dir, 'oomd.prom'), killer:)
       allow(exporter).to receive(:export_metrics)
 

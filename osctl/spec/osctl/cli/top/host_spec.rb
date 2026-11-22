@@ -13,20 +13,6 @@ RSpec.describe OsCtl::Cli::Top::Host do
     expect(diff.total_used).to be > 0
   end
 
-  it 'overrides memory and process counts in host results' do
-    host = described_class.new(nil)
-    m1 = instance_double(OsCtl::Cli::Top::Measurement)
-    m2 = instance_double(OsCtl::Cli::Top::Measurement)
-    allow(m2).to receive(:diff_from).with(m1, :realtime).and_return(memory: 1, nproc: 2)
-    host.instance_variable_set(:@measurements, [m1, m2])
-    host.instance_variable_set(:@initial, m1)
-
-    result = host.result(:realtime, double(used: 4), double(total: 7))
-
-    expect(result[:memory]).to eq(4096)
-    expect(result[:nproc]).to eq(7)
-  end
-
   it 'shapes zfs results with and without iostat data' do
     host = described_class.new(nil)
     current_arc = double(
@@ -42,9 +28,11 @@ RSpec.describe OsCtl::Cli::Top::Host do
     )
     previous_arc = double('previous_arc')
     iostat = double(io_read: 1, io_written: 2, bytes_read: 3, bytes_written: 4)
-    host.instance_variable_set(:@zfs, [{ arcstats: previous_arc, iostat: nil }, { arcstats: current_arc, iostat: iostat }])
+    previous = described_class.new(nil)
+    previous.instance_variable_set(:@zfs_sample, { arcstats: previous_arc, iostat: nil })
+    host.instance_variable_set(:@zfs_sample, { arcstats: current_arc, iostat: })
 
-    expect(host.zfs_result).to eq(
+    expect(host.zfs_diff(previous)).to eq(
       arcstats: {
         arc: { c_max: 10, c: 8, size: 7, hit_rate: 80.0, misses: 2 },
         l2arc: { size: 6, asize: 5, hit_rate: 90.0, misses: 1 }

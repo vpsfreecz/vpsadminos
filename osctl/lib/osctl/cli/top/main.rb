@@ -4,17 +4,18 @@ module OsCtl::Cli
   class Top::Main < Command
     def start
       validate_rate
-
-      model = Top::Model.new(
+      json = gopts[:json]
+      collectors = {
         enable_netif: opts.fetch(:netif, true),
         enable_zfs: opts.fetch(:zfs, true),
         enable_iostat: opts.fetch(:iostat, true)
-      )
+      }
+      model = Top::PartialModel.new(json: json == true, **collectors)
       model.setup
 
       kwargs = {}
 
-      if gopts[:json]
+      if json
         klass = Top::JsonExporter
 
       else

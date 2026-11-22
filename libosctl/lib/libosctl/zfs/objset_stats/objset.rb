@@ -7,7 +7,7 @@ module OsCtl::Lib
       :read_bytes
     )
 
-    attr_accessor :dataset_name, :write_ios, :write_bytes, :read_ios, :read_bytes
+    attr_accessor :dataset_name, :source_id, :write_ios, :write_bytes, :read_ios, :read_bytes
     attr_reader :subdatasets
 
     def initialize
