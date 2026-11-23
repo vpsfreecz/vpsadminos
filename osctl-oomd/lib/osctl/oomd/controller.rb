@@ -135,53 +135,16 @@ module OsCtl::Oomd
 
     protected
 
-    def observe_complete(data, rows, now_ns, processing_started)
+    def update_host_load(data)
       load = data.fetch('loadavg').fetch(0)
       @cold_loads.clear
       @host_load << load
-      @load_gate = load_gate(load, @host_load.median)
+      gate = load_gate(load, @host_load.median)
       if @verbose
         @workers.publish(type: :log, level: :debug, message: "Load=#{load}, median=#{@host_load.median}, threshold=#{@host_load.median * @load_multiplier}")
-        @workers.publish(type: :log, level: :debug, message: @load_gate ? 'OOMd active' : 'OOMd inactive')
+        @workers.publish(type: :log, level: :debug, message: gate ? 'OOMd active' : 'OOMd inactive')
       end
-      ranked = Eligibility.rank(data.fetch('containers'))
-      rows.each do |key, ct|
-        run = [ct.fetch('init_pid'), ct.fetch('init_start_time_ticks')]
-        record = (@records[key] ||= ContainerScore.new(*key))
-        update_run(record, key, ct)
-        hit = hit?(ct, ranked)
-        # Every accelerated hit is raw and began after this episode's entry.
-        score_restart = !@inflight.has_key?(key) && (@episode ? data.fetch('sample_started_monotonic_ns') > @episode_started : @load_gate)
-        score_stop = @load_gate
-        next unless score_restart || score_stop
-
-        changed = hit || (score_restart && record.restart_hits > 0) || (score_stop && record.stop_hits > 0)
-        record.public_send(hit ? :hit : :miss, restart: score_restart, stop: score_stop)
-        if changed
-          @workers.publish(type: :log, level: :info,
-                           message: "#{key.join(':')} #{hit ? 'hit' : 'miss'}, #{record.restart_hits}/#{restart_hits} restart hits, #{record.stop_hits}/#{stop_hits} stop hits")
-        end
-        next unless hit && (@load_gate || @episode)
-
-        action = if @load_gate && record.stop_hits >= stop_hits
-                   :stop
-                 elsif score_restart && record.restart_hits >= restart_hits
-                   :restart
-                 end
-        dispatch(ct, key, run, action, now_ns, processing_started) if action
-      end
-      # Disappearance invalidates restart evidence; stop history retains the
-      # ordinary success/reset semantics across restarts and inventory sweeps.
-      (@records.keys - rows.keys).each do |key|
-        record = @records.fetch(key)
-        record.reset_restart_hits
-        next if @inflight.has_key?(key) || record.stop_hits > 0
-
-        @records.delete(key)
-        @runs.delete(key)
-      end
-      publish_export
-      true
+      gate
     end
 
     def observe_packet(data, now, processing_started, bootstrap:)
@@ -216,20 +179,24 @@ module OsCtl::Oomd
       @raw = RawFrame.new(data:, rows:, strict_seed: seed)
       @raw_broken = false
       @cold_loads.clear if seed
-      return observe_complete(data, rows, now, processing_started) if full
-
-      if !data['complete'] && data['inventory_complete']
+      if full
+        gate = update_host_load(data)
+      else
         cold_gate = update_cold_history(data) unless seed
-        return score_partial(data, rows, previous.rows, now, processing_started, cold_gate) if linked
+        unless linked
+          publish_export
+          return false
+        end
+        gate = partial_load_gate(data)
+        gate = cold_gate if gate.nil?
       end
-      clear_restart if @episode
-      publish_export
-      false
+
+      score_rows(data, rows, full ? nil : previous, gate, now, processing_started, cold_gate)
     end
 
     def packet_rows(data)
       rows = Eligibility::Partial.index(data)
-      return unless rows && rows.values.all? { |row| row['cpu_usage'].nil? || matching_cpu_window?(row, data) }
+      return unless rows
 
       memory = data['memory']
       core = data['inventory_complete'] && data['loadavg'] && memory.is_a?(Hash) && Eligibility::Partial.reading?(memory['used']) &&
@@ -279,14 +246,15 @@ module OsCtl::Oomd
     end
 
     def strict_seed?(data, rows)
-      STRICT_SEED_REASONS.include?(data['invalid_reason']) && rows.values.all? { |row| cpu_seed?(row) }
+      STRICT_SEED_REASONS.include?(data['invalid_reason']) && rows.values.all? { |row| cpu_seed?(data, row) }
     end
 
-    def cpu_seed?(row)
+    def cpu_seed?(data, row)
       return false unless row
 
-      reason = row['errors']['cpu_usage']
-      row['cpu_usage'] || STRICT_SEED_REASONS.include?(reason)
+      return matching_cpu_window?(row, data) if row['cpu_usage']
+
+      STRICT_SEED_REASONS.include?(row['errors']['cpu_usage'])
     end
 
     def complete_partial_rows?(data, rows)
@@ -300,40 +268,71 @@ module OsCtl::Oomd
       rows.size == previous.size && rows.all? { |key, row| previous[key] && run_identity(row) == run_identity(previous[key]) }
     end
 
-    def score_partial(data, rows, previous, now, processing_started, cold_gate)
-      gate = partial_load_gate(data)
-      restart_gate = gate.nil? ? cold_gate : gate
-      roster = data.fetch('containers')
-      ranked = Eligibility.rank(roster) if roster.all? { |row| row['loadavg'] }
+    def score_rows(data, rows, previous, gate, now, processing_started, cold_gate)
+      # Freeze the competing population for this observation. A grant takes
+      # its target out of the ranking starting with the next observation.
+      candidates = rows.reject { |key, row| @inflight.has_key?(key) || !row['run_verified'] }
+      roster = candidates.values + [data.fetch('containers').last]
+      ranked = Eligibility.rank(roster).take([@load_top, 0].max) if roster.all? { |row| row['loadavg'] }
       rows.each do |key, row|
-        # Match the same key, cgroup path and process at both raw endpoints.
-        identity = Eligibility::Partial.run(row)
-        run = identity&.drop(1)
         record = (@records[key] ||= ContainerScore.new(*key))
         update_run(record, key, row)
-        unless identity && identity == Eligibility::Partial.run(previous[key]) && cpu_seed?(previous[key]) &&
-               Eligibility::Partial.decidable?(row) && matching_cpu_window?(row, data)
+        next unless candidates.has_key?(key)
+
+        if previous && !usable_pair?(data, row, previous, key)
           record.reset_restart_hits if @episode
           next
         end
-        rank = Eligibility.rank_proof(row, roster, ranked, @load_top)
-        if rank.nil?
+        score_restart = restart_gate?(data, gate)
+        next unless gate || score_restart
+
+        hit = ranked_hit?(row, roster, ranked)
+        if hit.nil?
           record.reset_restart_hits if @episode
           next
         end
-        next if @inflight.has_key?(key) || !restart_gate?(data, restart_gate)
-
-        hit = rank && Eligibility.resource_hit?(row, memory_percent: @memory_percent, cpu_percent: @cpu_percent)
-        next if hit && stop_has_priority?(record, gate)
-
-        record.public_send(hit ? :hit : :miss, restart: true, stop: false)
-        if hit && record.restart_hits >= restart_hits
-          dispatch(row, key, run, :restart, now, processing_started, partial: data, cold_gate:)
+        changed = hit || (score_restart && record.restart_hits > 0) || (gate && record.stop_hits > 0)
+        record.public_send(hit ? :hit : :miss, restart: score_restart, stop: gate)
+        if changed
+          @workers.publish(type: :log, level: :info,
+                           message: "#{key.join(':')} #{hit ? 'hit' : 'miss'}, #{record.restart_hits}/#{restart_hits} restart hits, #{record.stop_hits}/#{stop_hits} stop hits")
         end
+        next unless hit
+
+        action = if gate && record.stop_hits >= stop_hits
+                   :stop
+                 elsif score_restart && record.restart_hits >= restart_hits
+                   :restart
+                 end
+        dispatch(row, key, action, now, processing_started, gate:, partial: !previous.nil?, cold_gate:) if action
       end
-      (@records.keys - rows.keys).each { |key| @records.fetch(key).reset_restart_hits }
+      # Disappearance invalidates restart evidence; stop history retains the
+      # ordinary success/reset semantics across restarts and inventory sweeps.
+      (@records.keys - rows.keys).each do |key|
+        record = @records.fetch(key)
+        record.reset_restart_hits
+        next if @inflight.has_key?(key) || record.stop_hits > 0
+
+        @records.delete(key)
+        @runs.delete(key)
+      end
       publish_export
       true
+    end
+
+    def ranked_hit?(row, roster, ranked)
+      if ranked
+        return Eligibility.hit?(row, ranked, memory_percent: @memory_percent, cpu_percent: @cpu_percent, load_top: @load_top)
+      end
+
+      rank = Eligibility.rank_proof(row, roster, nil, @load_top)
+      rank && Eligibility.resource_hit?(row, memory_percent: @memory_percent, cpu_percent: @cpu_percent)
+    end
+
+    def usable_pair?(data, row, previous, key)
+      prior = previous.rows[key]
+      run_identity(row) == run_identity(prior) && cpu_seed?(previous.data, prior) &&
+        Eligibility::Partial.decidable?(row) && matching_cpu_window?(row, data)
     end
 
     def update_cold_history(data)
@@ -361,20 +360,12 @@ module OsCtl::Oomd
       @episode ? data['sample_started_monotonic_ns'] > @episode_started : gate
     end
 
-    def stop_has_priority?(record, gate)
-      record.stop_hits >= stop_hits || (gate != false && record.stop_hits + 1 >= stop_hits)
-    end
-
     def monotonic_ns
       Process.clock_gettime(Process::CLOCK_MONOTONIC, :nanosecond)
     end
 
     def positive?(value)
       value.is_a?(Integer) && value > 0
-    end
-
-    def hit?(ct, ranked)
-      Eligibility.hit?(ct, ranked, memory_percent: @memory_percent, cpu_percent: @cpu_percent, load_top: @load_top)
     end
 
     def run_identity(row)
@@ -387,27 +378,28 @@ module OsCtl::Oomd
       @runs[key] = identity
     end
 
-    def dispatch(ct, key, run, action, now, processing_started, partial: nil, cold_gate: nil)
+    def dispatch(ct, key, action, now, processing_started, gate:, partial:, cold_gate:)
       # Re-read the independent host gate and effective threshold at grant,
       # even if scoring or another candidate took time since the first tick.
       tick(now_ns: now + (monotonic_ns - processing_started))
       # No deferred permit queue: recheck this exact current frame/run at grant.
       frame = @raw.data
       return if @stopping || @inflight.has_key?(key) || @raw_broken
-      return unless @raw.rows[key].equal?(ct) && @runs[key] == run_identity(ct) && run == ct.values_at('init_pid', 'init_start_time_ticks')
+      return unless @raw.rows[key].equal?(ct) && @runs[key] == run_identity(ct)
 
       record = @records.fetch(key)
       if partial
-        return unless action == :restart && frame.equal?(partial)
-
-        gate = partial_load_gate(partial)
-        return unless restart_gate?(partial, gate.nil? ? cold_gate : gate) && !stop_has_priority?(record, gate)
-      else
-        return unless @load_gate || @episode
-        return if action == :stop && (!@load_gate || record.stop_hits < stop_hits)
+        gate = partial_load_gate(frame)
+        gate = cold_gate if gate.nil?
       end
-      return if action == :restart && record.restart_hits < restart_hits
+      if action == :stop
+        return unless gate && record.stop_hits >= stop_hits
+      else
+        return unless restart_gate?(frame, gate) && record.restart_hits >= restart_hits
+        return if gate && record.stop_hits >= stop_hits
+      end
 
+      run = ct.values_at('init_pid', 'init_start_time_ticks')
       deadline = frame.fetch('sample_completed_monotonic_ns') + @sample_max_age_ns
       permit = { pool: key[0], id: key[1], run:, action:, epoch: frame['epoch'], sequence: frame['sequence'],
                  watchdog_episode: @episode, time: Time.now.to_i }

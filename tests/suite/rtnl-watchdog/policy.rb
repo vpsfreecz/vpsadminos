@@ -105,6 +105,8 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
   )
   baseline = Object.new
   def baseline.<<(_value); end
+  def baseline.established? = true
+  def baseline.median_with(_load) = median
   def baseline.median = 100
   controller = OsCtl::Oomd::Controller.new(
     **controller_options(path), cpu_percent: 90, memory_percent: 95, load_top: 2,
@@ -197,7 +199,11 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
     raise 'watchdog-only decisions changed stop history' unless score.call.stop_hits == 1
 
     observe.call
-    observe.call(complete: false)
+    incomplete = raw.call(complete: false)
+    incomplete['containers'].first.update('cpu_usage' => nil, 'cpu_baseline_sequence' => nil,
+                                          'cpu_window_started_monotonic_ns' => nil,
+                                          'errors' => { 'cpu_usage' => 'required_read_failed' })
+    controller.observe(incomplete, now_ns: now)
     raise 'invalid required sample retained evidence' unless score.call.restart_hits == 0
 
     observe.call

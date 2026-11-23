@@ -86,8 +86,12 @@ require a fresh baseline. Setup takes an unpublished seed, so the first visible
 complete frame can use that seed. Disabled optional collectors do not invalidate
 coherent core data, and unavailable optional values are null.
 
-A blocked required read prevents fresh publication. Oomd waits for new data
-rather than starting another reader or reusing an old sample.
+With network and ZFS collection disabled, JSON Top allows one outstanding
+container inventory request. If osctld is slow to answer, Top uses the last
+list to find known containers and marks the inventory incomplete. It reads
+their current counters and checks their init processes at both ends of each
+sweep. It can discover new containers once osctld answers. A blocked local
+counter read can still delay publication beyond the freshness limit.
 
 ## Scoring during watchdog distress
 
@@ -107,7 +111,7 @@ epoch change removes the override and clears accelerated restart evidence.
 Each new watchdog epoch needs two ordered fresh frames before it can open the
 gate. Invalid packets, missing sequence numbers and sampler replacement also
 clear accelerated evidence. A valid partial observation can still support a
-restart hit for a verified run. An undecidable observation clears accelerated
+hit for a verified run. An undecidable observation clears accelerated
 restart evidence for that run only.
 
 The sample freshness limit applies to acquisition and action dispatch. A hit
@@ -128,26 +132,29 @@ Settings under `osctl.oomd.settings.rtnl_watchdog`:
 | `observation_max_age_seconds` | `5` | Maximum sweep duration and sample age at dispatch |
 | `action_workers` | `2` | Physical action slots, restricted to one or two |
 
-## Restart eligibility with partial samples
+## Eligibility with partial samples
 
-A missing reading for one container need not prevent a restart of another.
-Oomd needs the full running roster, including the host in the ranking, and
-verified CPU, memory and limit readings for the target. If any load readings
-are missing, a target can qualify only if it stays in the configured top group
-regardless of the missing values. If oomd cannot establish a target's rank or
-required readings, it does not score that target.
+Oomd ranks the verified containers it can see alongside the synthetic host row.
+It leaves a container out of the ranking while its restart or stop is pending,
+even if osctld still lists the container as running. Other containers can earn
+hits and use a free worker throughout that time.
 
-For ordinary restarts, oomd checks a fresh host load against the median that
-would result if it added that reading to the complete history. It does not
-modify the history. If there is no complete history yet, oomd temporarily
-keeps a bounded history of measured host loads in memory for restart decisions.
-The first reading on its own cannot open the gate. Oomd drops that temporary
-history once it has a strict baseline or replaces the sampler.
+On a partial sample, each target needs fresh memory and limit readings and a
+CPU measurement from two adjacent sweeps of the same run. If a load reading is
+missing from the ranking, oomd scores a target only when that reading cannot
+change whether it falls inside the configured top group.
 
-Partial samples do not change stop scores or the persisted host-load median.
-They cannot authorize a stop or substitute a restart when a stop has priority.
-The RTNL watchdog remains optional. During watchdog distress, the same restart
-threshold and timing rules apply to qualifying partial observations.
+When the ordinary host-load gate is open, partial observations update both
+restart and stop scores. A stop takes priority when both thresholds are met.
+Watchdog distress alone can grant a restart. A stop always requires the
+host-load gate.
+
+For a partial sample, oomd compares the current host load with the median that
+would result from adding it to the complete history. Only complete observations
+update the persisted history. On a cold node, oomd keeps a bounded history of
+measured host loads in memory. It needs at least two readings to evaluate the
+gate and drops this temporary history when it gets a strict baseline or the
+sampler restarts.
 
 ## Guarded actions
 
