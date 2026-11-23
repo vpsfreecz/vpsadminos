@@ -1,5 +1,10 @@
 import ../make-test.nix (
   { pkgs }:
+  let
+    inherit (import ../../os/packages/linux/available-kernels.nix { inherit (pkgs) lib; })
+      stableKernelVersion
+      ;
+  in
   {
     name = "rtnl-watchdog";
     description = "RTNL request responsiveness and guarded oomd actions";
@@ -44,7 +49,7 @@ import ../make-test.nix (
         in
         {
           system.vpsadminos.enableUnstable = lib.mkForce false;
-          boot.kernelVersion = lib.mkForce "6.12.117";
+          boot.kernelVersion = lib.mkForce stableKernelVersion;
           boot.enableUnifiedCgroupHierarchy = lib.mkForce true;
           boot.extraModulePackages = [ fixture ];
           services.rtnl-watchdog.enable = true;
@@ -67,6 +72,7 @@ import ../make-test.nix (
             policyTest
           ];
           environment.etc."rtnl-watchdog-test".source = ./rtnl-watchdog;
+          environment.etc."rtnl-watchdog-test-kernel-release".text = kernel.modDirVersion;
           environment.etc."rtnl-watchdog-test-busybox".source = "${pkgs.pkgsStatic.busybox}/bin/busybox";
           boot.qemu.memory = 2048;
           boot.qemu.cpus = 2;

@@ -1,8 +1,9 @@
 # Disposable RTNL watchdog test
 
-Run `./test-runner.sh test rtnl-watchdog`. The test uses the pinned stable
-6.12.117 kernel and development output, normally supplied by the binary cache.
-Stop and investigate an unexpected full kernel build. One guest uses a sparse
+Run `./test-runner.sh test rtnl-watchdog`. The test boots the catalog's stable
+kernel and uses its development output to build the fixture module. Both kernel
+outputs normally come from the binary cache. Stop and investigate an unexpected
+full kernel build. One guest uses a sparse
 tank disk and containers with cached static BusyBox; no distribution image is
 fetched or built.
 

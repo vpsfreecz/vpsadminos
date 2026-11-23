@@ -6,7 +6,8 @@ describe 'active RTNL watchdog and guarded oomd integration', order: :defined do
     machine.start
     machine.wait_for_osctl_pool('tank')
     machine.wait_until_online
-    machine.succeeds('test "$(uname -r)" = 6.12.117')
+    expected_release = machine.succeeds('cat /etc/rtnl-watchdog-test-kernel-release')[1].strip
+    expect(machine.succeeds('uname -r')[1].strip).to eq(expected_release)
     machine.succeeds('test "$(cat /run/osctl/cgroup.version)" = 2')
     machine.succeeds('sv stop rtnl-watchdog')
     machine.succeeds('test ! -d /service/osctl-oomd')

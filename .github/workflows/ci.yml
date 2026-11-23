@@ -4,7 +4,7 @@ run-name: "CI (${{ inputs.test_suite || 'ci' }}${{ inputs.test_pattern && format
 env:
   TEST_RUNNER_PREBUILD: ${{ github.event_name != 'workflow_dispatch' || inputs.prebuild }}
   VPSADMINOS_CONFIG: >-
-    ${{ (inputs.test_suite == 'ci-unstable' || inputs.test_suite == 'zfs-full' || github.ref == 'refs/heads/snajpa-6.18' || github.head_ref == 'snajpa-6.18') && format('{0}/os/configs/unstable.nix', github.workspace) || '' }}
+    ${{ (inputs.test_suite == 'ci-unstable' || (inputs.test_suite != 'zfs-full' && (github.ref == 'refs/heads/snajpa-6.18' || github.head_ref == 'snajpa-6.18'))) && format('{0}/os/configs/unstable.nix', github.workspace) || '' }}
 
 on:
   workflow_dispatch:

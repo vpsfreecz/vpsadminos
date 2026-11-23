@@ -9,9 +9,28 @@ are managed by the test framework. All tests can be found in the
 [vpsAdminOS repository](https://github.com/vpsfreecz/vpsadminos/tree/staging/tests).
 
 ## Writing a test
-Each test is a Nix file stored in directory `tests/suite`. A test has a name,
-one or more virtual machines to run on and a Ruby script that is run from
-the host system and which can interact with the virtual machines.
+A test has a name, one or more virtual machines, and a Ruby script that
+runs on the host and interacts with those machines. Put reusable definitions
+in `tests/suite/` and register them in `tests/all-tests.nix`.
+
+vpsAdminOS test VMs boot the stable kernel by default. If your test needs to
+check a guest release or module ABI, select the catalog's `stableKernelVersion`
+and take the expected identity from that selector and the selected package.
+Compare it with what the guest actually runs; do not pin the expectation or
+use the guest's `uname` as the expected value. See
+[Stable-kernel NFS cancellation CI](#stable-kernel-nfs-cancellation-ci).
+
+Pin an exact kernel only if the stable kernel cannot exercise a livepatch or
+a release-specific regression. Name the target and explain why stable is
+insufficient beside the registration. For tests not already owned by a numbered
+livepatch batch, use `tests/kernel-specific/<kernelVersion>/default.nix` as
+that release's registration. Its optional `runnerTests` list uses the same
+registration format as `tests/all-tests.nix`, resolving definitions from the
+owner's `suite/` directory. An optional `checks` function takes `{ pkgs, ... }`
+and returns named flake checks. Keep private boot configuration, assertions,
+fixtures and helpers inside the same release directory. Tests already owned by
+a numbered livepatch batch stay in that batch, without a second registration.
+Removing a kernel retires its private tests with it.
 
 ```nix
 import ../make-test.nix ({ pkgs }: {
@@ -165,8 +184,8 @@ See template machine configs in `tests/machines/`. vpsAdminOS configurations
 used by machines for testing can be found in `tests/configs` and the tests
 themselves in `tests/suite/`.
 
-All tests have to be registered in `tests/all-tests.nix`, otherwise they cannot
-be run.
+The runner discovers shared tests from `tests/all-tests.nix` and loads the
+release-specific registrations described above.
 
 ### Machine spins (vpsAdminOS vs NixOS)
 Machines default to vpsAdminOS. To boot NixOS instead, set `spin = "nixos"` on
@@ -255,7 +274,17 @@ script itself can be run by calling method `test_script`. You can call method
 ### Explicit ZFS full suite
 
 OpenZFS full-suite execution is available as an explicit `test-runner` tag and is
-not part of default `-t ci` runs. Run these commands from the repository root.
+not part of default `-t ci` runs. It uses the stable kernel and its paired
+OpenZFS, with ZFS built into the kernel by default. Set
+`VPSADMINOS_ZFS_FULL_USE_BUILTIN=0` to debug with modular ZFS. To exercise
+local artifacts, set `VPSADMINOS_CONFIG` to the absolute path of
+`os/configs/local-dev-qemu.nix` and use modular mode with matching kernel, ZFS
+module, and ZFS userspace stages. See
+[Using stages](kernel-zfs-development.md#using-stages). Set
+`VPSADMINOS_ZFS_FULL_USER_SOURCE` instead to test a userspace-only source
+change against the selected kernel and its pinned ZFS code.
+
+Run these commands from the repository root.
 
 ```bash
 # Full profile (long run)
@@ -272,6 +301,10 @@ RUN_ID=zfs-full-b ./run-zfs-full-suite.sh
 
 The wrapper derives its default state directory from `RUN_ID`. Give each
 parallel run a unique `RUN_ID` and do not reuse a `STATE_DIR` override.
+
+The stable suite keeps upstream's skip for the promoted-clone replication
+cycle (`rsend_008_pos`). Checks that need a specific kernel and OpenZFS pair
+belong in `tests/kernel-specific/`, not in the stable suite.
 
 ## Userspace upgrades between versions
 
@@ -777,12 +810,13 @@ import ../make-test.nix ({ pkgs }: {
 Groups and examples are evaluated in random order unless configured otherwise.
 
 ## Temporary config changes
-It is possible to change all test machine configurations by creating
-`os/configs/tests.nix` file, e.g. to change a kernel version used in tests:
+Create `os/configs/tests.nix` to apply a local diagnostic change to test
+VMs, for example to inspect a test with more memory. Do not commit local
+kernel overrides as part of a reusable suite.
 
 ```nix
-{ config, ... }:
+{ ... }:
 {
-  boot.kernelVersion = "6.1.30";
+  boot.qemu.memory = 4096;
 }
 ```

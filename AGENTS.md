@@ -54,7 +54,18 @@
   follow the [downstream patch-series policy](docs/os/patch-series-policy.md).
 - Before adding, changing or retiring a userspace upgrade test, read the
   [userspace upgrade-test lifecycle policy](docs/os/testing.md#userspace-upgrade-test-lifecycle).
-- Add tests in `tests/suite/*.nix` and register them in `tests/all-tests.nix`; reuse machines from `tests/machines/*.nix` and configs from `tests/configs/`.
+- Add reusable tests in `tests/suite/` and register them in `tests/all-tests.nix`;
+  reuse machines from `tests/machines/` and configs from `tests/configs/`.
+  vpsAdminOS VM tests use the stable kernel by default. Derive any expected
+  release or module ABI from the stable selector and selected kernel package,
+  not a version literal or the guest's `uname`. See
+  [Stable-kernel NFS cancellation CI](docs/os/testing.md#stable-kernel-nfs-cancellation-ci).
+- Pin only when stable cannot exercise an exact-target livepatch or a
+  release-specific regression. Explain the target and why stable is insufficient
+  in the owning registration. Keep private test files together in
+  `tests/kernel-specific/<kernelVersion>/` or the owning numbered livepatch
+  batch, not both. They retire with the kernel. Keep temporary diagnostic kernel
+  overrides out of committed reusable suites.
 - Use `my-test#script` for multi-script cases; set `expectFailure = true` when capturing known failures.
 - Tests that transfer, copy, move, send, receive, back up, or restore
   containers or datasets must verify data integrity when the operation is
