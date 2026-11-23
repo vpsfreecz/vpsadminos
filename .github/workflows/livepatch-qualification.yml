@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - '**'
+      - '!qualification-resume/**'
     paths:
       - .gitattributes
       - .github/workflows/livepatch.yml
@@ -51,8 +52,34 @@ on:
         required: false
         type: string
         default: ''
+      resume_source_run_id:
+        description: Completed qualification source run ID
+        required: false
+        type: string
+        default: ''
+      resume_source_run_attempt:
+        description: Completed qualification source run attempt
+        required: false
+        type: string
+        default: ''
+      resume_source_revision:
+        description: Exact tested 40-hex source revision
+        required: false
+        type: string
+        default: ''
+      resume_plan_sha256:
+        description: Exact source plan.json SHA-256
+        required: false
+        type: string
+        default: ''
+      resume_capture_sha256:
+        description: Exact source capture.json SHA-256
+        required: false
+        type: string
+        default: ''
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -64,4 +91,9 @@ jobs:
     uses: ./.github/workflows/livepatch.yml
     with:
       kernel-versions: ${{ inputs.kernel_versions }}
+      resume-source-run-id: ${{ inputs.resume_source_run_id }}
+      resume-source-run-attempt: ${{ inputs.resume_source_run_attempt }}
+      resume-source-revision: ${{ inputs.resume_source_revision }}
+      resume-plan-sha256: ${{ inputs.resume_plan_sha256 }}
+      resume-capture-sha256: ${{ inputs.resume_capture_sha256 }}
     secrets: inherit

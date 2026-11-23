@@ -174,8 +174,33 @@ cmp -- "$expected_qualification_paths" "$actual_qualification_paths"
 cmp -- "$expected_docs_paths" "$actual_docs_push_paths"
 cmp -- "$expected_docs_paths" "$actual_docs_pull_request_paths"
 
-[[ $(extract_event_list "$qualification_workflow" push branches) == '**' ]] ||
+[[ $(extract_event_list "$qualification_workflow" push branches) == \
+  $'**\n!qualification-resume/**' ]] ||
   fail 'qualification branch selector changed'
+mapfile -t qualification_branches < <(
+  extract_event_list "$qualification_workflow" push branches
+)
+qualification_branch_triggers() {
+  local branch=$1
+  local matched=false
+  local pattern
+
+  for pattern in "${qualification_branches[@]}"; do
+    if [[ $pattern == '!'* ]]; then
+      if path_matches "$branch" "${pattern#!}"; then
+        matched=false
+      fi
+    elif path_matches "$branch" "$pattern"; then
+      matched=true
+    fi
+  done
+  "$matched"
+}
+qualification_branch_triggers feature/livepatch ||
+  fail 'ordinary qualification branch was excluded'
+if qualification_branch_triggers qualification-resume/controller; then
+  fail 'reserved qualification resume branch triggers the normal campaign'
+fi
 [[ $(grep -Ec '^  (push|workflow_dispatch):$' "$qualification_workflow") -eq 2 ]] ||
   fail 'qualification event set changed'
 [[ $(grep -Ec '^  pull_request:$' "$qualification_workflow") -eq 0 ]] ||

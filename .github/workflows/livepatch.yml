@@ -8,8 +8,34 @@ on:
         required: false
         type: string
         default: ''
+      resume-source-run-id:
+        description: Completed qualification source run ID
+        required: false
+        type: string
+        default: ''
+      resume-source-run-attempt:
+        description: Completed qualification source run attempt
+        required: false
+        type: string
+        default: ''
+      resume-source-revision:
+        description: Exact tested 40-hex source revision
+        required: false
+        type: string
+        default: ''
+      resume-plan-sha256:
+        description: Exact source plan.json SHA-256
+        required: false
+        type: string
+        default: ''
+      resume-capture-sha256:
+        description: Exact source capture.json SHA-256
+        required: false
+        type: string
+        default: ''
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -22,11 +48,196 @@ jobs:
       source-revision: ${{ steps.plan.outputs.source-revision }}
       affected-matrix: ${{ steps.plan.outputs.affected-matrix }}
       affected-selected-sets: ${{ steps.plan.outputs.affected-selected-sets }}
+      resume-mode: ${{ steps.resume.outputs.enabled }}
+      imported-rows: ${{ steps.plan.outputs.imported-rows }}
 
     steps:
+      - name: Validate qualification resume provenance
+        id: resume
+        uses: actions/github-script@v9
+        env:
+          CONTROLLER_REVISION: ${{ github.sha }}
+          EXPECTED_CAPTURE_ARCHIVE_SHA256: 9527e0907ce8ecc45b0e574db3b5168671da34046c8d0c946b0e3dc65b579526
+          EXPECTED_IMPORTED_RESULT_ARCHIVE_SHA256: 85aec18ea28f1ecbc74f2308c3704efab45e14db782b5b0bde2c3bfdd3a132e5
+          EXPECTED_IMPORTED_ROW_ID: 6.12.113.4--set-vendor-aged-transition--amd
+          EXPECTED_PLAN_ARCHIVE_SHA256: 0cf4af028d6469619f1ab68d6169720ba991332651540a88eb70d4d9dff43c83
+          EXPECTED_REPOSITORY: vpsfreecz/vpsadminos
+          KERNEL_VERSIONS: ${{ inputs.kernel-versions }}
+          RESUME_CAPTURE_SHA256: ${{ inputs['resume-capture-sha256'] }}
+          RESUME_PLAN_SHA256: ${{ inputs['resume-plan-sha256'] }}
+          RESUME_SOURCE_REVISION: ${{ inputs['resume-source-revision'] }}
+          RESUME_SOURCE_RUN_ATTEMPT: ${{ inputs['resume-source-run-attempt'] }}
+          RESUME_SOURCE_RUN_ID: ${{ inputs['resume-source-run-id'] }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const inputs = {
+              runId: process.env.RESUME_SOURCE_RUN_ID,
+              runAttempt: process.env.RESUME_SOURCE_RUN_ATTEMPT,
+              sourceRevision: process.env.RESUME_SOURCE_REVISION,
+              planSha256: process.env.RESUME_PLAN_SHA256,
+              captureSha256: process.env.RESUME_CAPTURE_SHA256,
+            };
+            const supplied = Object.values(inputs).filter((value) => value !== '').length;
+            if (supplied === 0) {
+              core.setOutput('enabled', 'false');
+              return;
+            }
+            if (supplied !== Object.keys(inputs).length) {
+              core.setFailed('qualification resume inputs must be supplied all or none');
+              return;
+            }
+            if (context.eventName !== 'workflow_dispatch') {
+              core.setFailed('qualification resume is available only to workflow_dispatch');
+              return;
+            }
+            if (context.repo.owner + '/' + context.repo.repo !== process.env.EXPECTED_REPOSITORY) {
+              core.setFailed('qualification resume repository is not authorized');
+              return;
+            }
+            if (process.env.KERNEL_VERSIONS !== '') {
+              core.setFailed('qualification resume cannot combine with a kernel selector');
+              return;
+            }
+            if (!/^[1-9][0-9]*$/.test(inputs.runId) ||
+                !/^[1-9][0-9]*$/.test(inputs.runAttempt) ||
+                !/^[0-9a-f]{40}$/.test(inputs.sourceRevision) ||
+                !/^[0-9a-f]{64}$/.test(inputs.planSha256) ||
+                !/^[0-9a-f]{64}$/.test(inputs.captureSha256)) {
+              core.setFailed('qualification resume input form is invalid');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const runId = Number(inputs.runId);
+            const attempt = Number(inputs.runAttempt);
+            const sourceRun = await github.request(
+              'GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}',
+              {owner, repo, run_id: runId, attempt_number: attempt},
+            );
+            const expectedWorkflow = await github.request(
+              'GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}',
+              {owner, repo, workflow_id: 'livepatch-qualification.yml'},
+            );
+            const run = sourceRun.data;
+            if (run.id !== runId || run.run_attempt !== attempt || run.status !== 'completed' ||
+                run.workflow_id !== expectedWorkflow.data.id ||
+                run.head_repository?.full_name !== process.env.EXPECTED_REPOSITORY ||
+                run.head_sha !== inputs.sourceRevision) {
+              core.setFailed('source run provenance does not match the resume request');
+              return;
+            }
+
+            async function collect(route, key) {
+              const rows = [];
+              for (let page = 1; page <= 100; page += 1) {
+                const response = await github.request(route, {
+                  owner,
+                  repo,
+                  run_id: runId,
+                  attempt_number: attempt,
+                  per_page: 100,
+                  page,
+                });
+                const batch = response.data[key];
+                if (!Array.isArray(batch)) {
+                  throw new Error(`GitHub response has no ${key} array`);
+                }
+                rows.push(...batch);
+                if (batch.length < 100) return rows;
+              }
+              throw new Error(`GitHub ${key} pagination exceeded the bounded limit`);
+            }
+
+            const jobs = await collect(
+              'GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs',
+              'jobs',
+            );
+            if (jobs.some((job) =>
+              job.name.startsWith('Ordinary CI on ') && job.conclusion === 'success')) {
+              core.setFailed('source run contains a successful ordinary row outside the resume interface');
+              return;
+            }
+
+            const artifacts = await collect(
+              'GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts',
+              'artifacts',
+            );
+            const planName = `livepatch-plan-${inputs.runId}-${inputs.runAttempt}`;
+            const captureName = `livepatch-capture-${inputs.runId}-${inputs.runAttempt}`;
+            const acceptedResultName =
+              `livepatch-result-${process.env.EXPECTED_IMPORTED_ROW_ID}-` +
+              `${inputs.runId}-${inputs.runAttempt}`;
+            const resultSuffix = `-${inputs.runId}-${inputs.runAttempt}`;
+            const selected = artifacts.filter((artifact) =>
+              artifact.name === planName || artifact.name === captureName ||
+              (artifact.name.startsWith('livepatch-result-') && artifact.name.endsWith(resultSuffix)));
+            const exact = (name) => selected.filter((artifact) => artifact.name === name);
+            const resultArtifacts = selected.filter((artifact) =>
+              artifact.name.startsWith('livepatch-result-'));
+            const safeResultName = new RegExp(
+              `^livepatch-result-[A-Za-z0-9._-]+-${inputs.runId}-${inputs.runAttempt}$`,
+            );
+            if (exact(planName).length !== 1 || exact(captureName).length !== 1 ||
+                resultArtifacts.length === 0 ||
+                resultArtifacts.some((artifact) => !safeResultName.test(artifact.name)) ||
+                new Set(selected.map((artifact) => artifact.name)).size !== selected.length ||
+                selected.some((artifact) => artifact.expired ||
+                  !/^sha256:[0-9a-f]{64}$/.test(artifact.digest || ''))) {
+              core.setFailed('source artifacts are missing, duplicated, expired, or lack a SHA-256 digest');
+              return;
+            }
+            if (exact(planName)[0].digest !==
+                  `sha256:${process.env.EXPECTED_PLAN_ARCHIVE_SHA256}` ||
+                exact(captureName)[0].digest !==
+                  `sha256:${process.env.EXPECTED_CAPTURE_ARCHIVE_SHA256}` ||
+                exact(acceptedResultName).length !== 1 ||
+                exact(acceptedResultName)[0].digest !==
+                  `sha256:${process.env.EXPECTED_IMPORTED_RESULT_ARCHIVE_SHA256}`) {
+              core.setFailed('source artifact service digest does not match the authorized continuation');
+              return;
+            }
+
+            const provenance = {
+              schemaVersion: 1,
+              source: {
+                repository: process.env.EXPECTED_REPOSITORY,
+                runId,
+                runAttempt: attempt,
+                headSha: inputs.sourceRevision,
+                status: run.status,
+                workflowId: run.workflow_id,
+                workflowPath: expectedWorkflow.data.path,
+              },
+              controller: {
+                headSha: process.env.CONTROLLER_REVISION,
+                runId: Number(process.env.GITHUB_RUN_ID),
+                runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+              },
+              requested: {
+                planSha256: inputs.planSha256,
+                captureSha256: inputs.captureSha256,
+              },
+              artifacts: selected
+                .map((artifact) => ({
+                  id: artifact.id,
+                  name: artifact.name,
+                  digest: artifact.digest,
+                  sizeInBytes: artifact.size_in_bytes,
+                  createdAt: artifact.created_at,
+                  expired: artifact.expired,
+                  expiresAt: artifact.expires_at,
+                }))
+                .sort((left, right) => left.name.localeCompare(right.name)),
+            };
+            core.setOutput('provenance', JSON.stringify(provenance));
+            core.setOutput('enabled', 'true');
+
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ inputs['resume-source-revision'] || github.sha }}
         env:
           GIT_CONFIG_COUNT: "1"
           GIT_CONFIG_KEY_0: maintenance.auto
@@ -51,9 +262,54 @@ jobs:
             --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT")
           printf 'directory=%s\n' "$workspace" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve the affected push range
+      - name: Record qualification resume provenance
+        if: ${{ steps.resume.outputs.enabled == 'true' }}
         env:
+          LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+          RESUME_PROVENANCE: ${{ steps.resume.outputs.provenance }}
+        run: |
+          set -euo pipefail
+          provenance="$LIVEPATCH_CI_WORKSPACE/resume-provenance-api.json"
+          [[ ! -e "$provenance" && ! -L "$provenance" ]]
+          printf '%s\n' "$RESUME_PROVENANCE" > "$provenance"
+          chmod 600 "$provenance"
+
+      - name: Download the source qualification plan
+        if: ${{ steps.resume.outputs.enabled == 'true' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: livepatch-plan-${{ inputs['resume-source-run-id'] }}-${{ inputs['resume-source-run-attempt'] }}
+          path: ${{ steps.workspace.outputs.directory }}/resume/plan
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs['resume-source-run-id'] }}
+
+      - name: Download the source qualification capture
+        if: ${{ steps.resume.outputs.enabled == 'true' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: livepatch-capture-${{ inputs['resume-source-run-id'] }}-${{ inputs['resume-source-run-attempt'] }}
+          path: ${{ steps.workspace.outputs.directory }}/resume/capture
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs['resume-source-run-id'] }}
+
+      - name: Download source qualification results
+        if: ${{ steps.resume.outputs.enabled == 'true' }}
+        uses: actions/download-artifact@v8
+        with:
+          pattern: livepatch-result-*-${{ inputs['resume-source-run-id'] }}-${{ inputs['resume-source-run-attempt'] }}
+          path: ${{ steps.workspace.outputs.directory }}/resume/results
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs['resume-source-run-id'] }}
+
+      - name: Resolve the affected push range
+        if: ${{ steps.resume.outputs.enabled != 'true' }}
+        env:
+          CONTROLLER_REVISION: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_REPOSITORY: vpsfreecz/vpsadminos
           EVENT_BEFORE: ${{ github.event.before }}
           EVENT_HEAD: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -106,28 +362,219 @@ jobs:
       - name: Discover one canonical plan and its affected view
         id: plan
         env:
+          CONTROLLER_REVISION: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_CAPTURE_ARCHIVE_SHA256: 9527e0907ce8ecc45b0e574db3b5168671da34046c8d0c946b0e3dc65b579526
+          EXPECTED_IMPORTED_ROW_ID: 6.12.113.4--set-vendor-aged-transition--amd
+          EXPECTED_IMPORTED_RESULT_ARCHIVE_SHA256: 85aec18ea28f1ecbc74f2308c3704efab45e14db782b5b0bde2c3bfdd3a132e5
+          EXPECTED_IMPORTED_RESULT_SHA256: d17dfa085572191184dc8c42a34394508763deac990c8597b882ad9b8dfc35b1
+          EXPECTED_IMPORTED_ROWS: "1"
+          EXPECTED_PLAN_ARCHIVE_SHA256: 0cf4af028d6469619f1ab68d6169720ba991332651540a88eb70d4d9dff43c83
+          EXPECTED_PLANNED_ROWS: "84"
+          EXPECTED_REPOSITORY: vpsfreecz/vpsadminos
           MANUAL_KERNELS: ${{ inputs['kernel-versions'] }}
           LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+          RESUME_CAPTURE_SHA256: ${{ inputs['resume-capture-sha256'] }}
+          RESUME_MODE: ${{ steps.resume.outputs.enabled }}
+          RESUME_PLAN_SHA256: ${{ inputs['resume-plan-sha256'] }}
+          RESUME_SOURCE_REVISION: ${{ inputs['resume-source-revision'] }}
+          RESUME_SOURCE_RUN_ATTEMPT: ${{ inputs['resume-source-run-attempt'] }}
+          RESUME_SOURCE_RUN_ID: ${{ inputs['resume-source-run-id'] }}
         run: |
           set -euo pipefail
-          tools/livepatch/discover.sh \
-            --plan "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
-            --matrix "$LIVEPATCH_CI_WORKSPACE/full-matrix.json"
+          imported_rows=0
+          if [[ "$RESUME_MODE" == true ]]; then
+            resume="$LIVEPATCH_CI_WORKSPACE/resume"
+            source_plan="$resume/plan/plan.json"
+            source_capture="$resume/capture/capture.json"
+            source_evidence="$resume/capture/evidence"
+            source_results="$resume/results"
+            imported="$LIVEPATCH_CI_WORKSPACE/imported-results"
+            api_provenance="$LIVEPATCH_CI_WORKSPACE/resume-provenance-api.json"
+            accepted_ids="$LIVEPATCH_CI_WORKSPACE/accepted-row-ids.json"
 
-          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
-            selector=()
-            while IFS= read -r kernel || [[ -n "$kernel" ]]; do
-              [[ -n "$kernel" ]] || continue
-              selector+=(--kernel-version "$kernel")
-            done <<< "$MANUAL_KERNELS"
-            if ((${#selector[@]})); then
-              tools/livepatch/discover.sh \
-                --input "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
-                --plan "$LIVEPATCH_CI_WORKSPACE/plan.json" \
-                --matrix "$LIVEPATCH_CI_WORKSPACE/matrix.json" \
-                "${selector[@]}"
-              cp "$LIVEPATCH_CI_WORKSPACE/plan.json" "$LIVEPATCH_CI_WORKSPACE/affected-plan.json"
+            for root in "$resume/plan" "$resume/capture" "$source_results"; do
+              [[ -d "$root" && ! -L "$root" ]]
+              [[ -z $(find "$root" -type l -print -quit) ]]
+            done
+            for input in "$source_plan" "$source_capture" "$api_provenance"; do
+              [[ -f "$input" && ! -L "$input" ]]
+            done
+            jq -e \
+              --arg repository "$EXPECTED_REPOSITORY" \
+              --argjson runId "$RESUME_SOURCE_RUN_ID" \
+              --argjson runAttempt "$RESUME_SOURCE_RUN_ATTEMPT" \
+              --arg sourceRevision "$RESUME_SOURCE_REVISION" \
+              --arg controllerRevision "$CONTROLLER_REVISION" \
+              --arg planSha256 "$RESUME_PLAN_SHA256" \
+              --arg captureSha256 "$RESUME_CAPTURE_SHA256" \
+              --arg planName "livepatch-plan-$RESUME_SOURCE_RUN_ID-$RESUME_SOURCE_RUN_ATTEMPT" \
+              --arg planDigest "sha256:$EXPECTED_PLAN_ARCHIVE_SHA256" \
+              --arg captureName "livepatch-capture-$RESUME_SOURCE_RUN_ID-$RESUME_SOURCE_RUN_ATTEMPT" \
+              --arg captureDigest "sha256:$EXPECTED_CAPTURE_ARCHIVE_SHA256" \
+              --arg acceptedName "livepatch-result-$EXPECTED_IMPORTED_ROW_ID-$RESUME_SOURCE_RUN_ID-$RESUME_SOURCE_RUN_ATTEMPT" \
+              --arg acceptedDigest "sha256:$EXPECTED_IMPORTED_RESULT_ARCHIVE_SHA256" \
+              --arg resultSuffix "-$RESUME_SOURCE_RUN_ID-$RESUME_SOURCE_RUN_ATTEMPT" '
+              .schemaVersion == 1
+              and .source.repository == $repository
+              and .source.runId == $runId
+              and .source.runAttempt == $runAttempt
+              and .source.headSha == $sourceRevision
+              and .source.status == "completed"
+              and .source.workflowPath == ".github/workflows/livepatch-qualification.yml"
+              and .controller.headSha == $controllerRevision
+              and .requested.planSha256 == $planSha256
+              and .requested.captureSha256 == $captureSha256
+              and ([.artifacts[] | select(.name == $planName)] | length) == 1
+              and ([.artifacts[] | select(
+                .name == $planName and .digest == $planDigest
+              )] | length) == 1
+              and ([.artifacts[] | select(.name == $captureName)] | length) == 1
+              and ([.artifacts[] | select(
+                .name == $captureName and .digest == $captureDigest
+              )] | length) == 1
+              and ([.artifacts[] | select(
+                .name == $acceptedName and .digest == $acceptedDigest
+              )] | length) == 1
+              and ([.artifacts[] | select(
+                (.name | startswith("livepatch-result-"))
+                and (.name | endswith($resultSuffix))
+              )] | length) > 0
+              and ([.artifacts[].name] | unique | length) == (.artifacts | length)
+              and all(.artifacts[];
+                .expired == false
+                and (.digest | test("^sha256:[0-9a-f]{64}$"))
+              )
+            ' "$api_provenance" >/dev/null
+            [[ -d "$source_evidence" && ! -L "$source_evidence" ]]
+            [[ $(sha256sum "$source_plan" | cut -d' ' -f1) == "$RESUME_PLAN_SHA256" ]]
+            [[ $(sha256sum "$source_capture" | cut -d' ' -f1) == "$RESUME_CAPTURE_SHA256" ]]
+            [[ $(jq -er '.sourceRevision' "$source_plan") == "$RESUME_SOURCE_REVISION" ]]
+            [[ $(jq -er '.sourceRevision' "$source_capture") == "$RESUME_SOURCE_REVISION" ]]
+            [[ $(git rev-parse HEAD) == "$RESUME_SOURCE_REVISION" ]]
+            jq -e --argjson plannedRows "$EXPECTED_PLANNED_ROWS" '
+              .schemaVersion == 1
+              and .counts.matrixRows == $plannedRows
+              and (.matrix.include | length) == $plannedRows
+              and (.rows | length) == $plannedRows
+              and ([.matrix.include[].rowId] | unique | length) == $plannedRows
+              and ([.rows[].rowId] | unique | length) == $plannedRows
+              and ([.matrix.include[].rowId] | sort) == ([.rows[].rowId] | sort)
+            ' "$source_plan" >/dev/null
+            tools/livepatch/verify.sh \
+              --plan "$source_plan" \
+              --capture "$source_capture" \
+              --evidence-dir "$source_evidence" \
+              > "$LIVEPATCH_CI_WORKSPACE/resume-capture-verification.json"
+
+            jq -er '
+              .artifacts[]
+              | select(.name | startswith("livepatch-result-"))
+              | .name
+            ' "$api_provenance" | LC_ALL=C sort > "$LIVEPATCH_CI_WORKSPACE/service-results.txt"
+            find "$source_results" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
+              | LC_ALL=C sort > "$LIVEPATCH_CI_WORKSPACE/extracted-results.txt"
+            cmp -- "$LIVEPATCH_CI_WORKSPACE/service-results.txt" \
+              "$LIVEPATCH_CI_WORKSPACE/extracted-results.txt"
+            [[ -s "$LIVEPATCH_CI_WORKSPACE/extracted-results.txt" ]]
+
+            mkdir "$imported"
+            printf '[]\n' > "$accepted_ids"
+            while IFS= read -r artifact_name; do
+              artifact="$source_results/$artifact_name"
+              mapfile -t receipts < <(find "$artifact" -type f -name result.json -print)
+              ((${#receipts[@]} == 1))
+              receipt=${receipts[0]}
+              row_id=$(jq -er '.rowId' "$receipt")
+              [[ "$artifact_name" == \
+                "livepatch-result-$row_id-$RESUME_SOURCE_RUN_ID-$RESUME_SOURCE_RUN_ATTEMPT" ]]
+              jq -e --arg rowId "$row_id" '
+                [.[] | select(. == $rowId)] | length == 0
+              ' "$accepted_ids" >/dev/null
+              tools/livepatch/verify.sh \
+                --plan "$source_plan" \
+                --capture "$source_capture" \
+                --evidence-dir "$source_evidence" \
+                --row-id "$row_id" \
+                --result "$receipt" >/dev/null
+              if jq -e '
+                .accepted == true
+                and .runnerStatus == 0
+                and .validator.status == "accepted"
+              ' "$receipt" >/dev/null; then
+                mkdir "$imported/$artifact_name"
+                cp -- "$receipt" "$imported/$artifact_name/result.json"
+                jq --arg rowId "$row_id" '. + [$rowId]' "$accepted_ids" \
+                  > "$accepted_ids.next"
+                mv -- "$accepted_ids.next" "$accepted_ids"
+              elif jq -e '.accepted == true' "$receipt" >/dev/null; then
+                echo "accepted source receipt has a failed runner or validator: $row_id" >&2
+                exit 1
+              fi
+            done < "$LIVEPATCH_CI_WORKSPACE/extracted-results.txt"
+
+            jq -e --arg rowId "$EXPECTED_IMPORTED_ROW_ID" \
+              --argjson importedRows "$EXPECTED_IMPORTED_ROWS" '
+              length == $importedRows and . == [$rowId]
+            ' "$accepted_ids" >/dev/null
+            imported_receipt="$imported/livepatch-result-$EXPECTED_IMPORTED_ROW_ID-$RESUME_SOURCE_RUN_ID-$RESUME_SOURCE_RUN_ATTEMPT/result.json"
+            [[ -f "$imported_receipt" && ! -L "$imported_receipt" ]]
+            [[ $(sha256sum "$imported_receipt" | cut -d' ' -f1) == \
+              "$EXPECTED_IMPORTED_RESULT_SHA256" ]]
+
+            cp -- "$source_plan" "$LIVEPATCH_CI_WORKSPACE/plan.json"
+            cp -- "$resume/plan/affected-plan.json" "$LIVEPATCH_CI_WORKSPACE/affected-plan.json"
+            jq --slurpfile accepted "$accepted_ids" '
+              .include |= map(select(.rowId as $rowId | ($accepted[0] | index($rowId) | not)))
+            ' "$resume/plan/matrix.json" > "$LIVEPATCH_CI_WORKSPACE/matrix.json"
+            pending_rows=$((EXPECTED_PLANNED_ROWS - EXPECTED_IMPORTED_ROWS))
+            [[ $(jq -er '.include | length' "$LIVEPATCH_CI_WORKSPACE/matrix.json") == \
+              "$pending_rows" ]]
+            cp -- "$api_provenance" "$LIVEPATCH_CI_WORKSPACE/resume-provenance.json"
+            jq --arg planSha256 "$RESUME_PLAN_SHA256" \
+              --arg captureSha256 "$RESUME_CAPTURE_SHA256" \
+              --arg acceptedRowId "$(jq -er '.[0]' "$accepted_ids")" \
+              --arg acceptedResultSha256 "$(sha256sum "$imported_receipt" | cut -d' ' -f1)" \
+              '. + {extracted: {
+                planSha256: $planSha256,
+                captureSha256: $captureSha256,
+                acceptedResults: [{
+                  rowId: $acceptedRowId,
+                  sha256: $acceptedResultSha256
+                }]
+              }}' "$api_provenance" > "$LIVEPATCH_CI_WORKSPACE/resume-provenance.next"
+            mv -- "$LIVEPATCH_CI_WORKSPACE/resume-provenance.next" \
+              "$LIVEPATCH_CI_WORKSPACE/resume-provenance.json"
+            cp -- "$LIVEPATCH_CI_WORKSPACE/resume-provenance.json" "$imported/provenance.json"
+            imported_rows=$EXPECTED_IMPORTED_ROWS
+          else
+            tools/livepatch/discover.sh \
+              --plan "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
+              --matrix "$LIVEPATCH_CI_WORKSPACE/full-matrix.json"
+
+            if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+              selector=()
+              while IFS= read -r kernel || [[ -n "$kernel" ]]; do
+                [[ -n "$kernel" ]] || continue
+                selector+=(--kernel-version "$kernel")
+              done <<< "$MANUAL_KERNELS"
+              if ((${#selector[@]})); then
+                tools/livepatch/discover.sh \
+                  --input "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
+                  --plan "$LIVEPATCH_CI_WORKSPACE/plan.json" \
+                  --matrix "$LIVEPATCH_CI_WORKSPACE/matrix.json" \
+                  "${selector[@]}"
+                cp "$LIVEPATCH_CI_WORKSPACE/plan.json" \
+                  "$LIVEPATCH_CI_WORKSPACE/affected-plan.json"
+              else
+                cp "$LIVEPATCH_CI_WORKSPACE/full-plan.json" "$LIVEPATCH_CI_WORKSPACE/plan.json"
+                cp "$LIVEPATCH_CI_WORKSPACE/full-matrix.json" "$LIVEPATCH_CI_WORKSPACE/matrix.json"
+                tools/livepatch/discover.sh \
+                  --input "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
+                  --plan "$LIVEPATCH_CI_WORKSPACE/affected-plan.json" \
+                  --matrix "$LIVEPATCH_CI_WORKSPACE/affected-qualification-matrix.json" \
+                  --changed-paths "$LIVEPATCH_CI_WORKSPACE/changed-paths.txt"
+              fi
             else
               cp "$LIVEPATCH_CI_WORKSPACE/full-plan.json" "$LIVEPATCH_CI_WORKSPACE/plan.json"
               cp "$LIVEPATCH_CI_WORKSPACE/full-matrix.json" "$LIVEPATCH_CI_WORKSPACE/matrix.json"
@@ -137,14 +584,6 @@ jobs:
                 --matrix "$LIVEPATCH_CI_WORKSPACE/affected-qualification-matrix.json" \
                 --changed-paths "$LIVEPATCH_CI_WORKSPACE/changed-paths.txt"
             fi
-          else
-            cp "$LIVEPATCH_CI_WORKSPACE/full-plan.json" "$LIVEPATCH_CI_WORKSPACE/plan.json"
-            cp "$LIVEPATCH_CI_WORKSPACE/full-matrix.json" "$LIVEPATCH_CI_WORKSPACE/matrix.json"
-            tools/livepatch/discover.sh \
-              --input "$LIVEPATCH_CI_WORKSPACE/full-plan.json" \
-              --plan "$LIVEPATCH_CI_WORKSPACE/affected-plan.json" \
-              --matrix "$LIVEPATCH_CI_WORKSPACE/affected-qualification-matrix.json" \
-              --changed-paths "$LIVEPATCH_CI_WORKSPACE/changed-paths.txt"
           fi
 
           jq -c '{include: [.sets[] | {
@@ -165,13 +604,35 @@ jobs:
             printf 'affected-matrix=%s\n' "$affected_matrix"
             printf 'affected-selected-sets=%s\n' \
               "$(jq -er '.selectedSets' "$LIVEPATCH_CI_WORKSPACE/affected-plan.json")"
+            printf 'imported-rows=%s\n' "$imported_rows"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Re-export the imported qualification capture
+        if: ${{ steps.resume.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.directory }}/resume/capture
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Re-export validated imported results
+        if: ${{ steps.resume.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: livepatch-imported-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.directory }}/imported-results
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload the detailed qualification plan
         uses: actions/upload-artifact@v7
         with:
           name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ steps.workspace.outputs.directory }}
+          path: |
+            ${{ steps.workspace.outputs.directory }}
+            !${{ steps.workspace.outputs.directory }}/resume/**
+            !${{ steps.workspace.outputs.directory }}/imported-results/**
           if-no-files-found: error
           retention-days: 30
 
@@ -229,34 +690,57 @@ jobs:
             --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT")
           printf 'directory=%s\n' "$workspace" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v7
+      - name: Download the current-run qualification plan
+        uses: actions/download-artifact@v8
         with:
           name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.directory }}/input
+
+      - name: Download the current-run resume capture
+        if: ${{ needs.discover.outputs.resume-mode == 'true' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.directory }}/input/capture
 
       - name: Capture one dynamic producer identity set
         id: capture
         env:
           LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+          RESUME_CAPTURE_SHA256: ${{ inputs['resume-capture-sha256'] }}
+          RESUME_MODE: ${{ needs.discover.outputs.resume-mode }}
         run: |
           set -euo pipefail
           plan="$LIVEPATCH_CI_WORKSPACE/input/plan.json"
           test "$(git rev-parse HEAD)" = "$(jq -er '.sourceRevision' "$plan")"
-          mkdir "$LIVEPATCH_CI_WORKSPACE/capture"
-          tools/livepatch/capture.sh \
-            --plan "$plan" \
-            --output "$LIVEPATCH_CI_WORKSPACE/capture/capture.json" \
-            --evidence-dir "$LIVEPATCH_CI_WORKSPACE/capture/evidence"
-          tools/livepatch/verify.sh \
-            --plan "$plan" \
-            --capture "$LIVEPATCH_CI_WORKSPACE/capture/capture.json" \
-            --evidence-dir "$LIVEPATCH_CI_WORKSPACE/capture/evidence" \
-            > "$LIVEPATCH_CI_WORKSPACE/capture/verification.json"
+          if [[ "$RESUME_MODE" == true ]]; then
+            capture="$LIVEPATCH_CI_WORKSPACE/input/capture/capture.json"
+            evidence="$LIVEPATCH_CI_WORKSPACE/input/capture/evidence"
+            [[ $(sha256sum "$capture" | cut -d' ' -f1) == "$RESUME_CAPTURE_SHA256" ]]
+            tools/livepatch/verify.sh \
+              --plan "$plan" \
+              --capture "$capture" \
+              --evidence-dir "$evidence" \
+              > "$LIVEPATCH_CI_WORKSPACE/resume-capture-verification.json"
+          else
+            mkdir "$LIVEPATCH_CI_WORKSPACE/capture"
+            capture="$LIVEPATCH_CI_WORKSPACE/capture/capture.json"
+            tools/livepatch/capture.sh \
+              --plan "$plan" \
+              --output "$capture" \
+              --evidence-dir "$LIVEPATCH_CI_WORKSPACE/capture/evidence"
+            tools/livepatch/verify.sh \
+              --plan "$plan" \
+              --capture "$capture" \
+              --evidence-dir "$LIVEPATCH_CI_WORKSPACE/capture/evidence" \
+              > "$LIVEPATCH_CI_WORKSPACE/capture/verification.json"
+          fi
           printf 'sha256=%s\n' \
-            "$(sha256sum "$LIVEPATCH_CI_WORKSPACE/capture/capture.json" | cut -d' ' -f1)" \
+            "$(sha256sum "$capture" | cut -d' ' -f1)" \
             >> "$GITHUB_OUTPUT"
 
       - name: Publish and prove captured producer closures
+        if: ${{ needs.discover.outputs.resume-mode != 'true' }}
         env:
           LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
           VPSADMINOS_CACHE_SSH_KEY: ${{ secrets.VPSADMINOS_CACHE_SSH_KEY }}
@@ -354,13 +838,19 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GITHUB_HEAD_REF_NAME: ${{ github.head_ref }}
           LIVEPATCH_CI_WORKSPACE: ${{ steps.workspace.outputs.directory }}
+          RESUME_MODE: ${{ needs.discover.outputs.resume-mode }}
         run: |
           set -euo pipefail
           plan="$LIVEPATCH_CI_WORKSPACE/input/plan.json"
           affected="$LIVEPATCH_CI_WORKSPACE/input/affected-plan.json"
-          capture="$LIVEPATCH_CI_WORKSPACE/capture/capture.json"
-          reference="$LIVEPATCH_CI_WORKSPACE/capture/ordinary-reference.json"
-          coverage="$LIVEPATCH_CI_WORKSPACE/capture/ordinary-coverage.json"
+          if [[ "$RESUME_MODE" == true ]]; then
+            capture_dir="$LIVEPATCH_CI_WORKSPACE/input/capture"
+          else
+            capture_dir="$LIVEPATCH_CI_WORKSPACE/capture"
+          fi
+          capture="$capture_dir/capture.json"
+          reference="$capture_dir/ordinary-reference.json"
+          coverage="$capture_dir/ordinary-coverage.json"
           configuration=null
           source_revision=$(git rev-parse HEAD)
           if [[ "$GITHUB_REF" == refs/heads/snajpa-6.18 || "$GITHUB_HEAD_REF_NAME" == snajpa-6.18 ]]; then
@@ -387,9 +877,18 @@ jobs:
           " > "$coverage"
           jq '.normal' "$coverage" > "$reference"
           jq -c '.workloadMatrix' "$coverage" \
-            > "$LIVEPATCH_CI_WORKSPACE/capture/workload-matrix.json"
-          workload_matrix=$(cat "$LIVEPATCH_CI_WORKSPACE/capture/workload-matrix.json")
-          workload_count=$(jq -er '.include | length' "$LIVEPATCH_CI_WORKSPACE/capture/workload-matrix.json")
+            > "$capture_dir/workload-matrix.next.json"
+          if [[ "$RESUME_MODE" == true ]]; then
+            cmp -- "$capture_dir/workload-matrix.json" "$capture_dir/workload-matrix.next.json"
+            rm -- "$capture_dir/workload-matrix.next.json"
+          else
+            mv -- "$capture_dir/workload-matrix.next.json" "$capture_dir/workload-matrix.json"
+          fi
+          workload_matrix=$(cat "$capture_dir/workload-matrix.json")
+          workload_count=$(jq -er '.include | length' "$capture_dir/workload-matrix.json")
+          if [[ "$RESUME_MODE" == true ]]; then
+            [[ "$workload_count" == 1 ]]
+          fi
           test "${#workload_matrix}" -lt 65536
           {
             printf 'workload-matrix=%s\n' "$workload_matrix"
@@ -397,6 +896,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload captured modules and realization evidence
+        if: ${{ needs.discover.outputs.resume-mode != 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
@@ -432,7 +932,7 @@ jobs:
       labels: ${{ matrix.runnerClass }}
     timeout-minutes: 360
     strategy:
-      fail-fast: true
+      fail-fast: false
       max-parallel: 1
       matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
 
@@ -468,12 +968,12 @@ jobs:
         id: prepare-profile
         uses: ./.github/actions/prepare-test-state
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.directory }}/input
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.directory }}/input/capture
@@ -549,7 +1049,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 360
     strategy:
-      fail-fast: true
+      fail-fast: false
       max-parallel: 1
       matrix: ${{ fromJSON(needs.capture.outputs.workload-matrix) }}
 
@@ -585,12 +1085,12 @@ jobs:
         id: prepare-tests
         uses: ./.github/actions/prepare-test-state
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.directory }}/input
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.directory }}/input/capture
@@ -752,6 +1252,7 @@ jobs:
     name: Close livepatch result counts
     if: ${{ always() && needs.discover.outputs.selected-sets != '0' }}
     needs:
+      - affected-regression
       - discover
       - capture
       - qualify
@@ -781,15 +1282,43 @@ jobs:
             --run-attempt "$LIVEPATCH_CI_RUN_ATTEMPT")
           printf 'directory=%s\n' "$workspace" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: livepatch-plan-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.directory }}/input
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: livepatch-result-*-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ steps.workspace.outputs.directory }}/results
+          path: ${{ steps.workspace.outputs.directory }}/results/new
+
+      - name: Download validated imported results
+        if: ${{ needs.discover.outputs.resume-mode == 'true' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: livepatch-imported-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.directory }}/results/imported
+
+      - name: Require every scheduled qualification phase to succeed
+        env:
+          AFFECTED_RESULT: ${{ needs.affected-regression.result }}
+          CAPTURE_RESULT: ${{ needs.capture.result }}
+          DISCOVER_RESULT: ${{ needs.discover.result }}
+          QUALIFY_RESULT: ${{ needs.qualify.result }}
+          RESUME_MODE: ${{ needs.discover.outputs.resume-mode }}
+          WORKLOAD_SELECTED_SETS: ${{ needs.capture.outputs.workload-selected-sets }}
+        run: |
+          set -euo pipefail
+          [[ "$DISCOVER_RESULT" == success && "$CAPTURE_RESULT" == success ]]
+          [[ "$QUALIFY_RESULT" == success ]]
+          if [[ "$WORKLOAD_SELECTED_SETS" == 0 ]]; then
+            [[ "$AFFECTED_RESULT" == skipped ]]
+          else
+            [[ "$AFFECTED_RESULT" == success ]]
+          fi
+          if [[ "$RESUME_MODE" == true ]]; then
+            [[ "$WORKLOAD_SELECTED_SETS" == 1 ]]
+          fi
 
       - name: Require one accepted receipt for every planned row
         env:
@@ -801,6 +1330,16 @@ jobs:
             --plan "$plan" \
             --results-dir "$LIVEPATCH_CI_WORKSPACE/results" \
             --output "$LIVEPATCH_CI_WORKSPACE/results/consolidated.json"
+          if [[ '${{ needs.discover.outputs.resume-mode }}' == true ]]; then
+            jq -e --arg rowId '6.12.113.4--set-vendor-aged-transition--amd' '
+              .plannedRows == 84
+              and (.receipts | length) == 84
+              and ([.receipts[].rowId] | unique | length) == 84
+              and ([.receipts[] | select(.rowId == $rowId)] | length) == 1
+            ' "$LIVEPATCH_CI_WORKSPACE/results/consolidated.json" >/dev/null
+            imported="$LIVEPATCH_CI_WORKSPACE/results/imported"
+            [[ -f "$imported/provenance.json" && ! -L "$imported/provenance.json" ]]
+          fi
 
       - name: Upload the count-closed result set
         uses: actions/upload-artifact@v7

@@ -21,6 +21,11 @@ capture_script=$(readlink -e -- "$3")
 run_profile=$(readlink -e -- "$4")
 ci_workspace=$(readlink -e -- "$5")
 workflow=$(readlink -e -- "$6")
+qualification_workflow=
+qualification_workflow_candidate="$(dirname -- "$workflow")/livepatch-qualification.yml"
+if [[ -f "$qualification_workflow_candidate" && ! -L "$qualification_workflow_candidate" ]]; then
+  qualification_workflow=$(readlink -e -- "$qualification_workflow_candidate")
+fi
 for input in "$capture_script" "$run_profile" "$ci_workspace"; do
   [[ -f "$input" && ! -L "$input" ]] || {
     echo "interface script must be a regular non-symlink file" >&2
@@ -681,8 +686,395 @@ EOF
   [[ $hash == "$(find "$legacy" -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum)" ]]
 }
 
+extract_workflow_run_block() {
+  local step_name=$1
+  local output=$2
+  local body=false
+  local line
+  local selected=false
+
+  : >"$output"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == "      - name: $step_name" ]]; then
+      selected=true
+      continue
+    fi
+    if $selected && [[ "$line" == '        run: |' ]]; then
+      body=true
+      continue
+    fi
+    if $body && [[ "$line" == '      - '* ]]; then
+      break
+    fi
+    if $body; then
+      printf '%s\n' "${line#          }" >>"$output"
+    fi
+  done <"$workflow"
+  [[ -s "$output" ]]
+}
+
+make_resume_import_fixture() {
+  local root=$1
+  local run_id=45086108111
+  local run_attempt=1
+  local accepted_row=6.12.113.4--set-vendor-aged-transition--amd
+  local accepted_artifact="livepatch-result-$accepted_row-$run_id-$run_attempt"
+  local failed_artifact="livepatch-result-pending-one-$run_id-$run_attempt"
+  local resume="$root/workspace/resume"
+
+  mkdir -p -- "$root/bin" "$root/tools/livepatch" "$resume/plan" \
+    "$resume/capture/evidence" "$resume/results/$accepted_artifact" \
+    "$resume/results/$failed_artifact"
+  jq -n --arg sourceRevision "$source_revision" --arg accepted "$accepted_row" '{
+    schemaVersion: 1,
+    sourceRevision: $sourceRevision,
+    selectedSets: 1,
+    counts: {matrixRows: 3},
+    sets: [{
+      id: "test-set", kernelVersion: "6.12.113", tipRelease: "6.12.113.4",
+      members: [{release: "6.12.113.4"}]
+    }],
+    matrix: {include: [
+      {rowId: $accepted},
+      {rowId: "pending-one"},
+      {rowId: "pending-two"}
+    ]},
+    rows: [
+      {rowId: $accepted, setId: "test-set", profileId: "aged", scope: "fix"},
+      {rowId: "pending-one", setId: "test-set", profileId: "one", scope: "fix"},
+      {rowId: "pending-two", setId: "test-set", profileId: "two", scope: "fix"}
+    ]
+  }' >"$resume/plan/plan.json"
+  jq '.matrix' "$resume/plan/plan.json" >"$resume/plan/matrix.json"
+  jq '{schemaVersion, sourceRevision, selectedSets, sets, counts}' \
+    "$resume/plan/plan.json" >"$resume/plan/affected-plan.json"
+  jq -n --arg sourceRevision "$source_revision" '{
+    schemaVersion: 1,
+    sourceRevision: $sourceRevision
+  }' >"$resume/capture/capture.json"
+  printf 'evidence\n' >"$resume/capture/evidence/member"
+  jq -n --arg rowId "$accepted_row" '{
+    schemaVersion: 1,
+    rowId: $rowId,
+    setId: "test-set",
+    profileId: "aged",
+    accepted: true,
+    runnerStatus: 0,
+    validator: {status: "accepted"}
+  }' >"$resume/results/$accepted_artifact/result.json"
+  jq -n '{
+    schemaVersion: 1,
+    rowId: "pending-one",
+    setId: "test-set",
+    profileId: "one",
+    accepted: false,
+    runnerStatus: 1,
+    validator: {status: "failed"}
+  }' >"$resume/results/$failed_artifact/result.json"
+  jq -n \
+    --arg sourceRevision "$source_revision" \
+    --arg controllerRevision aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+    --arg planSha256 "$(sha256sum "$resume/plan/plan.json" | cut -d' ' -f1)" \
+    --arg captureSha256 "$(sha256sum "$resume/capture/capture.json" | cut -d' ' -f1)" \
+    --arg planName "livepatch-plan-$run_id-$run_attempt" \
+    --arg captureName "livepatch-capture-$run_id-$run_attempt" \
+    --arg acceptedArtifact "$accepted_artifact" \
+    --arg failedArtifact "$failed_artifact" '{
+      schemaVersion: 1,
+      source: {
+        repository: "vpsfreecz/vpsadminos",
+        runId: 45086108111,
+        runAttempt: 1,
+        headSha: $sourceRevision,
+        status: "completed",
+        workflowId: 7,
+        workflowPath: ".github/workflows/livepatch-qualification.yml"
+      },
+      controller: {
+        headSha: $controllerRevision,
+        runId: 9,
+        runAttempt: 1
+      },
+      requested: {
+        planSha256: $planSha256,
+        captureSha256: $captureSha256
+      },
+      artifacts: [
+        {name: $planName},
+        {name: $captureName},
+        {name: $acceptedArtifact},
+        {name: $failedArtifact}
+      ] | map(. + {
+        id: 1,
+        digest: ("sha256:" + ("1" * 64)),
+        sizeInBytes: 1,
+        createdAt: "2026-11-23T00:00:00Z",
+        expired: false,
+        expiresAt: "2026-12-23T00:00:00Z"
+      })
+    }' >"$root/workspace/resume-provenance-api.json"
+  sha256sum "$resume/plan/plan.json" | cut -d' ' -f1 >"$root/plan.sha256"
+  sha256sum "$resume/capture/capture.json" | cut -d' ' -f1 >"$root/capture.sha256"
+  sha256sum "$resume/results/$accepted_artifact/result.json" \
+    | cut -d' ' -f1 >"$root/result.sha256"
+
+  cat >"$root/bin/git" <<EOF
+#!$bash_path
+set -euo pipefail
+[[ "\$#" -eq 2 && "\$1" == rev-parse && "\$2" == HEAD ]]
+printf '%s\n' '$source_revision'
+EOF
+  cat >"$root/tools/livepatch/verify.sh" <<EOF
+#!$bash_path
+set -euo pipefail
+plan=
+row=
+result=
+while ((\$#)); do
+  case \$1 in
+    --plan) plan=\$2; shift 2 ;;
+    --capture|--evidence-dir) shift 2 ;;
+    --row-id) row=\$2; shift 2 ;;
+    --result) result=\$2; shift 2 ;;
+    *) exit 2 ;;
+  esac
+done
+[[ -f \$plan ]]
+if [[ -n \$row ]]; then
+  [[ -f \$result ]]
+  jq -e --arg rowId "\$row" '
+    (.rowId == \$rowId)
+    and (\$plan[0].rows | map(.rowId) | index(\$rowId) != null)
+  ' --slurpfile plan "\$plan" "\$result" >/dev/null
+else
+  printf '{"schemaVersion":1,"verified":true}\n'
+fi
+EOF
+  chmod +x "$root/bin/git" "$root/tools/livepatch/verify.sh"
+}
+
+mutate_json() {
+  local path=$1
+  local filter=$2
+  jq "$filter" "$path" >"$path.next"
+  mv -- "$path.next" "$path"
+}
+
+run_resume_import() {
+  local root=$1
+  local output="$root/github-output"
+  (
+    cd "$root"
+    export PATH="$root/bin:$PATH"
+    export CONTROLLER_REVISION=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    export EVENT_NAME=workflow_dispatch
+    EXPECTED_CAPTURE_ARCHIVE_SHA256=$(printf '%064d' 0 | tr 0 1)
+    export EXPECTED_CAPTURE_ARCHIVE_SHA256
+    export EXPECTED_IMPORTED_ROW_ID=6.12.113.4--set-vendor-aged-transition--amd
+    EXPECTED_IMPORTED_RESULT_ARCHIVE_SHA256=$(printf '%064d' 0 | tr 0 1)
+    export EXPECTED_IMPORTED_RESULT_ARCHIVE_SHA256
+    EXPECTED_IMPORTED_RESULT_SHA256=$(cat "$root/result.sha256")
+    export EXPECTED_IMPORTED_RESULT_SHA256
+    export EXPECTED_IMPORTED_ROWS=1
+    export EXPECTED_PLANNED_ROWS=3
+    EXPECTED_PLAN_ARCHIVE_SHA256=$(printf '%064d' 0 | tr 0 1)
+    export EXPECTED_PLAN_ARCHIVE_SHA256
+    export EXPECTED_REPOSITORY=vpsfreecz/vpsadminos
+    export GITHUB_OUTPUT="$output"
+    export LIVEPATCH_CI_WORKSPACE="$root/workspace"
+    export MANUAL_KERNELS=
+    RESUME_CAPTURE_SHA256=$(cat "$root/capture.sha256")
+    export RESUME_CAPTURE_SHA256
+    export RESUME_MODE=true
+    RESUME_PLAN_SHA256=$(cat "$root/plan.sha256")
+    export RESUME_PLAN_SHA256
+    export RESUME_SOURCE_REVISION=$source_revision
+    export RESUME_SOURCE_RUN_ATTEMPT=1
+    export RESUME_SOURCE_RUN_ID=45086108111
+    "$bash_path" "$work/discover-plan-run.sh"
+  )
+}
+
+run_resume_case() {
+  local name=$1
+  local expected=$2
+  local mutation=$3
+  local root="$work/resume-$name"
+  local status
+
+  make_resume_import_fixture "$root"
+  "$mutation" "$root"
+  set +e
+  run_resume_import "$root" >"$root/stdout" 2>"$root/stderr"
+  status=$?
+  set -e
+  if [[ "$expected" == accept ]]; then
+    [[ $status -eq 0 ]] || {
+      echo "$name: resume import expected acceptance, got $status" >&2
+      cat "$root/stderr" >&2
+      exit 1
+    }
+    [[ $(jq -er '.include | length' "$root/workspace/matrix.json") == 2 ]]
+    [[ $(find "$root/workspace/imported-results" -type f -name result.json | wc -l) == 1 ]]
+    grep -Fx 'imported-rows=1' "$root/github-output" >/dev/null
+  else
+    [[ $status -ne 0 ]] || {
+      echo "$name: resume import expected refusal" >&2
+      exit 1
+    }
+  fi
+}
+
+resume_unchanged() { :; }
+resume_wrong_repository() {
+  mutate_json "$1/workspace/resume-provenance-api.json" '.source.repository = "other/repo"'
+}
+resume_wrong_head() {
+  mutate_json "$1/workspace/resume-provenance-api.json" \
+    '.source.headSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"'
+}
+resume_wrong_run() {
+  mutate_json "$1/workspace/resume-provenance-api.json" '.source.runId = 2'
+}
+resume_wrong_attempt() {
+  mutate_json "$1/workspace/resume-provenance-api.json" '.source.runAttempt = 2'
+}
+resume_wrong_workflow() {
+  mutate_json "$1/workspace/resume-provenance-api.json" \
+    '.source.workflowPath = ".github/workflows/other.yml"'
+}
+resume_wrong_plan_hash() { printf '\n' >>"$1/workspace/resume/plan/plan.json"; }
+resume_wrong_capture_hash() { printf '\n' >>"$1/workspace/resume/capture/capture.json"; }
+resume_missing_artifact() {
+  mutate_json "$1/workspace/resume-provenance-api.json" \
+    '[.artifacts[] | select(.name | startswith("livepatch-capture-") | not)] as $a | .artifacts = $a'
+}
+resume_duplicate_artifact() {
+  mutate_json "$1/workspace/resume-provenance-api.json" \
+    '.artifacts += [.artifacts[] | select(.name | startswith("livepatch-plan-"))]'
+}
+resume_expired_artifact() {
+  mutate_json "$1/workspace/resume-provenance-api.json" '.artifacts[0].expired = true'
+}
+resume_wrong_service_digest() {
+  mutate_json "$1/workspace/resume-provenance-api.json" \
+    '.artifacts[0].digest = ("sha256:" + ("2" * 64))'
+}
+resume_duplicate_row() {
+  local root=$1
+  local results="$root/workspace/resume/results"
+  local duplicate=livepatch-result-duplicate-45086108111-1
+  mkdir "$results/$duplicate"
+  cp -- "$results/livepatch-result-6.12.113.4--set-vendor-aged-transition--amd-45086108111-1/result.json" \
+    "$results/$duplicate/result.json"
+  mutate_json "$root/workspace/resume-provenance-api.json" \
+    ".artifacts += [{id: 2, name: \"$duplicate\", digest: (\"sha256:\" + (\"2\" * 64)), sizeInBytes: 1, createdAt: \"2026-11-23T00:00:00Z\", expired: false, expiresAt: \"2026-12-23T00:00:00Z\"}]"
+}
+resume_unknown_row() {
+  local result="$1/workspace/resume/results/livepatch-result-pending-one-45086108111-1/result.json"
+  mutate_json "$result" '.rowId = "unknown-row"'
+}
+resume_symlink_result() {
+  local root=$1
+  local result="$root/workspace/resume/results/livepatch-result-pending-one-45086108111-1/result.json"
+  mv -- "$result" "$root/external-result.json"
+  ln -s -- "$root/external-result.json" "$result"
+}
+resume_malformed_success() {
+  local result="$1/workspace/resume/results/livepatch-result-pending-one-45086108111-1/result.json"
+  mutate_json "$result" '.accepted = true'
+}
+
+resume_import_interface() {
+  extract_workflow_run_block 'Discover one canonical plan and its affected view' \
+    "$work/discover-plan-run.sh"
+  chmod +x "$work/discover-plan-run.sh"
+  run_resume_case success accept resume_unchanged
+  run_resume_case cross-repository refuse resume_wrong_repository
+  run_resume_case cross-head refuse resume_wrong_head
+  run_resume_case wrong-run refuse resume_wrong_run
+  run_resume_case wrong-attempt refuse resume_wrong_attempt
+  run_resume_case wrong-workflow refuse resume_wrong_workflow
+  run_resume_case wrong-plan-hash refuse resume_wrong_plan_hash
+  run_resume_case wrong-capture-hash refuse resume_wrong_capture_hash
+  run_resume_case absent-artifact refuse resume_missing_artifact
+  run_resume_case duplicate-artifact refuse resume_duplicate_artifact
+  run_resume_case expired-artifact refuse resume_expired_artifact
+  run_resume_case wrong-service-digest refuse resume_wrong_service_digest
+  run_resume_case duplicate-row refuse resume_duplicate_row
+  run_resume_case unknown-row refuse resume_unknown_row
+  run_resume_case symlink-result refuse resume_symlink_result
+  run_resume_case malformed-success refuse resume_malformed_success
+}
+
 workflow_interface() {
-  local capture_line coverage_line field job publish_line upload_line
+  local capture_hash_line capture_input_line capture_line capture_plan_line
+  local capture_resume_condition_line capture_resume_line capture_resume_name_line
+  local capture_resume_path_line checkout_line coverage_line evidence_input_line
+  local field input job prepare_line publish_line resume_line upload_line
+
+  if [[ -n "$qualification_workflow" ]]; then
+    [[ $(grep -Fc -- "- '!qualification-resume/**'" "$qualification_workflow") -eq 1 ]]
+    [[ $(grep -Fc 'actions: read' "$qualification_workflow") -eq 1 ]]
+    for input in resume_source_run_id resume_source_run_attempt \
+      resume_source_revision resume_plan_sha256 resume_capture_sha256; do
+      [[ $(grep -Fc "      $input:" "$qualification_workflow") -eq 1 ]]
+    done
+    for input in resume-source-run-id resume-source-run-attempt \
+      resume-source-revision resume-plan-sha256 resume-capture-sha256; do
+      [[ $(grep -Fc "      $input: \${{ inputs.${input//-/_} }}" \
+        "$qualification_workflow") -eq 1 ]]
+    done
+    [[ $(grep -Fc 'actions/download-artifact@v7' "$qualification_workflow") -eq 0 ]]
+    [[ $(grep -Fc 'actions/download-artifact@v8' "$qualification_workflow") -eq 0 ]]
+  fi
+  [[ $(grep -Fc 'actions: read' "$workflow") -eq 1 ]]
+  for input in resume-source-run-id resume-source-run-attempt \
+    resume-source-revision resume-plan-sha256 resume-capture-sha256; do
+    [[ $(grep -Fc "      $input:" "$workflow") -eq 1 ]]
+  done
+  [[ $(grep -Fc 'uses: actions/github-script@v9' "$workflow") -eq 1 ]]
+  resume_line=$(grep -nF 'name: Validate qualification resume provenance' \
+    "$workflow" | cut -d: -f1)
+  checkout_line=$(grep -nF "ref: \${{ inputs['resume-source-revision'] || github.sha }}" \
+    "$workflow" | cut -d: -f1)
+  prepare_line=$(grep -nF 'name: Prepare locked livepatch CI tools' \
+    "$workflow" | head -n1 | cut -d: -f1)
+  [[ -n "$resume_line" && -n "$checkout_line" && -n "$prepare_line" ]]
+  ((resume_line < checkout_line && checkout_line < prepare_line))
+  [[ $(grep -Fc "core.setOutput('provenance', JSON.stringify(provenance))" \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'name: Record qualification resume provenance' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'qualification resume inputs must be supplied all or none' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'if (supplied === 0)' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'if (supplied !== Object.keys(inputs).length)' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc "!/^[1-9][0-9]*$/.test(inputs.runId)" "$workflow") -eq 1 ]]
+  [[ $(grep -Fc "!/^[0-9a-f]{40}$/.test(inputs.sourceRevision)" "$workflow") -eq 1 ]]
+  [[ $(grep -Fc "!/^[0-9a-f]{64}$/.test(inputs.planSha256)" "$workflow") -eq 1 ]]
+  [[ $(grep -Fc "!/^[0-9a-f]{64}$/.test(inputs.captureSha256)" "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'EXPECTED_REPOSITORY: vpsfreecz/vpsadminos' "$workflow") -eq 3 ]]
+  [[ $(grep -Fc "workflow_id: 'livepatch-qualification.yml'" "$workflow") -eq 1 ]]
+  [[ $(grep -Fc '/attempts/{attempt_number}' "$workflow") -eq 2 ]]
+  [[ $(grep -Fc '/actions/runs/{run_id}/artifacts' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'source run contains a successful ordinary row outside the resume interface' \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'github-token: ${{ github.token }}' "$workflow") -eq 4 ]]
+  [[ $(grep -Fc 'repository: ${{ github.repository }}' "$workflow") -eq 3 ]]
+  [[ $(grep -Fc "run-id: \${{ inputs['resume-source-run-id'] }}" "$workflow") -eq 3 ]]
+  [[ $(grep -Fc "ref: \${{ inputs['resume-source-revision'] || github.sha }}" \
+    "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'ref: ${{ needs.discover.outputs.source-revision }}' "$workflow") -eq 4 ]]
+  [[ $(grep -Fc 'fail-fast: false' "$workflow") -eq 2 ]]
+  [[ $(grep -Fc 'fail-fast: true' "$workflow") -eq 0 ]]
+  [[ $(grep -Fc 'needs.affected-regression.result' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc '/results/new' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc '/results/imported' "$workflow") -eq 2 ]]
+  [[ $(grep -Fc '.plannedRows == 84' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'needs.discover.outputs.resume-mode != '\''true'\''' "$workflow") -eq 2 ]]
+  [[ $(grep -Fc 'needs.discover.outputs.resume-mode == '\''true'\''' "$workflow") -eq 2 ]]
+  [[ $(grep -Fc 'actions/download-artifact@v7' "$workflow") -eq 0 ]]
+  [[ $(grep -Fc 'actions/download-artifact@v8' "$workflow") -eq 12 ]]
 
   [[ $(grep -Fc 'if ! git cat-file -e "$base^{commit}" 2>/dev/null; then' \
     "$workflow") -eq 1 ]]
@@ -722,14 +1114,37 @@ workflow_interface() {
   [[ $(grep -Fc 'prepare-outcome: ${{ steps.prepare-tests.outcome }}' "$workflow") -eq 1 ]]
   [[ $(grep -Fc 'test-outcome: ${{ steps.run-tests.outcome }}' "$workflow") -eq 1 ]]
   [[ $(grep -Fc 'upload-outcome: ${{ steps.upload-test-logs.outcome }}' "$workflow") -eq 1 ]]
-  [[ $(grep -Ec '^[[:space:]]*path: \$\{\{ steps[.]workspace[.]outputs[.]directory \}\}$' \
+  [[ $(grep -Ec '^[[:space:]]*\$\{\{ steps[.]workspace[.]outputs[.]directory \}\}$' \
     "$workflow") -eq 1 ]]
   [[ $(grep -Ec '^[[:space:]]*path: \$\{\{ steps[.]workspace[.]outputs[.]directory \}\}/capture$' \
     "$workflow") -eq 1 ]]
   [[ $(grep -Ec '^[[:space:]]*path: \$\{\{ steps[.]workspace[.]outputs[.]directory \}\}/results$' \
-    "$workflow") -eq 2 ]]
+    "$workflow") -eq 1 ]]
 
+  capture_plan_line=$(grep -nF 'name: Download the current-run qualification plan' \
+    "$workflow" | cut -d: -f1)
+  capture_resume_line=$(grep -nF 'name: Download the current-run resume capture' \
+    "$workflow" | cut -d: -f1)
+  capture_resume_condition_line=$(grep -nF \
+    "if: \${{ needs.discover.outputs.resume-mode == 'true' }}" "$workflow" \
+    | awk -F: -v start="$capture_resume_line" '$1 > start { print $1; exit }')
+  capture_resume_name_line=$(grep -nF \
+    'name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}' \
+    "$workflow" \
+    | awk -F: -v start="$capture_resume_line" '$1 > start { print $1; exit }')
+  capture_resume_path_line=$(grep -nF \
+    'path: ${{ steps.workspace.outputs.directory }}/input/capture' "$workflow" \
+    | awk -F: -v start="$capture_resume_line" '$1 > start { print $1; exit }')
   capture_line=$(grep -nF 'name: Capture one dynamic producer identity set' \
+    "$workflow" | cut -d: -f1)
+  capture_input_line=$(grep -nF \
+    'capture="$LIVEPATCH_CI_WORKSPACE/input/capture/capture.json"' \
+    "$workflow" | cut -d: -f1)
+  evidence_input_line=$(grep -nF \
+    'evidence="$LIVEPATCH_CI_WORKSPACE/input/capture/evidence"' \
+    "$workflow" | head -n1 | cut -d: -f1)
+  capture_hash_line=$(grep -nF \
+    '[[ $(sha256sum "$capture" | cut -d'"'"' '"'"' -f1) == "$RESUME_CAPTURE_SHA256" ]]' \
     "$workflow" | cut -d: -f1)
   publish_line=$(grep -nF 'name: Publish and prove captured producer closures' \
     "$workflow" | cut -d: -f1)
@@ -737,7 +1152,24 @@ workflow_interface() {
     "$workflow" | cut -d: -f1)
   upload_line=$(grep -nF 'name: Upload captured modules and realization evidence' \
     "$workflow" | cut -d: -f1)
-  [[ -n "$capture_line" && -n "$publish_line" && -n "$coverage_line" && -n "$upload_line" ]]
+  [[ -n "$capture_plan_line" && -n "$capture_resume_line" && -n "$capture_line" ]]
+  [[ -n "$capture_resume_condition_line" && -n "$capture_resume_name_line" ]]
+  [[ -n "$capture_resume_path_line" ]]
+  ((capture_plan_line < capture_resume_line))
+  ((capture_resume_line < capture_resume_condition_line))
+  ((capture_resume_condition_line < capture_resume_name_line))
+  ((capture_resume_name_line < capture_resume_path_line))
+  ((capture_resume_path_line < capture_line))
+  [[ $(grep -Fc 'name: livepatch-capture-${{ github.run_id }}-${{ github.run_attempt }}' \
+    "$workflow") -eq 5 ]]
+  [[ $(grep -Fc 'path: ${{ steps.workspace.outputs.directory }}/input/capture' \
+    "$workflow") -eq 3 ]]
+  [[ $(grep -Fc '!${{ steps.workspace.outputs.directory }}/resume/**' \
+    "$workflow") -eq 1 ]]
+  [[ -n "$capture_input_line" && -n "$evidence_input_line" && -n "$capture_hash_line" ]]
+  ((capture_line < capture_input_line && capture_input_line < capture_hash_line))
+  ((capture_line < evidence_input_line && evidence_input_line < capture_hash_line))
+  [[ -n "$publish_line" && -n "$coverage_line" && -n "$upload_line" ]]
   ((capture_line < publish_line && publish_line < coverage_line && coverage_line < upload_line))
   [[ $(grep -Fc 'expected_members=$(jq -er '"'"'.counts.capturedMembers'"'"' "$capture")' \
     "$workflow") -eq 1 ]]
@@ -759,6 +1191,7 @@ workflow_interface() {
 capture_interface
 run_profile_interface
 ci_workspace_interface
+resume_import_interface
 workflow_interface
 
 echo "livepatch capture verifier matrix passed"
