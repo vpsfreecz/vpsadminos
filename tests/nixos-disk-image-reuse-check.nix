@@ -23,7 +23,6 @@ let
               machines.${machineName} = {
                 spin = "nixos";
                 inherit additionalSpace;
-                config.system.stateVersion = "26.05";
               };
               testScript = "";
             }
