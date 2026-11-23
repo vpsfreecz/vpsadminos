@@ -129,7 +129,7 @@ jobs:
               return;
             }
 
-            async function collect(route, key) {
+            async function collect(route, key, perPage = 100) {
               const rows = [];
               for (let page = 1; page <= 100; page += 1) {
                 const response = await github.request(route, {
@@ -137,7 +137,7 @@ jobs:
                   repo,
                   run_id: runId,
                   attempt_number: attempt,
-                  per_page: 100,
+                  per_page: perPage,
                   page,
                 });
                 const batch = response.data[key];
@@ -145,7 +145,7 @@ jobs:
                   throw new Error(`GitHub response has no ${key} array`);
                 }
                 rows.push(...batch);
-                if (batch.length < 100) return rows;
+                if (batch.length < perPage) return rows;
               }
               throw new Error(`GitHub ${key} pagination exceeded the bounded limit`);
             }
@@ -153,6 +153,7 @@ jobs:
             const jobs = await collect(
               'GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs',
               'jobs',
+              25,
             );
             if (jobs.some((job) =>
               job.name.startsWith('Ordinary CI on ') && job.conclusion === 'success')) {

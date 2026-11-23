@@ -1007,6 +1007,77 @@ resume_import_interface() {
   run_resume_case malformed-success refuse resume_malformed_success
 }
 
+resume_jobs_are_eligible() {
+  local jobs=$1
+
+  ! jq -e 'any(.[];
+    (.name | startswith("Ordinary CI on ")) and .conclusion == "success"
+  )' "$jobs" >/dev/null
+}
+
+resume_jobs_pagination_interface() {
+  local all_jobs="$work/resume-all-jobs.json"
+  local batch="$work/resume-job-batch.json"
+  local collected="$work/resume-collected-jobs.json"
+  local next="$work/resume-collected-jobs.next"
+  local ordinary="$work/resume-ordinary-success-jobs.json"
+  local artifact_line artifact_key_line jobs_key_line jobs_page_line jobs_route_line
+  local count offset page pages=0
+  local page_size=25
+
+  [[ $(grep -Fc 'async function collect(route, key, perPage = 100)' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'for (let page = 1; page <= 100; page += 1)' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'per_page: perPage' "$workflow") -eq 1 ]]
+  [[ $(grep -Fc 'if (batch.length < perPage) return rows' "$workflow") -eq 1 ]]
+
+  jobs_route_line=$(grep -nF \
+    "'GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs'," \
+    "$workflow" | cut -d: -f1)
+  jobs_key_line=$(grep -nF "              'jobs'," "$workflow" | cut -d: -f1)
+  jobs_page_line=$(grep -nF '              25,' "$workflow" | cut -d: -f1)
+  artifact_line=$(grep -nF 'const artifacts = await collect(' "$workflow" | cut -d: -f1)
+  artifact_key_line=$(grep -nF "              'artifacts'," "$workflow" | cut -d: -f1)
+  [[ -n "$jobs_route_line" && -n "$jobs_key_line" && -n "$jobs_page_line" ]]
+  ((jobs_route_line < jobs_key_line && jobs_key_line < jobs_page_line))
+  [[ -n "$artifact_line" && -n "$artifact_key_line" ]]
+  ((artifact_line < artifact_key_line))
+  ((artifact_key_line < artifact_line + 5))
+  [[ $(sed -n "${artifact_line},$((artifact_line + 4))p" "$workflow" |
+    grep -Fc '              25,') -eq 0 ]]
+
+  jq -n '[range(1; 89) | {
+    id: ., name: ("Qualification row " + tostring), conclusion: "failure"
+  }]' > "$all_jobs"
+  printf '[]\n' > "$collected"
+  for page in $(seq 1 100); do
+    offset=$(((page - 1) * page_size))
+    jq --argjson offset "$offset" --argjson pageSize "$page_size" \
+      '.[$offset:($offset + $pageSize)]' "$all_jobs" > "$batch"
+    jq -s '.[0] + .[1]' "$collected" "$batch" > "$next"
+    mv -- "$next" "$collected"
+    pages=$page
+    count=$(jq -er 'length' "$batch")
+    ((count < page_size)) && break
+  done
+  [[ $pages -eq 4 ]]
+  jq -e '
+    length == 88
+    and ([.[].id] | unique | length) == 88
+    and [.[].id] == [range(1; 89)]
+  ' "$collected" >/dev/null
+  jq -e --slurp '.[0] == .[1]' "$all_jobs" "$collected" >/dev/null
+  resume_jobs_are_eligible "$collected"
+
+  jq '
+    .[-1].name = "Ordinary CI on 6.12.113.4"
+    | .[-1].conclusion = "success"
+  ' "$collected" > "$ordinary"
+  if resume_jobs_are_eligible "$ordinary"; then
+    echo 'resume job pagination accepted a late-page ordinary success' >&2
+    exit 1
+  fi
+}
+
 workflow_interface() {
   local capture_hash_line capture_input_line capture_line capture_plan_line
   local capture_resume_condition_line capture_resume_line capture_resume_name_line
@@ -1192,6 +1263,7 @@ capture_interface
 run_profile_interface
 ci_workspace_interface
 resume_import_interface
+resume_jobs_pagination_interface
 workflow_interface
 
 echo "livepatch capture verifier matrix passed"
