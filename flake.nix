@@ -640,6 +640,7 @@
               libffi
               lxc
               mkdocs
+              python3
               ncurses
               nixfmt
               nixfmt-tree
