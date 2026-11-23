@@ -16,7 +16,7 @@ let
       };
 in
 {
-  stableKernelVersion = "6.12.118";
+  stableKernelVersion = "6.12.119";
   unstableKernelVersion = "6.18.49";
   kernels = builtins.listToAttrs (map loadRecord (builtins.attrNames records));
 }
