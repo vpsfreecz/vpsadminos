@@ -35,6 +35,7 @@ let
               if name == "vpsadminos-channel-revision-test" then
                 assert lib.hasSuffix ".drv" channel.drvPath;
                 assert revisionWrites == expectedRevisionWrites;
+                assert lib.hasInfix "$out/vpsadminos/nix/flake" buildCommand;
                 channel
               else
                 channel;
