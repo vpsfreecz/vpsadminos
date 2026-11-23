@@ -15,6 +15,7 @@ import ../make-test.nix (
             ""
             "os"
             "os/livepatches"
+            "os/livepatches/owned-records.nix"
             "os/livepatches/ebpf"
             "os/modules"
             "os/modules/services"
@@ -97,6 +98,7 @@ import ../make-test.nix (
               import (repo + "/os/livepatches/ebpf/available.nix") {
                 inherit lib kernelVersion;
               };
+            programSource = import (repo + "/os/livepatches/ebpf/source.nix");
 
             currentAvailable = availableFor currentKernelVersion;
 
@@ -126,11 +128,7 @@ import ../make-test.nix (
                 linkFieldsUnique =
                   lib.unique (currentAvailable.programLinkFields program)
                   == currentAvailable.programLinkFields program;
-                sourceExists =
-                  (program ? name)
-                  && builtins.pathExists (
-                    repo + ("/os/livepatches/ebpf/programs/" + program.name + ".bpf.c")
-                  );
+                sourceExists = (program ? name) && builtins.pathExists (programSource program.name);
                 kernelRangesValid = currentAvailable.programHasValidKernelRanges program;
               };
 
@@ -234,20 +232,38 @@ import ../make-test.nix (
                 missing_program = { };
               };
             };
+            # Exercise module failures even after the deployable records retire.
+            guardFixture = name: bpfName: untilKernel: currentAvailable.programsByName.''${name} or {
+              inherit name;
+              description = "Synthetic range guard";
+              kernelRanges = [ { sinceKernel = "5.7"; inherit untilKernel; } ];
+              bpfPrograms = [ bpfName ];
+              linkFields = [ bpfName ];
+              enable = true;
+            };
+            ptraceFixture = guardFixture "ptrace_mm_guard" "ptrace_mm_guard" "6.12.89";
+            cifsFixture = guardFixture "cifs_spnego_guard" "cifs_spnego" "6.12.92";
+            availableGuardsFor = kernelVersion: import (repo + "/os/livepatches/ebpf/available.nix") {
+              inherit lib kernelVersion;
+              programs = [ ptraceFixture cifsFixture ];
+            };
             outOfRangeEval = evalModule {
               kernelVersion = "5.6";
+              registryPrograms = [ ptraceFixture ];
               programs = {
                 ptrace_mm_guard = { };
               };
             };
             atUpperBoundEval = evalModule {
               kernelVersion = "6.12.89";
+              registryPrograms = [ ptraceFixture ];
               programs = {
                 ptrace_mm_guard = { };
               };
             };
             cifsAtUpperBoundEval = evalModule {
               kernelVersion = "6.12.92";
+              registryPrograms = [ cifsFixture ];
               programs = {
                 cifs_spnego_guard = { };
               };
@@ -433,17 +449,17 @@ import ../make-test.nix (
             };
 
             defaults = {
-              beforeSince = (availableFor "5.6").programNames "5.6";
-              atSince = (availableFor "5.7").programNames "5.7";
+              beforeSince = (availableGuardsFor "5.6").programNames "5.6";
+              atSince = (availableGuardsFor "5.7").programNames "5.7";
               current = currentAvailable.programNames currentKernelVersion;
               currentHasPtrace =
                 currentAvailable.programAvailableForKernel currentKernelVersion "ptrace_mm_guard";
               currentHasCifsSpnego =
                 currentAvailable.programAvailableForKernel currentKernelVersion "cifs_spnego_guard";
-              beforePtraceUntil = (availableFor "6.12.88").programNames "6.12.88";
-              atPtraceUntil = (availableFor "6.12.89").programNames "6.12.89";
-              beforeCifsUntil = (availableFor "6.12.91").programNames "6.12.91";
-              atCifsUntil = (availableFor "6.12.92").programNames "6.12.92";
+              beforePtraceUntil = (availableGuardsFor "6.12.88").programNames "6.12.88";
+              atPtraceUntil = (availableGuardsFor "6.12.89").programNames "6.12.89";
+              beforeCifsUntil = (availableGuardsFor "6.12.91").programNames "6.12.91";
+              atCifsUntil = (availableGuardsFor "6.12.92").programNames "6.12.92";
             };
 
             module = {

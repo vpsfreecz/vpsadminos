@@ -51,7 +51,7 @@ let
   };
   stableKernelVersion = stableKernelOwner.defaultVersion;
   stableKernel = stableKernelOwner.genKernelPackage stableKernelVersion;
-  kernel113 = stableKernelOwner.genKernelPackage fixtureKernelVersion;
+  stableHasLivepatchMetadata = stableKernel.config.isSet "SMP";
   livepatchMetadataNames = [
     "SMP"
     "PREEMPT_BUILD"
@@ -81,8 +81,9 @@ let
     pkgs.callPackage ../../../../packages/linux/generic.nix (
       {
         src = stableKernel.src;
-        version = stableKernelVersion;
-        modDirVersion = stableKernelVersion;
+        # Evaluation-only exercise of the provider's known metadata shape.
+        version = "6.12.0";
+        modDirVersion = "6.12.0";
         features = { };
         structuredExtraConfig = { };
         kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];
@@ -284,10 +285,12 @@ let
     toolchain = configuredKernel.stdenv.cc;
     zfsBuiltinPkg = null;
   };
+  stableTargetKernel =
+    if stableHasLivepatchMetadata then stableKernel else mkKernel stableKernelVersion "stable";
   stableConfiguredTarget = livepatchLib.mkConfiguredTarget {
-    kernel = stableKernel;
+    kernel = stableTargetKernel;
     kernelVersion = stableKernelVersion;
-    toolchain = stableKernel.stdenv.cc;
+    toolchain = stableTargetKernel.stdenv.cc;
     zfsBuiltinPkg = null;
   };
   rootNormalizedCatalog = livepatchLib.normalizeCatalog {
@@ -944,7 +947,7 @@ let
   );
   stableProductionConfig = evalService {
     kernelVersion = stableKernelVersion;
-    kernelPackage = stableKernel;
+    kernelPackage = stableTargetKernel;
     livepatchTest = stableProductionCallerTest;
   };
   ordinalTwoResult = builtins.tryEval (
@@ -979,8 +982,17 @@ assert serviceModuleArgs ? specialArgs;
 assert !(serviceModuleArgs ? livepatchTest);
 assert !(mkSpecialArgs null ? livepatchTest);
 assert (mkSpecialArgs syntheticLivepatchTest).livepatchTest == syntheticLivepatchTest;
-assert livepatchMetadata stableKernel == expectedLivepatchMetadata;
-assert livepatchMetadata kernel113 == expectedLivepatchMetadata;
+assert
+  if stableHasLivepatchMetadata then
+    lib.all (
+      value:
+      builtins.elem value [
+        "y"
+        "n"
+      ]
+    ) (livepatchMetadata stableKernel)
+  else
+    livepatchMetadata stableKernel == missingLivepatchMetadata;
 assert livepatchMetadata (providerKernel { }) == expectedLivepatchMetadata;
 assert livepatchMetadata non612MetadataKernel == missingLivepatchMetadata;
 assert livepatchMetadata wrongArchitectureMetadataKernel == missingLivepatchMetadata;

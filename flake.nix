@@ -225,6 +225,12 @@
           // nixpkgs.lib.optionalAttrs (configuration != null) { inherit configuration; }
         );
 
+      mergeChecks =
+        left: right:
+        assert nixpkgs.lib.assertMsg (
+          builtins.intersectAttrs left right == { }
+        ) "Duplicate flake check name";
+        left // right;
       livepatchPackageName =
         release: "livepatch-release-${nixpkgs.lib.replaceStrings [ "." ] [ "_" ] release}";
       mkLivepatchContext =
@@ -245,8 +251,8 @@
               };
             }) catalogKernelVersions
           );
-          plans = map (
-            kernelVersion:
+          planFor =
+            planCatalog: kernelVersion:
             let
               livepatchSystem = systems.${kernelVersion};
               pkgs = livepatchSystem.pkgs;
@@ -259,7 +265,7 @@
                 inherit kernelVersion;
                 toolchain = kernel.stdenv.cc;
               };
-              selected = builtins.filter (unit: unit.batch.kernelVersion == kernelVersion) catalog;
+              selected = builtins.filter (unit: unit.batch.kernelVersion == kernelVersion) planCatalog;
               producerAttrs = builtins.listToAttrs (
                 map (unit: {
                   name = unit.batch.release;
@@ -272,16 +278,39 @@
                 kpatchBuild = toString kpatchBuild;
                 kpatchRevision = kpatchBuild.src.rev or "bea635fbbeb11c5f0f5c0d4ffce34c2e9d2e8a6a";
               };
-              inherit
-                catalog
-                producerAttrs
-                system
-                ;
+              catalog = planCatalog;
+              inherit producerAttrs system;
               target = configured.kernelTarget;
               plan = true;
               sourceRevision = if vpsadminosGithubRev == null then "unversioned" else vpsadminosGithubRev;
-            }
-          ) catalogKernelVersions;
+            };
+          plans = map (planFor catalog) catalogKernelVersions;
+          batchChecks =
+            pkgs:
+            nixpkgs.lib.foldl' mergeChecks { } (
+              nixpkgs.lib.concatMap (
+                unit:
+                let
+                  inherit (unit.batch) kernelVersion;
+                  ordinal =
+                    member: builtins.fromJSON (pkgs.lib.removePrefix "${kernelVersion}." member.batch.release);
+                  check =
+                    ./os/livepatches/batches + "/${kernelVersion}/${toString (ordinal unit)}/qualification/check.nix";
+                  stack = builtins.filter (
+                    member: member.batch.kernelVersion == kernelVersion && ordinal member <= ordinal unit
+                  ) catalog;
+                in
+                nixpkgs.lib.optional (builtins.pathExists check) {
+                  "livepatch-qualification-${pkgs.lib.replaceStrings [ "." ] [ "_" ] unit.batch.release}" =
+                    import check
+                      {
+                        inherit pkgs;
+                        plan = planFor stack kernelVersion;
+                        ciTools = livepatchCiTools.${system};
+                      };
+                }
+              ) catalog
+            );
           concatField = field: nixpkgs.lib.concatMap (plan: plan.${field}) plans;
           sumCount = field: nixpkgs.lib.foldl' (total: plan: total + (plan.counts.${field} or 0)) 0 plans;
           sets = concatField "sets";
@@ -329,7 +358,7 @@
           ) { } catalogKernelVersions;
         in
         {
-          inherit packages qualification;
+          inherit packages qualification batchChecks;
         };
     in
     {
@@ -1003,71 +1032,6 @@
               }
             ))
           ];
-          qualificationActualPlan = (mkLivepatchContext system).qualification;
-          qualificationActualSet = builtins.head qualificationActualPlan.sets;
-          qualificationActualFixRow = builtins.head (
-            builtins.filter (row: row.scope == "fix" && row.platformId == "amd") qualificationActualPlan.rows
-          );
-          qualificationActualOracle = builtins.head (
-            builtins.filter (oracle: oracle.id == "nfs-client-operation-safety") qualificationActualSet.oracles
-          );
-          qualificationActualIdentity = {
-            producer = "/nix/store/00000000000000000000000000000000-synthetic-producer";
-            module = "/nix/store/00000000000000000000000000000000-synthetic-producer/synthetic.ko";
-            moduleName = "synthetic_livepatch";
-            moduleSha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-            targetId = "synthetic-target";
-            inputDigest = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
-            manifestSha256 = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
-            inspectionSha256 = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-            closureSha256 = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-            vermagic = "6.12.113 synthetic";
-            sourceRevision = qualificationActualPlan.sourceRevision;
-            flakeLockSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-          };
-          qualificationActualAudit = {
-            deriver = "/nix/store/00000000000000000000000000000000-synthetic-producer.drv";
-            requisites = [ "/nix/store/00000000000000000000000000000000-synthetic-producer" ];
-            expectedInspectionSha256 = "1111111111111111111111111111111111111111111111111111111111111111";
-            frameworkSha256 = "2222222222222222222222222222222222222222222222222222222222222222";
-            generatedHeaderSha256 = "3333333333333333333333333333333333333333333333333333333333333333";
-            changedObjectsSha256 = "4444444444444444444444444444444444444444444444444444444444444444";
-            buildLogSha256 = "5555555555555555555555555555555555555555555555555555555555555555";
-            buildLogIdentity = "per-realization-only";
-          };
-          qualificationActualCapture = {
-            schemaVersion = 1;
-            sourceRevision = qualificationActualPlan.sourceRevision;
-            flakeLockSha256 = qualificationActualIdentity.flakeLockSha256;
-            rawBuildLogIdentity = "per-realization-only";
-            selectedSets = 1;
-            counts = {
-              plannedMembers = 1;
-              capturedMembers = 1;
-            };
-            sets = [
-              {
-                id = qualificationActualSet.id;
-                members = [
-                  {
-                    release = (builtins.head qualificationActualSet.members).release;
-                    identity = qualificationActualIdentity;
-                    audit = qualificationActualAudit;
-                  }
-                ];
-              }
-            ];
-          };
-          qualificationActualNfsHelper =
-            import ./os/livepatches/batches/6.12.113/1/qualification/helpers/nfs-sysfs-client-lifetime.nix
-              {
-                capture = qualificationActualCapture;
-                oracle = qualificationActualOracle;
-                plan = qualificationActualPlan;
-                inherit pkgs;
-                qualificationSet = qualificationActualSet;
-                row = qualificationActualFixRow;
-              };
           qualificationWorkload = import ./tests/suite/kernel/livepatch-set/workload.nix {
             inherit pkgs;
           };
@@ -1364,9 +1328,6 @@
           qualificationReleaseAgedRows = builtins.filter (
             row: row.role == "aged-transition"
           ) qualificationReleaseSelection.rows;
-          qualificationActualAgedRows = builtins.filter (
-            row: row.role == "aged-transition"
-          ) qualificationActualPlan.rows;
           compactQualificationRows =
             rows:
             map (row: {
@@ -1385,15 +1346,6 @@
           qualificationPlanTwoFile = pkgs.writeText "livepatch-plan-two.json" (
             builtins.toJSON qualificationPlanTwo
           );
-          qualificationActualPlanFile = pkgs.writeText "livepatch-plan-actual.json" (
-            builtins.toJSON qualificationActualPlan
-          );
-          qualificationActualCaptureFile = pkgs.writeText "livepatch-capture-actual.json" (
-            builtins.toJSON qualificationActualCapture
-          );
-          qualificationActualNfsOracleFile = pkgs.writeText "livepatch-nfs-oracle-actual.rb" (
-            qualificationActualNfsHelper.oracleScripts.operation-safety
-          );
           qualificationProfileConfigFile = pkgs.writeText "livepatch-profile-config.json" (
             builtins.toJSON {
               name = "kernel-livepatch-set-generic-lifecycle-amd";
@@ -1410,11 +1362,13 @@
           qualificationResultVerifier = pkgs.writeShellScript "verify-livepatch-result" ''
             exec ${pkgs.bash}/bin/bash ${./tools/livepatch/verify.sh} "$@"
           '';
-          qualificationNfsValidator = pkgs.writeShellScript "validate-nfs-livepatch-result" ''
-            exec ${pkgs.bash}/bin/bash ${./os/livepatches/batches/6.12.113/1/qualification/validators/nfs-sysfs-client-lifetime.sh} "$@"
-          '';
+          ownedChecks = pkgs.lib.foldl' mergeChecks ((mkLivepatchContext system).batchChecks pkgs) (
+            pkgs.lib.concatMap (owner: pkgs.lib.optional (owner ? checks) (owner.checks { inherit pkgs; })) (
+              builtins.attrValues (import ./tests/kernel-specific { inherit (pkgs) lib; })
+            )
+          );
         in
-        {
+        mergeChecks ownedChecks {
           livepatch-qualification =
             assert qualificationPlanOne.counts.plannedMembers == 1;
             assert qualificationPlanOne.counts.matrixRows == 10;
@@ -1422,19 +1376,6 @@
             assert qualificationPlanTwo.counts.plannedMembers == 2;
             assert qualificationPlanTwo.counts.matrixRows == 12;
             assert qualificationPlanTwo.counts.coverageTuples == 4;
-            assert qualificationActualPlan.counts.plannedMembers == 1;
-            assert qualificationActualPlan.counts.plannedRows == 10;
-            assert qualificationActualPlan.counts.matrixRows == 10;
-            assert
-              builtins.length (builtins.filter (row: row.scope == "set") qualificationActualPlan.rows) == 8;
-            assert
-              builtins.length (builtins.filter (row: row.scope == "fix") qualificationActualPlan.rows) == 2;
-            assert
-              builtins.attrNames (builtins.head (builtins.head qualificationActualCapture.sets).members) == [
-                "audit"
-                "identity"
-                "release"
-              ];
             assert qualificationEvaluationFails qualificationMissingProfile;
             assert qualificationEvaluationFails qualificationMissingAgedSettings;
             assert qualificationEvaluationFails qualificationPartialAgedSettings;
@@ -1476,17 +1417,6 @@
                 releaseDwellSeconds = 1800;
               }
             ) qualificationReleaseAgedRows;
-            assert builtins.length qualificationActualAgedRows == 2;
-            assert builtins.all (
-              row:
-              row.aging == {
-                checkpointSeconds = 60;
-                developmentDwellSeconds = 300;
-                dwellSeconds = 1800;
-                evidenceClass = "release";
-                releaseDwellSeconds = 1800;
-              }
-            ) qualificationActualAgedRows;
             assert
               map (row: builtins.removeAttrs row [ "aging" ]) qualificationPlanOne.rows
               == map (row: builtins.removeAttrs row [ "aging" ]) qualificationReleaseSelection.rows;
@@ -1586,7 +1516,6 @@
                 set -euo pipefail
                 one=${qualificationPlanOneFile}
                 two=${qualificationPlanTwoFile}
-                actual=${qualificationActualPlanFile}
 
                 test -e "$stackManagerUnit"
                 jq -e '
@@ -1646,17 +1575,6 @@
                 ' "$one" >/dev/null
 
                 jq -e '
-                  .counts.plannedRows == 10
-                  and .counts.matrixRows == 10
-                  and ([.rows[] | select(.role == "aged-transition")] | length) == 2
-                  and ([.rows[] | select(.role == "aged-transition") | .aging.evidenceClass] | unique) == ["release"]
-                  and ([.rows[] | select(.role == "aged-transition") | .aging.dwellSeconds] | unique) == [1800]
-                  and ([.rows[] | select(.role == "aged-transition") | .aging.developmentDwellSeconds] | unique) == [300]
-                  and ([.rows[] | select(.role == "aged-transition") | .aging.releaseDwellSeconds] | unique) == [1800]
-                  and ([.rows[] | select(.role == "aged-transition") | .aging.checkpointSeconds] | unique) == [60]
-                ' "$actual" >/dev/null
-
-                jq -e '
                   .selectedSets == 1
                   and (.sets[0].members | map(.release)) == ["6.12.113.1", "6.12.113.2"]
                   and .sets[0].members[1].predecessorRelease == "6.12.113.1"
@@ -1713,15 +1631,13 @@
                   ${qualificationResultVerifier} \
                   ${pkgs.ruby}/bin/ruby \
                   ${./tests/suite/kernel/livepatch-set.nix} \
-                  ${qualificationNfsValidator} \
-                  ${qualificationActualNfsOracleFile} \
-                  ${qualificationActualPlanFile} \
-                  ${qualificationActualCaptureFile} \
                   ${pkgs.python3}/bin/python3 \
                   ${./tests/suite/kernel/livepatch-set/workload.nix} \
                   ${qualificationWorkloadPackage}/bin/livepatch-generic-workload \
                   ${./tools/livepatch/run-profile.sh} \
                   ${qualificationProfileConfigFile} \
+                  ${./tools/livepatch/tests/profile-fixture.sh} \
+                  ${./tools/livepatch/tests/reverse-fixture.sh} \
                   > generic-safety.log
 
                 PYTHONPYCACHEPREFIX="$PWD/python-cache" \
@@ -1751,9 +1667,6 @@
                 printf '%s\n' ${qualificationProfileConfigFile} > "$out/livepatch-profile-config-path.txt"
                 cp "$one" "$out/plan-one.json"
                 cp "$two" "$out/plan-two.json"
-                cp ${qualificationActualPlanFile} "$out/plan-actual.json"
-                cp ${qualificationActualCaptureFile} "$out/capture-actual.json"
-                cp ${qualificationActualNfsOracleFile} "$out/nfs-oracle-actual.rb"
                 cp qualification-serialization.log "$out/qualification-serialization.log"
                 cp generic-safety-hypervisor.log "$out/generic-safety-hypervisor.log"
                 cp generic-safety.log "$out/generic-safety.log"

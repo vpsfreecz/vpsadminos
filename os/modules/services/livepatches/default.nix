@@ -159,13 +159,14 @@ let
   buildLivePatch =
     {
       availablePatchesList,
+      availablePatchSources,
       availablePatchTargets,
       stdenv,
     }:
     stdenv.mkDerivation rec {
       name = "${patchModuleName}-${kernel.modDirVersion}";
       version = toString patchVersion;
-      src = patchesDir;
+      dontUnpack = true;
 
       hardeningDisable = [
         "bindnow"
@@ -275,7 +276,7 @@ let
                 #export ARCH_KCFLAGS="-gz=none"
                 if ! $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
       + concatMapStrings (target: "-t ${escapeShellArg target} ") availablePatchTargets
-      + concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList
+      + concatMapStringsSep " " (path: escapeShellArg "${path}") availablePatchSources
       + ''
         ; then
           cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log
@@ -302,6 +303,7 @@ let
 
   patches = pkgs.callPackage buildLivePatch {
     inherit availablePatchesList availablePatchTargets;
+    availablePatchSources = availablePatches.patchSources;
   };
 
   moduleLoadGen =

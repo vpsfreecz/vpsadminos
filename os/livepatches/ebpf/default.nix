@@ -3,8 +3,8 @@
 # This is a convenience re-export. The primary build logic lives in
 # os/packages/ebpf-livepatch/default.nix.
 #
-# BPF programs live in os/livepatches/ebpf/programs/ as .bpf.c source files.
-# Add new programs there and register them in the programs attrset below.
+# Deployable range programs live under owned/<name>/; examples live under
+# programs/. See available.nix for discovery and target selection.
 #
 # Usage from a NixOS/vpsAdminOS module:
 #   ebpf = pkgs.callPackage ../../os/livepatches/ebpf {

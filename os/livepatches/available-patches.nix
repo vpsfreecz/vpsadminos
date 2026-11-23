@@ -7,12 +7,22 @@ with lib;
 
 let
 
-  availablePatches = [
-    {
-      name = "bp-6.12.48-6.12.89-cumulative";
-      filterFn = availableForRange "6.12.48" "6.12.89";
-      version = 1;
+  ownedPatches = (import ./owned-records.nix { inherit lib; }) ./legacy "[A-Za-z0-9][A-Za-z0-9_.-]*" (
+    name: dir: files:
+    let
+      record = import dir { inherit availableForRange; };
+    in
+    assert lib.assertMsg (
+      (files."${name}.patch" or null) == "regular"
+    ) "Missing owned livepatch source ${name}.patch";
+    record
+    // {
+      inherit name;
+      source = dir + "/${name}.patch";
     }
+  );
+
+  availablePatches = builtins.attrValues ownedPatches ++ [
     # The uname patch is the canonical livepatch example.
     # It changes init_uts_ns.name.release to "<kernelVer>.<patchVer>"
     # so that `uname -r` shows the livepatch is active.
@@ -47,6 +57,10 @@ in
   getPatchVersion = getPatchVersion;
   patchList = patchListForVersion version;
   patchTargets = patchTargetsForVersion version;
+  patchSources = map (name: ownedPatches.${name}.source or (./. + "/${name}.patch")) (
+    patchListForVersion version
+  );
+  inherit ownedPatches;
   patchVersion = filterPatchesVersionsSum version;
   filteredPatches = filterPatches version;
   allPatches = availablePatches;

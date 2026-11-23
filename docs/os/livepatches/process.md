@@ -89,7 +89,12 @@ unexpected entries.
 `default.nix` separates the producer batch, qualification and documentation
 reference. Only the batch enters producer identity and module bytes.
 Qualification code, helpers, validators and documentation links do not. A
-change confined to those inputs must not rename or rebuild the module.
+change confined to those inputs must not rename or rebuild the module. Put
+an optional release-only flake check in `qualification/check.nix`. The function
+receives `{ pkgs, plan, ciTools }` and returns the derivation for
+`livepatch-qualification-<release>` (with dots replaced by underscores). The plan
+covers the kernel's stack through that ordinal. Keep reusable framework checks
+outside the release directory.
 
 `series.nix` is the sole authored patch-order authority. Patch filenames and
 directory order never determine application order. The catalog discovery in
@@ -135,6 +140,26 @@ Whitespace normalization is not an editorial exception for payload files.
 After publication, do not change a release's fixes, patch bytes, order,
 framework or lineage. Publish the change as the next ordinal. Correct prose or
 qualification without changing the producer batch.
+
+### Retiring a kernel
+
+When a kernel leaves the catalog, remove its entire numbered stack under
+`os/livepatches/batches/<kernel-version>/`, its page at
+`docs/os/livepatches/<kernel-version>.md`, and its `Linux <kernel-version>`
+entry under **Kernel livepatches** in `mkdocs.yml`. Keep the process, template,
+shared tests and framework. Packages, checks and qualification rows follow the
+remaining registrations; an empty numbered catalog is valid. This removes
+options from future configurations, not live patches from running machines.
+Revert the whole retention change to restore a retired kernel and its files.
+
+A deployable legacy or eBPF range payload owns its record and source in
+`os/livepatches/legacy/<name>/` or `os/livepatches/ebpf/owned/<name>/`,
+respectively. Keep private helpers and fixtures there, and leave independent
+examples outside those roots. Maintenance uses the same version predicates as
+deployment: keep a payload while another supported kernel still matches, and
+remove it with its last matching kernel. It does not sweep disabled examples,
+open-ended eBPF programs or payloads that already had no targets. See the
+[kernel update process](../kernel-updates.md) for catalog and package data.
 
 ## Authored and derived identity
 
@@ -330,7 +355,7 @@ Check changed interfaces in their existing owners before starting a campaign:
 | --- | --- |
 | Catalog, target, lineage or producer inputs | `os/packages/livepatch-module/tests/eval.nix`, followed by exact configured-target artifact inspection |
 | Manager CLI, state, ordering or activation policy | Generated-manager unit in `os/modules/services/livepatches/tests/default.nix`; production-manager VM after review |
-| Plan, topology, locked tools, capture/verification, profile handoff or result validation | `checks.x86_64-linux.livepatch-qualification` |
+| Plan, topology, locked tools, capture/verification, profile handoff or result validation | `checks.x86_64-linux.livepatch-qualification` and the applicable batch's named check, if present |
 | TestRunner fork/redirection or output ordering | `test-runner/spec/test_runner/executor_spec.rb` |
 
 The focused qualification check exercises the actual profile command handoff,

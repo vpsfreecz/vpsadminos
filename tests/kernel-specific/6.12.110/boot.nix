@@ -46,7 +46,7 @@ in
   boot.zfsBuiltinPkg = lib.mkForce zfsBuiltin;
   boot.kernelPackage = lib.mkForce (
     (mkKernel (if config.boot.zfsBuiltin then zfsBuiltin else null)).override {
-      postConfigPatches = [ ../../../os/packages/linux/native-nmi-sched.patch ];
+      inherit (import ../../../os/packages/linux/kernel-specific/6.12.110) postConfigPatches;
     }
   );
 }
