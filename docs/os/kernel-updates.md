@@ -24,8 +24,9 @@ from current packaging, resolve that difference before replaying.
 
 Inspect these source interfaces together:
 
-- `os/packages/linux/available-kernels.nix`: selectors, immutable Linux revision
-  and hash, per-version features/configuration, post-config patches and ZFS pairing.
+- `os/packages/linux/available-kernels.nix`: stable and unstable selectors.
+- `os/packages/linux/catalog/<version>.nix`: per-version Linux revision and hash,
+  features, configuration, package patches, ZFS pairing and retention dates.
 - `os/packages/linux/packages.nix`, `default.nix`, `generic.nix`, and
   `os/modules/config/kernel.nix`: source fetching, common/version-conditional
   patches, configuration, built-in/external ZFS and module construction.
@@ -190,18 +191,68 @@ Use the returned hash for the new catalog entry and realize the actual package
 source to confirm it. Do not use `--unpack`. A changed final source head requires
 a new archive hash; keep a single final pin rather than intermediate repins.
 
-Add the target entry to `os/packages/linux/available-kernels.nix`, carrying the
-predecessor's compatible configuration, features, package patches and ZFS
-revision/hash/patches. Inspect upstream compatibility before changing any layer.
-Check version-conditional patches and all builder paths explicitly; do not merely
-copy fields and assume they apply.
+Add a regular `os/packages/linux/catalog/<version>.nix` file. Use the exact
+`X.Y.Z` version as the filename stem and return an attribute set from the
+`{ lib }:` function. Carry forward the predecessor's compatible configuration,
+features, package patches and ZFS revision, hash and patches. Check the
+version-conditional patches and all builder paths; a field that worked on the
+predecessor may not apply to the new release.
 
-For a role replacement, set `stableKernelVersion` or `unstableKernelVersion` to
-the target and verify the resolved selection below. For add-only work, state
-that the selectors remain unchanged and evaluate an explicit target selection
-as well. Retain old entries and their immutable identities. Pruning or replacing
-an existing entry requires a separate decision covering explicit pins,
-livepatch targets, reproducibility and recovery.
+Set `dateAdded` to the UTC date you add the version to the OS catalog
+(`YYYY-MM-DD`). Use the catalog date, not the upstream release date or the
+predecessor's date. Keep the original date when you repin a source, move a
+selector, or restore a retired entry.
+
+Set `keepUntil` if a version must stay selectable through a particular UTC date,
+for example during a rollback window. A hold can extend the 30-day minimum but
+cannot shorten it. A version added on November 1 first becomes eligible on
+December 2. Pruning never removes the selected stable or unstable version. If
+you need a kernel that is no longer running for a future boot or rollback, set
+a hold or use an older OS revision.
+
+For a role replacement, set `stableKernelVersion` or `unstableKernelVersion` in
+`available-kernels.nix` and verify the selection below. For add-only work, leave
+the selectors unchanged and evaluate an explicit selection of the new version.
+
+### Check the staged catalog
+
+Overcommit checks the full staged catalog, including companion files. With Git,
+Nix and Python 3 available, run the same check directly from the repository root:
+
+```sh
+python3 tools/kernel-entry-check.py check --as-of "$(date -u +%F)" \
+  --base "$(git rev-parse HEAD)" --index
+```
+
+The check evaluates the Nix catalog without building packages or querying the
+fleet. It rejects missing or unknown fields, invalid dates, dangling selectors,
+and changes to `dateAdded` for versions present in the base and candidate.
+
+### Require the kernel entry check on staging
+
+The `kernel-entry-correctness` job checks the candidate merge commit for every
+PR targeting `staging`, even when the PR does not touch kernels. After the
+backfill and workflow land, use an authorized test target to verify three
+cases: a valid candidate passes, an invalid candidate fails, and an unrelated
+PR still reports the check. Verify that fork PRs use a read-only token and
+that the test branch rule blocks a merge when the check fails or is missing.
+If you use a merge queue, the check must also run on the merge group's SHA.
+
+Before requiring the check on `staging`, verify that the branch rules let human
+maintainers and scheduled writers make ordinary fast-forward updates with the
+check passing on the exact commit they will push. To obtain the result, publish
+the candidate on an approved development ref and dispatch **Kernel entry check**
+on that ref. The workflow compares the candidate to the current `staging` tip
+and rejects a candidate that no longer descends from it. Confirm the successful
+result belongs to the commit to be pushed and that `staging` has not moved.
+
+An administrator can then require the observed `kernel-entry-correctness` check
+from GitHub Actions on `staging`. Confirm the result after changes to the head
+or base. Keep the workflow and checker under maintainer review, and bind the
+required check to the trusted workflow or source where supported. If required
+checks and existing direct writers cannot work together under the branch rules,
+resolve that conflict before enabling enforcement. Do not replace the existing
+rules with a PR-only rule or grant the writers a standing bypass.
 
 ## Verify the selected product
 

@@ -1,8 +1,31 @@
 PreCommit:
   Nixfmt:
     enabled: true
+    required_executable: nixfmt
+    include: ['**/*.nix']
+    command:
+      - bash
+      - -euo
+      - pipefail
+      - -c
+      - >-
+        git diff --cached --name-only --diff-filter=ACMR -z -- '*.nix' |
+        xargs -0 -r nixfmt --check --
   RuboCop:
     enabled: true
+  KernelEntryCorrectness:
+    enabled: true
+    required: true
+    requires_files: false
+    required_executable: python3
+    command:
+      - bash
+      - -euo
+      - pipefail
+      - -c
+      - >-
+        git show :tools/kernel-entry-check.py | python3 - check
+        --as-of "$(date -u +%F)" --base "$(git rev-parse HEAD)" --index
 CommitMsg:
   CapitalizedSubject:
     enabled: false
