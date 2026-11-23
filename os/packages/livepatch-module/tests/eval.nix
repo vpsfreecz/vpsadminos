@@ -204,6 +204,24 @@ let
       };
     }
   ) qualificationCatalog;
+  mixedQualificationCatalog = map (
+    unit:
+    unit
+    // {
+      batch = unit.batch // {
+        fixes = map (fix: if fix.id == "fix-b" then fix // { oracleIds = [ ]; } else fix) unit.batch.fixes;
+      };
+      qualification = unit.qualification // {
+        oracles = map (
+          manifest:
+          manifest
+          // {
+            oracles = map (oracle: oracle // { applicablePlatforms = [ "amd" ]; }) manifest.oracles;
+          }
+        ) (builtins.filter (manifest: manifest.fixId == "fix-a") unit.qualification.oracles);
+      };
+    }
+  ) qualificationCatalog;
   normalizedQualificationCatalog = livepatchLib.normalizeCatalog {
     inherit builder target;
     catalog = qualificationCatalog;
@@ -229,6 +247,15 @@ let
   };
   qualificationGenericRows = builtins.filter (row: row.scope == "set") qualificationCoveragePlan.rows;
   qualificationOracleRows = builtins.filter (row: row.scope == "fix") qualificationCoveragePlan.rows;
+  mixedQualificationPlan = qualificationPlanner {
+    inherit builder target;
+    catalog = mixedQualificationCatalog;
+    plan = true;
+    producerAttrs."6.12.113.1" = "synthetic-producer";
+  };
+  mixedQualificationOracleRows = builtins.filter (
+    row: row.scope == "fix"
+  ) mixedQualificationPlan.rows;
   releaseQualificationPlan = qualificationPlanner {
     inherit builder target;
     catalog = qualificationCatalogReleaseSelected;
@@ -845,6 +872,15 @@ let
     ];
   };
   missingOracleManifest = [ (builtins.head catalogUnit.qualification.oracles) ];
+  mixedOracleFixes = map (
+    fix: if fix.id == "fix-b" then fix // { oracleIds = [ ]; } else fix
+  ) catalogUnit.batch.fixes;
+  mixedOracleManifests = builtins.filter (
+    manifest: manifest.fixId == "fix-a"
+  ) catalogUnit.qualification.oracles;
+  duplicateOracleManifests = catalogUnit.qualification.oracles ++ [
+    (builtins.head catalogUnit.qualification.oracles)
+  ];
   wrongOracleManifest = map (
     manifest:
     if manifest.fixId == "fix-b" then
@@ -1043,6 +1079,14 @@ assert builtins.all (
 ) qualificationGenericRows;
 assert builtins.all (row: row.oracleIds != [ ]) qualificationOracleRows;
 assert builtins.length releaseQualificationPlan.rows == 12;
+assert builtins.length mixedQualificationPlan.rows == 9;
+assert mixedQualificationPlan.counts.requiredProfilePlatformTuples == 8;
+assert mixedQualificationPlan.counts.activeOracles == 1;
+assert mixedQualificationPlan.counts.coverageTuples == 1;
+assert builtins.length mixedQualificationOracleRows == 1;
+assert (builtins.head mixedQualificationOracleRows).platformId == "amd";
+assert (builtins.head mixedQualificationOracleRows).fixId == "fix-a";
+assert (builtins.head mixedQualificationOracleRows).oracleIds == [ "oracle-a" ];
 assert
   builtins.length (builtins.filter (row: row.role == "aged-transition") releaseQualificationPlan.rows)
   == 2;
@@ -1126,6 +1170,16 @@ assert evaluationFails (
 assert evaluationFails (
   livepatchLib.validateOracleClosure "synthetic" catalogUnit.batch.fixes wrongOracleManifest
 );
+assert evaluationFails (
+  livepatchLib.validateOracleClosure "synthetic" catalogUnit.batch.fixes duplicateOracleManifests
+);
+assert evaluationFails (
+  livepatchLib.validateOracleClosure "synthetic" mixedOracleFixes catalogUnit.qualification.oracles
+);
+assert
+  map (manifest: manifest.fixId) (
+    livepatchLib.validateOracleClosure "synthetic" mixedOracleFixes mixedOracleManifests
+  ) == [ "fix-a" ];
 assert normalize [ ] == [ ];
 assert
   normalizedMultiFixOracleBatch.oracleIds == [

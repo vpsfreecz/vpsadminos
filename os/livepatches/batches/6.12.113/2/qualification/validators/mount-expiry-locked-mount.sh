@@ -2,11 +2,11 @@
 
 set -euo pipefail
 
-expected_fix_id=mount-expiry-locked-mount
-expected_oracle_id=mount-expiry-operation-safety
-expected_operation_kind=mount-expiry
-expected_adapter=os/livepatches/batches/6.12.113/2/qualification/helpers/mount-expiry-locked-mount.nix
-expected_validator=os/livepatches/batches/6.12.113/2/qualification/validators/mount-expiry-locked-mount.sh
+expected_fix_id=
+expected_oracle_id=
+expected_operation_kind=
+expected_adapter=
+expected_validator=
 
 usage() {
   cat >&2 <<'EOF'
@@ -104,6 +104,8 @@ done
 
 [[ -n "$plan" && -n "$capture" && -n "$row_id" && -n "$state_dir" ]] || usage
 [[ -n "$runner_log" && -n "$semantic_log" && -n "$runner_status" && -n "$output" ]] || usage
+[[ -n "$expected_fix_id" && -n "$expected_oracle_id" && -n "$expected_operation_kind" ]] || usage
+[[ -n "$expected_adapter" && -n "$expected_validator" ]] || usage
 [[ "$runner_status" =~ ^[0-9]+$ ]] || fail "runner status is not an integer"
 [[ "$runner_status" == 0 ]] || fail "runner did not succeed"
 

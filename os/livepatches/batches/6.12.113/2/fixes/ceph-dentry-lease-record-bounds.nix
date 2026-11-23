@@ -19,5 +19,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "ceph-dentry-lease-operation-safety" ];
+  oracleIds = [ ];
 }

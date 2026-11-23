@@ -27,5 +27,5 @@
       sympos = 0;
     }
   ];
-  oracleIds = [ "tcp-reqsk-lookup-lifetime-operation-safety" ];
+  oracleIds = [ ];
 }

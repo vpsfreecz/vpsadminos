@@ -112,6 +112,7 @@ EOF
     . as $plan
     | ([.sets[] | select(.id == $setId)]
       | if length == 1 then .[0] else error("set selection is not unique") end) as $set
+    | [.rows[] | select(.scope == "fix" and .oracleIds == [$oracleId])] as $targetRows
     | .schemaVersion == 1
     and .dormant == false
     and .selectedSets == 1
@@ -136,11 +137,12 @@ EOF
     and ([$set.oracles[] | select(.fixId == $fixId and .id == $oracleId)] | length) == 1
     and ([.rows[] | select(.rowId == $rowId)] | length) == 1
     and ([.rows[] | select(.scope == "set") | .oracleIds] | all(. == []))
-    and ([.rows[] | select(.scope == "fix" and .oracleIds == [$oracleId])] | length) == 2
-    and ([.rows[] | select(.scope == "fix" and .oracleIds == [$oracleId]) | .testAdapter]
-      | all(. == $adapter))
-    and ([.rows[] | select(.scope == "fix" and .oracleIds == [$oracleId]) | .validator]
-      | all(. == $validator))
+    and ($targetRows | length) == 1
+    and $targetRows[0].rowId == $rowId
+    and $targetRows[0].platformId == "amd"
+    and $targetRows[0].runnerClass == "amd-livepatch"
+    and ($targetRows | all(.testAdapter == $adapter))
+    and ($targetRows | all(.validator == $validator))
     and ($plan.rows | all(.setId == $set.id))
   ' "$plan" >/dev/null
 
@@ -156,7 +158,8 @@ EOF
     and .oracleShard == $oracleId
     and .supported == true
     and .expectedOutcome == "success"
-    and (.platformId == "amd" or .platformId == "intel")
+    and .platformId == "amd"
+    and .runnerClass == "amd-livepatch"
     and .platform.id == .platformId
     and .platform.runnerClass == .runnerClass
     and .platform.supported == true

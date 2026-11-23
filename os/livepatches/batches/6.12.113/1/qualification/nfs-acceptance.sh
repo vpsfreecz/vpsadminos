@@ -391,9 +391,9 @@ RUBY
     | if length == 1 then .[0] else error("AMD NFS row is not unique") end' "$nfs_plan")
   nfs_row_id=$(jq -er '.rowId' <<<"$nfs_row")
   nfs_other_row_id=$(jq -er '.rows[] | select(
-    .scope == "fix"
-    and .platformId == "intel"
-    and .oracleIds == ["nfs-client-operation-safety"]
+    .scope == "set"
+    and .role == "lifecycle"
+    and .platform.id == "intel"
   ) | .rowId' "$nfs_plan")
   nfs_two_row=$(jq -cer '[.rows[] | select(
       .scope == "fix"

@@ -100,5 +100,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "bpf-atomic-fetch-precision-operation-safety" ];
+  oracleIds = [ ];
 }

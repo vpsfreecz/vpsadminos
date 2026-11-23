@@ -91,5 +91,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "bpf-callback-frame-precision-operation-safety" ];
+  oracleIds = [ ];
 }

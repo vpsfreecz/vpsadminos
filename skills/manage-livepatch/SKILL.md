@@ -13,7 +13,10 @@ range, first follow the
 [security backport selection guide](../../docs/os/livepatches/security-backports.md)
 and obtain approval for its exact fix groups. Then use this router for the
 approved fixes. When the request already supplies an exact fix, use this
-router directly.
+router directly unless the fix affects KVM. Route every KVM request, including
+an exact supplied fix, through the guide's
+[KVM default and opt-in policy](../../docs/os/livepatches/security-backports.md#kvm-default-delivery-and-opt-in-feasibility)
+before the generic process.
 
 1. Read the repository [agent instructions](../../AGENTS.md).
 2. Read the [canonical livepatch process](../../docs/os/livepatches/process.md)

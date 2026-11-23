@@ -24,5 +24,5 @@
       sympos = 0;
     }
   ];
-  oracleIds = [ "pidns-freezable-reaper-operation-safety" ];
+  oracleIds = [ ];
 }

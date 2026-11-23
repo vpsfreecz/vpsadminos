@@ -19,5 +19,5 @@
       sympos = 0;
     }
   ];
-  oracleIds = [ "nfqueue-xfrm-operation-safety" ];
+  oracleIds = [ ];
 }

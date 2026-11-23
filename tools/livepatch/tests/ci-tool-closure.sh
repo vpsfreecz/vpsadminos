@@ -246,6 +246,9 @@ grep -Fq '(../../docs/os/livepatches/process.md)' "$source_root/skills/manage-li
   fail 'livepatch process route is missing'
 grep -Fq '(../../docs/os/livepatches/template.md)' "$source_root/skills/manage-livepatch/SKILL.md" ||
   fail 'livepatch template route is missing'
+grep -Fq '(../../docs/os/livepatches/security-backports.md#kvm-default-delivery-and-opt-in-feasibility)' \
+  "$source_root/skills/manage-livepatch/SKILL.md" ||
+  fail 'KVM livepatch policy route is missing'
 
 expected=$work/expected.tsv
 cat >"$expected" <<'EOF'

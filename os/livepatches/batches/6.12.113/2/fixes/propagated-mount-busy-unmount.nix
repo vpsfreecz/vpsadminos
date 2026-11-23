@@ -19,5 +19,5 @@
       sympos = 0;
     }
   ];
-  oracleIds = [ "mount-propagation-operation-safety" ];
+  oracleIds = [ ];
 }

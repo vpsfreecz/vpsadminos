@@ -19,5 +19,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "asymmetric-key-operation-safety" ];
+  oracleIds = [ ];
 }

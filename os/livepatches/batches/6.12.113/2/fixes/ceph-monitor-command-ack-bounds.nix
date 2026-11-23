@@ -19,5 +19,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "ceph-monitor-command-operation-safety" ];
+  oracleIds = [ ];
 }

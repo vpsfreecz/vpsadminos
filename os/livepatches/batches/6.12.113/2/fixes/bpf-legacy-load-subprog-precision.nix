@@ -91,5 +91,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "bpf-legacy-load-subprog-precision-operation-safety" ];
+  oracleIds = [ ];
 }

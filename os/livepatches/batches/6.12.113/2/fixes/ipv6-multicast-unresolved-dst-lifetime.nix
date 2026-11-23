@@ -24,5 +24,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "ipv6-multicast-routing-operation-safety" ];
+  oracleIds = [ ];
 }

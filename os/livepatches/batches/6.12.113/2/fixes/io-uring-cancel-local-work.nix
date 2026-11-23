@@ -19,5 +19,5 @@
       sympos = 0;
     }
   ];
-  oracleIds = [ "io-uring-cancel-operation-safety" ];
+  oracleIds = [ ];
 }

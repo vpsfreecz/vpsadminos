@@ -133,9 +133,11 @@ Use stable fix and patch IDs. A flat `fixes/<fix-id>.nix` descriptor owns:
 `series.nix` maps each patch ID to one flat patch file and all owning fix IDs.
 Normalization checks the descriptor-to-series relation in both directions,
 requires every patch file exactly once and requires one oracle manifest for
-every selected fix. Shared prerequisite patches name every affected fix. A
-single helper or validator stays flat in its manifest; add a fix-named support
-directory only when several files need grouping.
+each selected fix whose descriptor declares targeted oracle IDs. A descriptor
+with an empty oracle-ID list must not have a manifest. Shared prerequisite
+patches name every affected fix. A single helper or validator stays flat in
+its manifest; add a fix-named support directory only when several files need
+grouping.
 
 Payload files must be unmodified, canonical `git format-patch` output. The Git
 whitespace attribute applies only to patch files in numbered batch `patches/`
@@ -206,7 +208,11 @@ When the task is to discover and select security fixes from a stable release
 range, first use the [security backport selection guide](security-backports.md)
 and obtain approval for its exact fix groups. Use this process to create and
 qualify a batch from the approved fixes. An already selected exact fix enters
-this process directly.
+this process directly unless it affects KVM. Every KVM request, including an
+exact supplied fix, follows the selection guide's
+[KVM default and opt-in policy](security-backports.md#kvm-default-delivery-and-opt-in-feasibility)
+first. Do not add a KVM fix to a batch without the explicit user opt-in and
+completed feasibility receipt required there.
 
 Every authored batch records its addressed issues on the existing target page
 using the [target-page template](template.md). The coverage index summarizes
@@ -242,11 +248,21 @@ procedure. If source or artifact analysis shows that a correction cannot
 transition safely without controlling user-owned workloads, treat it as
 unsupported for livepatching under that operating contract.
 
-Every fix still has one qualification manifest so catalog and coverage closure
-remain exact. The manifest contains only executable oracle identity, role,
-applicable platforms, timeout, expected outcome, adapter and validator. A
-fix-local adapter may exercise ordinary affected-subsystem operation around
-load and unload. It must not manufacture the original defect.
+A fix declares a qualification manifest only when its targeted operation is
+deterministic, self-contained, directly relevant to an affected path, useful
+through the complete forward and reverse stack, and unlikely to fail because
+of an unrelated fixture. An empty `oracleIds` list is explicit and must have no
+manifest. A nonempty list requires exactly one manifest with the same IDs.
+
+Targeted profiles run on AMD by default. Add Intel only for a proved
+architecture- or vendor-specific operation contract. A targeted profile
+exercises ordinary affected-subsystem operation and must not reproduce the
+defect, inject vulnerable state or compare vulnerable and native-fixed
+behavior. Exact artifact inspection proves selected functions and module
+closure. The eight generic rows prove livepatch mechanics and ordinary system
+progress on AMD and Intel. Targeted rows add affected-path evidence where the
+criteria above are met, while ordinary CI remains the broad regression gate.
+A fix without a targeted profile has no affected-path runtime claim.
 
 <a id="preserve-a-supported-boot-target"></a>
 ## Configured kernel and running boot
@@ -299,10 +315,12 @@ tree.
 4. Put every payload in `patches/` and declare the one application order in
    `series.nix`. Check descriptor/series ownership and patch IDs in both
    directions.
-5. Add one fix-local qualification manifest per fix. Its executable profile
-   must exercise ordinary real-subsystem operation and the safety boundaries
-   that apply to the release. Keep backport-selection evidence on the target
-   page or in reviewed release evidence, not in the executable manifest.
+5. For each fix with targeted oracle IDs, add one fix-local qualification
+   manifest. The profile must satisfy the targeted-operation criteria and
+   exercise ordinary real-subsystem operation through the applicable safety
+   boundaries. Keep `oracleIds = [ ]` and omit the manifest when those criteria
+   are not met. Keep backport-selection evidence on the target page or in
+   reviewed release evidence, not in the executable manifest.
 6. Normalize and build the release against the current configured target. The
    producer must use non-replace mode and must produce the expected target-bound
    module and structured evidence.
@@ -398,8 +416,8 @@ Qualification covers these layers:
    changed objects and structured closure agreement.
 3. Generic lifecycle: admission refusals, load, convergence, idempotence,
    partial/timeout truth, module-tree ownership and supported reversal.
-4. Every active fix-local safety, operation or behavioral profile, including
-   predecessor profiles exposed at each rollback level.
+4. Every declared targeted fix-local profile, including predecessor profiles
+   exposed at each rollback level.
 5. Whole-stack loading root-to-tip and reversal tip-to-root.
 
 ### Regression tests on the livepatch target
@@ -453,11 +471,11 @@ or rollout.
 ### Fast checks before a campaign
 
 A new batch normally adds its descriptors, canonical patches, ordered series,
-oracle declarations and target-page facts. Reuse the generic AMD and Intel/KVM
-lifecycle, busy, aging and failure/recovery profiles. Add a fix-local adapter
-only when the affected subsystem needs ordinary operation checks that the
-existing profiles do not provide. Keep the shared producer, workflow and
-result validators as the common implementation for every release.
+targeted oracle declarations where justified, and target-page facts. Reuse the
+four generic profiles on both AMD and Intel/KVM, for eight rows. Add a targeted
+adapter only when it meets the selection criteria above; run it on AMD unless
+its reviewed operation contract is vendor-specific. Keep the shared producer,
+workflow and result validators as the common implementation for every release.
 
 Check changed interfaces in their existing owners before starting a campaign:
 
@@ -488,7 +506,7 @@ Diagnose a failure at its first failing interface and check the correction
 there before repeating the campaign. Retain the failed attempt and its cause;
 do not relax result validation to accept it.
 
-Every later batch qualifies the whole active set, including predecessor
+Every later batch qualifies the whole active set, including declared targeted
 profiles exposed during newest-first removal. New payload, target, builder,
 lineage or emitted closure requires fresh artifact inspection and full
 qualification. Evidence for native to `.1` alone does not establish production
@@ -556,10 +574,14 @@ that marker to the planned row, set, profile, role, platform, members, forward
 and reverse observations, plus the applicable busy, aging or failure facts. A zero
 test-runner status without this semantic result is not accepted.
 
-Dedicated fix-oracle rows run the declared ordinary operation-safety adapters.
-The planner requires exactly one dedicated row for every active oracle and
-applicable platform. The complete campaign therefore covers generic livepatch
-mechanics and every active fix oracle without mixing the two code paths.
+Targeted fix-oracle rows run the declared ordinary operation-safety adapters.
+The planner requires exactly one targeted row for each declared oracle and
+applicable platform. AMD is the default targeted platform; Intel is added only
+for a proved vendor-specific operation contract. These rows never reproduce a
+defect or inject vulnerable state. The complete campaign keeps the generic and
+targeted code paths separate. A fix with no targeted profile relies on source
+review, exact artifact inspection, generic transition and stability evidence,
+and ordinary CI; it has no affected-path exercise claim.
 
 Add held-frame proof when the target release policy requires it and a reviewed
 safe hold point exists. Record a missing safe hold point and do not replace it
@@ -579,9 +601,9 @@ on a claim that no sibling could start while cancellation propagated.
 Before deploying plural monitor metadata to nodes, deploy and verify readers
 that accept the schema-2 module list and the legacy scalar format. Test the
 complete release set in both directions, including out-of-order refusal,
-predecessor protection, restart behavior, idempotence and every active fix
-profile. Qualification
-of native to `.1` does not qualify `.2` or any deeper stack.
+predecessor protection, restart behavior, idempotence and every declared
+targeted fix profile. Qualification of native to `.1` does not qualify `.2` or
+any deeper stack.
 
 ## Publish and operate
 
@@ -720,8 +742,8 @@ Before loading each node:
    substitute for proving safe transitions with user-owned workloads.
 5. Load only the next contiguous release. Wait for `enabled=1`, `transition=0`,
    `replace=0` and the expected published release before continuing.
-6. Run every active fix oracle and the required health/workload checks. Preserve
-   the receipt before proceeding to another node.
+6. Run every declared targeted fix oracle and the required health/workload
+   checks. Preserve the receipt before proceeding to another node.
 
 Mixed native, patched and native-fixed nodes may coexist only where the target
 page says so. Stop on a kernel module rejection, malformed capture, unexpected

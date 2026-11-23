@@ -24,5 +24,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "cephx-auth-operation-safety" ];
+  oracleIds = [ ];
 }

@@ -8,8 +8,9 @@ fix groups. After approval, the selected fixes enter the
 
 This preparation is optional. When the request already names an exact fix,
 use the generic release process directly and follow its provenance,
-applicability and safety requirements. This guide does not create payloads,
-build a module, qualify a release or authorize rollout.
+applicability and safety requirements, except for KVM fixes covered by the
+default and opt-in policy below. This guide does not create payloads, build a
+module, qualify a release or authorize rollout.
 
 ## Scope and authorities
 
@@ -167,6 +168,51 @@ evidence. Use `unsafe_or_unsupported` only for an identified compatibility,
 transition or artifact limitation, and describe it. Source assessment does not
 replace artifact qualification.
 
+## KVM default delivery and opt-in feasibility
+
+KVM fixes remain part of security enumeration and receive the same relevance,
+container-exposure, exact-target applicability and risk assessment as other
+kernel vulnerabilities. KVM access from a vpsAdminOS container through
+`/dev/kvm` is relevant exposure. Default module loading, current host workload
+and automatic module-loading policy do not justify exclusion.
+
+The default delivery disposition for a KVM fix is `native_update` or `defer`.
+Do not put it in an authored livepatch batch. Use a native kernel update and
+reboot as the safe default. This is an engineering default, not a claim that
+every KVM fix is impossible to livepatch.
+
+KVM corrections can span `kvm`, `kvm_amd` and `kvm_intel`. Static calls,
+static keys, jump labels, inline expansion and compiler-sensitive closure can
+produce unsupported or entangled kpatch sites. Transition analysis must also
+cover persistent vCPU and VM state on AMD and Intel while user-owned container
+workloads continue. The bounded KVM work for this target required repeated
+source adaptations and diagnostic loops and did not qualify either the wider
+group or the CVE-2026-99312-only attempt. These results support the default
+stop; they do not establish impossibility.
+
+Only an explicit user opt-in naming a KVM fix or complete fix group may start
+a bounded feasibility stage. Before starting, explain that the work is
+more expensive than an ordinary livepatch and may still end in a native
+update. The stage must:
+
+1. Freeze the exact target, configuration and source. Map complete source,
+   object, direct and inlined function, and module ownership across `kvm`,
+   `kvm_amd` and `kvm_intel`, including the effect on each vendor.
+2. Prove mixed-generation, persistent-state, module-lifetime and late-load
+   compatibility for active user-owned VMs without reset, restart, destruction
+   or a historical-state census.
+3. Produce one complete source proposal and one affected-source review before
+   compilation.
+4. Permit at most one object/CDO attempt for each affected object and exact
+   module parent. An unsupported special-section site, incomplete or entangled
+   co-emitted fix, extra source correction, unclosed closure or AMD/Intel gap
+   returns the group to `native_update` or `defer`. Do not start another
+   adaptation loop.
+
+Passing this stage only admits the named group to the ordinary artifact and
+qualification process. It does not approve rollout. The eleven KVM fixes from
+the Linux 6.12.113 selection, including CVE-2026-99312, remain deferred.
+
 ## Prepare the approval packet
 
 Keep the pre-approval packet with the initiative's research record. It is a
@@ -215,9 +261,11 @@ for each implementation edit. Advisory dossier preparation, livepatch rollout,
 repository integration, advisory publication and email each retain their
 separate authorization boundaries.
 
-A user-supplied exact fix does not acquire this range-selection gate. Route it
-directly to the generic release process under the user's request and that
-process's ordinary source, dependency, applicability and safety checks.
+A user-supplied exact fix does not acquire this range-selection gate unless it
+affects KVM. Route a non-KVM exact fix directly to the generic release process
+under the user's request and that process's ordinary source, dependency,
+applicability and safety checks. Route every KVM fix through the default and
+opt-in policy above first.
 
 ## Hand approved fixes to the generic process
 

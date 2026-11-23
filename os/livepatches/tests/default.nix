@@ -59,7 +59,12 @@ let
         unameLevel.releaseOrdinal = ordinal;
         lineage.predecessorBatch =
           if ordinal == 1 then null else { release = "6.12.113.${toString (ordinal - 1)}"; };
-        fixes = [ { id = fixId; } ];
+        fixes = [
+          {
+            id = fixId;
+            oracleIds = [ oracleId ];
+          }
+        ];
         oracleIds = [ oracleId ];
       };
       qualification = {

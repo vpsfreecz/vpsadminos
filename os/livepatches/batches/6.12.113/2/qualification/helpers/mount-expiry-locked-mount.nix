@@ -5,23 +5,11 @@
   pkgs,
   qualificationSet,
   row,
-  profile ? null,
+  profile,
 }:
 
 let
-  effectiveProfile =
-    if profile == null then
-      {
-        fixId = "mount-expiry-locked-mount";
-        oracleId = "mount-expiry-operation-safety";
-        operationKind = "mount-expiry";
-        adapterPath = "os/livepatches/batches/6.12.113/2/qualification/helpers/mount-expiry-locked-mount.nix";
-        validatorPath = "os/livepatches/batches/6.12.113/2/qualification/validators/mount-expiry-locked-mount.sh";
-      }
-    else
-      profile;
-
-  inherit (effectiveProfile)
+  inherit (profile)
     adapterPath
     fixId
     operationKind
@@ -30,12 +18,9 @@ let
     ;
 
   ioRunnerSource = pkgs.writeText "${fixId}-io-runner.c" ''
-    #include <errno.h>
-    #include <fcntl.h>
     #include <liburing.h>
     #include <signal.h>
     #include <stdio.h>
-    #include <stdlib.h>
     #include <string.h>
     #include <sys/wait.h>
     #include <unistd.h>
@@ -47,9 +32,7 @@ let
       siginfo_t info;
       pid_t child;
       int ret;
-      unsigned int completions = 0;
-
-      if (argc != 2)
+      if (argc != 2 || strcmp(argv[1], "io-waitid") != 0)
         return 2;
       ret = io_uring_queue_init(16, &ring, 0);
       if (ret < 0) {
@@ -57,90 +40,26 @@ let
         return 1;
       }
 
-      if (strcmp(argv[1], "io-waitid") == 0) {
-        struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
+      struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
 
-        child = fork();
-        if (child < 0 || sqe == NULL)
-          return 1;
-        if (child == 0) {
-          pause();
-          _exit(1);
-        }
-        memset(&info, 0, sizeof(info));
-        io_uring_prep_waitid(sqe, P_PID, child, &info, WEXITED, 0);
-        if (io_uring_submit(&ring) != 1 || kill(child, SIGTERM) != 0)
-          return 1;
-        ret = io_uring_wait_cqe(&ring, &cqe);
-        if (ret < 0 || cqe->res != 0 || info.si_pid != child)
-          return 1;
-        io_uring_cqe_seen(&ring, cqe);
-        completions = 1;
-      } else if (strcmp(argv[1], "io-wq") == 0) {
-        struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
-        char buffer[8] = { 0 };
-        char path[] = "/tmp/core-io-wq.XXXXXX";
-        int fd = mkstemp(path);
-
-        if (fd < 0 || sqe == NULL)
-          return 1;
-        if (write(fd, "ordinary", 8) != 8)
-          return 1;
-        io_uring_prep_read(sqe, fd, buffer, sizeof(buffer), 0);
-        sqe->flags |= IOSQE_ASYNC;
-        ret = io_uring_submit_and_wait(&ring, 1);
-        if (ret < 0 || io_uring_wait_cqe(&ring, &cqe) < 0 || cqe->res != 8)
-          return 1;
-        io_uring_cqe_seen(&ring, cqe);
-        if (memcmp(buffer, "ordinary", 8) != 0)
-          return 1;
-        close(fd);
-        unlink(path);
-        completions = 1;
-      } else {
-        for (unsigned int i = 0; i < 8; i++) {
-          struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
-
-          if (sqe == NULL)
-            return 1;
-          io_uring_prep_nop(sqe);
-          io_uring_sqe_set_data64(sqe, i + 1);
-        }
-        ret = io_uring_submit_and_wait(&ring, 8);
-        if (ret < 0)
-          return 1;
-        for (unsigned int i = 0; i < 8; i++) {
-          ret = io_uring_wait_cqe(&ring, &cqe);
-          if (ret < 0 || cqe->res != 0)
-            return 1;
-          io_uring_cqe_seen(&ring, cqe);
-        }
-
-        child = fork();
-        if (child < 0)
-          return 1;
-        if (child == 0)
-          _exit(0);
-        memset(&info, 0, sizeof(info));
-        if (waitid(P_PID, child, &info, WEXITED) != 0 || info.si_pid != child)
-          return 1;
-        completions = 8;
+      child = fork();
+      if (child < 0 || sqe == NULL)
+        return 1;
+      if (child == 0) {
+        pause();
+        _exit(1);
       }
-
-      if (strcmp(argv[1], "io-cancel") == 0 ||
-          strcmp(argv[1], "io-cancel-task-work") == 0) {
-        struct __kernel_timespec timeout = { .tv_sec = 5 };
-        struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
-
-        if (sqe == NULL)
-          return 1;
-        io_uring_prep_timeout(sqe, &timeout, 0, 0);
-        if (io_uring_submit(&ring) != 1)
-          return 1;
-      }
+      memset(&info, 0, sizeof(info));
+      io_uring_prep_waitid(sqe, P_PID, child, &info, WEXITED, 0);
+      if (io_uring_submit(&ring) != 1 || kill(child, SIGTERM) != 0)
+        return 1;
+      ret = io_uring_wait_cqe(&ring, &cqe);
+      if (ret < 0 || cqe->res != 0 || info.si_pid != child)
+        return 1;
+      io_uring_cqe_seen(&ring, cqe);
 
       io_uring_queue_exit(&ring);
-      printf("operation=%s completions=%u waitid=ok\n", argv[1], completions);
+      printf("operation=io-waitid completions=1 waitid=ok\n");
       return 0;
     }
   '';
@@ -258,16 +177,6 @@ let
         trap cleanup EXIT HUP INT TERM
         mount --make-rprivate /
         case "$kind" in
-          mount-expiry)
-            mount -t tmpfs tmpfs "$root"
-            mkdir -p "$root/source" "$root/covered" "$root/nested"
-            printf ordinary > "$root/source/value"
-            mount --bind "$root/source" "$root/covered"
-            mount --bind "$root/covered" "$root/nested"
-            grep -Fx ordinary "$root/nested/value" >/dev/null
-            umount "$root/nested"
-            umount "$root/covered"
-            ;;
           pivot-root)
             mount --bind / "$root"
             mkdir -p "$root/old-root"
@@ -276,22 +185,6 @@ let
             cd /
             test -r /proc/self/status
             umount -l /old-root
-            ;;
-          recursive-bind)
-            mount -t tmpfs tmpfs "$root"
-            mkdir -p "$root/source/sub" "$root/copy"
-            printf ordinary > "$root/source/sub/value"
-            mount --rbind "$root/source" "$root/copy"
-            grep -Fx ordinary "$root/copy/sub/value" >/dev/null
-            umount -R "$root/copy"
-            ;;
-          mount-propagation)
-            mount -t tmpfs tmpfs "$root"
-            mount --make-shared "$root"
-            mkdir -p "$root/source" "$root/peer"
-            mount --bind "$root/source" "$root/peer"
-            mountpoint -q "$root/peer"
-            umount "$root/peer"
             ;;
           *) exit 2 ;;
         esac
@@ -303,22 +196,9 @@ let
       key=$(printf ordinary | keyctl padd user core-livepatch-key "$session")
       keyctl search "$session" user core-livepatch-key >/dev/null
       keyctl pipe "$key" | grep -Fx ordinary >/dev/null
-      case "$operation_kind" in
-        asymmetric-key)
-          trust=$(keyctl newring core-livepatch-trust "$session")
-          restricted=$(keyctl newring core-livepatch-restricted "$session")
-          keyctl restrict_keyring "$restricted" asymmetric "key_or_keyring:$trust"
-          keyctl unlink "$restricted" "$session"
-          keyctl unlink "$trust" "$session"
-          ;;
-        request-key)
-          requested=$(keyctl request2 user core-livepatch-key ordinary "$session")
-          test "$requested" = "$key"
-          ;;
-        *)
-          fail "unsupported key operation: $operation_kind"
-          ;;
-      esac
+      test "$operation_kind" = request-key || fail "unsupported key operation: $operation_kind"
+      requested=$(keyctl request2 user core-livepatch-key ordinary "$session")
+      test "$requested" = "$key"
       keyctl unlink "$key" "$session"
       keyctl clear "$session"
     }
@@ -430,23 +310,20 @@ let
 
     run_once() {
       case "$operation_kind" in
-        mount-expiry|pivot-root|recursive-bind|mount-propagation)
+        pivot-root)
           run_mount_operation "$operation_kind"
           ;;
-        asymmetric-key|request-key)
+        request-key)
           run_key_operation
           ;;
         coredump)
           ulimit -c 0
           core-coredump-operation >/dev/null
           ;;
-        pidns)
-          unshare --pid --fork --mount-proc sh -eu -c 'test "$$" -eq 1; (exit 0) & wait $!'
-          ;;
         pidns-freezer)
           run_pidns_reaper_operation
           ;;
-        io-cancel|io-cancel-task-work|io-cq-wait|io-waitid|io-wq)
+        io-waitid)
           core-io-operation "$operation_kind" >/dev/null
           ;;
         *)

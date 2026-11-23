@@ -47,8 +47,9 @@ Check the following before adding the target-page section:
 - A replacement repeats every payload check and leaves the module identity and
   structured manifest, inspection and closure unchanged. Otherwise it is a new
   payload candidate that needs the applicable build, review and qualification.
-- Every selected fix has exactly one `qualification/oracles/<fix-id>.nix`
-  manifest.
+- Every fix with nonempty `oracleIds` has exactly one matching
+  `qualification/oracles/<fix-id>.nix` manifest. A fix with `oracleIds = [ ]`
+  has no manifest.
 - A fix-named helper or validator directory exists only when several support
   files justify it.
 - Qualification and documentation values are excluded from producer identity.
@@ -61,7 +62,7 @@ See the [canonical process](process.md) for normalization, build, qualification
 and rollout requirements. Use its [fast checks before a campaign](process.md#fast-checks-before-a-campaign)
 to verify changed interfaces with the existing test infrastructure. Record
 development-short and release-duration results separately; qualify the entire
-active set and every active fix profile for each new batch.
+active set and every declared targeted fix profile for each new batch.
 
 ## Configured-kernel checklist
 
@@ -184,7 +185,7 @@ or native-fixed comparison fields to the livepatch matrix.
 
 | Fix ID | Prevention or correction | Patch IDs | Affected object/functions | Oracle IDs |
 | --- | --- | --- | --- | --- |
-| `<fix-id>` | <exact behavior> | `<patch-id>` | `<object>:<function>` | `<oracle-id>` |
+| `<fix-id>` | <exact behavior> | `<patch-id>` | `<object>:<function>` | `<oracle-id>`, or `none` |
 
 For an overlapped function, name the exact predecessor owner and describe how
 the successor implements the inherited and new semantics. List every inherited
@@ -199,7 +200,7 @@ and new oracle.
   configured and observed duration, status and durable evidence reference>
 - **Held-frame proof:** <required by this release policy and evidence, or `not
   required`; record the availability of a safe hold point>
-- **Every active dedicated fix-local operation-safety profile:**
+- **Every declared targeted operation-safety profile:**
   <status/evidence>
 - **Older boot with newer userspace:** <older running build and newer final
   configuration, unchanged state with automatic loading disabled, explicit
@@ -275,11 +276,12 @@ preventive and is not recovery for a boot that already hit the failure.
 - Same-function overlap has an explicit semantic-union successor.
 - Backport provenance, source review, target applicability and expected emitted
   closure are separate from livepatch-safety qualification.
-- Livepatch safety covers exact AMD and Intel/KVM lifecycle, representative
-  busy operation, release-selected aging, activation/convergence, failure
-  handling without fatal kernel noise, every active dedicated fix
-  operation-safety profile and whole-stack forward/reverse behavior. Generic
-  rows do not run fix adapters.
+- Livepatch safety covers the four generic profiles on AMD and Intel/KVM,
+  including representative busy operation, release-selected aging,
+  activation/convergence and failure handling without fatal kernel noise. It
+  also covers every declared targeted operation-safety profile and whole-stack
+  forward/reverse behavior. Generic rows do not run fix adapters. A fix with
+  no targeted profile has no affected-path exercise claim.
 - A missing safe hold point is recorded without a synthetic replacement. It
   blocks the release only when the target release policy requires held-frame
   proof.

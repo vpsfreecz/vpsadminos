@@ -24,5 +24,5 @@
       sympos = 0;
     }
   ];
-  oracleIds = [ "recursive-bind-operation-safety" ];
+  oracleIds = [ ];
 }

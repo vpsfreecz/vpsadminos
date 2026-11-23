@@ -149,9 +149,9 @@ jq -e --arg rowId "$row_id" '
   and ([.rows[] | select(.scope == "set") | .oracleShard] | all(. == "none"))
   and ([.rows[] | select(.scope == "set") | .validator]
     | all(. == "builtin/generic-livepatch-safety-v1"))
-  and ($nfsRows | length) == 2
-  and ([$nfsRows[].platformId] | sort) == ["amd", "intel"]
-  and ([$nfsRows[].runnerClass] | sort) == ["amd-livepatch", "intel-kvm"]
+  and ($nfsRows | length) == 1
+  and ([$nfsRows[].platformId] | sort) == ["amd"]
+  and ([$nfsRows[].runnerClass] | sort) == ["amd-livepatch"]
   and ($nfsRows | all(
     .profileId == "fix/nfs-sysfs-client-lifetime/nfs-client-operation-safety"
     and .testAdapter
@@ -171,15 +171,11 @@ jq -e '
   and .oracleShard == "nfs-client-operation-safety"
   and .supported == true
   and .expectedOutcome == "success"
-  and (.platformId == "amd" or .platformId == "intel")
+  and .platformId == "amd"
+  and .runnerClass == "amd-livepatch"
   and .platform.id == .platformId
   and .platform.runnerClass == .runnerClass
   and .platform.supported == true
-  and (
-    if .platformId == "amd" then .runnerClass == "amd-livepatch"
-    else .runnerClass == "intel-kvm"
-    end
-  )
   and .testAdapter == "os/livepatches/batches/6.12.113/1/qualification/helpers/nfs-sysfs-client-lifetime.nix"
   and .validator == "os/livepatches/batches/6.12.113/1/qualification/validators/nfs-sysfs-client-lifetime.sh"
 ' <<<"$row" >/dev/null

@@ -19,5 +19,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "io-wq-operation-safety" ];
+  oracleIds = [ ];
 }

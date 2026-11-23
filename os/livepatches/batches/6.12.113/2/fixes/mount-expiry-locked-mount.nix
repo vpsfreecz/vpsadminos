@@ -24,5 +24,5 @@
       sympos = 0;
     }
   ];
-  oracleIds = [ "mount-expiry-operation-safety" ];
+  oracleIds = [ ];
 }

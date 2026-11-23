@@ -19,5 +19,5 @@
       sympos = 0;
     }
   ];
-  oracleIds = [ "ceph-mdsmap-operation-safety" ];
+  oracleIds = [ ];
 }

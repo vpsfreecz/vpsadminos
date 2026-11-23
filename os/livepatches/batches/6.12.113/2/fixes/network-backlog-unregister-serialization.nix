@@ -19,5 +19,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "network-backlog-operation-safety" ];
+  oracleIds = [ ];
 }

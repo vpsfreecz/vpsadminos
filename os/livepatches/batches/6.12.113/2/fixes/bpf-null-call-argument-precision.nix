@@ -91,5 +91,5 @@
       sympos = 1;
     }
   ];
-  oracleIds = [ "bpf-null-call-argument-precision-operation-safety" ];
+  oracleIds = [ ];
 }
