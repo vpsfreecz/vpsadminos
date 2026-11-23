@@ -926,6 +926,25 @@ run_resume_case() {
 }
 
 resume_unchanged() { :; }
+resume_direct_single_layout() {
+  local root=$1
+  local results="$root/workspace/resume/results"
+  local accepted=livepatch-result-6.12.113.4--set-vendor-aged-transition--amd-45086108111-1
+  local failed=livepatch-result-pending-one-45086108111-1
+
+  mv -- "$results/$accepted/result.json" "$results/result.json"
+  rm -- "$results/$failed/result.json"
+  rmdir -- "$results/$accepted" "$results/$failed"
+  mkdir -p -- "$results/internal-tests/logs"
+  printf 'retained artifact payload\n' > "$results/internal-tests/logs/output.txt"
+  mutate_json "$root/workspace/resume-provenance-api.json" '
+    [.artifacts[] | select(
+      (.name | startswith("livepatch-result-") | not)
+      or .name == "livepatch-result-6.12.113.4--set-vendor-aged-transition--amd-45086108111-1"
+    )] as $artifacts
+    | .artifacts = $artifacts
+  '
+}
 resume_wrong_repository() {
   mutate_json "$1/workspace/resume-provenance-api.json" '.source.repository = "other/repo"'
 }
@@ -989,7 +1008,8 @@ resume_import_interface() {
   extract_workflow_run_block 'Discover one canonical plan and its affected view' \
     "$work/discover-plan-run.sh"
   chmod +x "$work/discover-plan-run.sh"
-  run_resume_case success accept resume_unchanged
+  run_resume_case multi-nested accept resume_unchanged
+  run_resume_case direct-single accept resume_direct_single_layout
   run_resume_case cross-repository refuse resume_wrong_repository
   run_resume_case cross-head refuse resume_wrong_head
   run_resume_case wrong-run refuse resume_wrong_run

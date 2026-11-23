@@ -393,6 +393,9 @@ jobs:
             imported="$LIVEPATCH_CI_WORKSPACE/imported-results"
             api_provenance="$LIVEPATCH_CI_WORKSPACE/resume-provenance-api.json"
             accepted_ids="$LIVEPATCH_CI_WORKSPACE/accepted-row-ids.json"
+            result_roots="$LIVEPATCH_CI_WORKSPACE/result-artifact-roots.tsv"
+            service_results="$LIVEPATCH_CI_WORKSPACE/service-results.txt"
+            extracted_results="$LIVEPATCH_CI_WORKSPACE/extracted-results.txt"
 
             for root in "$resume/plan" "$resume/capture" "$source_results"; do
               [[ -d "$root" && ! -L "$root" ]]
@@ -472,17 +475,31 @@ jobs:
               .artifacts[]
               | select(.name | startswith("livepatch-result-"))
               | .name
-            ' "$api_provenance" | LC_ALL=C sort > "$LIVEPATCH_CI_WORKSPACE/service-results.txt"
-            find "$source_results" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
-              | LC_ALL=C sort > "$LIVEPATCH_CI_WORKSPACE/extracted-results.txt"
-            cmp -- "$LIVEPATCH_CI_WORKSPACE/service-results.txt" \
-              "$LIVEPATCH_CI_WORKSPACE/extracted-results.txt"
-            [[ -s "$LIVEPATCH_CI_WORKSPACE/extracted-results.txt" ]]
+            ' "$api_provenance" | LC_ALL=C sort > "$service_results"
+            mapfile -t result_artifacts < "$service_results"
+            ((${#result_artifacts[@]} > 0))
+            : > "$result_roots"
+            if ((${#result_artifacts[@]} == 1)); then
+              printf '%s\t%s\n' "${result_artifacts[0]}" "$source_results" \
+                > "$result_roots"
+            else
+              find "$source_results" -mindepth 1 -maxdepth 1 -printf '%f\t%y\n' \
+                | LC_ALL=C sort > "$extracted_results"
+              awk -F '\t' 'NF != 2 || $2 != "d" { exit 1 }' "$extracted_results"
+              cut -f1 "$extracted_results" > "$extracted_results.names"
+              cmp -- "$service_results" "$extracted_results.names"
+              while IFS= read -r artifact_name; do
+                artifact="$source_results/$artifact_name"
+                [[ -d "$artifact" && ! -L "$artifact" ]]
+                printf '%s\t%s\n' "$artifact_name" "$artifact" >> "$result_roots"
+              done < "$service_results"
+            fi
+            [[ $(wc -l < "$result_roots") -eq ${#result_artifacts[@]} ]]
 
             mkdir "$imported"
             printf '[]\n' > "$accepted_ids"
-            while IFS= read -r artifact_name; do
-              artifact="$source_results/$artifact_name"
+            while IFS=$'\t' read -r artifact_name artifact; do
+              [[ -n "$artifact_name" && -n "$artifact" ]]
               mapfile -t receipts < <(find "$artifact" -type f -name result.json -print)
               ((${#receipts[@]} == 1))
               receipt=${receipts[0]}
@@ -512,7 +529,7 @@ jobs:
                 echo "accepted source receipt has a failed runner or validator: $row_id" >&2
                 exit 1
               fi
-            done < "$LIVEPATCH_CI_WORKSPACE/extracted-results.txt"
+            done < "$result_roots"
 
             jq -e --arg rowId "$EXPECTED_IMPORTED_ROW_ID" \
               --argjson importedRows "$EXPECTED_IMPORTED_ROWS" '
