@@ -895,11 +895,41 @@ run_resume_import() {
   )
 }
 
+github_output_value() {
+  local name=$1
+  local output=$2
+
+  awk -v expected="$name" '
+    {
+      separator = index($0, "=")
+      if (separator < 2) {
+        invalid = 1
+        next
+      }
+      name = substr($0, 1, separator - 1)
+      if (name !~ /^[A-Za-z0-9_-]+$/) {
+        invalid = 1
+      }
+      if (name == expected) {
+        matches++
+        value = substr($0, separator + 1)
+      }
+    }
+    END {
+      if (invalid || matches != 1) {
+        exit 1
+      }
+      print value
+    }
+  ' "$output"
+}
+
 run_resume_case() {
   local name=$1
   local expected=$2
   local mutation=$3
   local root="$work/resume-$name"
+  local affected_matrix matrix
   local status
 
   make_resume_import_fixture "$root"
@@ -916,7 +946,14 @@ run_resume_case() {
     }
     [[ $(jq -er '.include | length' "$root/workspace/matrix.json") == 2 ]]
     [[ $(find "$root/workspace/imported-results" -type f -name result.json | wc -l) == 1 ]]
-    grep -Fx 'imported-rows=1' "$root/github-output" >/dev/null
+    [[ $(wc -l < "$root/github-output") -eq 6 ]]
+    matrix=$(github_output_value matrix "$root/github-output")
+    affected_matrix=$(github_output_value affected-matrix "$root/github-output")
+    jq -e --argjson output "$matrix" '. == $output' \
+      "$root/workspace/matrix.json" >/dev/null
+    jq -e --argjson output "$affected_matrix" '. == $output' \
+      "$root/workspace/affected-matrix.json" >/dev/null
+    [[ $(github_output_value imported-rows "$root/github-output") == 1 ]]
   else
     [[ $status -ne 0 ]] || {
       echo "$name: resume import expected refusal" >&2

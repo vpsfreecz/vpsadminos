@@ -611,8 +611,8 @@ jobs:
             memberCount: (.members | length)
           }]}' "$LIVEPATCH_CI_WORKSPACE/affected-plan.json" \
             > "$LIVEPATCH_CI_WORKSPACE/affected-matrix.json"
-          matrix=$(cat "$LIVEPATCH_CI_WORKSPACE/matrix.json")
-          affected_matrix=$(cat "$LIVEPATCH_CI_WORKSPACE/affected-matrix.json")
+          matrix=$(jq -c . "$LIVEPATCH_CI_WORKSPACE/matrix.json")
+          affected_matrix=$(jq -c . "$LIVEPATCH_CI_WORKSPACE/affected-matrix.json")
           test "${#matrix}" -lt 65536
           test "${#affected_matrix}" -lt 65536
           {
