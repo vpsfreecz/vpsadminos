@@ -1,8 +1,5 @@
-import ../../make-template.nix (
+import ../../../../make-template.nix (
   { kernelVersion }:
-  let
-    line = import (./livepatch-lifecycle + "/${kernelVersion}.nix");
-  in
   rec {
     instance = kernelVersion;
 
@@ -13,13 +10,14 @@ import ../../make-template.nix (
         kvmSmoke = pkgs.stdenv.mkDerivation {
           pname = "livepatch-lifecycle-kvm-smoke";
           version = "1";
-          src = ./livepatch-lifecycle;
+          src = ../../kvm_smoke.c;
 
+          dontUnpack = true;
           dontConfigure = true;
 
           buildPhase = ''
             "$CC" -std=gnu11 -O2 -Wall -Wextra -Werror \
-              -o kvm_smoke kvm_smoke.c
+              -o kvm_smoke "$src"
           '';
 
           installPhase = ''
@@ -30,8 +28,7 @@ import ../../make-template.nix (
         machineConfig =
           { lib, ... }:
           {
-            imports = lib.optional (line ? bootModule) line.bootModule;
-            boot.kernelVersion = lib.mkForce kernelVersion;
+            imports = [ ../../boot.nix ];
             services.live-patches.enable = true;
             runit.services.live-patches.run = lib.mkForce "sleep inf";
 
@@ -89,12 +86,11 @@ import ../../make-template.nix (
             raise "kernel fault during native .110 continuity:\n#{output}" if output.match?(KERNEL_FAULT_PATTERN)
           '';
       in
-      assert line.native or false;
       {
         name = "kernel-livepatch-lifecycle-${instance}";
         description = "Validate native ${kernelVersion} continuity on real x86 host CPUs";
 
-        machines.machine = import ../../machines/vpsadminos/with-empty.nix {
+        machines.machine = import ../../../../machines/vpsadminos/with-empty.nix {
           inherit pkgs;
           config = machineConfig;
         };

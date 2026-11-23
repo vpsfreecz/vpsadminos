@@ -1,16 +1,30 @@
 import ../../make-test.nix (
-  { pkgs }:
   {
-    name = "zfs-full-suite";
+    pkgs,
+    exactReleaseTest ? null,
+  }:
+  let
+    inherit (import ../../../os/packages/linux/available-kernels.nix { inherit (pkgs) lib; })
+      stableKernelVersion
+      ;
+    zfsUseBuiltin =
+      exactReleaseTest != null || builtins.getEnv "VPSADMINOS_ZFS_FULL_USE_BUILTIN" != "0";
+  in
+  {
+    name = if exactReleaseTest == null then "zfs-full-suite" else exactReleaseTest.name;
 
-    description = ''
-      Run OpenZFS test suite inside vpsAdminOS test-runner VM.
+    description =
+      if exactReleaseTest != null then
+        exactReleaseTest.description
+      else
+        ''
+          Run OpenZFS test suite inside vpsAdminOS test-runner VM.
 
-      This test is intentionally not tagged as `ci`. Run it explicitly using
-      tag `zfs-full`.
-    '';
+          This test is intentionally not tagged as `ci`. Run it explicitly using
+          tag `zfs-full`.
+        '';
 
-    tags = [ "zfs-full" ];
+    tags = if exactReleaseTest == null then [ "zfs-full" ] else [ "kernel-specific" ];
 
     labels = {
       component = "zfs";
@@ -31,17 +45,13 @@ import ../../make-test.nix (
           let
             zfsVmMemoryEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_VM_MEMORY";
             zfsVmCpusEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_VM_CPUS";
-            zfsUseBuiltinEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_USE_BUILTIN";
             localZfsStageEnv = builtins.getEnv "VPSADMINOS_LOCAL_ZFS_STAGE";
-            localZfsUserSourceEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_USER_SOURCE";
+            localZfsUserSourceEnv =
+              if exactReleaseTest == null then builtins.getEnv "VPSADMINOS_ZFS_FULL_USER_SOURCE" else "";
             localZfsStage = if localZfsStageEnv == "" then null else /. + localZfsStageEnv;
             localZfsUserOut = if localZfsStage == null then null else localZfsStage + "/user/out";
             zfsVmMemory = if zfsVmMemoryEnv != "" then lib.toInt zfsVmMemoryEnv else 12288;
             zfsVmCpus = if zfsVmCpusEnv != "" then lib.toInt zfsVmCpusEnv else 4;
-            # The release gate exercises the shipped vpsAdminOS configuration.
-            # An explicit 0 retains the modular variant for focused debugging,
-            # not as a substitute for the representative built-in gate.
-            zfsUseBuiltin = zfsUseBuiltinEnv != "0";
             useLocalZfsUser = !zfsUseBuiltin && localZfsUserOut != null && builtins.pathExists localZfsUserOut;
             adaptedLocalZfsUser =
               if useLocalZfsUser then
@@ -292,56 +302,6 @@ import ../../make-test.nix (
                   $'original_discard_limit=$(get_tunable SPA_DISCARD_MEMORY_LIMIT)\nlog_must save_tunable SPA_DISCARD_MEMORY_LIMIT' \
                 --replace-fail $'log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT\n\nnested_wait_discard_finish' \
                   $'log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT\nlog_must test "$(get_tunable SPA_DISCARD_MEMORY_LIMIT)" = "$original_discard_limit"\n\nnested_wait_discard_finish'
-              substituteInPlace "$functional/rsend/rsend_008_pos.ksh" \
-                --replace-fail 'log_unsupported "Occasionally hangs"' \
-                  'log_note "Exercising historical promoted-send case (issue 6066)"' \
-                --replace-fail 'log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"' \
-                  ${lib.escapeShellArg ''
-                    log_note "Starting recursive send after promotion"
-                    zfs send -R $POOL@final > $BACKDIR/pool-final-R 2> $BACKDIR/pool-final-R.err &
-                    send_pid=$!
-                    (
-                      sleep 30
-                      if kill -0 "$send_pid" 2>/dev/null; then
-                        {
-                          date -Is
-                          ps -p "$send_pid" -o pid,ppid,stat,etime,time,wchan,args
-                          cat /proc/$send_pid/stat /proc/$send_pid/stack
-                          zfs list -r -t all -o name,origin,createtxg $POOL
-                          ${pkgs.gdb}/bin/gdb -q -nx -batch \
-                            -ex 'set pagination off' -ex 'thread apply all bt' \
-                            -ex 'info sharedlibrary' -ex 'x/16i $pc' \
-                            -ex detach -p "$send_pid"
-                        } 2>&1 | ${pkgs.coreutils}/bin/tee /run/osvm/shared-dir/zfs-full-suite/promoted-send-diagnostics.log
-                      fi
-                    ) &
-                    diagnostic_pid=$!
-                    wait "$send_pid"
-                    send_status=$?
-                    wait "$diagnostic_pid"
-                    #
-                    # The promoted-clone topology is a genuine replication
-                    # cycle. The pinned fork refuses it deterministically
-                    # (libzfs sendrecv on this line, fork commits c5af8c9335
-                    # and 54292aae54) instead of spinning forever with
-                    # assertions disabled or aborting with them enabled, so
-                    # this historical body cannot show a successful promoted
-                    # send and keeps upstream's unsupported classification
-                    # (issue 6066). Assert the bounded refusal here; a
-                    # regression to a hang is caught by this script's 300 s
-                    # bound, a regression to success by the status check.
-                    #
-                    log_must test "$send_status" -ne 0
-                    log_must grep -q "cyclic parent and clone origin dependencies" \
-                      $BACKDIR/pool-final-R.err
-                    log_unsupported "Promoted-clone send cycle refused by the pinned fork (upstream issue 6066)"
-                  ''}
-              # Bound this already reproduced stall while collecting its
-              # first semantic checkpoint, rather than repeating a silent hour.
-              substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
-                --replace-fail 'timeout = 3600' \
-                  'timeout = $(case "$SINGLETEST" in */rsend_008_pos.ksh) echo 300 ;; *) echo 3600 ;; esac)'
-
               # OpenZFS 2.3.8 predates upstream 6f17052743, which makes the
               # L2ARC wrap test's intended write volume deterministic.
               substituteInPlace $out/share/zfs/zfs-tests/tests/functional/cache/cache_012_pos.ksh \
@@ -447,6 +407,7 @@ import ../../make-test.nix (
                       (old.postInstall or "")
                     )
                     + zfsTestPostInstall
+                    + lib.optionalString (exactReleaseTest != null) exactReleaseTest.postInstall
                     + ''
                       test -x "$out/share/zfs/zfs-tests/bin/mmap_libaio"
                       test -f "$out/lib/security/pam_zfs_key.so"
@@ -454,10 +415,21 @@ import ../../make-test.nix (
                 });
           in
           {
-            # Do not inherit a generic feature branch's stable kernel profile.
-            # Both kernel and ZFS userspace come from this version's paired pins.
-            boot.kernelVersion = "6.18.49";
+            # Use the stable pair unless the local-development config supplies
+            # its own staged kernel and ZFS. That config forces kernelVersion.
+            boot.kernelVersion =
+              if exactReleaseTest == null then
+                stableKernelVersion
+              else
+                lib.mkForce exactReleaseTest.kernelVersion;
             boot.zfsBuiltin = lib.mkForce zfsUseBuiltin;
+            assertions = lib.optional useLocalZfsUser {
+              assertion =
+                (config.boot.kernelPackages.zfs.kernelModDirVersion or null)
+                == config.boot.kernelPackage.modDirVersion
+                && (config.boot.kernelPackages.zfs.zfsVersion or null) == adaptedLocalZfsUser.zfsVersion;
+              message = "ZFS full suite: staged userspace requires a matching staged kernel and ZFS modules";
+            };
             # local-dev-qemu selects the raw staged userspace with mkForce.
             # This test's wrapped package must win so it retains and adjusts
             # the exact staged test suite rather than falling back to the pin.
@@ -524,6 +496,7 @@ import ../../make-test.nix (
             # actual kernel build configuration instead of skipping a feature
             # which is enabled, or fabricating a CONFIG_IO_URING=y marker.
             environment.etc."zfs-test/kernel-config".source = config.boot.kernelPackage.configfile;
+            environment.etc."zfs-test/kernel-release".text = config.boot.kernelPackage.modDirVersion;
 
             # zfs-tests.sh requires ksh and passwordless sudo for the run user.
             environment.systemPackages = [
@@ -590,22 +563,18 @@ import ../../make-test.nix (
 
       machine.start
       machine.succeeds('grep -Fx ID=vpsadminos /etc/os-release')
-      expect(machine.succeeds('uname -r')[1].strip).to start_with('6.18.49')
+      expected_release = machine.succeeds('cat /etc/zfs-test/kernel-release')[1].strip
+      expect(machine.succeeds('uname -r')[1].strip).to eq(expected_release)
       machine.succeeds('cat /etc/os-release')
       zfs_versions = machine.succeeds('zfs version')[1].lines.map(&:strip)
       user_version = zfs_versions.find { |line| line.match?(/\Azfs-(?!kmod-)\S+\z/) }
       expect(user_version).not_to be_nil
       expect(zfs_versions).to include(user_version.sub('zfs-', 'zfs-kmod-'))
-      ${
-        if builtins.getEnv "VPSADMINOS_ZFS_FULL_USE_BUILTIN" == "0" then
-          ""
-        else
-          ''
-            machine.succeeds("grep -Fx 'CONFIG_ZFS=y' /etc/zfs-test/kernel-config")
-            machine.succeeds("test -d /sys/module/zfs")
-            machine.succeeds(%q{awk '$1 == "zfs" { found = 1 } END { exit found ? 1 : 0 }' /proc/modules})
-          ''
-      }
+      ${pkgs.lib.optionalString zfsUseBuiltin ''
+        machine.succeeds("grep -Fx 'CONFIG_ZFS=y' /etc/zfs-test/kernel-config")
+        machine.succeeds("test -d /sys/module/zfs")
+        machine.succeeds(%q{awk '$1 == "zfs" { found = 1 } END { exit found ? 1 : 0 }' /proc/modules})
+      ''}
       # Required test filesystems are explicitly loaded. Let the existing
       # service finish before starting the independent pool deadline.
       machine.wait_for_service('kernel-modules')
@@ -725,7 +694,12 @@ import ../../make-test.nix (
       # VPSADMINOS_ZFS_FULL_TEST="") means the whole suite. Ruby treats "" as
       # truthy, so without this the collector would demand a focused result for
       # an empty body name even though the full suite just ran.
-      single_test = ENV['VPSADMINOS_ZFS_FULL_TEST']
+      single_test = ${
+        if exactReleaseTest == null then
+          "ENV['VPSADMINOS_ZFS_FULL_TEST']"
+        else
+          builtins.toJSON exactReleaseTest.body
+      }
       single_test = nil if single_test&.strip&.empty?
       full_runfiles = Shellwords.escape(ENV.fetch('VPSADMINOS_ZFS_FULL_RUNFILES', 'common.run,linux.run'))
       full_tags = Shellwords.escape(ENV.fetch('VPSADMINOS_ZFS_FULL_TAGS', 'functional'))

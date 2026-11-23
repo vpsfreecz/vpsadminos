@@ -9,28 +9,40 @@
 let
   nixpkgs = import pkgs { inherit system; };
   lib = nixpkgs.lib;
-  testLibArgs = {
-    inherit
-      pkgs
-      system
-      lib
-      suiteArgs
-      configuration
-      testConfig
-      ;
-    suitePath = ./suite;
-  };
-  testLib =
+  makeTestLib =
+    suitePath:
+    let
+      args = {
+        inherit
+          pkgs
+          system
+          lib
+          suiteArgs
+          configuration
+          testConfig
+          suitePath
+          ;
+      };
+    in
     if testFramework == null then
-      import ../test-runner/nix/lib.nix testLibArgs
+      import ../test-runner/nix/lib.nix args
     else
-      testFramework.makeTestLib testLibArgs;
+      testFramework.makeTestLib args;
 
   distributions = import ./distributions.nix { inherit lib; };
 
-  # Keep this list limited to kernels still running in the fleet. Repository
-  # retention alone does not mean that a kernel needs current lifecycle CI.
-  livepatchLifecycleInstances = [ { kernelVersion = "6.12.110"; } ];
+  kernelSpecificTests = lib.mapAttrsToList (
+    kernelVersion: registration:
+    let
+      ownerLib = makeTestLib (./kernel-specific + "/${kernelVersion}/suite");
+      namedTests = lib.flatten (map ownerLib.makeTest (registration.runnerTests or [ ]));
+      tests = builtins.listToAttrs namedTests;
+    in
+    if builtins.length namedTests == builtins.length (builtins.attrNames tests) then
+      tests
+    else
+      throw "Duplicate test IDs in kernel-specific registration ${kernelVersion}"
+  ) (import ./kernel-specific { inherit lib; });
 
   imageScripts =
     let
@@ -177,10 +189,6 @@ let
           "incus/debian"
           "incus/fedora"
           {
-            template = "kernel/livepatch-lifecycle";
-            instances = livepatchLifecycleInstances;
-          }
-          {
             template = "kernel/livepatch-set";
             instances = [
               {
@@ -271,5 +279,18 @@ let
         ++ localOnlyTests
         ++ genericLivepatchTests
       );
+  sharedTests = (makeTestLib ./suite).makeTests selectedTests;
 in
-testLib.makeTests selectedTests
+if genericLivepatchOnly || schedProxyExecOnly || schedProxyExecLockBadneighborOnly then
+  sharedTests
+else
+  lib.foldl' (
+    tests: ownedTests:
+    let
+      duplicates = builtins.attrNames (builtins.intersectAttrs tests ownedTests);
+    in
+    if duplicates == [ ] then
+      tests // ownedTests
+    else
+      throw "Duplicate kernel-specific test IDs: ${lib.concatStringsSep ", " duplicates}"
+  ) sharedTests kernelSpecificTests

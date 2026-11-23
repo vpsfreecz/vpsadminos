@@ -47,7 +47,11 @@ echo "profile:   ${VPSADMINOS_ZFS_FULL_PROFILE}"
 echo "timeout:   ${TIMEOUT}"
 echo "runfiles:  ${VPSADMINOS_ZFS_FULL_RUNFILES:-<profile default>}"
 echo "tags:      ${VPSADMINOS_ZFS_FULL_TAGS:-<profile default>}"
-echo "builtin:   ${VPSADMINOS_ZFS_FULL_USE_BUILTIN:-0}"
+if [[ "${VPSADMINOS_ZFS_FULL_USE_BUILTIN:-1}" == 0 ]]; then
+  echo "builtin:   0"
+else
+  echo "builtin:   1"
+fi
 
 exec "${ROOT}/test-runner.sh" test \
   -f \
