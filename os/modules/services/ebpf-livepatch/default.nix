@@ -194,7 +194,7 @@ let
       bpfPrograms = program.bpfPrograms;
       linkFields = available.programLinkFields program;
       revision = config.system.vpsadminos.revision;
-      digest = builtins.hashFile "sha256" (ebpfDir + "/programs/${name}.bpf.c");
+      digest = builtins.hashFile "sha256" (import (ebpfDir + /source.nix) name);
     }
   ) (filter (name: available.programAvailableForKernel kernelVersion name) requestedProgramNames);
 in

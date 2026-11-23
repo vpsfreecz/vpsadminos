@@ -51,13 +51,15 @@ let
     name:
     stdenv.mkDerivation {
       name = "ebpf-${name}-bpf-o-${kernel.modDirVersion}";
-      src = ../../../os/livepatches/ebpf/programs;
+      source = import ../../livepatches/ebpf/source.nix name;
+      dontUnpack = true;
 
       hardeningDisable = [ "all" ];
       nativeBuildInputs = [ clang ];
 
       buildPhase = ''
         mkdir -p out
+        cp "$source" ${name}.bpf.c
 
         clang -g -O2 -target bpf \
           -D__TARGET_ARCH_x86 \

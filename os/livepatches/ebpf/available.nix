@@ -2,7 +2,8 @@
 #
 # Canonical registry of available eBPF livepatch programs.
 # Only programs listed here are compiled and can be loaded.
-# Each entry must have a corresponding .bpf.c file in programs/.
+# Deployable range programs own their record and source under owned/.
+# Example sources remain in programs/.
 
 {
   lib,
@@ -50,33 +51,26 @@ let
       # enable after building with matching kernel BTF.
       enable = false;
     }
-    {
-      name = "ptrace_mm_guard";
-      description = "Deny ptrace access to mm-less tasks without init-ns CAP_SYS_PTRACE";
-      kernelRanges = [
-        {
-          sinceKernel = "5.7";
-          untilKernel = "6.12.89";
-        }
-      ];
-      bpfPrograms = [ "ptrace_mm_guard" ];
-      linkFields = [ "ptrace_mm_guard" ];
-      enable = true;
-    }
-    {
-      name = "cifs_spnego_guard";
-      description = "Deny userspace-created cifs.spnego keys outside CIFS private upcalls";
-      kernelRanges = [
-        {
-          sinceKernel = "5.7";
-          untilKernel = "6.12.92";
-        }
-      ];
-      bpfPrograms = [ "cifs_spnego" ];
-      linkFields = [ "cifs_spnego" ];
-      enable = true;
-    }
-  ];
+  ]
+  ++ builtins.attrValues ownedPrograms;
+
+  ownedPrograms =
+    (import ../owned-records.nix { inherit lib; }) ./owned "[A-Za-z0-9][A-Za-z0-9_.-]*"
+      (
+        name: dir: files:
+        let
+          program = (import dir) // {
+            inherit name;
+          };
+        in
+        assert lib.assertMsg (
+          (files."${name}.bpf.c" or null) == "regular"
+        ) "Missing owned eBPF source ${name}.bpf.c";
+        assert lib.assertMsg (
+          programHasValidKernelRanges program && programHasValidLinkFields program
+        ) "Invalid owned eBPF program ${name}";
+        program
+      );
 
   allPrograms = if programs == null then defaultPrograms else programs;
 
@@ -194,6 +188,7 @@ in
 {
   inherit
     allPrograms
+    ownedPrograms
     allProgramNames
     programsByName
     programMatchesKernel

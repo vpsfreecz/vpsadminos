@@ -229,61 +229,36 @@ let
   };
   qualificationGenericRows = builtins.filter (row: row.scope == "set") qualificationCoveragePlan.rows;
   qualificationOracleRows = builtins.filter (row: row.scope == "fix") qualificationCoveragePlan.rows;
-  projectCatalog = import ../../../livepatches/batches { inherit lib; };
-  normalizedProjectCatalog = livepatchLib.normalizeCatalog {
+  releaseQualificationPlan = qualificationPlanner {
     inherit builder target;
-    catalog = projectCatalog;
-  };
-  projectQualificationPlan = qualificationPlanner {
-    inherit builder target;
-    catalog = projectCatalog;
+    catalog = qualificationCatalogReleaseSelected;
     plan = true;
-    producerAttrs = builtins.listToAttrs (
-      map (unit: {
-        name = unit.batch.release;
-        value = "synthetic-producer-${unit.batch.release}";
-      }) projectCatalog
-    );
+    producerAttrs."6.12.113.1" = "synthetic-producer";
   };
-  realKernelDefinition =
-    if pkgs == null then
-      null
-    else
-      (import ../../linux/available-kernels.nix { inherit lib; }).kernels."6.12.113";
+  kernelCatalog = import ../../linux/available-kernels.nix { inherit lib; };
+  realVersion = kernelCatalog.stableKernelVersion;
+  realKernelDefinition = kernelCatalog.kernels.${realVersion};
   realKernel =
-    if pkgs == null then
-      null
-    else
-      pkgs.callPackage ../../linux {
-        kernelVersion = "6.12.113";
-        url = "https://github.com/vpsfreecz/linux/archive/${realKernelDefinition.rev}.tar.gz";
-        sha256 = realKernelDefinition.sha256;
-        structuredExtraConfig = realKernelDefinition.structuredExtraConfig or { };
-        features = realKernelDefinition.features or { };
-      };
+    (import ../../linux/packages.nix {
+      inherit lib pkgs;
+      config.system.vpsadminos.enableUnstable = false;
+    }).genKernelPackage
+      realVersion;
+  realHasLivepatchMetadata = pkgs != null && realKernel.config.isSet "SMP";
   realOverriddenKernel =
     if pkgs == null then
       null
     else
-      pkgs.callPackage ../../linux {
-        kernelVersion = "6.12.113";
-        url = "https://github.com/vpsfreecz/linux/archive/${realKernelDefinition.rev}.tar.gz";
-        sha256 = realKernelDefinition.sha256;
-        structuredExtraConfig = {
-          PREEMPT_RT = lib.kernel.yes;
-        };
-        features = realKernelDefinition.features or { };
+      realKernel.override {
+        structuredExtraConfig.PREEMPT_RT = lib.kernel.yes;
       };
-  realConfigured =
-    if pkgs == null then
-      null
-    else
-      livepatchLib.mkConfiguredTarget {
-        kernel = realKernel;
-        kernelVersion = "6.12.113";
-        toolchain = realKernel.stdenv.cc;
-        zfsBuiltinPkg = null;
-      };
+  realTargetArgs = {
+    kernel = realKernel;
+    kernelVersion = realVersion;
+    toolchain = realKernel.stdenv.cc;
+    zfsBuiltinPkg = null;
+  };
+  realConfigured = livepatchLib.mkConfiguredTarget realTargetArgs;
   realConfigFacts =
     if pkgs == null then
       { }
@@ -313,7 +288,15 @@ let
       builtins.head (
         livepatchLib.normalizeBatches {
           inherit builder;
-          descriptors = [ rootA ];
+          descriptors = [
+            (
+              rootA
+              // {
+                kernelVersion = realVersion;
+                release = "${realVersion}.1";
+              }
+            )
+          ];
           target = realConfigured.kernelTarget;
         }
       );
@@ -1059,9 +1042,9 @@ assert builtins.all (
   row: row.validator == "builtin/generic-livepatch-safety-v1"
 ) qualificationGenericRows;
 assert builtins.all (row: row.oracleIds != [ ]) qualificationOracleRows;
-assert builtins.length projectQualificationPlan.rows == 10;
+assert builtins.length releaseQualificationPlan.rows == 12;
 assert
-  builtins.length (builtins.filter (row: row.role == "aged-transition") projectQualificationPlan.rows)
+  builtins.length (builtins.filter (row: row.role == "aged-transition") releaseQualificationPlan.rows)
   == 2;
 assert builtins.all (
   row:
@@ -1072,7 +1055,7 @@ assert builtins.all (
     evidenceClass = "release";
     releaseDwellSeconds = 1800;
   }
-) (builtins.filter (row: row.role == "aged-transition") projectQualificationPlan.rows);
+) (builtins.filter (row: row.role == "aged-transition") releaseQualificationPlan.rows);
 assert
   map (entry: entry.batch.manifest) normalizedQualificationCatalog
   == map (entry: entry.batch.manifest) normalizedQualificationCatalogReleaseSelected;
@@ -1091,8 +1074,8 @@ assert
   ((builtins.head (builtins.head qualificationCoveragePlan.sets).members).oracleIds)
   == catalogBatch.oracleIds;
 assert
-  builtins.concatMap (set: map (member: member.oracleIds) set.members) projectQualificationPlan.sets
-  == map (entry: entry.batch.oracleIds) normalizedProjectCatalog;
+  builtins.concatMap (set: map (member: member.oracleIds) set.members) releaseQualificationPlan.sets
+  == map (entry: entry.batch.oracleIds) normalizedQualificationCatalogReleaseSelected;
 assert builtins.length catalogUnit.batch.fixes == 2;
 assert
   map (patch: patch.id) catalogUnit.batch.patches == [
@@ -1247,51 +1230,61 @@ assert configuredRt.targetBuild.vermagic == "6.12.113 SMP preempt_rt mod_unload 
 assert configuredSparse.targetBuild.vermagic == "6.12.113 SMP mod_unload modversions";
 assert builtins.all canonicalVermagic configuredVermagics;
 assert configuredA.targetBuild.signature == target.signature;
-assert pkgs == null || realConfigured.targetBuild.identity.kernelOut == realKernel.outPath;
-assert pkgs == null || realConfigured.targetBuild.identity.kernelDev == realKernel.dev.outPath;
-assert
-  pkgs == null || realConfigured.targetBuild.identity.configFile == realKernel.configfile.outPath;
-assert pkgs == null || realConfigured.targetBuild.identity.kernelSource == toString realKernel.src;
 assert pkgs == null || lib.hasInfix realKernelDefinition.rev (toString realKernel.src);
+assert pkgs == null || realKernel.modDirVersion == realVersion;
+assert pkgs == null || realHasLivepatchMetadata || configuredTargetFails realTargetArgs;
 assert
-  pkgs == null || realConfigured.targetBuild.identity.vmlinux == "${realKernel.dev.outPath}/vmlinux";
+  !realHasLivepatchMetadata || realConfigured.targetBuild.identity.kernelOut == realKernel.outPath;
 assert
-  pkgs == null
+  !realHasLivepatchMetadata
+  || realConfigured.targetBuild.identity.kernelDev == realKernel.dev.outPath;
+assert
+  !realHasLivepatchMetadata
+  || realConfigured.targetBuild.identity.configFile == realKernel.configfile.outPath;
+assert
+  !realHasLivepatchMetadata
+  || realConfigured.targetBuild.identity.kernelSource == toString realKernel.src;
+assert
+  !realHasLivepatchMetadata
+  || realConfigured.targetBuild.identity.vmlinux == "${realKernel.dev.outPath}/vmlinux";
+assert
+  !realHasLivepatchMetadata
   ||
     realConfigured.targetBuild.identity.moduleSymvers
     == "${realKernel.dev.outPath}/lib/modules/${realKernel.modDirVersion}/build/Module.symvers";
-assert pkgs == null || realConfigured.kernelTarget.identity == realConfigured.targetBuild.identity;
 assert
-  pkgs == null
-  || builtins.match "configured-6-12-113-[0-9a-f]{12}" realConfigured.kernelTarget.id != null;
+  !realHasLivepatchMetadata
+  || realConfigured.kernelTarget.identity == realConfigured.targetBuild.identity;
 assert
-  pkgs == null
+  !realHasLivepatchMetadata
   ||
-    realConfigFacts == {
-      GCC_PLUGIN_RANDSTRUCT = "n";
-      MODVERSIONS = "y";
-      MODULE_SIG_FORCE = "n";
-      MODULE_UNLOAD = "y";
-      PREEMPT_BUILD = "y";
-      PREEMPT_RT = "n";
-      RANDSTRUCT_FULL = "n";
-      RANDSTRUCT_PERFORMANCE = "n";
-      SMP = "y";
-    };
+    builtins.match "configured-${lib.replaceStrings [ "." ] [ "-" ] realVersion}-[0-9a-f]{12}" realConfigured.kernelTarget.id
+    != null;
+assert !realHasLivepatchMetadata || canonicalVermagic realConfigured.targetBuild.vermagic;
 assert
-  pkgs == null
-  || realConfigured.targetBuild.vermagic == "6.12.113 SMP preempt mod_unload modversions";
-assert pkgs == null || realConfigured.targetBuild.signature.required == false;
-assert pkgs == null || realConfigured.targetBuild.signature.sigId == null;
-assert pkgs == null || realConfigured.targetBuild.signature.sigKey == null;
-assert pkgs == null || realConfigured.targetBuild.signature.signer == null;
-assert pkgs == null || realNormalized.kernelTarget == realConfigured.kernelTarget;
+  !realHasLivepatchMetadata || lib.hasPrefix "${realVersion} " realConfigured.targetBuild.vermagic;
+assert
+  !realHasLivepatchMetadata
+  || lib.all (
+    value:
+    builtins.elem value [
+      "y"
+      "n"
+    ]
+  ) (builtins.attrValues realConfigFacts);
+assert
+  !realHasLivepatchMetadata
+  || realConfigured.targetBuild.signature.required == (realConfigFacts.MODULE_SIG_FORCE == "y");
+assert !realHasLivepatchMetadata || realConfigured.targetBuild.signature.sigId == null;
+assert !realHasLivepatchMetadata || realConfigured.targetBuild.signature.sigKey == null;
+assert !realHasLivepatchMetadata || realConfigured.targetBuild.signature.signer == null;
+assert !realHasLivepatchMetadata || realNormalized.kernelTarget == realConfigured.kernelTarget;
 assert pkgs == null || !realOverriddenKernel.config.isSet "SMP";
 assert
   pkgs == null
   || configuredTargetFails {
     kernel = realOverriddenKernel;
-    kernelVersion = "6.12.113";
+    kernelVersion = realVersion;
     toolchain = realOverriddenKernel.stdenv.cc;
     zfsBuiltinPkg = null;
   };
