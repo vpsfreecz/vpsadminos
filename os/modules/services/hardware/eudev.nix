@@ -17,15 +17,15 @@ let
       }
       ''
         mkdir -p etc/udev/hwdb.d
-        for i in ${pkgs.eudev}/var/lib/udev/hwdb.d/*; do
-          ln -s $i etc/udev/hwdb.d/$(basename $i)
-        done
+        # eudev resolves input symlinks inside --root, which has no /nix/store.
+        cp -L ${pkgs.eudev}/var/lib/udev/hwdb.d/* etc/udev/hwdb.d/
 
         echo "Generating hwdb database..."
         # hwdb --update doesn't return error code even on errors!
         res="$(${pkgs.eudev}/bin/udevadm hwdb --update --root=$(pwd) 2>&1)"
         echo $res
         [ -z "$(echo "$res" | egrep '^Error')" ]
+        test -s etc/udev/hwdb.bin
         mv etc/udev/hwdb.bin $out
       '';
 
