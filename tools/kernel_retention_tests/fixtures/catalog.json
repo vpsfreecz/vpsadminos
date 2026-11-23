@@ -1,0 +1,12 @@
+{
+  "stableKernelVersion": "6.12.118",
+  "unstableKernelVersion": "6.18.49",
+  "kernels": {
+    "6.12.11": { "dateAdded": "2026-11-01" },
+    "6.12.109": { "dateAdded": "2026-11-02", "keepUntil": "2026-11-03" },
+    "6.12.110": { "dateAdded": "2026-08-01" },
+    "6.12.113": { "dateAdded": "2026-11-01", "keepUntil": "2027-01-31" },
+    "6.12.118": { "dateAdded": "2026-05-01" },
+    "6.18.49": { "dateAdded": "2026-10-01" }
+  }
+}

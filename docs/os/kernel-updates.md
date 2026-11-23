@@ -198,10 +198,12 @@ features, package patches and ZFS revision, hash and patches. Check the
 version-conditional patches and all builder paths; a field that worked on the
 predecessor may not apply to the new release.
 
-Set `dateAdded` to the UTC date you add the version to the OS catalog
-(`YYYY-MM-DD`). Use the catalog date, not the upstream release date or the
-predecessor's date. Keep the original date when you repin a source, move a
-selector, or restore a retired entry.
+For a new version, set `dateAdded` to the UTC date it first enters the OS
+catalog (`YYYY-MM-DD`), not the upstream release date or the predecessor's
+catalog date. Keep the original date when you repin a source or move a
+selector. When reintroducing a retired version, check the previous catalog
+record in Git and restore its original `dateAdded`. The checker cannot verify
+that date automatically if the version is absent from the base tree.
 
 Set `keepUntil` if a version must stay selectable through a particular UTC date,
 for example during a rollback window. A hold can extend the 30-day minimum but
@@ -253,6 +255,67 @@ required check to the trusted workflow or source where supported. If required
 checks and existing direct writers cannot work together under the branch rules,
 resolve that conflict before enabling enforcement. Do not replace the existing
 rules with a PR-only rule or grant the writers a standing bypass.
+
+### Operate weekly kernel retention
+
+The **Weekly kernel retention** workflow runs on `staging`. Once you configure
+an expected fleet digest, it reports eligible kernels without changing the branch
+unless `KERNEL_RETENTION_WRITE` is `true`. It keeps the selected stable and
+unstable versions, kernels reported in use, and entries within their retention
+period. Each retired version gets a commit titled `os: retire kernel <version>`.
+That commit also removes the version's registered tests and private livepatch
+and packaging files. If several versions share a payload, the commit that
+retires its last supported target removes it. The workflow verifies every
+commit and updates `staging` once, with a fast-forward of the whole series.
+
+Before enabling writes:
+
+1. Reconcile the anonymous public-status population with the independent roster
+   of production machines that can run these kernels. Offline or unrepresented
+   machines cannot count as evidence of non-use. Set the repository variable
+   `KERNEL_RETENTION_FLEET_SHA256` to the SHA-256 of the independently reconciled
+   names: lowercase each DNS name, strip one trailing dot, reject duplicates,
+   sort bytewise, and encode each name as UTF-8 followed by one newline. Never
+   derive the expected digest from the public-status response. Keep fleet
+   identities and projections out of Git, logs and uploaded artifacts.
+2. Run the workflow with writes disabled and compare the report with the fleet.
+   Missing, stale, or unrecognized data blocks pruning, as does a membership
+   mismatch. Reconcile membership changes before refreshing the digest. If the
+   public API cannot cover the fleet, leave writes disabled. The workflow does
+   not use a production API token.
+3. On an equivalent test target, prove the built-in GitHub Actions token may
+   publish a disposable candidate ref, dispatch the read-only entry check, and
+   make an ordinary fast-forward with success on that exact commit. Verify a
+   missing check, moved tip, or newly in-use kernel stops the update. Existing
+   **Daily update** and **Update flake inputs** jobs also push directly; resolve
+   their exact-commit admission before making the check required on `staging`.
+   Do not grant an exemption or relax protections to enable this job.
+4. Set `KERNEL_RETENTION_WRITE` to `true` only after those checks succeed. The
+   writer repolls the fleet on the original base after GitHub reports success;
+   it abandons the attempt if eligibility, coverage or the branch tip changes.
+   The run leaves its `kernel-retention-candidate-*` ref as exact-check evidence.
+   A stale attempt is not retried against a new base.
+
+Pruning removes selections from future OS revisions. It does not uninstall a
+running kernel. Git cannot prevent a concurrent node boot. Before rolling out
+or rolling back to an older kernel, or reverting a cleanup, disable new writes
+by setting `KERNEL_RETENTION_WRITE` to `false`. Cancel or let previously queued
+and running retention workflows finish: changing the variable does not stop a
+publisher that already started. Confirm no publisher can still push, then
+check the current `staging` tip before proceeding.
+
+To restore one version, start by reverting its retirement commit. If a later
+commit removed a shared payload that version needs, restore the payload too.
+Revert the affected commits newest first, including the commit that removed
+that payload, or restore the required files from the original base in a
+reviewed recovery commit. To undo the whole series, revert every retirement
+commit from newest to oldest.
+
+Verify the restored catalog entries and original `dateAdded` values, tests,
+livepatch target matches, and documentation navigation. Resolve any navigation
+conflicts before resuming. Add a `keepUntil` hold or fix fleet coverage before
+re-enabling writes. Older OS revisions remain selectable subject to binary
+cache availability.
 
 ## Verify the selected product
 
