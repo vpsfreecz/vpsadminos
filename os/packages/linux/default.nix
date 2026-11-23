@@ -3,6 +3,7 @@
   lib,
   callPackage,
   buildPackages,
+  stdenv,
   fetchurl,
   perl,
   buildLinux,
@@ -56,7 +57,21 @@ callPackage ./generic.nix (rec {
   ++ optional (kernelVersion == "6.12.109") {
     name = "nfs-sysfs-null-rpc-client";
     patch = ./nfs-sysfs-null-rpc-client-6.12.109.patch;
-  };
+  }
+  # GCC plugins use headers from the target compiler. Recheck the header on
+  # the next 6.12 import; 6.12.118 is the last inspected downstream source.
+  ++
+    optional
+      (
+        versions.majorMinor kernelVersion == "6.12"
+        && versionAtLeast "6.12.118" kernelVersion
+        && stdenv.cc.isGNU
+        && versionAtLeast stdenv.cc.version "16"
+      )
+      {
+        name = "gcc-16-plugin-const-casts";
+        patch = ./gcc-16-plugin-const-casts.patch;
+      };
 
   inherit structuredExtraConfig postConfigPatches;
 

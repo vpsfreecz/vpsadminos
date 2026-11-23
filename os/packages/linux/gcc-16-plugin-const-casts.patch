@@ -1,0 +1,32 @@
+From: Kees Cook <kees@kernel.org>
+Subject: gcc-plugins: Always define CONST_CAST_GIMPLE and CONST_CAST_TREE
+Upstream: 905c559e51497b8bfdbb68df8be56d2f70f0de8e
+
+For gcc-16, the CONST_CAST macro family was removed. Add back what
+we were using in gcc-common.h, as they are simple wrappers.
+
+See GCC commits:
+  c3d96ff9e916c02584aa081f03ab999292efbb50
+  458c7926d48959abcb2c1adaa22458e27459a551
+
+Suggested-by: Ingo Saitz <ingo@hannover.ccc.de>
+Link: https://lore.kernel.org/lkml/ab6OKoay0OWkywjK@spatz.zoo
+Fixes: 6b90bd4ba40b ("GCC plugin infrastructure")
+Tested-by: Ivan Bulatovic <combuster@archlinux.us>
+Tested-by: Christopher Cradock <christopher@cradock.myzen.co.uk>
+Signed-off-by: Kees Cook <kees@kernel.org>
+
+vpsAdminOS backport: keep the 6.12 compiler-version guard around the
+casts and adjust the hunk context. The replacement macros are unchanged
+from upstream.
+---
+diff --git a/scripts/gcc-plugins/gcc-common.h b/scripts/gcc-plugins/gcc-common.h
+--- a/scripts/gcc-plugins/gcc-common.h
++++ b/scripts/gcc-plugins/gcc-common.h
+@@ -340,3 +340,5 @@
+ #undef CONST_CAST_GIMPLE
+-#define CONST_CAST_GIMPLE(X) CONST_CAST(gimple, (X))
++#define CONST_CAST_GIMPLE(X) const_cast<gimple>((X))
++#undef CONST_CAST_TREE
++#define CONST_CAST_TREE(X) const_cast<tree>((X))
+ #endif
