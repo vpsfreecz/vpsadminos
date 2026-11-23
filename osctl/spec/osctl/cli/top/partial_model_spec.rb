@@ -2,9 +2,10 @@
 
 require 'spec_helper'
 require 'stringio'
+require 'timeout'
 
 RSpec.describe OsCtl::Cli::Top::PartialModel do
-  let(:state) do
+  let!(:state) do
     {
       inventory: [
         { pool: 'tank', id: '101', init_pid: 201, group_path: 'ct101/user-owned', state: 'running' },
@@ -72,8 +73,12 @@ RSpec.describe OsCtl::Cli::Top::PartialModel do
   before do
     allow(OsCtl::Client).to receive(:new).and_return(client)
     allow(client).to receive(:close)
-    allow(client).to receive(:cmd_data!).with(:event_subscribe).and_return('subscribed')
-    allow(Thread).to receive(:new).and_return(instance_double(Thread))
+    allow(OsCtl::Cli::Top::Monitor).to receive(:new).and_wrap_original do |constructor, model|
+      constructor.call(model).tap do |monitor|
+        allow(monitor).to receive(:subscribe)
+        allow(monitor).to receive(:start) { model.monitor_ready }
+      end
+    end
     allow(client).to receive(:cmd_data!).with(:ct_list, read_hostname: false) { state[:inventory]&.map(&:dup) }
     allow(client).to receive(:cmd_data!).with(:group_cgsubsystems).and_return({})
     allow(OsCtl::Lib::CGroup).to receive(:v1?).and_return(v1)
@@ -154,6 +159,41 @@ RSpec.describe OsCtl::Cli::Top::PartialModel do
     expect(wire[:containers].map { |ct| ct[:id] }).to eq(%w[101 102 [host]])
     expect(wire[:containers].map { |ct| ct[:cpu_usage] }).to eq([180.0, 20.0, 100.0])
     expect(wire[:containers].map { |ct| ct[:loadavg].first }).to eq([12.0, 2.0, 20.0])
+  end
+
+  it 'measures known runs while a single inventory RPC is blocked, then resumes discovery' do
+    partial.setup
+    advance(partial)
+    release = Queue.new
+    requests = []
+    allow(client).to receive(:cmd_data!).with(:ct_list, read_hostname: false) do
+      requests << Thread.current
+      release.pop if requests.one?
+      state[:inventory].map(&:dup)
+    end
+
+    2.times do |i|
+      state[:missing]['ct101/user-owned'] = { memory: 123 + i }
+      Timeout.timeout(2) { advance(partial) }
+      wire = partial.json_data
+      expect(wire).to include(sequence: i + 3, complete: false, inventory_complete: false,
+                              invalid_reason: 'inventory_pending', state_counts: nil)
+      expect(row(wire, '101')).to include(run_verified: true, memory: 123 + i, cpu_usage: 180.0,
+                                          cpu_baseline_sequence: i + 2)
+    end
+    expect(requests.size).to eq(1)
+    state[:inventory].last.update(state: 'running', init_pid: 203, group_path: 'ct103/user-owned')
+    state[:ticks][203] = 333
+    state[:loads]['tank:103'] = [1, 1, 1]
+    release << true
+    expect(requests.first.join(2)).to eq(requests.first)
+    advance(partial)
+    expect(row(partial.json_data, '103')).to include(run_verified: true, cpu_usage: nil)
+    advance(partial)
+    expect(partial.json_data).to include(complete: true, inventory_complete: true)
+  ensure
+    release&.push(true)
+    requests&.first&.join(2)
   end
 
   it 'keeps healthy cumulative origins and isolates run replacement and missing load' do

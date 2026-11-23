@@ -205,8 +205,8 @@ module OsCtl::Cli
       lookup.cmd_data!(:netif_list, **opts).map { |attrs| Top::Container::NetIf.new(attrs) }
     end
 
-    def read_inventory
-      rows = client.cmd_data!(:ct_list, read_hostname: false)
+    def read_inventory(lookup = client)
+      rows = lookup.cmd_data!(:ct_list, read_hostname: false)
       raise InvalidSample, 'invalid_inventory' unless rows.is_a?(Array)
 
       keys = []

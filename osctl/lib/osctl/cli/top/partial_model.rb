@@ -23,6 +23,7 @@ module OsCtl::Cli
                        :catalog, keyword_init: true)
     History = Struct.new(:started, :machine, :rows, :origins, :population_matches, :closed, keyword_init: true)
 
+    INVENTORY_WAIT_SECONDS = 0.25
     CORE_GAUGES = %i[memory memory_limit cpu_limit nproc].freeze
     SOURCES = %i[cpu_us tx rx zfsio].freeze
 
@@ -142,7 +143,7 @@ module OsCtl::Cli
         frames.each_value { |frame| mask_frame(frame, history, late, reason, lifecycle, monitor_lost) }
       end
       history.rows.delete_if { |key, _| dirty?(late, :lifecycle, key) } if lifecycle
-      publish_catalog(sweep, @changes) if sweep.last && @generation == sweep.inventory_generation && !monitor_lost
+      publish_catalog(sweep, @changes) if sweep.last && !sweep.last_error && @generation == sweep.inventory_generation && !monitor_lost
       hard
     end
 
@@ -218,7 +219,12 @@ module OsCtl::Cli
     end
 
     def load_initial_inventory
-      super
+      @bounded_inventory = @json && !netif_enabled? && !zfs_enabled?
+      return super unless @bounded_inventory
+
+      inventory, = sample_inventory
+      @containers = Array(inventory).map { |attrs| new_container(attrs) }
+      rebuild_index
     rescue StandardError
       @containers ||= []
       rebuild_index
@@ -232,7 +238,7 @@ module OsCtl::Cli
         @changes = {}
         sample
       end
-      sweep.initial, sweep.first_error = inventory_result
+      sweep.initial, sweep.first_error = sample_inventory
       catalog = sync { containers.to_h { |ct| [ct.ident, ct.snapshot] } }
       # Prepare both running and stopped catalog entries without socket I/O
       # under the publication lock.
@@ -256,7 +262,7 @@ module OsCtl::Cli
       sweep.loads = read_loads(sweep.rows)
 
       sweep.inventory_generation = sync { @generation }
-      sweep.last, sweep.last_error = inventory_result
+      sweep.last, sweep.last_error = sample_inventory
       endings = Array(sweep.last).to_h { |attrs| [ident(attrs), attrs] }
       sweep.rows.each_value do |row|
         current = endings[row.ct.ident]
@@ -304,8 +310,32 @@ module OsCtl::Cli
       "#{attrs[:pool]}:#{attrs[:id]}"
     end
 
+    # At most one ct_list can be outstanding across both endpoints and all
+    # sweeps. A late response supplies discovery hints for subsequent reads.
+    def sample_inventory
+      return inventory_result unless @bounded_inventory
+
+      if @inventory_read
+        return [@last_inventory, 'inventory_pending'] if @inventory_read.alive?
+
+        finish_inventory_read
+      end
+      @inventory_read = Thread.new { inventory_result }
+      return [@last_inventory, 'inventory_pending'] unless @inventory_read.join(INVENTORY_WAIT_SECONDS)
+
+      inventory, error = finish_inventory_read
+      [error == 'required_read_failed' ? @last_inventory : inventory, error]
+    end
+
+    def finish_inventory_read
+      inventory, error = @inventory_read.value
+      @inventory_read = nil
+      @last_inventory = inventory if inventory
+      [inventory, error]
+    end
+
     def inventory_result
-      inventory = read_inventory
+      inventory = @bounded_inventory ? with_client { |lookup| read_inventory(lookup) } : read_inventory
       if inventory.any? { |row| row[:id] == '[host]' } || inventory.map { |row| ident(row) }.uniq.size != inventory.size
         return [nil, 'invalid_inventory']
       end
@@ -368,7 +398,7 @@ module OsCtl::Cli
         !row.verified? || dirty?(during, :lifecycle, key)
       end
       population_matches = sweep.initial && sweep.last && running_identities(sweep.initial) == running_identities(sweep.last)
-      closed = population_matches && verified.size == sweep.rows.size && during.keys.none? { |type, _| type == :lifecycle }
+      closed = population_matches && !sweep.first_error && !sweep.last_error && verified.size == sweep.rows.size && during.keys.none? { |type, _| type == :lifecycle }
       History.new(started: sweep.started, machine: sweep.machine, rows: verified,
                   population_matches: !!population_matches, closed: !!closed, origins: {})
     end
@@ -502,7 +532,7 @@ module OsCtl::Cli
         sample_started_monotonic_ns: sweep.started, previous_sample_started_monotonic_ns: @previous&.started,
         measurement_window_started_monotonic_ns: reason.nil? ? @strict_previous.started : nil,
         complete: reason.nil?, invalid_reason: reason,
-        inventory_complete: history.closed, state_counts: inventory&.map { |row| row[:state] }&.tally,
+        inventory_complete: history.closed, state_counts: sweep.last_error ? nil : inventory&.map { |row| row[:state] }&.tally,
         cpu: cpu && calc_host_cpu_usage(cpu), loadavg: sweep.load[:values], memory:,
         zfs: sweep.machine.zfs_diff(@previous&.machine), node_totals: node,
         containers: rows << residual
