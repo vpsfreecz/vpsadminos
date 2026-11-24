@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe OsCtl::Oomd::Watcher do
-  let(:controller) { instance_double(OsCtl::Oomd::Controller, start: nil, stop: nil, tick: nil, observe: nil, invalidate: nil) }
+  let(:controller) { instance_double(OsCtl::Oomd::Controller, start: nil, stop: nil, tick: nil, observe: nil, invalidate: nil, mailbox_gap: nil) }
   let(:exporter) { instance_double(OsCtl::Oomd::Exporter, start: nil, stop: nil) }
   let(:watcher) do
     described_class.new(interval: 15, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
@@ -33,7 +33,7 @@ RSpec.describe OsCtl::Oomd::Watcher do
     it "preserves the stream cut before the coalesced result (case #{i + 1})" do
       stopping = Class.new(StandardError)
       callbacks = []
-      allow(controller).to receive(:invalidate) { callbacks << :cut }
+      allow(controller).to receive(:mailbox_gap) { callbacks << :cut }
       allow(controller).to receive(:observe) { |packet| callbacks << packet }
       allow(OsCtl::Oomd::CtTop).to receive(:run).with(15) { |_, &block| stream.each(&block) }
       allow(Thread).to receive(:new).and_yield

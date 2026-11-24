@@ -259,17 +259,107 @@ not free a slot or establish cancellation. An unknown command outcome keeps its
 slot and reservation held and does not trigger automatic retries. Shutdown
 stops new actions and waits for outstanding work.
 
-Event broadcast and policy logging use a separate worker with a sixteen-event
-queue. Notification failure does not retry an action. Queue overflow and
-failure appear as `osctl_oomd_notification_drops` and
-`osctl_oomd_notification_failures`; uncertain effects appear as
-`osctl_oomd_unknown_actions`. The existing textfile exporter publishes these
-metrics. A blocked notification worker cannot retain a completed action slot.
+## Continuous decision evidence
 
-Decision records include gate reasons, host load and median, resource values
-and limits, rank, covered time, scores and budgets, run and sample identities,
-and action outcomes. These records help explain a decision; missing logs cannot
-authorize an action or establish that no action occurred.
+Oomd writes structured JSON records to its service log at the configured sampling
+interval, including when both gates are closed or disabled. Each accepted sample
+has `sample_begin`, a host record, selected container records and `sample_end`.
+The boundary records give expected and emitted line counts. The host record
+reports an empty selection explicitly; absence of container records alone does
+not establish that no VPS qualified.
+
+Host records include acquisition times, observation age and completeness,
+container counts, load, historical median and threshold, and the ratio to that
+threshold. They also include policy settings and the watchdog's observed state,
+pending/slow-run evidence, freshness and diagnostic status. Configured gate
+enables and observed RTNL signals are separate fields. Oomd reads watchdog
+diagnostics even when RTNL activation is disabled; this does not enable actions.
+A missing producer remains unknown.
+
+Container selection happens before applying the host gates. Records cover
+resource/rank qualifiers, containers with accumulated restart credit, score
+changes and expiry. They retain raw CPU/memory readings and limits, rank and
+run identity, eligibility, covered time, before/after scores and the reason an
+action has not been admitted. Unchanged idle ineligible containers produce no
+individual record, including with `verbose = true`. The verbose option remains
+accepted; it does not restore an all-container sample dump. Unknown readings
+and excluded population counts remain explicit. Qualifier, unknown and known
+ineligible counts partition the current population; selected/excluded counts
+describe which rows appear individually. An empty selection can still contain
+unknown eligibility, so it does not establish that every VPS was ineligible.
+
+Admission, dispatch, progress and outcomes use an action ID. Human-readable
+messages accompany structured decision/action fields. Each emitter has its own
+process epoch and ordered event sequence; sample and probe identities join
+related records. Do not infer a global order between producer and oomd logs.
+Application lines are at most 3072 bytes, below the service's 4000-character
+forwarding boundary. Long records use numbered Base64 JSON fragments; action
+progress uses numbered Base64 byte fragments. Byte lengths and part counts
+permit reconstruction without truncating the payload. Missing fragments,
+sequence gaps or an unfinished sample batch mean incomplete evidence.
+
+These samples support comparing host-gate settings at the observed intervals.
+The watchdog's [ordered probe evidence](rtnl-watchdog.md#ordered-probe-evidence)
+supports comparing RTNL latency and sustain thresholds over complete covered
+sequences. Neither stream proves exact counterfactual action timing. Omitted
+ineligible VPSes cannot support evaluating different CPU/memory/rank thresholds.
+
+### Backpressure and action results
+
+The stdout queue holds at most 512 records and 2 MiB of payload, including
+staged, writer-owned and reserved records. A sample batch is limited to 256
+records and 1 MiB. Oomd reserves capacity before committing its scores or
+admitting actions. An oversized batch pauses processing instead of trimming
+its container selection. Output retries retain the record and partial-write
+offset; queue pressure does not deliberately discard accepted records.
+
+When capacity is unavailable, oomd pauses new sample/scoring/action admission.
+It continues reconciling already-received action outcomes, expiring restart
+credit through reserved records and retaining unknown-action reservations.
+Pause/resume records describe the omitted observation span. Sampler mailbox
+coalescing also produces an explicit gap; raw acquisitions are not a lossless
+archive. A gap breaks scoring linkage, and recovery requires fresh linked
+observations before credit resumes. It never credits the missing interval.
+
+Event broadcasting has a separate worker and space for two pending success
+events, including delivery in progress. A blocked broadcast does not stop the
+stdout drain. Failed delivery retries the same event ID; an uncertain earlier
+delivery can cause duplicates. Receivers are not assumed to deduplicate, and
+broadcast retries never execute a container action again.
+
+Action progress can backpressure its individual reader when logging is blocked.
+A terminal response behind unread progress then remains unobserved. This does
+not cancel the daemon command or establish completion. Already-received
+outcomes have reserved evidence capacity. Definitive completion releases the
+physical slot, but new action admission still requires delivery capacity.
+Unknown outcomes retain their slots and VPS reservations.
+
+Shutdown stops admissions and drains accepted evidence, broadcasts and actions.
+A blocked sink, blocked progress/broadcast or unknown action can keep shutdown
+pending. No timeout discards records or implies that a command has completed.
+The existing exporter reports evidence occupancy, pause state and failures,
+notification failures and unknown actions. The legacy
+`osctl_oomd_notification_drops` counter remains zero for this implementation;
+it is not a guarantee against process or storage failure.
+
+### Delivery and retention limits
+
+Acceptance means a complete write to the local stdout sink. It does not mean
+fsync, durable retention or central acknowledgment. The runit service keeps
+local files under `/var/log/osctl-oomd` and forwards to `127.0.0.1:514` over UDP.
+UDP loss cannot be recovered by a later TCP forwarding stage. Process crashes,
+forced termination, disk failure and log rotation remain limits; no durable
+spool is maintained. Missing logs cannot authorize an action or establish that
+no action occurred.
+
+Inherited runit defaults rotate at 1000000 bytes and retain ten old files plus
+the current file. There is no age-driven rotation by default. This is roughly
+10 MB of rotated logs per service, not a guaranteed time span. For an
+unfragmented sample with Q selected containers every I seconds, ordinary sample
+volume is approximately `(3 + Q) / I` records per second, plus action and gap
+records. Fragmentation increases that count. The watchdog has its own log and
+retention. Preserve the relevant intervals before rotation when investigating
+incidents or comparing gate settings.
 
 ## Settings and metric migration
 

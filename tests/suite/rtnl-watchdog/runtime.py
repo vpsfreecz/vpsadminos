@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Actual common Top stream, guarded daemon and two-slot action witnesses."""
 import argparse
+import base64
 from contextlib import contextmanager
 from functools import wraps
 import json
@@ -593,6 +594,38 @@ def lean_guard():
         DIAGNOSTICS = None
 
 
+def progress_messages(records):
+    """Join complete ordered progress fragments to the admitted action/run."""
+    actions = {}
+    pending = {}
+    result = []
+    for record in records:
+        if record.get('type') == 'action_admitted':
+            actions[record['action_id']] = record
+        if record.get('type') != 'action_progress':
+            continue
+        assert record['evidence_schema'] == 1 and record['encoding'] == 'base64', record
+        key = (record['process_epoch'], record['action_id'], record['progress_id'])
+        assert record['action_id'] in actions, record
+        assert type(record['part']) is int and type(record['parts']) is int, record
+        assert 1 <= record['part'] <= record['parts'] and record['original_bytes'] >= 0, record
+        if key not in pending:
+            assert record['part'] == 1, record
+            pending[key] = [record['parts'], record['original_bytes'], []]
+        parts, size, data = pending[key]
+        assert (parts, size) == (record['parts'], record['original_bytes']), record
+        assert record['part'] == len(data) + 1, record
+        data.append(base64.b64decode(record['data'], validate=True))
+        if len(data) == parts:
+            payload = b''.join(data)
+            assert len(payload) == size, record
+            action = actions[record['action_id']]
+            result.append({**action, 'progress_id': record['progress_id'],
+                           'message': f"{action['pool']}:{action['id']} {payload.decode('utf-8')}"})
+    # An unfinished tail is incomplete and cannot witness daemon acceptance.
+    return result
+
+
 class Driver:
     def __init__(self, path):
         self.log = STATE / 'controller.log'
@@ -663,7 +696,7 @@ def dispatch():
         distress = watchdog.frame(lambda r: r['state'] == 'distressed')
         def accepted_b():
             records = driver.records()
-            text = driver.log.read_text()
+            text = '\n'.join(row['message'] for row in progress_messages(records))
             if not all(f'OOMd expected run accepted pid={run[0]} start={run[1]}' in text for run in runs.values()):
                 return None
             latest = records[-1]
@@ -707,7 +740,7 @@ def dispatch():
                            r.get('event') == 'controller' and
                            r['observed_monotonic_ns'] >= initial_tick + 400_000_000 and
                            any(p['id'] == IDS[0] and p.get('unknown') for p in r.get('inflight', []))), None), timeout=1)
-        before_release = driver.log.read_text()
+        before_release = '\n'.join(row['message'] for row in progress_messages(driver.records()))
         for run in runs.values():
             assert before_release.count(f'OOMd expected run accepted pid={run[0]} start={run[1]}') == 1
         assert all(ct['stop'] == 0 for ct in progressed['scores']), progressed
@@ -728,7 +761,7 @@ def dispatch():
             return rows[-2:] if len(rows) >= 2 else None
         retained = until(still_reserved, timeout=10)
         assert all(r['status']['unknown_actions'] == 1 for r in retained), retained
-        assert driver.log.read_text().count(f'tank:{IDS[0]} OOMd expected run accepted ') == 1
+        assert sum(row['message'].count(f'tank:{IDS[0]} OOMd expected run accepted ') for row in progress_messages(driver.records())) == 1
         driver.finish_reconciled_unknown()
         driver = None
         for ct in IDS:

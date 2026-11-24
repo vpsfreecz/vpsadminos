@@ -108,6 +108,7 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
   def baseline.established? = true
   def baseline.median_with(_load) = median
   def baseline.median = 100
+  def baseline.count = 1
   controller = OsCtl::Oomd::Controller.new(
     **controller_options(path), cpu_percent: 90, memory_percent: 95, load_top: 2,
                                 load_multiplier: 2, host_load: baseline, workers: workers

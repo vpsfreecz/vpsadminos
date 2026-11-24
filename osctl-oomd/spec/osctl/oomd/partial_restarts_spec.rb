@@ -10,6 +10,10 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
   let(:controller) { make_controller }
   let(:load_top) { 2 }
 
+  def evidence = (@evidence ||= OsCtl::Oomd::Evidence.new(writer: lambda(&:bytesize)).tap(&:start))
+
+  after { evidence.stop }
+
   def fixture
     JSON.parse(File.read(File.join(REPO_ROOT, 'osctl/spec/osctl/cli/top/fixtures/observation_memory_failure.json')))
   end
@@ -45,7 +49,9 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
   end
 
   def observe(raw, now: raw.fetch('sample_completed_monotonic_ns'))
-    controller.observe(raw, now_ns: now)
+    result = controller.observe(raw, now_ns: now)
+    Timeout.timeout(2) { Thread.pass until evidence.status[:evidence_pending_records] == 0 }
+    result
   end
 
   def score(id = '101') = controller.export.find { |ct| ct.id == id }
@@ -55,7 +61,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     @loads = []
     @watchdog = instance_double(OsCtl::Oomd::WatchdogState, episode: nil, diagnostic: nil, details: nil)
     @host_load = instance_double(OsCtl::Oomd::HostLoad, median: 5, median_with: 5, established?: true)
-    @workers = instance_double(OsCtl::Oomd::ActionWorkers, publish: true, completions: nil, notification_drops: 0, notification_failures: 0)
+    @workers = instance_double(OsCtl::Oomd::ActionWorkers, evidence:, available?: true, completions: nil, notification_drops: 0, notification_failures: 0)
     allow(host_load).to receive(:<<) { |load| loads << load }
     allow(workers).to receive(:dispatch) do |permit|
       permits << permit
@@ -72,7 +78,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     expect(score.stop_qualified_seconds).to eq(15)
     expect(score('102').restart_qualified_seconds).to eq(0)
     expect(loads).to eq([20.0])
-    expect(watchdog).not_to have_received(:episode)
+    expect(watchdog).to have_received(:episode).at_least(:once)
   end
 
   it 'does not manufacture a partial hit from an unobserved seed or unestablished ordinary history' do
@@ -310,8 +316,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
         expect(permits).to be_empty
         expect(controller.inflight).to be_empty
         expect(score.restart_qualified_seconds).to eq(15)
-        expect(workers).not_to have_received(:publish).with(include(type: 'osctl_oomd'))
-        expect(workers).not_to have_received(:publish).with(include(message: /guarded dispatch/))
+        expect(permits).to be_empty
         controller.tick(now_ns: ns(121))
         expect(permits).to be_empty
         expect(observe(frame(8, reason: 'missing_cgroup_value'))).to be(true)

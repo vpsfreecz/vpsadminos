@@ -25,6 +25,23 @@ RSpec.describe OsCtl::Oomd::WatchdogState do
     read(frame['observed_monotonic_ns'])
   end
 
+  [nil, { 'version' => 2, 'state' => 'ready' }, { 'version' => 1, 'state' => 'invalid' }].each do |marker|
+    it "keeps old control compatibility with unverified ordered evidence marker #{marker.inspect}" do
+      frame['log_evidence'] = marker if marker
+      read
+      expect(next_frame).to be_a(Array)
+      expect(reader.observation).to include(ordered_log_support: 'unverified_or_unsupported', cross_stream_complete: false)
+    end
+  end
+
+  %w[ready backpressured draining].each do |state|
+    it "reports producer capability state #{state} without treating it as delivery receipt" do
+      frame['log_evidence'] = { 'version' => 1, 'state' => state }
+      read
+      expect(reader.observation).to include(ordered_log_support: 'supported', ordered_log_state: state, cross_stream_complete: false)
+    end
+  end
+
   it 'requires two ordered fresh frames per observer epoch including first-probe startup distress' do
     expect(read).to be_nil
     expect(next_frame).to be_a(Array)

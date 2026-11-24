@@ -1,6 +1,7 @@
 require 'json'
 require 'libosctl'
 require 'osctl/client'
+require 'osctl/oomd/evidence'
 
 module OsCtl::Oomd
   # Fixed physical command slots. Only the controller grants work; a free slot
@@ -38,9 +39,11 @@ module OsCtl::Oomd
       end
     end
 
-    attr_reader :notification_drops, :notification_failures
+    attr_reader :notification_failures, :evidence
 
-    def initialize(size:, dry_run:, executor: nil, notifier: nil)
+    def notification_drops = 0
+
+    def initialize(size:, dry_run:, executor: nil, notifier: nil, evidence: nil)
       @size = size
       @dry_run = dry_run
       @executor = executor || method(:execute)
@@ -48,22 +51,28 @@ module OsCtl::Oomd
       @jobs = Array.new(size) { SizedQueue.new(1) }
       @busy = Array.new(size, false)
       @results = Queue.new
-      @notifications = SizedQueue.new(16)
-      @notification_drops = 0
+      @evidence = evidence || Evidence.new
+      @notifications = Queue.new
+      @broadcast_mutex = Mutex.new
+      @broadcast_used = 0
       @notification_failures = 0
       @stopping = false
     end
 
     def start
+      @evidence.start
       @notification_thread = Thread.new do
         loop do
           event = @notifications.pop
           break if event == :stop
 
-          begin
+          loop do
             @notifier.call(event)
+            @broadcast_mutex.synchronize { @broadcast_used -= 1 }
+            break
           rescue StandardError
             @notification_failures += 1
+            sleep(0.25) # Retain and retry this same ID; never re-execute work.
           end
         end
       end
@@ -93,12 +102,42 @@ module OsCtl::Oomd
       end
     end
 
+    def available?
+      !@stopping && @busy.include?(false) && @broadcast_mutex.synchronize { @broadcast_used < 2 }
+    end
+
     def dispatch(permit)
       return false if @stopping
 
       slot = @busy.index(false)
       return false unless slot
 
+      permit[:action_id] ||= SecureRandom.hex(16)
+      fields = permit.except(:evidence_ticket, :broadcast_reserved)
+      admission = @evidence.frame('action_admitted', fields.merge(message: "guarded admission #{permit[:action]} #{permit[:pool]}:#{permit[:id]}"))
+      dispatched = @evidence.frame('action_dispatched', fields.merge(message: "guarded dispatch #{permit[:action]} #{permit[:pool]}:#{permit[:id]}"))
+      terminal = @evidence.frame('action_result', fields.merge(result: :simulated, message: "would #{permit[:action]} #{permit[:pool]}:#{permit[:id]} result=simulated"))
+      ticket = @evidence.reserve(admission.size + dispatched.size + terminal.size)
+      return false unless ticket
+
+      reserved = @broadcast_mutex.synchronize do
+        next false if @broadcast_used >= 2
+
+        @broadcast_used += 1
+        true
+      end
+      unless reserved
+        @evidence.release(ticket)
+        return false
+      end
+      if block_given? && !yield
+        @evidence.release(ticket)
+        @broadcast_mutex.synchronize { @broadcast_used -= 1 }
+        return false
+      end
+      permit[:evidence_ticket] = ticket
+      permit[:broadcast_reserved] = true
+      @evidence.batch(admission + dispatched, split_ticket(ticket, admission.size + dispatched.size))
       @busy[slot] = true
       @jobs[slot] << permit
       true
@@ -108,31 +147,51 @@ module OsCtl::Oomd
       loop do
         slot, permit, status = @results.pop(true)
         @busy[slot] = false unless status == :unknown
+        fields = permit.except(:evidence_ticket, :broadcast_reserved)
+        label = status == :simulated ? "would #{permit[:action]}" : permit[:action]
+        @evidence.batch(@evidence.frame('action_result', fields.merge(result: status, message: "#{label} #{permit[:pool]}:#{permit[:id]} result=#{status}")), permit.fetch(:evidence_ticket))
+        if status == :success
+          publish_success(type: 'osctl_oomd', event_id: permit[:action_id], action_id: permit[:action_id],
+                          opts: { pool: permit[:pool], id: permit[:id], action: permit[:action], time: permit[:time] })
+        else
+          @broadcast_mutex.synchronize { @broadcast_used -= 1 }
+        end
         yield permit, status
       end
     rescue ThreadError
       nil
     end
 
-    def publish(event)
-      @notifications.push(event, true)
-      true
-    rescue ThreadError
-      @notification_drops += 1
-      false
-    end
-
     def stop
       @stopping = true
       @jobs.each { |queue| queue << :stop }
+      while @busy.any?
+        completions { |permit, status| yield permit, status if block_given? }
+        sleep(0.01) if @busy.any?
+      end
       @threads&.each(&:join)
       @notifications << :stop
       @notification_thread&.join
+      @evidence.stop
     end
 
     protected
 
+    # Success records already own one of two slots, including in-flight writes.
+    def publish_success(event)
+      @notifications << event
+      true
+    end
+
+    # Split unused reservation without altering total payload accounting.
+    def split_ticket(ticket, count)
+      ticket[0] -= count
+      ticket[1] -= count * Evidence::LINE_BYTES
+      [count, count * Evidence::LINE_BYTES]
+    end
+
     def execute(permit)
+      permit[:action_id] ||= SecureRandom.hex(16)
       client = ActionClient.new
       client.open
       response = client.cmd_response(
@@ -142,10 +201,16 @@ module OsCtl::Oomd
         expected_init_start_time: permit.fetch(:run).fetch(1),
         wait: 120
       ) do |message|
-        # No stdout or logger call in the execution slot: even progress uses
-        # the one bounded notification worker. Drops stay visible in metrics.
-        publish(type: :log, level: :info,
-                message: "#{permit.fetch(:pool)}:#{permit.fetch(:id)} #{message.byteslice(0, 256)}")
+        bytes = message
+        parts = [(bytes.bytesize / 1440.0).ceil, 1].max
+        progress_id = SecureRandom.hex(16)
+        parts.times do |part|
+          record = @evidence.frame('action_progress', action_id: permit[:action_id], progress_id:,
+                                                      part: part + 1, parts:, original_bytes: bytes.bytesize,
+                                                      encoding: 'base64', data: Base64.strict_encode64(bytes.byteslice(part * 1440, 1440) || ''))
+          ticket = @evidence.reserve(record.size, wait: true)
+          @evidence.batch(record, ticket)
+        end
       end
       response.ok?
     ensure
@@ -153,11 +218,6 @@ module OsCtl::Oomd
     end
 
     def notify(event)
-      if event[:type] == :log
-        log(event.fetch(:level), event.fetch(:message))
-        return
-      end
-
       r, w = IO.pipe
       pid = Process.spawn('osctl', 'event', 'broadcast', in: r, close_others: true)
       r.close

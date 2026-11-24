@@ -24,6 +24,9 @@ module OsCtl::Oomd
 
       def push(item)
         @mutex.synchronize do
+          if @latest && [:child_started, {}].include?(item)
+            omit_latest
+          end
           case item
           when :child_started
             @new_child = true
@@ -33,20 +36,35 @@ module OsCtl::Oomd
             @broken = true
             @latest = nil
           else
-            @broken = true if @latest && !@latest.eql?(item)
+            if @latest && !@latest.eql?(item)
+              @broken = true
+              omit_latest
+            end
             @latest = item
           end
         end
       end
 
+      def omit_latest
+        @omitted_first ||= @latest['sequence']
+        @omitted_first_epoch ||= @latest['epoch']
+        @omitted_last = @latest['sequence']
+        @omitted_last_epoch = @latest['epoch']
+        @omitted_count = (@omitted_count || 0) + 1
+      end
+
       def drain(controller, **)
-        new_child, broken, data = @mutex.synchronize do
-          current = [@new_child, @broken, @latest]
-          @new_child = @broken = @latest = nil
+        new_child, broken, data, gap = @mutex.synchronize do
+          current = [@new_child, @broken, @latest, { first: @omitted_first, last: @omitted_last, count: @omitted_count || 0, first_epoch: @omitted_first_epoch, last_epoch: @omitted_last_epoch }]
+          @new_child = @broken = @latest = @omitted_first = @omitted_last = @omitted_count = nil
+          @omitted_first_epoch = @omitted_last_epoch = nil
           current
         end
+        controller.mailbox_gap(**gap) if new_child && !broken && gap[:count] > 0
         controller.child_started if new_child
-        controller.invalidate if broken
+        if broken
+          controller.mailbox_gap(**gap)
+        end
         return controller.observe(data, **) if data
 
         controller.tick(**)

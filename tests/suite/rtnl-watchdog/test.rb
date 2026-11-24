@@ -65,8 +65,17 @@ describe 'active RTNL watchdog and guarded oomd integration', order: :defined do
 
   it 'applies shared qualified seconds and fresh gate evidence while preserving load-only stop history' do
     _, output = machine.succeeds('rtnl-watchdog-policy-test', timeout: 30)
-    expect(JSON.parse(output).fetch('mode')).to eq('controlled_inputs_only')
     puts output
+    records = output.lines.reject { |line| line.strip.empty? }.map { |line| JSON.parse(line) }
+    expect(records).to all(be_a(Hash))
+    summaries = records.select { |record| record['mode'] == 'controlled_inputs_only' }
+    expect(summaries.size).to eq(1)
+    expect(summaries.first).to include(
+      'original_stop_score' => 1.0, 'fresh_dispatches' => be >= 1,
+      'no_real_actions' => true,
+      'predicates' => contain_exactly('memory', 'CPU', 'host-inclusive-top-N'),
+      'guards' => contain_exactly('duplicate', 'incomplete', 'healthy', 'error', 'stale', 'epoch')
+    )
   end
 
   it 'dispatches a second guarded action while the first remains blocked and suppresses duplicates' do

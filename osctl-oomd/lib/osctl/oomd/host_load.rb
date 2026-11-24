@@ -26,6 +26,8 @@ module OsCtl::Oomd
       nil
     end
 
+    def count = @loads.size
+
     def established?
       !@loads.empty?
     end

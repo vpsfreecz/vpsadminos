@@ -6,8 +6,8 @@ require 'timeout'
 RSpec.describe OsCtl::Oomd::Controller do
   let(:watchdog) { instance_double(OsCtl::Oomd::WatchdogState, episode: nil, diagnostic: nil, details: nil) }
   let(:workers) do
-    instance_double(OsCtl::Oomd::ActionWorkers, start: nil, stop: nil, publish: true,
-                                                completions: nil, notification_drops: 0, notification_failures: 0)
+    instance_double(OsCtl::Oomd::ActionWorkers, start: nil, stop: nil,
+                                                evidence:, available?: true, completions: nil, notification_drops: 0, notification_failures: 0)
   end
   let(:host_load) { instance_double(OsCtl::Oomd::HostLoad, median: 100, median_with: 100, established?: true) }
   let(:permits) { [] }
@@ -16,6 +16,17 @@ RSpec.describe OsCtl::Oomd::Controller do
                         load_top: 2, restart_after_seconds: 90, stop_after_seconds: 600, rtnl_watchdog: { 'enable' => true },
                         watchdog:, workers:, host_load:)
   end
+
+  def evidence_lines = (@evidence_lines ||= [])
+
+  def evidence
+    @evidence ||= OsCtl::Oomd::Evidence.new(writer: lambda { |bytes|
+      evidence_lines << bytes
+      bytes.bytesize
+    }).tap(&:start)
+  end
+
+  after { evidence.stop }
 
   before do
     controller.child_started
@@ -64,7 +75,9 @@ RSpec.describe OsCtl::Oomd::Controller do
   end
 
   def observe(sequence, time, rows = [row], **changes)
-    controller.observe(frame(sequence, time, rows, **changes), now_ns: ns(time))
+    result = controller.observe(frame(sequence, time, rows, **changes), now_ns: ns(time))
+    Timeout.timeout(2) { Thread.pass until evidence.status[:evidence_pending_records] == 0 }
+    result
   end
 
   def seed(sequence, time, rows = [row])
@@ -78,6 +91,83 @@ RSpec.describe OsCtl::Oomd::Controller do
   end
 
   def score = controller.export.find { |ct| ct.id == 'a' }
+
+  it 'emits pre-gate qualifiers with both gates disabled independent of verbose' do
+    actor = described_class.new(interval:, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
+                                load_top: 2, restart_after_seconds: 90, stop_after_seconds: 600,
+                                load_enable: false, rtnl_watchdog: {}, workers:, host_load:, watchdog:, verbose: false)
+    actor.child_started
+    expect(actor.observe(frame(1, 100), now_ns: ns(100))).to be(true)
+    Timeout.timeout(2) { Thread.pass until evidence.status[:evidence_pending_records] == 0 }
+    records = evidence_lines.map { |line| JSON.parse(line) }
+    expect(records.map { |r| r['type'] }).to eq(%w[sample_begin host container sample_end])
+    expect(records[1]).to include('load_enable' => false, 'rtnl_enable' => false)
+    expect(records[2]).to include('qualified' => true, 'restart_after' => 0.0, 'load_gate' => false)
+    expect(watchdog).to have_received(:episode)
+    expect(permits).to be_empty
+  end
+
+  it 'emits closed-gate host evidence with400idle CTs and verbose=true without idle row flooding' do
+    actor = described_class.new(interval:, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
+                                load_top: 2, restart_after_seconds: 90, stop_after_seconds: 600,
+                                rtnl_watchdog: {}, workers:, host_load:, watchdog:, verbose: true)
+    actor.child_started
+    rows = Array.new(400) { |i| row(i.to_s, memory: 1, cpu_usage: 1) }
+    expect(actor.observe(frame(1, 100, rows), now_ns: ns(100))).to be(true)
+    Timeout.timeout(2) { Thread.pass until evidence.status[:evidence_pending_records] == 0 }
+    records = evidence_lines.map { |line| JSON.parse(line) }
+    expect(records.map { |r| r['type'] }).to eq(%w[sample_begin host sample_end])
+    expect(records[1]).to include('population' => 400, 'selected' => 0, 'selection' => 'none', 'excluded_count' => 400)
+  end
+
+  it 'pauses an oversized sample before score commit then resumes without backlog credit' do
+    observe(1, 100, loadavg: [300])
+    observe(2, 115, loadavg: [300])
+    expect(score.restart_qualified_seconds).to eq(15)
+    controller.instance_variable_set(:@load_top, 400)
+    too_many = Array.new(400) { |i| row(i.to_s) }
+    expect(controller.observe(frame(3, 130, too_many, loadavg: [300]), now_ns: ns(130))).to be(false)
+    expect(score.restart_qualified_seconds).to eq(15)
+    expect(controller.status[:evidence_paused]).to eq(1)
+    observe(4, 145, loadavg: [300])
+    expect(score.restart_qualified_seconds).to eq(0) # U elapsed while paused.
+    expect(permits).to be_empty
+    records = evidence_lines.map { |line| JSON.parse(line) }
+    expect(records).to include(include('type' => 'score_expired', 'restart_before' => 15.0))
+    expect(records).to include(include('type' => 'evidence_paused', 'reason' => 'sample_oversize'))
+    expect(records).to include(include('type' => 'evidence_resumed', 'omitted_count' => 1))
+    expect(records.select { |r| r['sample_sequence'] == 4 && r['type'] == 'sample_begin' }).to be_empty
+  end
+
+  it 'emits the first sampler-loss marker before recovery without repetitive invalid-frame records' do
+    observe(1, 100, loadavg: [300])
+    controller.invalidate
+    controller.invalidate
+    Timeout.timeout(2) { Thread.pass until evidence.status[:evidence_pending_records] == 0 }
+    records = evidence_lines.map { |line| JSON.parse(line) }
+    expect(records.count { |record| record['type'] == 'evidence_paused' }).to eq(1)
+    expect(controller.status[:evidence_paused]).to eq(1)
+    expect(records.none? { |record| record['type'] == 'evidence_resumed' }).to be(true)
+  end
+
+  it 'keeps reserved expiry and received actions live while sample admission is blocked' do
+    observe(1, 100, loadavg: [300])
+    observe(2, 115, loadavg: [300])
+    held = evidence.reserve(300)
+    expect(controller.observe(frame(3, 130, loadavg: [300]), now_ns: ns(130))).to be(false)
+    expect(score.restart_qualified_seconds).to eq(15)
+    controller.tick(now_ns: ns(145))
+    expect(score.restart_qualified_seconds).to eq(0)
+    Timeout.timeout(2) { Thread.pass until evidence.status[:evidence_pending_records] == 0 }
+    records = evidence_lines.map { |line| JSON.parse(line) }
+    expect(records).to include(include('type' => 'score_expired'))
+    expect(controller.status[:evidence_paused]).to eq(1)
+    evidence.release(held)
+    observe(4, 145, loadavg: [300])
+    expect(score.restart_qualified_seconds).to eq(0)
+  ensure
+    evidence.release(held)
+  end
 
   [1, 5, 15].each do |rate|
     context "with interval #{rate}" do
@@ -214,7 +304,10 @@ RSpec.describe OsCtl::Oomd::Controller do
     it "simulates #{action} without executor or real success event (RTNL enabled: #{enabled})" do
       executed = Queue.new
       events = Queue.new
-      actual_workers = OsCtl::Oomd::ActionWorkers.new(size: 1, dry_run: true,
+      actual_workers = OsCtl::Oomd::ActionWorkers.new(size: 1, dry_run: true, evidence: OsCtl::Oomd::Evidence.new(writer: lambda { |bytes|
+        evidence_lines << bytes
+        bytes.bytesize
+      }),
                                                       executor: lambda { |permit|
                                                         executed << permit
                                                         true
@@ -247,8 +340,9 @@ RSpec.describe OsCtl::Oomd::Controller do
       actor = nil
       expect(executed).to be_empty
       notices = Array.new(events.size) { events.pop }
-      expect(notices).to all(include(type: :log))
-      expect(notices).to include(include(message: /would #{action} tank:a.*result=simulated/))
+      expect(notices).to be_empty
+      records = evidence_lines.map { |line| JSON.parse(line, symbolize_names: true) }
+      expect(records).to include(include(type: 'action_result', result: 'simulated', message: /would #{action} tank:a.*result=simulated/))
     ensure
       actor&.stop
     end
@@ -293,8 +387,7 @@ RSpec.describe OsCtl::Oomd::Controller do
         expect(permits).to be_empty
         expect(controller.inflight).to be_empty
         expect(score.restart_qualified_seconds).to eq(90)
-        expect(workers).not_to have_received(:publish).with(include(type: 'osctl_oomd'))
-        expect(workers).not_to have_received(:publish).with(include(message: /guarded dispatch/))
+        expect(permits).to be_empty
       end
     end
   end

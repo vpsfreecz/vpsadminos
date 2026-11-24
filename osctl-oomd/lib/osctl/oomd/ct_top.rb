@@ -22,14 +22,12 @@ module OsCtl::Oomd
                    '--no-netif', '--no-zfs', '--no-iostat', '--no-processes']
         pid = Process.spawn(*command, out: w, close_others: true)
         w.close
-        log(:info, "Started with pid #{pid}")
 
         yield(:child_started)
         read_child(r, &)
         r.close
         yield({})
         Process.wait(pid)
-        log(:warn, "ct top exited (status #{$?.exitstatus.inspect}); retrying in 5 seconds")
         sleep(5)
       end
     end
@@ -53,10 +51,7 @@ module OsCtl::Oomd
         data = parse(line)
         unless typed_record?(data) && (epoch.nil? || data['epoch'] == epoch)
           yield({})
-          unless diagnosed
-            log(:warn, 'Ignoring invalid or unsupported ct top output')
-            diagnosed = true
-          end
+          diagnosed ||= true
           next
         end
         epoch ||= data['epoch']

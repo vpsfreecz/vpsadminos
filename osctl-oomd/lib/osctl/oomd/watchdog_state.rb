@@ -22,7 +22,7 @@ module OsCtl::Oomd
       @bound = false
     end
 
-    attr_reader :diagnostic, :details
+    attr_reader :diagnostic, :details, :observation
 
     def episode(now_ns:)
       if @last_read_ns && now_ns - @last_read_ns > @max_age_ns
@@ -31,6 +31,7 @@ module OsCtl::Oomd
       @last_read_ns = now_ns
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC, :nanosecond)
       frame = read_frame
+      @observation = diagnostic_observation(frame)
       now_ns += Process.clock_gettime(Process::CLOCK_MONOTONIC, :nanosecond) - started
       unless valid?(frame, now_ns) && valid_summary?(frame)
         @diagnostic = 'unavailable or incompatible watchdog latency coverage'
@@ -91,10 +92,26 @@ module OsCtl::Oomd
       @active_proof = proof
       [epoch, coverage, @continuity, @activation]
     rescue SystemCallError, IOError, JSON::ParserError, KeyError, TypeError, ArgumentError
+      @observation = { ordered_log_support: 'unknown', reason: 'read_error' }
       invalidate
     end
 
     protected
+
+    def diagnostic_observation(frame)
+      return { ordered_log_support: 'unknown', reason: 'invalid_frame' } unless frame.is_a?(Hash)
+
+      marker = frame['log_evidence']
+      supported = marker.is_a?(Hash) && marker['version'] == 1 && %w[ready backpressured draining].include?(marker['state'])
+      { ordered_log_support: supported ? 'supported' : 'unverified_or_unsupported',
+        ordered_log_state: supported ? marker['state'] : nil,
+        # This is capability/pressure metadata, never a local-write receipt.
+        cross_stream_complete: false,
+        epoch: frame['epoch'], sequence: frame['sequence'], probe_sequence: frame['probe_sequence'],
+        observed_monotonic_ns: frame['observed_monotonic_ns'], state: frame['state'],
+        started_monotonic_ns: frame['started_monotonic_ns'], completed_monotonic_ns: frame['completed_monotonic_ns'],
+        error_code: frame['error_code'], latency_run: frame['latency_run'] }
+    end
 
     def read_frame
       File.open(@path, File::RDONLY | File::NOFOLLOW | File::NONBLOCK) do |io|
