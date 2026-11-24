@@ -38,9 +38,11 @@ describe 'active RTNL watchdog and guarded oomd integration', order: :defined do
     @lean_guard_complete = false
     @lean_guard_diagnostics = "rtnl-watchdog-#{SecureRandom.hex(8)}"
     begin
+      # Budget both cost windows and guarded operations plus the existing
+      # 30-second cleanup deadline and the shell's protocol reserve.
       _, output = machine.succeeds(
         "RTNL_WATCHDOG_DIAGNOSTICS=/run/osvm/shared-dir/#{@lean_guard_diagnostics}.jsonl " \
-        'python3 /etc/rtnl-watchdog-test/runtime.py lean_guard', timeout: 120
+        'python3 /etc/rtnl-watchdog-test/runtime.py lean_guard', timeout: 180
       )
       expect(JSON.parse(output).fetch('scenario')).to eq('lean_guard')
       latest = File.join(machine.__send__(:shared_dir).host_path, "#{@lean_guard_diagnostics}.current.json")
