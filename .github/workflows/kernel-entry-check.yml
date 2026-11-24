@@ -4,6 +4,17 @@ on:
   pull_request:
     branches: [staging]
     types: [opened, synchronize, reopened, edited]
+    # Keep this list in sync with catalog imports, patches and checker inputs.
+    paths:
+      - 'os/packages/linux/available-kernels.nix'
+      - 'os/packages/linux/catalog'
+      - 'os/packages/linux/catalog/**'
+      - 'os/packages/linux/kernel-specific'
+      - 'os/packages/linux/kernel-specific/**'
+      - 'tools/kernel-entry-check.py'
+      - 'tools/test-kernel-entry-check.py'
+      - '.overcommit.yml'
+      - '.github/workflows/kernel-entry-check.yml'
   workflow_dispatch:
 
 permissions:

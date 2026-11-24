@@ -230,31 +230,21 @@ The check evaluates the Nix catalog without building packages or querying the
 fleet. It rejects missing or unknown fields, invalid dates, dangling selectors,
 and changes to `dateAdded` for versions present in the base and candidate.
 
-### Require the kernel entry check on staging
+### Check kernel entries in GitHub Actions
 
-The `kernel-entry-correctness` job checks the candidate merge commit for every
-PR targeting `staging`, even when the PR does not touch kernels. After the
-backfill and workflow land, use an authorized test target to verify three
-cases: a valid candidate passes, an invalid candidate fails, and an unrelated
-PR still reports the check. Verify that fork PRs use a read-only token and
-that the test branch rule blocks a merge when the check fails or is missing.
-If you use a merge queue, the check must also run on the merge group's SHA.
+On PRs targeting `staging`, GitHub starts `kernel-entry-correctness` when the PR
+changes the catalog or another checker input. The job verifies the candidate
+merge commit and its first parent, then evaluates the full catalog. The PR check
+is advisory, not a required GitHub status. An unrelated PR normally has no run;
+Overcommit still checks the full staged catalog locally. If you add a catalog
+import or patch outside the listed paths, update `pull_request.paths` in
+`.github/workflows/kernel-entry-check.yml` in the same change.
 
-Before requiring the check on `staging`, verify that the branch rules let human
-maintainers and scheduled writers make ordinary fast-forward updates with the
-check passing on the exact commit they will push. To obtain the result, publish
-the candidate on an approved development ref and dispatch **Kernel entry check**
-on that ref. The workflow compares the candidate to the current `staging` tip
-and rejects a candidate that no longer descends from it. Confirm the successful
-result belongs to the commit to be pushed and that `staging` has not moved.
-
-An administrator can then require the observed `kernel-entry-correctness` check
-from GitHub Actions on `staging`. Confirm the result after changes to the head
-or base. Keep the workflow and checker under maintainer review, and bind the
-required check to the trusted workflow or source where supported. If required
-checks and existing direct writers cannot work together under the branch rules,
-resolve that conflict before enabling enforcement. Do not replace the existing
-rules with a PR-only rule or grant the writers a standing bypass.
+A manual dispatch of **Kernel entry check** always evaluates the catalog. It
+uses the current `staging` tip as the base and rejects a candidate that no
+longer descends from it. The weekly retention writer requires a successful
+result from this workflow on the exact commit it intends to push. That safeguard
+applies to the writer independently of the advisory PR check.
 
 ### Operate weekly kernel retention
 
@@ -286,10 +276,8 @@ Before enabling writes:
 3. On an equivalent test target, prove the built-in GitHub Actions token may
    publish a disposable candidate ref, dispatch the read-only entry check, and
    make an ordinary fast-forward with success on that exact commit. Verify a
-   missing check, moved tip, or newly in-use kernel stops the update. Existing
-   **Daily update** and **Update flake inputs** jobs also push directly; resolve
-   their exact-commit admission before making the check required on `staging`.
-   Do not grant an exemption or relax protections to enable this job.
+   missing check, moved tip, or newly in-use kernel stops the update. Do not
+   grant an exemption or relax protections to enable this job.
 4. Set `KERNEL_RETENTION_WRITE` to `true` only after those checks succeed. The
    writer repolls the fleet on the original base after GitHub reports success;
    it abandons the attempt if eligibility, coverage or the branch tip changes.
