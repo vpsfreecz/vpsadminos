@@ -38,13 +38,17 @@ The guest runs no Prometheus server, and the watchdog opens no listener.
 The policy cases use ordinary JSON Top with `--no-netif`, `--no-zfs`,
 `--no-iostat` and `--no-processes`, real daemon commands and controlled
 containers. The common
-`top_schema: 1` metadata must report coherent current-run core data and explicit
+`top_schema: 2` metadata must report coherent current-run core data and explicit
 nulls for disabled collectors. Each container has a 128 MiB cap, a resident
 4 MiB variable retained by its init shell and a 100-percent CPU limit. Only the
-disposable policy scenario shortens observations to one second. It explicitly sets ordinary thresholds to eight restart and
-forty stop hits, with two fresh qualifying observations during watchdog distress.
-Production defaults retain fifteen-second observations. Memory, CPU, ranking
-and current-run checks still apply.
+disposable policy scenario shortens observations to one second. It uses a
+shared two-second restart budget, a 600-second stop budget and a one-second
+RTNL pending threshold to exercise guarded actions within the holder's safety
+cap. Production defaults are configurable: five-second observations, 90 qualified
+seconds for restart, 600 for stop, and 30 seconds for RTNL activation. Memory,
+CPU, ranking and current-run checks still apply. Synthetic input tests establish
+parser and scoring behavior; the real Top and daemon cases establish guarded
+container effects.
 
 Request dispatch, daemon guard acceptance, payload EXIT and command completion
 are separate observations. Shared kernel or NFS waits may delay both actions;
@@ -94,12 +98,13 @@ and the exporter, sampler, controller and daemon. Process utime plus stime inclu
 charged to the observer and helper; other system work is outside the sample.
 This does not establish whole-node overhead or a general performance guarantee.
 
-The existing one-container Top/guard case also runs two sequential warmed
-ten-second windows at a one-second rate. Both disable iostat and process
-collection. Network and ZFS collection use their defaults in the first window
+The existing one-container Top/guard case runs two sequential warmed ten-second
+windows at the five-second sampling default. Both collector configurations
+disable iostat and process collection. Network and ZFS collection use their defaults in the first window
 and are disabled in the second. The output records each command, effective
-collectors, sample count, sweep/window timestamps, snapshot duration and the
-Top process's CPU/RSS with clock-tick resolution. Snapshot duration encloses
+collectors, sample count, missing sequence numbers, incomplete observations,
+sweep/window timestamps, snapshot duration and the Top process's CPU/RSS with
+clock-tick resolution. Snapshot duration encloses
 acquisition and projection, including enabled network/objset/ARC reads. The
 CPU measurement window describes preceding coherent sample start to current
 sample completion, not exact CPU-read instants. Iostat work is excluded from

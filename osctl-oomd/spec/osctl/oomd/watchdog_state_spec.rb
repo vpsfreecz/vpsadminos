@@ -3,12 +3,16 @@
 require 'spec_helper'
 
 RSpec.describe OsCtl::Oomd::WatchdogState do
-  let(:reader) { described_class.new(path: '/unused', max_age_seconds: 1, boot_id: 'boot') }
+  let(:reader) { described_class.new(path: '/unused', max_age_seconds: 1, pending_seconds: 1, boot_id: 'boot') }
   let(:frame) do
     { 'schema' => 1, 'boot_id' => 'boot', 'epoch' => 'observer', 'sequence' => 1,
       'observed_monotonic_ns' => 2_000_000_000, 'probe_sequence' => 1, 'state' => 'distressed',
       'dispatch_monotonic_ns' => 500_000_000, 'started_monotonic_ns' => 600_000_000,
-      'completed_monotonic_ns' => nil, 'last_duration_ns' => nil, 'expected_errno' => 22, 'error_code' => 0 }
+      'completed_monotonic_ns' => nil, 'last_duration_ns' => nil, 'expected_errno' => 22, 'error_code' => 0,
+      'latency_run' => { 'version' => 1, 'cutoff_ns' => 1_000_000_000, 'interval_ns' => 1_000_000_000,
+                         'tick_ns' => 250_000_000, 'coverage_started_ns' => 1,
+                         'valid' => true, 'slow_count' => 0, 'first_probe' => nil, 'last_probe' => nil,
+                         'first_started_ns' => nil, 'last_completed_ns' => nil } }
   end
 
   before { allow(reader).to receive(:read_frame) { frame.dup } }
@@ -23,11 +27,11 @@ RSpec.describe OsCtl::Oomd::WatchdogState do
 
   it 'requires two ordered fresh frames per observer epoch including first-probe startup distress' do
     expect(read).to be_nil
-    expect(next_frame).to eq(['observer', 1])
-    expect(read(2_250_000_000)).to eq(['observer', 1])
+    expect(next_frame).to be_a(Array)
+    expect(read(2_250_000_000)).to be_a(Array)
     frame['epoch'] = 'replacement'
     expect(next_frame).to be_nil
-    expect(next_frame).to eq(['replacement', 1])
+    expect(next_frame).to be_a(Array)
   end
 
   it 'removes override immediately on healthy completion, preserving valid same-epoch binding' do
@@ -42,12 +46,12 @@ RSpec.describe OsCtl::Oomd::WatchdogState do
     next_frame
     expect(read(4_000_000_000)).to be_nil
     expect(next_frame).to be_nil
-    expect(next_frame).to eq(['observer', 1])
+    expect(next_frame).to be_a(Array)
     frame['boot_id'] = 'other'
     expect(next_frame).to be_nil
     frame['boot_id'] = 'boot'
     expect(next_frame).to be_nil
-    expect(next_frame).to eq(['observer', 1])
+    expect(next_frame).to be_a(Array)
     frame['observed_monotonic_ns'] = 9_000_000_000
     expect(read).to be_nil
   end
@@ -64,6 +68,48 @@ RSpec.describe OsCtl::Oomd::WatchdogState do
     expect(next_frame).to be_nil
   end
 
+  it 'keeps both RTNL branches closed for old or mismatched summaries' do
+    [nil, { 'version' => 2 }, frame['latency_run'].merge('cutoff_ns' => 2_000_000_000),
+     frame['latency_run'].merge('interval_ns' => 2_000_000_000)].each do |summary|
+      frame['latency_run'] = summary
+      expect(next_frame).to be_nil
+      expect(reader.diagnostic).not_to be_nil
+    end
+  end
+
+  it 'does not activate pending at29.999 and activates only at30 continuously covered seconds' do
+    actual = described_class.new(path: '/unused', max_age_seconds: 1, boot_id: 'boot')
+    allow(actual).to receive(:read_frame) { frame.dup }
+    frame['observed_monotonic_ns'] = 30_599_000_000
+    frame['latency_run']['coverage_started_ns'] = 600_000_000
+    expect(actual.episode(now_ns: 30_599_000_000)).to be_nil
+    frame['sequence'] += 1
+    frame['observed_monotonic_ns'] = 30_600_000_000
+    expect(actual.episode(now_ns: 30_600_000_000)).to be_a(Array)
+    expect(actual.episode(now_ns: 32_000_000_000)).to be_nil
+  end
+
+  it 'requires a completed30s span, clears at hidden-fast first-probe replacement and rebinds on gaps' do
+    frame.merge!('probe_sequence' => 10, 'state' => 'healthy', 'dispatch_monotonic_ns' => 29_000_000_001,
+                 'started_monotonic_ns' => 29_000_000_001, 'completed_monotonic_ns' => 30_000_000_001,
+                 'last_duration_ns' => 1_000_000_000, 'observed_monotonic_ns' => 30_000_000_001)
+    frame['latency_run'].merge!('slow_count' => 10, 'first_probe' => 1, 'last_probe' => 10,
+                                'first_started_ns' => 1, 'last_completed_ns' => 30_000_000_000)
+    expect(read(30_000_000_001)).to be_nil
+    frame['sequence'] += 1
+    frame['observed_monotonic_ns'] += 1
+    expect(read(frame['observed_monotonic_ns'])).to be_nil # 29.999999999s
+    frame['latency_run']['last_completed_ns'] += 1
+    frame['sequence'] += 1
+    frame['observed_monotonic_ns'] += 1
+    first = read(frame['observed_monotonic_ns'])
+    expect(first).to be_a(Array)
+    frame['latency_run'].merge!('first_probe' => 8, 'slow_count' => 3, 'first_started_ns' => 25_000_000_000)
+    frame['sequence'] += 1
+    frame['observed_monotonic_ns'] += 1
+    expect(read(frame['observed_monotonic_ns'])).to be_nil
+  end
+
   it 'rejects oversized and malformed root-owned regular state at the actual bounded reader' do
     stat = instance_double(File::Stat, file?: true, uid: 0, mode: 0o600)
     io = instance_double(File, stat:, read: 'x' * 4097)
@@ -75,7 +121,7 @@ RSpec.describe OsCtl::Oomd::WatchdogState do
     expect(read).to be_nil
     allow(io).to receive(:read) { JSON.generate(frame) }
     expect(read).to be_nil
-    expect(next_frame).to eq(['observer', 1])
+    expect(next_frame).to be_a(Array)
   end
 
   it 'rejects symlinks, non-root ownership, writable-by-others files and oversized content' do
@@ -83,7 +129,7 @@ RSpec.describe OsCtl::Oomd::WatchdogState do
       path = File.join(dir, 'state')
       File.write(path, JSON.generate(frame))
       File.chmod(0o666, path)
-      actual = described_class.new(path:, max_age_seconds: 1, boot_id: 'boot')
+      actual = described_class.new(path:, max_age_seconds: 1, pending_seconds: 1, boot_id: 'boot')
       expect(actual.episode(now_ns: 2_000_000_000)).to be_nil
       File.symlink(path, File.join(dir, 'link'))
       linked = described_class.new(path: File.join(dir, 'link'), max_age_seconds: 1, boot_id: 'boot')

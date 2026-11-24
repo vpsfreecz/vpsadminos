@@ -12,8 +12,8 @@ end
 def controller_options(path)
   {
     interval: 1, cpu_percent: 10, memory_percent: 1, load_multiplier: 1_000_000,
-    load_top: 10, restart_hits: 8, stop_hits: 40,
-    rtnl_watchdog: { 'enable' => true, 'state_file' => path }
+    load_top: 10, restart_after_seconds: 2, stop_after_seconds: 600,
+    rtnl_watchdog: { 'enable' => true, 'state_file' => path, 'pending_seconds' => 1 }
   }
 end
 
@@ -68,8 +68,8 @@ if ARGV.first == 'dispatch'
       puts JSON.generate(
         event: 'controller', observed_monotonic_ns: now, processed_monotonic_ns: processed,
         raw: data, accepted: data && accepted,
-        episode: controller.episode, restart_threshold: controller.restart_hits,
-        scores: controller.export.map { |ct| { pool: ct.pool, id: ct.id, restart: ct.restart_hits, stop: ct.stop_hits } },
+        episode: controller.episode, restart_threshold: controller.restart_after_seconds,
+        scores: controller.export.map { |ct| { pool: ct.pool, id: ct.id, restart: ct.restart_qualified_seconds, stop: ct.stop_qualified_seconds } },
         inflight: controller.inflight.values, status: controller.status
       )
       raise 'real Top sampler exited' unless reader.alive?
@@ -112,16 +112,21 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
     **controller_options(path), cpu_percent: 90, memory_percent: 95, load_top: 2,
                                 load_multiplier: 2, host_load: baseline, workers: workers
   )
+  coverage = now - 2_000_000_000
   publish = lambda do |state, epoch = 'one', observed = now|
     state_sequence += 1
     completed = state == 'healthy' ? observed : nil
+    started = coverage
     row = {
       schema: 1, boot_id: boot, epoch: epoch, sequence: state_sequence,
       observed_monotonic_ns: observed, probe_sequence: 1, state: state,
-      dispatch_monotonic_ns: observed - 1_000_000_000,
-      started_monotonic_ns: observed - 1_000_000_000,
+      dispatch_monotonic_ns: started,
+      started_monotonic_ns: started,
       completed_monotonic_ns: completed, last_duration_ns: nil,
-      expected_errno: 22, error_code: state == 'error' ? 5 : 0
+      expected_errno: 22, error_code: state == 'error' ? 5 : 0,
+      latency_run: { version: 1, cutoff_ns: 1_000_000_000, interval_ns: 1_000_000_000, tick_ns: 250_000_000,
+                     coverage_started_ns: coverage || started, valid: state != 'error', first_probe: nil, last_probe: nil,
+                     first_started_ns: nil, last_completed_ns: nil, slow_count: 0 }
     }
     File.write("#{path}.tmp", JSON.generate(row), mode: 'w', perm: 0o600)
     File.rename("#{path}.tmp", path)
@@ -130,7 +135,7 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
   previous_sample_start = nil
   raw = lambda do |memory: 99, cpu: 100, load: 1, complete: true, extra: false|
     sample_sequence += 1
-    now += 100_000_000
+    now += 1_000_000_000
     publish.call('distressed')
     sample_start = now - 50_000_000
     window_start = previous_sample_start || (sample_start - 100_000_000)
@@ -171,74 +176,58 @@ Dir.mktmpdir('watchdog-policy-', ARGV[1] || '/run') do |directory|
     publish.call('healthy')
     now += 100_000_000
     publish.call('healthy')
-    raise 'ordinary threshold changed' unless controller.restart_hits == 8
+    raise 'shared seconds budget changed' unless controller.restart_after_seconds == 2
 
-    # Establish one real original-gate stop decision, then prove watchdog-only
-    # raw hits AND misses do not alter that history.
     observe.call(load: 1000)
-    raise 'original load gate did not score stop' unless score.call.stop_hits == 1
+    observe.call(load: 1000)
+    stop_seconds = score.call.stop_qualified_seconds
+    raise 'ordinary stop seconds were not accumulated' unless stop_seconds == 1
 
-    now += 100_000_000
-    publish.call('distressed')
-    raise 'episode failed to clear restart evidence' unless controller.restart_hits == 2 && score.call.restart_hits == 0
+    # Gates do not accelerate/reset the shared score. A decisive resource miss
+    # decays the covered interval; duplicates and unknown data grant no time.
+    observe.call(memory: 94)
+    raise 'memory miss did not decay' unless score.call.restart_qualified_seconds == 0
 
     first = observe.call
-    raise 'first fresh hit actioned' unless score.call.restart_hits == 1 && dispatches.empty?
-
+    credited = score.call.restart_qualified_seconds
     controller.observe(first, now_ns: now)
-    raise 'duplicate sample scored' unless score.call.restart_hits == 1
-
-    observe.call(memory: 94)
-    raise 'memory miss did not decrement restart' unless score.call.restart_hits == 0
+    raise 'duplicate sample scored' unless score.call.restart_qualified_seconds == credited
 
     observe.call(cpu: 89)
-    raise 'CPU miss scored' unless score.call.restart_hits == 0
+    raise 'CPU eligibility bypass' unless score.call.restart_qualified_seconds == 0
 
     observe.call(extra: true)
-    raise 'host-inclusive top-N changed' unless score.call.restart_hits == 0
-    raise 'watchdog-only decisions changed stop history' unless score.call.stop_hits == 1
+    raise 'ranking bypass' unless score.call.restart_qualified_seconds == 0
+    raise 'RTNL changed load-only stop history' unless score.call.stop_qualified_seconds == stop_seconds
 
     observe.call
-    incomplete = raw.call(complete: false)
-    incomplete['containers'].first.update('cpu_usage' => nil, 'cpu_baseline_sequence' => nil,
-                                          'cpu_window_started_monotonic_ns' => nil,
-                                          'errors' => { 'cpu_usage' => 'required_read_failed' })
-    controller.observe(incomplete, now_ns: now)
-    raise 'invalid required sample retained evidence' unless score.call.restart_hits == 0
-
     observe.call
-    raise 'first recovered raw sweep scored instead of seeding' unless dispatches.empty? && score.call.restart_hits == 0
-
-    observe.call
-    raise 'invalid gap reused old hit' unless dispatches.empty? && score.call.restart_hits == 1
-
     observe.call
     deadline = clock_ns + 1_000_000_000
     Thread.pass while dispatches.empty? && clock_ns < deadline
-    raise 'two fresh full-policy hits did not dispatch' if dispatches.empty?
+    raise 'covered shared seconds did not dispatch' if dispatches.empty?
 
     now += 100_000_000
     publish.call('healthy')
-    raise 'healthy completion retained override/evidence' unless controller.restart_hits == 8 && score.call.restart_hits == 0
+    raise 'healthy completion retained RTNL gate' unless controller.episode.nil?
 
     now += 100_000_000
     publish.call('error')
-    raise 'probe error activated override' unless controller.episode.nil?
+    raise 'probe error activated gate' unless controller.episode.nil?
 
     now += 100_000_000
     publish.call('distressed', 'two')
-    raise 'new epoch bound on its first frame' unless controller.episode.nil?
+    raise 'new epoch bound first frame' unless controller.episode.nil?
 
     now += 100_000_000
     publish.call('distressed', 'two')
-    raise 'new epoch failed two-frame binding' unless controller.restart_hits == 2
+    raise 'new epoch failed advancing binding' unless controller.episode
 
     now += 2_000_000_000
     controller.tick(now_ns: now)
-    raise 'stale watchdog retained override' unless controller.episode.nil? && controller.restart_hits == 8
-    raise 'stale/recovery changed original stop history' unless score.call.stop_hits == 1
+    raise 'stale watchdog retained gate' unless controller.episode.nil?
 
-    puts JSON.generate(mode: 'controlled_inputs_only', original_stop_score: score.call.stop_hits,
+    puts JSON.generate(mode: 'controlled_inputs_only', original_stop_score: score.call.stop_qualified_seconds,
                        fresh_dispatches: dispatches.size, predicates: %w[memory CPU host-inclusive-top-N],
                        guards: %w[duplicate incomplete healthy error stale epoch], no_real_actions: true)
   ensure

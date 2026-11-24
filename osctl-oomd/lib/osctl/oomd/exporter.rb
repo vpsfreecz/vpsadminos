@@ -47,21 +47,21 @@ module OsCtl::Oomd
     end
 
     def setup_metrics(registry)
-      @ct_restart_hits = registry.gauge(
-        :osctl_oomd_container_restart_hits,
-        docstring: 'Number of container OOM hits to restart',
+      @ct_restart_seconds = registry.gauge(
+        :osctl_oomd_container_restart_qualified_seconds,
+        docstring: 'Qualified container restart seconds',
         labels: %i[pool id]
       )
 
-      @ct_stop_hits = registry.gauge(
-        :osctl_oomd_container_stop_hits,
-        docstring: 'Number of container OOM hits to stop',
+      @ct_stop_seconds = registry.gauge(
+        :osctl_oomd_container_stop_qualified_seconds,
+        docstring: 'Qualified container load-gated stop seconds',
         labels: %i[pool id]
       )
 
-      @restart_hits = registry.gauge(
-        :osctl_oomd_restart_hits,
-        docstring: 'Number of hits to restart a container'
+      @restart_seconds = registry.gauge(
+        :osctl_oomd_restart_after_seconds,
+        docstring: 'Qualified seconds required to restart a container'
       )
 
       if @killer.respond_to?(:status)
@@ -70,23 +70,23 @@ module OsCtl::Oomd
         end
       end
 
-      @stop_hits = registry.gauge(
-        :osctl_oomd_stop_hits,
-        docstring: 'Number of hits to stop a container'
+      @stop_seconds = registry.gauge(
+        :osctl_oomd_stop_after_seconds,
+        docstring: 'Qualified load-gated seconds required to stop a container'
       )
     end
 
     def collect_metrics(metrics)
       @killer.export.each do |ct|
-        @ct_restart_hits.set(ct.restart_hits, labels: { pool: ct.pool, id: ct.id })
-        @ct_stop_hits.set(ct.stop_hits, labels: { pool: ct.pool, id: ct.id })
+        @ct_restart_seconds.set(ct.restart_qualified_seconds, labels: { pool: ct.pool, id: ct.id })
+        @ct_stop_seconds.set(ct.stop_qualified_seconds, labels: { pool: ct.pool, id: ct.id })
       end
 
       if @status_metrics
         @killer.status.each { |name, value| @status_metrics.fetch(name).set(value) }
       end
-      @restart_hits.set(@killer.restart_hits)
-      @stop_hits.set(@killer.stop_hits)
+      @restart_seconds.set(@killer.restart_after_seconds)
+      @stop_seconds.set(@killer.stop_after_seconds)
     end
   end
 end

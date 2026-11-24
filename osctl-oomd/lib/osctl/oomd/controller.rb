@@ -9,12 +9,14 @@ module OsCtl::Oomd
       'enable' => false,
       'state_file' => '/run/rtnl-watchdog.json',
       'max_age_seconds' => 1,
-      'restart_hits' => 2,
+      'latency_threshold_ms' => 1000,
+      'sustain_seconds' => 30,
+      'pending_seconds' => 30,
       'observation_max_age_seconds' => 5,
       'action_workers' => 2
     }.freeze
 
-    attr_reader :stop_hits, :episode, :inflight
+    attr_reader :stop_after_seconds, :restart_after_seconds, :episode, :inflight
 
     RawFrame = Struct.new(:data, :rows, :strict_seed, keyword_init: true)
     STRICT_SEED_REASONS = %w[initial_baseline counter_reset invalid_window invalid_host_cpu_delta].freeze
@@ -28,10 +30,20 @@ module OsCtl::Oomd
 
       %w[max_age_seconds observation_max_age_seconds].each do |key|
         value = config[key]
-        raise ArgumentError, "invalid rtnl_watchdog.#{key}" unless value.is_a?(Numeric) && value.finite? && value > 0
+        raise ArgumentError, "invalid rtnl_watchdog.#{key}" unless value.is_a?(Integer) && value > 0
       end
-      unless config['restart_hits'].is_a?(Integer) && config['restart_hits'] >= 2
-        raise ArgumentError, 'rtnl_watchdog.restart_hits must be at least 2'
+      %w[latency_threshold_ms sustain_seconds pending_seconds].each do |key|
+        raise ArgumentError, "invalid rtnl_watchdog.#{key}" unless config[key].is_a?(Integer) && config[key] > 0
+      end
+      unless config['latency_threshold_ms'].between?(1, 60_000)
+        raise ArgumentError, 'rtnl_watchdog.latency_threshold_ms must be 1..60000'
+      end
+
+      if config.has_key?('restart_hits')
+        raise ArgumentError, 'enabled legacy rtnl_watchdog.restart_hits must migrate to the shared seconds budget' if config['enable']
+
+        warn 'rtnl_watchdog.restart_hits is obsolete and ignored while integration is disabled'
+        config.delete('restart_hits')
       end
       unless config['action_workers'].is_a?(Integer) && config['action_workers'].between?(1, 2)
         raise ArgumentError, 'rtnl_watchdog.action_workers must be 1 or 2'
@@ -40,8 +52,8 @@ module OsCtl::Oomd
       config
     end
 
-    def initialize(interval:, cpu_percent:, memory_percent:, load_multiplier:, load_top:, restart_hits:, stop_hits:,
-                   rtnl_watchdog:, dry_run: false, host_load: nil, watchdog: nil, workers: nil, executor: nil, verbose: false)
+    def initialize(interval:, cpu_percent:, memory_percent:, load_multiplier:, load_top:, restart_after_seconds:, stop_after_seconds:,
+                   rtnl_watchdog:, load_enable: true, restart_unknown_expiry_seconds: 30, dry_run: false, host_load: nil, watchdog: nil, workers: nil, executor: nil, verbose: false)
       @settings = self.class.settings(rtnl_watchdog)
       @interval_ns = (interval * 1_000_000_000).to_i
       @sample_max_age_ns = (@settings.fetch('observation_max_age_seconds') * 1_000_000_000).to_i
@@ -49,15 +61,29 @@ module OsCtl::Oomd
       @memory_percent = memory_percent
       @load_multiplier = load_multiplier
       @load_top = load_top
-      @ordinary_restart_hits = restart_hits
-      @stop_hits = stop_hits
+      raise ArgumentError, 'interval must be a positive integer' unless interval.is_a?(Integer) && interval > 0
+      unless restart_unknown_expiry_seconds.is_a?(Integer) && restart_unknown_expiry_seconds > interval + @settings.fetch('observation_max_age_seconds')
+        raise ArgumentError, 'restart_unknown_expiry_seconds must exceed interval + observation_max_age_seconds'
+      end
+
+      raise ArgumentError, 'load_enable must be boolean' unless [true, false].include?(load_enable)
+
+      [restart_after_seconds, stop_after_seconds].each do |duration|
+        raise ArgumentError, 'action budgets must be positive integer seconds' unless duration.is_a?(Integer) && duration > 0
+      end
+      @load_enable = load_enable
+      @restart_after_seconds = restart_after_seconds
+      @stop_after_seconds = stop_after_seconds
+      @restart_expiry_ns = restart_unknown_expiry_seconds * 1_000_000_000
       @host_load = host_load || HostLoad.new(interval)
       @verbose = verbose
       @cold_loads = []
       @raw_epochs = {}
       @raw_broken = false
       if @settings.fetch('enable')
-        @watchdog = watchdog || WatchdogState.new(path: @settings.fetch('state_file'), max_age_seconds: @settings.fetch('max_age_seconds'))
+        @watchdog = watchdog || WatchdogState.new(path: @settings.fetch('state_file'), max_age_seconds: @settings.fetch('max_age_seconds'),
+                                                  latency_threshold_ms: @settings.fetch('latency_threshold_ms'),
+                                                  sustain_seconds: @settings.fetch('sustain_seconds'), pending_seconds: @settings.fetch('pending_seconds'))
       end
       @workers = workers || ActionWorkers.new(size: @settings.fetch('action_workers'), dry_run:, executor:)
       @records = {}
@@ -67,7 +93,8 @@ module OsCtl::Oomd
       @export = []
       @status = { notification_drops: 0, notification_failures: 0, unknown_actions: 0 }
       @episode = nil
-      @episode_started = nil
+      @rtnl_generation = 0
+      @load_active = nil
       @stopping = false
     end
 
@@ -78,10 +105,6 @@ module OsCtl::Oomd
     def stop
       @stopping = true
       @workers.stop
-    end
-
-    def restart_hits
-      @episode ? @settings.fetch('restart_hits') : @ordinary_restart_hits
     end
 
     def export
@@ -95,15 +118,17 @@ module OsCtl::Oomd
     # Called independently of the sampler, including while commands are blocked.
     def tick(now_ns: monotonic_ns)
       next_episode = @watchdog&.episode(now_ns:)
-      if next_episode != @episode
-        clear_restart
+      if @last_gate_status != [next_episode, @watchdog&.diagnostic]
+        @last_gate_status = [next_episode, @watchdog&.diagnostic]
+        @workers.publish(type: :log, level: :info, message: "RTNL gate=#{next_episode.inspect} diagnostic=#{@watchdog&.diagnostic.inspect} details=#{@watchdog&.details.inspect}")
+        @rtnl_generation += 1
         @episode = next_episode
-        @episode_started = next_episode ? now_ns : nil
       end
       if @raw && now_ns > @raw.data.fetch('sample_completed_monotonic_ns') + @interval_ns + @sample_max_age_ns
         @raw_broken = true
-        clear_restart if @episode
+        break_links
       end
+      @records.each_value { |record| record.expire(now_ns:, expiry_ns: @restart_expiry_ns) }
       @workers.completions { |permit, result| complete_action(permit, result) }
       publish_export
     end
@@ -113,13 +138,13 @@ module OsCtl::Oomd
       @child_epoch = nil
       @raw_broken = true
       @cold_loads.clear
-      clear_restart if @episode
+      break_links
     end
 
     def invalidate
       @bootstrap = false
       @raw_broken = true
-      clear_restart if @episode
+      break_links
       publish_export
       false
     end
@@ -173,7 +198,7 @@ module OsCtl::Oomd
       end
 
       linked = adjacent && !@raw_broken
-      clear_restart if @episode && !linked
+      break_links unless linked
       full = data['complete'] && ((new_epoch && bootstrap) || (linked && previous.strict_seed && same_runs?(rows, previous.rows)))
       seed = coherent_seed || data['complete']
       @raw = RawFrame.new(data:, rows:, strict_seed: seed)
@@ -191,7 +216,7 @@ module OsCtl::Oomd
         gate = cold_gate if gate.nil?
       end
 
-      score_rows(data, rows, full ? nil : previous, gate, now, processing_started, cold_gate)
+      score_rows(data, rows, previous, gate, now, processing_started, cold_gate, linked:, full:)
     end
 
     def packet_rows(data)
@@ -268,7 +293,13 @@ module OsCtl::Oomd
       rows.size == previous.size && rows.all? { |key, row| previous[key] && run_identity(row) == run_identity(previous[key]) }
     end
 
-    def score_rows(data, rows, previous, gate, now, processing_started, cold_gate)
+    def score_rows(data, rows, previous, gate, now, processing_started, cold_gate, linked:, full:)
+      if gate != @load_active
+        @load_active = gate
+        @workers.publish(type: :log, level: :info,
+                         message: "load gate=#{gate.inspect} load=#{data['loadavg']&.first.inspect} " \
+                                  "median=#{@host_load.median} multiplier=#{@load_multiplier} sample_epoch=#{data['epoch']} sequence=#{data['sequence']}")
+      end
       # Freeze the competing population for this observation. A grant takes
       # its target out of the ranking starting with the next observation.
       candidates = rows.reject { |key, row| @inflight.has_key?(key) || !row['run_verified'] }
@@ -279,39 +310,40 @@ module OsCtl::Oomd
         update_run(record, key, row)
         next unless candidates.has_key?(key)
 
-        if previous && !usable_pair?(data, row, previous, key)
-          record.reset_restart_hits if @episode
-          next
+        if !linked || !previous || !usable_pair?(data, row, previous, key)
+          record.break_link
         end
-        score_restart = restart_gate?(data, gate)
-        next unless gate || score_restart
-
-        hit = ranked_hit?(row, roster, ranked)
-        if hit.nil?
-          record.reset_restart_hits if @episode
-          next
-        end
-        changed = hit || (score_restart && record.restart_hits > 0) || (gate && record.stop_hits > 0)
-        record.public_send(hit ? :hit : :miss, restart: score_restart, stop: gate)
-        if changed
+        hit = Eligibility::Partial.decidable?(row) && matching_cpu_window?(row, data) ? ranked_hit?(row, roster, ranked) : nil
+        combined = gate_token(gate)
+        scored_generation = @rtnl_generation
+        before = [record.restart_qualified_seconds, record.stop_qualified_seconds]
+        delta = record.observe(now_ns: data.fetch('sample_completed_monotonic_ns'), qualification: hit,
+                               gate_token: combined, load_gate: gate, linked:, interval_ns: @interval_ns)
+        if before != [record.restart_qualified_seconds, record.stop_qualified_seconds] || @verbose
+          rank = ranked ? ranked.index(row)&.+(1) : Eligibility.rank_proof(row, roster, nil, @load_top)
           @workers.publish(type: :log, level: :info,
-                           message: "#{key.join(':')} #{hit ? 'hit' : 'miss'}, #{record.restart_hits}/#{restart_hits} restart hits, #{record.stop_hits}/#{stop_hits} stop hits")
+                           message: "#{key.join(':')} qualified=#{hit.inspect} load_gate=#{gate.inspect} rtnl_gate=#{@episode.inspect} " \
+                                    "cpu=#{row['cpu_usage'].inspect} cpu_limit=#{row['cpu_limit'].inspect} memory=#{row['memory'].inspect} " \
+                                    "memory_limit=#{row['memory_limit'].inspect} rank=#{rank.inspect} covered_delta=#{delta} " \
+                                    "restart_seconds=#{record.restart_qualified_seconds}/#{restart_after_seconds} " \
+                                    "stop_seconds=#{record.stop_qualified_seconds}/#{stop_after_seconds} " \
+                                    "sample_epoch=#{data['epoch']} sequence=#{data['sequence']} run=#{@runs[key].inspect}")
         end
         next unless hit
 
-        action = if gate && record.stop_hits >= stop_hits
+        action = if gate && record.stop_qualified_seconds >= stop_after_seconds
                    :stop
-                 elsif score_restart && record.restart_hits >= restart_hits
+                 elsif combined && record.restart_qualified_seconds >= restart_after_seconds
                    :restart
                  end
-        dispatch(row, key, action, now, processing_started, gate:, partial: !previous.nil?, cold_gate:) if action
+        dispatch(row, key, action, now, processing_started, gate:, partial: !full, cold_gate:, scored_generation:) if action
       end
       # Disappearance invalidates restart evidence; stop history retains the
       # ordinary success/reset semantics across restarts and inventory sweeps.
       (@records.keys - rows.keys).each do |key|
         record = @records.fetch(key)
-        record.reset_restart_hits
-        next if @inflight.has_key?(key) || record.stop_hits > 0
+        record.reset_restart
+        next if @inflight.has_key?(key) || record.stop_qualified_seconds > 0
 
         @records.delete(key)
         @runs.delete(key)
@@ -345,19 +377,25 @@ module OsCtl::Oomd
     end
 
     def partial_load_gate(data)
+      return false unless @load_enable
+
       load = data['loadavg']&.first
       load_gate(load, @host_load.median_with(load)) if load
     end
 
     def load_gate(load, median)
+      return false unless @load_enable
       return if median.nil?
 
       threshold = median * @load_multiplier
       load >= threshold if Eligibility::Partial.reading?(threshold)
     end
 
-    def restart_gate?(data, gate)
-      @episode ? data['sample_started_monotonic_ns'] > @episode_started : gate
+    def gate_token(gate)
+      return false if gate == false && !@episode && (!@settings['enable'] || @watchdog&.diagnostic.nil?)
+      return nil unless gate || @episode
+
+      { load: gate == true, rtnl: @episode && [@episode, @rtnl_generation] }
     end
 
     def monotonic_ns
@@ -374,11 +412,11 @@ module OsCtl::Oomd
 
     def update_run(record, key, row)
       identity = run_identity(row)
-      record.reset_restart_hits if @runs[key] != identity
+      record.reset_restart if @runs[key] != identity
       @runs[key] = identity
     end
 
-    def dispatch(ct, key, action, now, processing_started, gate:, partial:, cold_gate:)
+    def dispatch(ct, key, action, now, processing_started, gate:, partial:, cold_gate:, scored_generation:)
       # Re-read the independent host gate and effective threshold at grant,
       # even if scoring or another candidate took time since the first tick.
       tick(now_ns: now + (monotonic_ns - processing_started))
@@ -393,10 +431,11 @@ module OsCtl::Oomd
         gate = cold_gate if gate.nil?
       end
       if action == :stop
-        return unless gate && record.stop_hits >= stop_hits
+        return unless gate && record.stop_qualified_seconds >= stop_after_seconds
       else
-        return unless restart_gate?(frame, gate) && record.restart_hits >= restart_hits
-        return if gate && record.stop_hits >= stop_hits
+        return unless gate_token(gate) && record.restart_qualified_seconds >= restart_after_seconds
+        return if !gate && scored_generation != @rtnl_generation
+        return if gate && record.stop_qualified_seconds >= stop_after_seconds
       end
 
       run = ct.values_at('init_pid', 'init_start_time_ticks')
@@ -408,7 +447,7 @@ module OsCtl::Oomd
       return unless @workers.dispatch(permit)
 
       @inflight[key] = permit
-      @records.fetch(key).reset_restart_hits
+      @records.fetch(key).reset_restart
       @workers.publish(type: :log, level: :info,
                        message: "guarded dispatch #{action} #{key.join(':')} pid=#{run[0]} start=#{run[1]} sample_epoch=#{permit[:epoch]} sample_sequence=#{permit[:sequence]} watchdog_episode=#{@episode.inspect}")
     end
@@ -422,8 +461,8 @@ module OsCtl::Oomd
       else
         @inflight.delete(key)
         record = @records[key]
-        record&.reset_restart_hits
-        record&.reset_stop_hits if %i[success simulated].include?(result) && permit[:action] == :stop
+        record&.reset_restart
+        record&.reset_stop if %i[success simulated].include?(result) && permit[:action] == :stop
       end
       label = result == :simulated ? "would #{permit[:action]}" : permit[:action]
       @workers.publish(type: :log, level: %i[success simulated].include?(result) ? :info : :warn,
@@ -433,8 +472,8 @@ module OsCtl::Oomd
       @workers.publish(type: 'osctl_oomd', opts: { pool: key[0], id: key[1], action: permit[:action], time: permit[:time] })
     end
 
-    def clear_restart
-      @records.each_value(&:reset_restart_hits)
+    def break_links
+      @records.each_value(&:break_link)
     end
 
     def publish_export

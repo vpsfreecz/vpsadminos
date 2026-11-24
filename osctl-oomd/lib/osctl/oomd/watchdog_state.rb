@@ -3,7 +3,15 @@ require 'json'
 module OsCtl::Oomd
   # A fresh distress frame is a host gate, never a container observation.
   class WatchdogState
-    def initialize(path:, max_age_seconds:, boot_id: File.read('/proc/sys/kernel/random/boot_id').strip)
+    def initialize(path:, max_age_seconds:, latency_threshold_ms: 1000, sustain_seconds: 30, pending_seconds: 30, boot_id: File.read('/proc/sys/kernel/random/boot_id').strip)
+      @cutoff_ns = latency_threshold_ms * 1_000_000
+      @sustain_ns = sustain_seconds * 1_000_000_000
+      @pending_ns = pending_seconds * 1_000_000_000
+      @last_read_ns = nil
+      @continuity = 0
+      @activation = 0
+      @active_proof = nil
+      @diagnostic = nil
       @path = path
       @max_age_ns = (max_age_seconds * 1_000_000_000).to_i
       @boot_id = boot_id
@@ -14,11 +22,21 @@ module OsCtl::Oomd
       @bound = false
     end
 
+    attr_reader :diagnostic, :details
+
     def episode(now_ns:)
+      if @last_read_ns && now_ns - @last_read_ns > @max_age_ns
+        invalidate
+      end
+      @last_read_ns = now_ns
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC, :nanosecond)
       frame = read_frame
       now_ns += Process.clock_gettime(Process::CLOCK_MONOTONIC, :nanosecond) - started
-      return invalidate unless valid?(frame, now_ns)
+      unless valid?(frame, now_ns) && valid_summary?(frame)
+        @diagnostic = 'unavailable or incompatible watchdog latency coverage'
+        return invalidate
+      end
+      @diagnostic = nil
 
       epoch = frame.fetch('epoch')
       sequence = frame.fetch('sequence')
@@ -29,6 +47,8 @@ module OsCtl::Oomd
         @observed = observed
         @frame = frame
         @bound = false
+        @active_proof = nil
+        @diagnostic = 'watchdog epoch binding needs advancing frames'
         return nil
       end
 
@@ -39,9 +59,37 @@ module OsCtl::Oomd
       @sequence = sequence
       @observed = observed
       @frame = frame
-      return nil unless @bound && frame['state'] == 'distressed'
+      run = frame.fetch('latency_run')
+      unless @bound && run['valid']
+        @active_proof = nil
+        @diagnostic = 'watchdog coverage not yet established'
+        return nil
+      end
 
-      [epoch, frame.fetch('probe_sequence')]
+      coverage = run.fetch('coverage_started_ns')
+      @details = { frame_age_seconds: (now_ns - observed) / 1e9, cutoff_ns: run['cutoff_ns'],
+                   coverage_started_ns: coverage, probe: frame['probe_sequence'],
+                   span_seconds: run['slow_count'] > 0 ? (run['last_completed_ns'] - run['first_started_ns']) / 1e9 : nil,
+                   pending_age_seconds: frame['started_monotonic_ns'] && ((now_ns - [frame['started_monotonic_ns'], coverage].max) / 1e9) }
+      slow = run['slow_count'] > 0 && run['last_completed_ns'] - run['first_started_ns'] >= @sustain_ns
+      pending_start = frame['started_monotonic_ns']
+      pending = %w[pending distressed].include?(frame['state']) && pending_start &&
+                frame['completed_monotonic_ns'].nil? && frame['error_code'] == 0 &&
+                now_ns - [pending_start, coverage].max >= @pending_ns
+      unless slow || pending
+        @active_proof = nil
+        return nil
+      end
+
+      proof = { epoch:, coverage:, generation: @continuity,
+                slow: slow ? run['first_probe'] : nil,
+                last_slow: slow ? run['last_probe'] : nil,
+                pending: pending ? frame['probe_sequence'] : nil }
+      unless continuous?(@active_proof, proof)
+        @activation += 1
+      end
+      @active_proof = proof
+      [epoch, coverage, @continuity, @activation]
     rescue SystemCallError, IOError, JSON::ParserError, KeyError, TypeError, ArgumentError
       invalidate
     end
@@ -85,11 +133,47 @@ module OsCtl::Oomd
       true
     end
 
+    def continuous?(previous, current)
+      return false unless previous && previous.values_at(:epoch, :coverage, :generation) == current.values_at(:epoch, :coverage, :generation)
+      return true if previous[:slow] && previous[:slow] == current[:slow]
+      return true if previous[:pending] && previous[:pending] == current[:pending]
+
+      # A held pending probe may become a completed slow-run span. Its identity
+      # must be inside that very consecutive run; an unseen fast reset fails.
+      previous[:pending] && current[:slow] &&
+        previous[:pending].between?(current[:slow], current[:last_slow])
+    end
+
+    def valid_summary?(frame)
+      run = frame['latency_run']
+      return false unless run.is_a?(Hash) && run['version'] == 1 && [true, false].include?(run['valid'])
+      return false unless run['cutoff_ns'] == @cutoff_ns && run['interval_ns'].is_a?(Integer) && run['interval_ns'].between?(100_000_000, 1_000_000_000)
+      return false unless positive?(run['tick_ns']) && run['tick_ns'].between?(50_000_000, 250_000_000)
+      return false unless run['slow_count'].is_a?(Integer) && run['slow_count'] >= 0
+
+      coverage = run['coverage_started_ns']
+      return false unless coverage.nil? || (positive?(coverage) && coverage <= frame['observed_monotonic_ns'])
+      return false if run['valid'] && (coverage.nil? || frame['error_code'] != 0 || frame['state'] == 'error')
+
+      fields = %w[first_probe last_probe first_started_ns last_completed_ns]
+      return fields.all? { |key| run.has_key?(key) && run[key].nil? } if run['slow_count'] == 0
+      return false unless run['valid'] && fields.all? { |key| positive?(run[key]) }
+      return false unless run['first_probe'] <= run['last_probe'] && run['last_probe'] <= frame['probe_sequence']
+      return false unless run['slow_count'] == run['last_probe'] - run['first_probe'] + 1
+
+      coverage <= run['first_started_ns'] && run['last_completed_ns'] - run['first_started_ns'] > @cutoff_ns &&
+        run['last_completed_ns'] <= frame['observed_monotonic_ns']
+    end
+
     def positive?(value)
       value.is_a?(Integer) && value > 0
     end
 
     def invalidate
+      @details = nil
+      @diagnostic ||= 'watchdog evidence unavailable'
+      @continuity += 1
+      @active_proof = nil
       @epoch = nil
       @sequence = nil
       @observed = nil

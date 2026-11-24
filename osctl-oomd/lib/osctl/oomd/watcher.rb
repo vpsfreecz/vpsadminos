@@ -6,11 +6,12 @@ module OsCtl::Oomd
       new(*, **).run
     end
 
-    def initialize(interval:, cpu_percent:, memory_percent:, load_multiplier:, load_top:, restart_hits:, stop_hits:,
-                   export_file:, dry_run: false, verbose: false, rtnl_watchdog: nil)
+    def initialize(interval:, cpu_percent:, memory_percent:, load_multiplier:, load_top:, restart_after_seconds:, stop_after_seconds:,
+                   export_file:, load_enable: true, restart_unknown_expiry_seconds: 30, dry_run: false, verbose: false, rtnl_watchdog: nil)
       @interval = interval
       @controller = Controller.new(interval:, cpu_percent:, memory_percent:, load_multiplier:, load_top:,
-                                   restart_hits:, stop_hits:, rtnl_watchdog:, dry_run:, verbose:)
+                                   restart_after_seconds:, stop_after_seconds:, load_enable:, restart_unknown_expiry_seconds:,
+                                   rtnl_watchdog:, dry_run:, verbose:)
       @exporter = Exporter.new(file: export_file, killer: @controller)
     end
 

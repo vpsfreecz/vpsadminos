@@ -5,8 +5,8 @@ require 'timeout'
 
 RSpec.describe OsCtl::Oomd::Controller, '#observe' do
   let(:watchdog_enabled) { false }
-  let(:restart_hits) { 2 }
-  let(:stop_hits) { 40 }
+  let(:restart_after_seconds) { 15 }
+  let(:stop_after_seconds) { 600 }
   let(:controller) { make_controller }
   let(:load_top) { 2 }
 
@@ -18,7 +18,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
 
   def make_controller
     described_class.new(interval: 15, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
-                        load_top:, restart_hits:, stop_hits:,
+                        load_top:, restart_after_seconds:, stop_after_seconds:,
                         rtnl_watchdog: { 'enable' => watchdog_enabled }, workers:, host_load:, watchdog:)
   end
 
@@ -53,7 +53,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
   before do
     @permits = []
     @loads = []
-    @watchdog = instance_double(OsCtl::Oomd::WatchdogState, episode: nil)
+    @watchdog = instance_double(OsCtl::Oomd::WatchdogState, episode: nil, diagnostic: nil, details: nil)
     @host_load = instance_double(OsCtl::Oomd::HostLoad, median: 5, median_with: 5, established?: true)
     @workers = instance_double(OsCtl::Oomd::ActionWorkers, publish: true, completions: nil, notification_drops: 0, notification_failures: 0)
     allow(host_load).to receive(:<<) { |load| loads << load }
@@ -66,11 +66,11 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
 
   it 'counts both scores for the verified target on the shared partial frame' do
     expect(observe(frame(6))).to be(true)
-    expect(score.stop_hits).to eq(1)
+    expect(score.stop_qualified_seconds).to eq(0)
     expect(observe(fixture)).to be(true)
     expect(permits).to contain_exactly(include(action: :restart, pool: 'tank', id: '101', run: [201, 12_345], sequence: 7))
-    expect(score.stop_hits).to eq(2)
-    expect(score('102').restart_hits).to eq(0)
+    expect(score.stop_qualified_seconds).to eq(15)
+    expect(score('102').restart_qualified_seconds).to eq(0)
     expect(loads).to eq([20.0])
     expect(watchdog).not_to have_received(:episode)
   end
@@ -81,7 +81,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     expect(observe(fixture)).to be(false)
     expect(observe(frame(8, reason: 'missing_cgroup_value'))).to be(true)
     expect(observe(frame(9, reason: 'missing_cgroup_value'))).to be(true)
-    expect(score.restart_hits).to eq(0)
+    expect(score.restart_qualified_seconds).to eq(0)
     expect(loads).to be_empty
     expect(permits).to be_empty
   end
@@ -102,7 +102,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       stub_const('OsCtl::Oomd::HostLoad::STATE_FILE', state)
       @host_load = OsCtl::Oomd::HostLoad.new(15)
       actor = described_class.new(interval: 15, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
-                                  load_top: 5, restart_hits: 8, stop_hits: 40, rtnl_watchdog: {}, workers:, host_load:)
+                                  load_top: 5, restart_after_seconds: 105, stop_after_seconds: 600, rtnl_watchdog: {}, workers:, host_load:)
       loads_input = ([1.0] * 10) + ([8.0] * 8)
       loads_input.each_with_index do |load, i|
         raw = frame(6 + i, reason: 'missing_cgroup_value')
@@ -113,7 +113,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       expect(permits).to contain_exactly(include(action: :restart, sequence: 23))
       expect(host_load).not_to be_established
       expect(File).not_to exist(state)
-      expect(actor.export.find { |ct| ct.id == '101' }.stop_hits).to eq(8)
+      expect(actor.export.find { |ct| ct.id == '101' }.stop_qualified_seconds).to eq(105)
 
       seed = frame(24, reason: 'initial_baseline')
       actor.observe(seed, now_ns: seed.fetch('sample_completed_monotonic_ns'))
@@ -121,18 +121,18 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       expect(actor.observe(full, now_ns: full.fetch('sample_completed_monotonic_ns'))).to be(true)
       expect(host_load.median).to eq(20.0)
       expect(OsCtl::Lib::ConfigFile.load_yaml_file(state)).to eq('version' => 2, 'loads' => [20.0])
-      expect(actor.export.find { |ct| ct.id == '101' }.stop_hits).to eq(8)
+      expect(actor.export.find { |ct| ct.id == '101' }.stop_qualified_seconds).to eq(105)
     end
   end
 
   it 'keeps full ranking ties in wire order, and scores hits and misses on both counters' do
-    [6, 7, 8].zip([1, 0, 1]).each do |sequence, expected|
+    [6, 7, 8].zip([0, 0, 0]).each do |sequence, expected|
       data = frame(sequence)
       a, b, host = data['containers']
       a['loadavg'] = b['loadavg'] = [host['loadavg'][0] - 1, 0, 0]
       data['containers'] = [b, a, host] if sequence == 7
       expect(observe(data)).to be(true)
-      expect([score.restart_hits, score.stop_hits]).to eq([expected, expected])
+      expect([score.restart_qualified_seconds, score.stop_qualified_seconds]).to eq([expected, expected])
     end
     expect(loads).to eq([20.0] * 3)
     expect(permits).to be_empty
@@ -145,7 +145,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     expect(observe(frame(9, reason: 'initial_baseline'))).to be(true)
     expect(observe(frame(10))).to be(true)
     expect(loads).to eq([20.0, 20.0])
-    expect(score.stop_hits).to eq(2)
+    expect(score.stop_qualified_seconds).to eq(15)
   end
 
   it 'cannot use an absent ranking peer, bad mask, a stale packet or an old epoch as evidence' do
@@ -161,7 +161,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     expect(observe(frame(10, reason: 'initial_baseline', epoch: 'new-sampler'))).to be(false)
     expect(observe(frame(11))).to be(false)
     expect(permits).to be_empty
-    expect(score.stop_hits).to eq(1)
+    expect(score.stop_qualified_seconds).to eq(0)
     expect(loads).to eq([20.0])
   end
 
@@ -183,7 +183,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       raw['containers'][0].update(fields)
       observe(raw)
       expect(permits).to be_empty
-      expect(score.stop_hits).to eq(1)
+      expect(score.stop_qualified_seconds).to eq(0)
       expect(loads).to eq([20.0])
     end
   end
@@ -194,7 +194,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     raw['containers'][1]['cpu_baseline_sequence'] -= 1
     expect(observe(raw)).to be(true)
     expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 7))
-    expect(score('102').stop_hits).to eq(0)
+    expect(score('102').stop_qualified_seconds).to eq(0)
   end
 
   it 'rejects contradictory membership, duplicate rows, future completion and overlap' do
@@ -219,8 +219,10 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     expect(controller.observe({}, now_ns: ns(110))).to be(false)
     expect(observe(frame(8))).to be(false)
     expect(observe(frame(9))).to be(true)
-    expect(permits).to contain_exactly(include(action: :restart, sequence: 9))
-    expect(loads).to eq([20.0, 20.0])
+    expect(permits).to be_empty
+    expect(observe(frame(10))).to be(true)
+    expect(permits).to contain_exactly(include(action: :restart, sequence: 10))
+    expect(loads).to eq([20.0, 20.0, 20.0])
   end
 
   describe 'recovery through the child reader and mailbox' do
@@ -249,12 +251,15 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
         deliver.call(seed)
         expect(mailbox.drain(controller, now_ns: seed.fetch('sample_completed_monotonic_ns'))).to be(false)
         expect(loads).to eq([20.0])
-        expect([score.restart_hits, score.stop_hits]).to eq([1, 1])
+        expect([score.restart_qualified_seconds, score.stop_qualified_seconds]).to eq([0, 0])
         expect(permits).to be_empty
         deliver.call(frame(9, epoch: 'replacement'))
         expect(mailbox.drain(controller, now_ns: ns(145.2))).to be(true)
         expect(loads).to eq([20.0, 20.0])
-        expect(permits).to contain_exactly(include(epoch: 'replacement', sequence: 9))
+        expect(permits).to be_empty
+        deliver.call(frame(10, epoch: 'replacement'))
+        mailbox.drain(controller, now_ns: ns(160.2))
+        expect(permits).to contain_exactly(include(epoch: 'replacement', sequence: 10))
       end
     end
 
@@ -267,7 +272,10 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       2.times { mailbox.push(data.dup) }
       expect(mailbox.drain(controller, now_ns: ns(115.2))).to be(true)
       expect(loads).to eq([20.0, 20.0])
-      expect(permits).to contain_exactly(include(epoch: 'replacement', sequence: 7))
+      expect(permits).to be_empty
+      mailbox.push(frame(8, epoch: 'replacement'))
+      mailbox.drain(controller, now_ns: frame(8, epoch: 'replacement').fetch('sample_completed_monotonic_ns'))
+      expect(permits).to contain_exactly(include(epoch: 'replacement', sequence: 8))
     end
   end
 
@@ -294,14 +302,14 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       expect(observe(fixture)).to be(true)
       expect(trace).to eq(%i[clock median clock median clock] + (over_ns == 0 ? [:dispatch] : []))
       expect(loads).to eq([20.0])
-      expect(score.stop_hits).to eq(2)
+      expect(score.stop_qualified_seconds).to eq(15)
       if over_ns == 0
         expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 7, run: [201, 12_345]))
         expect(controller.inflight.values).to eq(permits)
       else
         expect(permits).to be_empty
         expect(controller.inflight).to be_empty
-        expect(score.restart_hits).to eq(2)
+        expect(score.restart_qualified_seconds).to eq(15)
         expect(workers).not_to have_received(:publish).with(include(type: 'osctl_oomd'))
         expect(workers).not_to have_received(:publish).with(include(message: /guarded dispatch/))
         controller.tick(now_ns: ns(121))
@@ -319,7 +327,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     data['measurement_window_completed_monotonic_ns'] = ns(120) + 1
     expect(observe(data)).to be(false)
     expect(permits).to be_empty
-    expect(score.stop_hits).to eq(1)
+    expect(score.stop_qualified_seconds).to eq(0)
   end
 
   it 'retains a reservation through an unknown guarded result' do
@@ -331,12 +339,12 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     observe(frame(8, reason: 'missing_cgroup_value'))
     expect(permits).to eq([permit])
     expect(controller.status[:unknown_actions]).to eq(1)
-    expect(score.stop_hits).to eq(2)
+    expect(score.stop_qualified_seconds).to eq(15)
   end
 
   context 'with a pending restart in one of the two workers' do
     let(:load_top) { 1 }
-    let(:stop_hits) { 3 }
+    let(:stop_after_seconds) { 30 }
 
     def competing_frame(sequence, stale:, replaced: false)
       data = frame(sequence, reason: stale ? 'invalid_run' : nil)
@@ -366,7 +374,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
                                                    true
                                                  })
         actor = described_class.new(interval: 15, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
-                                    load_top:, restart_hits:, stop_hits:, rtnl_watchdog: {}, workers:, host_load:)
+                                    load_top:, restart_after_seconds:, stop_after_seconds:, rtnl_watchdog: {}, workers:, host_load:)
         actor.start
         actor.child_started
         sample = lambda do |sequence, **opts|
@@ -387,7 +395,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
 
           # A new init with the same PID needs its own pair before granting the stop.
           sample.call(10, stale: exited, replaced: true)
-          expect(actor.export.find { |r| r.id == '102' }.stop_hits).to eq(2)
+          expect(actor.export.find { |r| r.id == '102' }.stop_qualified_seconds).to eq(15)
           expect(commands).to be_empty
           sample.call(11, stale: exited, replaced: true)
           expect(commands.pop).to include(id: '102', action: :stop, sequence: 11, run: [202, 23_457])
@@ -424,7 +432,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       expect(observe(raw)).to be(false)
       expect(permits).to be_empty
       expect(loads).to eq([20.0])
-      expect([score.restart_hits, score.stop_hits]).to eq([1, 1])
+      expect([score.restart_qualified_seconds, score.stop_qualified_seconds]).to eq([0, 0])
     end
 
     it 'scores the verified target when a peer has no path and keeps the strict history separate' do
@@ -445,7 +453,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 7))
       expect(controller.inflight.values).to eq(permits)
       expect(loads).to eq([20.0])
-      expect([score.restart_hits, score.stop_hits]).to eq([0, 2])
+      expect([score.restart_qualified_seconds, score.stop_qualified_seconds]).to eq([0, 15])
       warmup = frame(8, reason: 'initial_baseline')
       warmup['containers'][1].update('cpu_usage' => nil, 'cpu_baseline_sequence' => nil,
                                      'cpu_window_started_monotonic_ns' => nil, 'errors' => { 'cpu_usage' => 'initial_baseline' })
@@ -463,51 +471,52 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       raw['containers'][1]['errors']['loadavg'] = 'missing_container_load'
       observe(raw)
       expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 7))
-      expect(score.stop_hits).to eq(2)
+      expect(score.stop_qualified_seconds).to eq(15)
     end
   end
 
   context 'when the next hit reaches both thresholds' do
-    let(:stop_hits) { 2 }
+    let(:stop_after_seconds) { 15 }
 
     it 'grants the stop on the partial frame that earned it' do
       observe(frame(6))
-      expect(score.stop_hits).to eq(1)
+      expect(score.stop_qualified_seconds).to eq(0)
       observe(fixture)
-      expect(score.stop_hits).to eq(2)
+      expect(score.stop_qualified_seconds).to eq(15)
       expect(permits).to contain_exactly(include(action: :stop, sequence: 7))
     end
   end
 
   context 'when a stop is already due but its slot was unavailable' do
-    let(:stop_hits) { 1 }
+    let(:stop_after_seconds) { 15 }
 
     it 'does not substitute a partial restart after the physical slot becomes free' do
       allow(workers).to receive(:dispatch).and_return(false)
       observe(frame(6))
-      expect(score.stop_hits).to eq(1)
+      expect(score.stop_qualified_seconds).to eq(0)
       allow(workers).to receive(:dispatch) do |permit|
         permits << permit
         true
       end
       observe(fixture)
-      expect(score.stop_hits).to eq(2)
+      expect(score.stop_qualified_seconds).to eq(15)
       expect(permits).to contain_exactly(include(action: :stop, sequence: 7))
     end
   end
 
   context 'when the watchdog reports distress' do
     let(:watchdog_enabled) { true }
+    let(:restart_after_seconds) { 30 }
 
     it 'expires one partial hit without scoring a heartbeat or filling a fresh grant' do
       allow(watchdog).to receive(:episode).and_return(['probe', 1])
       controller.tick(now_ns: ns(101))
       observe(frame(6), now: ns(102))
       observe(fixture)
-      expect(score.restart_hits).to eq(1)
-      controller.tick(now_ns: ns(136))
-      expect(score.restart_hits).to eq(0)
-      expect(score.stop_hits).to eq(2)
+      expect(score.restart_qualified_seconds).to eq(15)
+      controller.tick(now_ns: ns(146))
+      expect(score.restart_qualified_seconds).to eq(0)
+      expect(score.stop_qualified_seconds).to eq(15)
       expect(permits).to be_empty
     end
 
@@ -521,7 +530,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
         raw.delete('loadavg') if missing.include?('global')
         raw['containers'].last.delete('loadavg') if missing.include?('host')
         expect(observe(raw)).to be(false)
-        expect(score.restart_hits).to eq(0)
+        expect(score.restart_qualified_seconds).to eq(0)
         expect(loads).to eq([20.0])
         expect(permits).to be_empty
       end
@@ -537,7 +546,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
         observe(raw)
       end
       expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 8))
-      expect(score.stop_hits).to eq(1)
+      expect(score.stop_qualified_seconds).to eq(0)
       expect(loads).to eq([20.0])
     end
 
@@ -547,7 +556,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       observe(frame(6), now: ns(102))
       expect(observe(fixture)).to be(true)
       expect(observe(fixture)).to be(false)
-      expect(score.restart_hits).to eq(1)
+      expect(score.restart_qualified_seconds).to eq(15)
       expect(permits).to be_empty
       expect(observe(frame(8, reason: 'missing_cgroup_value'))).to be(true)
       expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 8, watchdog_episode: ['probe', 1]))

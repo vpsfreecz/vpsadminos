@@ -85,6 +85,7 @@ pub fn run() -> io::Result<()> {
     let helper = helper_path(&std::env::current_exe()?)?;
     let boot = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")?;
     let mut m = Model::new(boot.trim_end_matches('\n'), &epoch(0)?)?;
+    m.configure(&c);
     sys::signals()?;
     let output = Output::start(&c)?;
     let mut child: Option<Child> = None;
@@ -96,6 +97,7 @@ pub fn run() -> io::Result<()> {
     let mut previous = State::Starting;
     while !sys::STOP.load(Ordering::Relaxed) {
         let now = sys::monotonic()?;
+        m.check_coverage(now);
         if let Some(own) = child.as_mut() {
             match own.try_wait() {
                 Ok(Some(_)) => {
@@ -124,6 +126,7 @@ pub fn run() -> io::Result<()> {
                         Ok(None) => break,
                         Ok(Some(message)) => {
                             let now = sys::monotonic()?;
+                            m.check_coverage(now);
                             match m.apply(message, now, wall()?) {
                                 Ok(true) => {
                                     m.completed(&c);

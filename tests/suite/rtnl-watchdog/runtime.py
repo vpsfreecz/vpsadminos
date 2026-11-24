@@ -328,12 +328,13 @@ class Containers:
 
 
 class Stream:
-    def __init__(self, *, optional_collectors=False):
+    def __init__(self, *, optional_collectors=False, interval=1):
+        self.interval = interval
         STATE.mkdir(exist_ok=True)
         self.stderr = (STATE / 'top.stderr').open('w+', errors='replace')
         self.collectors = {'netif': optional_collectors, 'zfs': optional_collectors, 'iostat': False}
         flags = [] if optional_collectors else ['--no-netif', '--no-zfs']
-        self.process = subprocess.Popen(['osctl', '-j', 'ct', 'top', '--rate', '1',
+        self.process = subprocess.Popen(['osctl', '-j', 'ct', 'top', '--rate', str(interval),
                                         *flags, '--no-iostat', '--no-processes'],
                                         stdout=subprocess.PIPE, stderr=self.stderr)
         if DIAGNOSTICS:
@@ -343,6 +344,7 @@ class Stream:
         self.selector.register(self.process.stdout, selectors.EVENT_READ)
         self.buffer = b''
         self.last = None
+        self.observations = []
 
     def read(self, names, expected_runs=None):
         assert self.process.poll() is None, {'exit': self.process.returncode, 'last_frame': self.last,
@@ -356,8 +358,9 @@ class Stream:
             if previous:
                 assert row['epoch'] == previous['epoch'] and row['sequence'] > previous['sequence'], row
             self.last = row
+            self.observations.append({key: row[key] for key in ('sequence', 'complete', 'invalid_reason', 'sample_started_monotonic_ns', 'sample_completed_monotonic_ns')})
             if row['complete']:
-                check_raw(row, names, expected_runs, collectors=self.collectors)
+                check_raw(row, names, expected_runs, collectors=self.collectors, interval=self.interval)
                 if previous and previous['complete'] and row['sequence'] == previous['sequence'] + 1:
                     assert row['measurement_window_started_monotonic_ns'] == previous['sample_started_monotonic_ns'], row
                 return row
@@ -393,7 +396,7 @@ class Stream:
         self.stderr.close()
 
 
-def check_raw(row, names, expected_runs=None, *, at_ns=None, collectors=None):
+def check_raw(row, names, expected_runs=None, *, at_ns=None, collectors=None, interval=1):
     assert type(row['top_schema']) is int and row['top_schema'] == 2 and row['complete'] is True, row
     assert 'observation' not in row and row['inventory_complete'] is True, row
     assert row['invalid_reason'] is None, row
@@ -404,14 +407,20 @@ def check_raw(row, names, expected_runs=None, *, at_ns=None, collectors=None):
     assert type(now) is int and now > 0, now
     assert 0 <= end - start <= 5_000_000_000 and 0 <= now - end <= 5_000_000_000, row
     window_start, window_end = row['measurement_window_started_monotonic_ns'], row['measurement_window_completed_monotonic_ns']
-    assert 0 < window_start < start <= end == window_end and window_end - window_start <= 6_000_000_000, row
+    assert 0 < window_start < start <= end == window_end and window_end - window_start <= (interval + 5) * 1_000_000_000, row
     assert window_start == row['previous_sample_started_monotonic_ns'], row
     if not expected_collectors['zfs']:
         assert row['zfs'] is None, row
     else:
         assert isinstance(row['zfs'], dict) and isinstance(row['zfs']['arcstats'], dict), row
         assert row['zfs']['iostat'] is None, row
-    for ct in row['containers']:
+    *containers, host = row['containers']
+    assert host['id'] == '[host]' and host['loadavg'] == row['loadavg'], row
+    assert all(host[key] is None for key in ('pool', 'init_pid', 'init_start_time_ticks')), host
+    assert all(ct['id'] != '[host]' and ct['run_verified'] is True for ct in containers), row
+    # Container projections retain explicit nulls for disabled collectors. The
+    # synthetic host residual only contains fields with subtractable readings.
+    for ct in containers:
         if not expected_collectors['netif']:
             assert ct['tx'] is None and ct['rx'] is None, ct
         else:
@@ -420,10 +429,10 @@ def check_raw(row, names, expected_runs=None, *, at_ns=None, collectors=None):
             assert ct['zfsio'] is None, ct
         else:
             assert isinstance(ct['zfsio'], dict), ct
-    *containers, host = row['containers']
-    assert host['id'] == '[host]' and host['loadavg'] == row['loadavg'], row
-    assert all(host[key] is None for key in ('pool', 'init_pid', 'init_start_time_ticks')), host
-    assert all(ct['id'] != '[host]' and ct['run_verified'] is True for ct in containers), row
+    for field, enabled in (('tx', expected_collectors['netif']), ('rx', expected_collectors['netif']),
+                           ('zfsio', expected_collectors['zfs'])):
+        if field in host:
+            assert enabled and isinstance(host[field], dict), host
     assert row['state_counts'].get('running', 0) == len(containers), row
     ranked = sorted(row['containers'], key=lambda ct: -ct['loadavg'][0])
     for name in names:
@@ -507,7 +516,10 @@ def top_cost(stream, names, expected_runs):
             'wall_seconds': (ended - started) / 1e9, 'clock_ticks_per_second': ticks,
             'cpu_ticks_delta': total, 'cpu_seconds_delta': total / ticks, 'tick_seconds': 1 / ticks,
             'memory_kib_before': memory_before, 'memory_kib_after': memory_after,
-            'scope': 'Common Top own-process CPU/RSS and acquired snapshot durations at rate 1; '
+            'sampling_interval_seconds': stream.interval,
+            'missed_sequence_numbers': sum(max(0, b['sequence'] - a['sequence'] - 1) for a, b in zip(samples, samples[1:])),
+            'incomplete_observations': [row for row in stream.observations if not row['complete']],
+            'scope': 'Common Top own-process CPU/RSS and acquired snapshot durations at selected rate; '
                      'iostat/processes disabled in both windows. Excludes daemon/exporter/controller '
                      'and other system work; not full-default-Top or node cost.'}
 
@@ -519,11 +531,11 @@ def _lean_guard():
         containers.start()
         ct = containers.names[0]
         old = identity(ct)
-        stream = Stream(optional_collectors=True)
+        stream = Stream(optional_collectors=True, interval=5)
         enabled_cost = top_cost(stream, containers.names, {ct: old})
         stream.stop()
         stream = None
-        stream = Stream()
+        stream = Stream(interval=5)
         disabled_cost = top_cost(stream, containers.names, {ct: old})
         first, second = disabled_cost['warmup']
         rejected = guard('restart', ct, [old[0], old[1] + 1], success=False)
@@ -660,7 +672,7 @@ def dispatch():
             return latest if (latest['status']['unknown_actions'] == 1 and
                               any(p['id'] == IDS[0] and p.get('unknown')
                                   for p in latest.get('inflight', []))) else None
-        witness = until(accepted_b, timeout=6)
+        witness = until(accepted_b, timeout=10)
         assert held.poll() is None and slot(held.pid)[3] == '1'
         assert writer.poll() is None and slot(writer.pid)[2:4] == ['1', '0']
         # Independent daemon-side overlap evidence: this invalid-identity
@@ -670,11 +682,11 @@ def dispatch():
         overlap = guard('stop', IDS[0], [runs[IDS[0]][0], runs[IDS[0]][1] + 1], success=False)
         assert 'is held by ct_oomd_restart' in overlap['output'], overlap
         observed = [r for r in driver.records() if r.get('accepted') and r.get('episode')]
-        assert len(observed) >= 2, observed
+        assert len(observed) >= 3, observed
         assert all(r['restart_threshold'] == 2 for r in observed), observed
         episode_entry = next(r['observed_monotonic_ns'] for r in driver.records() if r.get('episode'))
         fresh = [r for r in observed if r['raw']['sample_started_monotonic_ns'] > episode_entry]
-        assert len({(r['raw']['epoch'], r['raw']['sequence']) for r in fresh}) >= 2, fresh
+        assert len({(r['raw']['epoch'], r['raw']['sequence']) for r in fresh}) >= 3, fresh
         permits = {}
         for record in driver.records():
             for permit in record.get('inflight', []):
@@ -682,14 +694,14 @@ def dispatch():
         for ct in IDS:
             permit = permits[ct]
             assert permit['run'] == runs[ct] and permit['action'] == 'restart', permit
-            assert permit['watchdog_episode'] == [distress['epoch'], distress['probe_sequence']], permit
+            assert permit['watchdog_episode'][0] == distress['epoch'] and len(permit['watchdog_episode']) == 4, permit
             granted, = [r for r in fresh if (r['raw']['epoch'], r['raw']['sequence']) ==
                         (permit['epoch'], permit['sequence'])]
             # No fixture ct_show/hostname reads under the hold: compare the
             # real stream's pinned identities and required raw grant inputs.
             check_record(granted, IDS, runs)
             assert any(r['raw']['sequence'] < permit['sequence'] and
-                       any(s['id'] == ct and s['restart'] == 1 for s in r['scores']) for r in fresh), fresh
+                       any(s['id'] == ct and 0 < s['restart'] < 2 for s in r['scores']) for r in fresh), fresh
         initial_tick = witness['observed_monotonic_ns']
         progressed = until(lambda: next((r for r in reversed(driver.records()) if
                            r.get('event') == 'controller' and

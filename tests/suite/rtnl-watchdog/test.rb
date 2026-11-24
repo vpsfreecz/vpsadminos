@@ -62,7 +62,7 @@ describe 'active RTNL watchdog and guarded oomd integration', order: :defined do
     end
   end
 
-  it 'applies raw predicates and fresh episode evidence while preserving ordinary stop scores' do
+  it 'applies shared qualified seconds and fresh gate evidence while preserving load-only stop history' do
     _, output = machine.succeeds('rtnl-watchdog-policy-test', timeout: 30)
     expect(JSON.parse(output).fetch('mode')).to eq('controlled_inputs_only')
     puts output

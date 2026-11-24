@@ -7,24 +7,25 @@ RSpec.describe OsCtl::Oomd::Exporter do
     with_tmpdir do |dir|
       file = File.join(dir, 'metrics', 'oomd.prom')
       container = OsCtl::Oomd::ContainerScore.new('tank', 'ct1')
-      2.times { container.hit }
-      killer = instance_double(OsCtl::Oomd::Controller, export: [container], restart_hits: 8, stop_hits: 40)
+      container.observe(now_ns: 1_000_000_000, qualification: true, gate_token: { load: true }, load_gate: true, linked: true, interval_ns: 5_000_000_000)
+      container.observe(now_ns: 6_000_000_000, qualification: true, gate_token: { load: true }, load_gate: true, linked: true, interval_ns: 5_000_000_000)
+      killer = instance_double(OsCtl::Oomd::Controller, export: [container], restart_after_seconds: 90, stop_after_seconds: 600)
       exporter = described_class.new(file:, killer:)
 
       exporter.send(:export_metrics)
 
       output = File.read(file)
-      expect(output).to include('osctl_oomd_container_restart_hits')
+      expect(output).to include('osctl_oomd_container_restart_qualified_seconds')
       expect(output).to include('pool="tank",id="ct1"')
-      expect(output).to include('osctl_oomd_restart_hits 8')
-      expect(output).to include('osctl_oomd_stop_hits 40')
+      expect(output).to include('osctl_oomd_restart_after_seconds 90')
+      expect(output).to include('osctl_oomd_stop_after_seconds 600')
     end
   end
 
   it 'creates parent directories and regenerates the metrics file' do
     with_tmpdir do |dir|
       file = File.join(dir, 'metrics', 'oomd.prom')
-      killer = instance_double(OsCtl::Oomd::Controller, export: [], restart_hits: 8, stop_hits: 40)
+      killer = instance_double(OsCtl::Oomd::Controller, export: [], restart_after_seconds: 90, stop_after_seconds: 600)
       exporter = described_class.new(file:, killer:)
 
       allow(FileUtils).to receive(:mkdir_p).and_call_original
@@ -39,7 +40,7 @@ RSpec.describe OsCtl::Oomd::Exporter do
 
   it 'stops the exporter loop when stop is requested' do
     with_tmpdir do |dir|
-      killer = instance_double(OsCtl::Oomd::Controller, export: [], restart_hits: 8, stop_hits: 40)
+      killer = instance_double(OsCtl::Oomd::Controller, export: [], restart_after_seconds: 90, stop_after_seconds: 600)
       exporter = described_class.new(file: File.join(dir, 'oomd.prom'), killer:)
       allow(exporter).to receive(:export_metrics)
 

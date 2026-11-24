@@ -24,6 +24,8 @@ let
     (toString s.intervalMs)
     "--threshold-ms"
     (toString s.thresholdMs)
+    "--latency-threshold-ms"
+    (toString s.latencyThresholdMs)
     "--tick-ms"
     (toString s.tickMs)
     "--error-backoff-ms"
@@ -44,6 +46,9 @@ in
       thresholdMs =
         integer 100 60000 1000
           "Announced pending age considered distressed, in milliseconds.";
+      latencyThresholdMs =
+        integer 1 60000 1000
+          "Strict slow-response cutoff for control evidence, in milliseconds.";
       tickMs = integer 50 1000 250 "Observer heartbeat interval in milliseconds.";
       errorBackoffMs =
         integer 100 3600000 5000

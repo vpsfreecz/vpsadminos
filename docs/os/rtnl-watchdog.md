@@ -48,6 +48,7 @@ All options below are under `services.rtnl-watchdog.settings`:
 | --- | --- | --- |
 | `intervalMs` | 1000 | 100 to 60000 ms |
 | `thresholdMs` | 1000 | 100 to 60000 ms; at least `tickMs` |
+| `latencyThresholdMs` | 1000 | 1 to 60000 ms; cutoff for the consumer's slow-response summary |
 | `tickMs` | 250 | 50 to 1000 ms |
 | `errorBackoffMs` | 5000 | 100 to 3600000 ms |
 | `metricsFile` | `/run/metrics/rtnl-watchdog.prom` | Absolute file path |
@@ -61,8 +62,9 @@ remains unknown, regardless of dispatch age. A matched valid completion clears
 the current distress immediately and retains its full duration.
 
 The CLI mirrors these settings with `--interval-ms`, `--threshold-ms`,
-`--tick-ms`, `--error-backoff-ms` and `--metrics-file`. Standalone fixtures can
-also set `--state-file` and `--lock-file`; the module fixes those paths below.
+`--latency-threshold-ms`, `--tick-ms`, `--error-backoff-ms` and `--metrics-file`.
+Standalone fixtures can also set `--state-file` and `--lock-file`; the module
+fixes those paths below.
 Paths must be absolute and normalized, with distinct state, metrics and lock
 files in trusted root-owned directories. `--help` and `--version` do not probe.
 `services.rtnl-watchdog.package` selects a package containing the observer and its
@@ -90,6 +92,38 @@ errors remain unknown. Consumers validate root ownership/mode, framing,
 boot/epoch/ordered sequence and monotonic freshness. Oomd requires two ordered
 fresh frames to bind a new epoch and expires evidence after one second. Old,
 future or missing state cannot authorize its watchdog override.
+
+Schema 1 also contains an additive `latency_run` object for sustained-latency
+consumers. Its `version` is 1. The fixed-size fields are `cutoff_ns`,
+`interval_ns`, `tick_ns`, `coverage_started_ns`, `valid`, `first_probe`,
+`last_probe`, `first_started_ns`, `last_completed_ns` and `slow_count`.
+An empty run has null probe identities and timestamps and a zero count.
+`valid` describes continuous observer coverage, including normal scheduling
+gaps; it starts false.
+
+Every matched completion updates this summary before output coalescing. A
+successful response strictly above `latencyThresholdMs` starts or extends the
+consecutive slow run. A response at or below the cutoff clears it, even when
+no consumer reads the intervening frame. The span ends at the latest slow
+completion and cannot grow from a retained duration or a pending probe alone.
+This cutoff is independent of `thresholdMs` and changes no histogram or
+overdue-counter semantics.
+
+Errors, helper changes and observer discontinuities clear the summary.
+Before processing queued IPC, the observer resets coverage after a loop gap
+over one second, a dispatch more than one second past its scheduled deadline,
+or a missing start acknowledgement past its one-second grace. A completion
+whose start predates the new coverage boundary cannot seed a slow run.
+An already announced pending probe can regain coverage after queued messages
+are processed, but its consumer age starts at the later of its original start
+and the new coverage boundary. This does not cancel or replace the helper.
+
+Oomd validates the summary version, configured cutoff, supported cadence and
+freshness. Its control path requires `intervalMs <= 1000` and `tickMs <= 250`.
+A missing or mismatched summary disables RTNL activation while independently
+valid load protection remains available. Older consumers ignore the added
+fields. See the [oomd reference](oomd.md) for activation durations and rollout
+compatibility.
 
 ## Prometheus output
 

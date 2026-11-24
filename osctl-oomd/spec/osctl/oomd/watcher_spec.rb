@@ -7,7 +7,7 @@ RSpec.describe OsCtl::Oomd::Watcher do
   let(:exporter) { instance_double(OsCtl::Oomd::Exporter, start: nil, stop: nil) }
   let(:watcher) do
     described_class.new(interval: 15, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
-                        load_top: 5, restart_hits: 8, stop_hits: 40, export_file: '/tmp/unused.prom')
+                        load_top: 5, restart_after_seconds: 90, stop_after_seconds: 600, export_file: '/tmp/unused.prom')
   end
 
   before do

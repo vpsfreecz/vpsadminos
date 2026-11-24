@@ -9,6 +9,7 @@ Measure RTNL-path request responsiveness without taking container actions.
   --lock-file PATH           Lock shared with the probe helper
   --interval-ms N            Spacing after completion, 100..60000 (1000)
   --threshold-ms N           Distress age, 100..60000 (1000)
+  --latency-threshold-ms N   Slow response cutoff, 1..60000 (1000)
   --tick-ms N                State update interval, 50..1000 (250)
   --error-backoff-ms N       Delay after completed errors, 100..3600000 (5000)
 The distress threshold must be at least the state update interval.
@@ -24,6 +25,7 @@ pub struct Config {
     pub interval_ms: u64,
     pub threshold_ms: u64,
     pub tick_ms: u64,
+    pub latency_threshold_ms: u64,
     pub error_backoff_ms: u64,
 }
 impl Default for Config {
@@ -35,6 +37,7 @@ impl Default for Config {
             interval_ms: 1000,
             threshold_ms: 1000,
             tick_ms: 250,
+            latency_threshold_ms: 1000,
             error_backoff_ms: 5000,
         }
     }
@@ -76,6 +79,7 @@ pub fn parse(args: &[String]) -> io::Result<Action> {
                 | "--interval-ms"
                 | "--threshold-ms"
                 | "--tick-ms"
+                | "--latency-threshold-ms"
                 | "--error-backoff-ms"
         ) {
             return Err(invalid("unknown option"));
@@ -106,6 +110,7 @@ pub fn parse(args: &[String]) -> io::Result<Action> {
                 let (min, max, target) = match name {
                     "--interval-ms" => (100, 60000, &mut c.interval_ms),
                     "--threshold-ms" => (100, 60000, &mut c.threshold_ms),
+                    "--latency-threshold-ms" => (1, 60000, &mut c.latency_threshold_ms),
                     "--tick-ms" => (50, 1000, &mut c.tick_ms),
                     _ => (100, 3600000, &mut c.error_backoff_ms),
                 };
@@ -148,6 +153,8 @@ mod tests {
         for bad in ["-1", "0", "nan", "60001", "9999999999999999999999"] {
             assert!(parse(&["--threshold-ms".into(), bad.into()]).is_err());
         }
+        assert!(parse(&["--latency-threshold-ms=0".into()]).is_err());
+        assert!(parse(&["--latency-threshold-ms=60001".into()]).is_err());
         for path in ["/run/./x", "/run//x", "/run/../x", "relative", "/run/"] {
             assert!(parse(&["--state-file".into(), path.into()]).is_err());
         }
