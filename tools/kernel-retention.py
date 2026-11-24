@@ -304,7 +304,7 @@ def main(argv=None):
     application.add_argument('--base', required=True)
     application.add_argument('--evidence', type=Path, required=True, help='write transaction evidence outside Git')
     application.add_argument('--write', action='store_true',
-                             help='advance a clean detached checkout by one hooked commit per retired kernel')
+                             help='advance a clean detached checkout by one commit per retired kernel')
     plan_args(application)
     for command, help_text in (
         ('verify', 'verify every retirement commit and evaluate the tip offline'),

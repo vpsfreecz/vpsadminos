@@ -26,7 +26,7 @@ if [[ ${#write[@]} == 0 ]] || jq -e '.eligible == []' "$private/report.json" >/d
   exit 0
 fi
 
-# The whole hooked series succeeded; independently prove its exact prefixes.
+# Verify each retirement commit before bundling the series.
 candidate=$(git rev-parse HEAD)
 "${pruner[@]}" verify --base "$base" --candidate "$candidate" --evidence "$out/evidence.json" > "$out/proof.json"
 mkdocs build --strict --site-dir "$private/site"

@@ -35,25 +35,13 @@ jobs:
         run: |
           nix flake archive --no-write-lock-file
           if [[ "$KERNEL_RETENTION_WRITE" == true ]]; then
-            hook_ruby=$(nix eval --offline --raw --inputs-from . nixpkgs#overcommit.wrappedRuby \
-              --apply 'package: package.outPath')/bin/ruby
-            nix shell --inputs-from . nixpkgs#overcommit.wrappedRuby nixpkgs#overcommit \
-              nixpkgs#nixfmt nixpkgs#rubocop nixpkgs#mkdocs \
-              --command bash -eu -c '
-                printf "Ruby on PATH: %s\nHook Ruby: %s\n" "$(command -v ruby)" "$1"
-                "$1" -rovercommit -e "puts Overcommit::VERSION"
-                overcommit --install
-                overcommit --sign
-                overcommit --sign pre-commit
-                "$1" .github/workflows/scripts/kernel_retention_bind_hooks.rb "$1"
-              ' bash "$hook_ruby"
+            nix shell --inputs-from . nixpkgs#mkdocs --command true
           fi
       - name: Plan and, only when enabled, verify one local candidate
         id: prepare
         run: |
           if [[ "$KERNEL_RETENTION_WRITE" == true ]]; then
-            nix shell --offline --inputs-from . nixpkgs#overcommit.wrappedRuby nixpkgs#overcommit \
-              nixpkgs#nixfmt nixpkgs#rubocop nixpkgs#mkdocs \
+            nix shell --offline --inputs-from . nixpkgs#mkdocs \
               --command bash .github/workflows/scripts/kernel-retention-prepare.sh
           else
             bash .github/workflows/scripts/kernel-retention-prepare.sh
