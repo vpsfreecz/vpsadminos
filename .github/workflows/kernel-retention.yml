@@ -35,14 +35,17 @@ jobs:
         run: |
           nix flake archive --no-write-lock-file
           if [[ "$KERNEL_RETENTION_WRITE" == true ]]; then
-            nix shell --inputs-from . nixpkgs#overcommit nixpkgs#nixfmt nixpkgs#rubocop nixpkgs#mkdocs \
+            # Git launches the installed hooks with /usr/bin/env ruby.
+            nix shell --inputs-from . nixpkgs#overcommit.wrappedRuby nixpkgs#overcommit \
+              nixpkgs#nixfmt nixpkgs#rubocop nixpkgs#mkdocs \
               --command bash -eu -c 'overcommit --install && overcommit --sign'
           fi
       - name: Plan and, only when enabled, verify one local candidate
         id: prepare
         run: |
           if [[ "$KERNEL_RETENTION_WRITE" == true ]]; then
-            nix shell --offline --inputs-from . nixpkgs#overcommit nixpkgs#nixfmt nixpkgs#rubocop nixpkgs#mkdocs \
+            nix shell --offline --inputs-from . nixpkgs#overcommit.wrappedRuby nixpkgs#overcommit \
+              nixpkgs#nixfmt nixpkgs#rubocop nixpkgs#mkdocs \
               --command bash .github/workflows/scripts/kernel-retention-prepare.sh
           else
             bash .github/workflows/scripts/kernel-retention-prepare.sh
