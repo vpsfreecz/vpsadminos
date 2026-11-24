@@ -461,6 +461,14 @@ test shell becomes ready, the boot gate checks the native target, captured
 module bytes, full manager inventory, livepatch state and tip release. Every
 reboot repeats the gate. Tests use the captured modules directly.
 
+The ordinary regression overlay loads each distinct non-`vmlinux` target module
+named by the selected releases before it starts the automatic livepatch loader.
+This must happen in `boot.postBootCommands`, because runit loads
+`boot.kernelModules` later in the boot. If a target module cannot be loaded, the
+overlay records its name under `/run/livepatch-regression/`, removes the
+verification marker and forces a reboot. Loading the target modules does not
+qualify the stack; the complete captured-state boot gate must still pass.
+
 Ordinary workload regression and dedicated livepatch qualification must both
 pass at the final source revision. Dedicated qualification covers native and
 intermediate stages, transitions, failure recovery, rollback and fix-oracle

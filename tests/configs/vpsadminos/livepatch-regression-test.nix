@@ -11,6 +11,20 @@ let
   setId = "6.12.113.2";
   sourceRevision = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   payloadSha256 = "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f";
+  targetObjects = {
+    "1" = [
+      "vmlinux"
+      "nf_conntrack"
+      "bridge"
+      "nf_conntrack"
+    ];
+    "2" = [
+      "vmlinux"
+      "bridge"
+      "sctp"
+    ];
+    "3" = [ "unselected_object" ];
+  };
   mkModule =
     ordinal:
     let
@@ -24,6 +38,10 @@ let
           batch = {
             inherit installPath moduleName release;
             releaseOrdinal = ordinal;
+            build = {
+              targets = [ "build-only-dependency.ko" ];
+              expected.functions = map (object: { inherit object; }) targetObjects.${toString ordinal};
+            };
           };
           kernelTarget.id = "target-${kernelVersion}";
         };
@@ -94,6 +112,7 @@ let
   manager = pkgs.writeShellScript "livepatch-regression-manager" ''
     test "$#" -eq 1
     test "$1" = status
+    printf 'gate\n' >> ${runtimeRoot}/events
     printf '%s\n' \
       'ordinal=1 release=6.12.113.1 module=livepatch_regression_1 configured=yes present=yes enabled=1 transition=0 replace=0 state=active' \
       'ordinal=2 release=6.12.113.2 module=livepatch_regression_2 configured=yes present=yes enabled=1 transition=0 replace=0 state=active'
@@ -102,6 +121,19 @@ let
     test "$#" -eq 1
     test "$1" = -r
     cat ${runtimeRoot}/uname
+  '';
+  modprobe = pkgs.writeShellScript "livepatch-regression-modprobe" ''
+    test "$#" -eq 1
+    printf 'modprobe %s\n' "$1" >> ${runtimeRoot}/events
+    if test "$1" = "''${LIVEPATCH_REGRESSION_FAIL_OBJECT:-}"; then
+      echo "synthetic modprobe failure for $1" >&2
+      exit 1
+    fi
+  '';
+  reboot = pkgs.writeShellScript "livepatch-regression-reboot" ''
+    test "$#" -eq 1
+    test "$1" = -f
+    printf 'reboot %s\n' "$1" >> ${runtimeRoot}/events
   '';
   config = {
     boot.kernelVersion = kernelVersion;
@@ -112,23 +144,39 @@ let
       }) modules
     );
   };
-  evaluate =
-    candidateCapture: selectedSetId:
+  evaluateWith =
+    selectedConfig: candidateCapture: selectedSetId:
     import (root + "/tests/configs/vpsadminos/livepatch-regression.nix") {
-      inherit config lib pkgs;
+      config = selectedConfig;
+      inherit lib pkgs;
       livepatchRegressionTest = {
         inherit plan;
         capture = candidateCapture;
         setId = selectedSetId;
-        inherit runtimeRoot manager uname;
+        inherit
+          runtimeRoot
+          manager
+          uname
+          modprobe
+          reboot
+          ;
       };
     };
+  evaluate = evaluateWith config;
   evaluated = evaluate capture setId;
   matched = (builtins.elemAt evaluated.contents 1).content;
   gate = matched.environment.etc."livepatch-regression/gate".source;
   postBootDefinition = matched.boot.postBootCommands;
-  postBoot = postBootDefinition.content;
-  mergedPostBoot =
+  preloadDefinition = builtins.elemAt postBootDefinition.contents 0;
+  gateDefinition = builtins.elemAt postBootDefinition.contents 1;
+  automaticLoader = ''
+    printf 'automatic-loader\n' >> ${runtimeRoot}/events
+  '';
+  mergePostBoot =
+    value:
+    let
+      selected = builtins.elemAt value.contents 1;
+    in
     (lib.evalModules {
       modules = [
         {
@@ -137,10 +185,51 @@ let
             type = lib.types.lines;
           };
         }
-        { config.boot.postBootCommands = "automatic-loader"; }
-        { config.boot.postBootCommands = postBootDefinition; }
+        { config.boot.postBootCommands = automaticLoader; }
+        {
+          config = lib.mkIf selected.condition {
+            boot.postBootCommands = selected.content.boot.postBootCommands;
+          };
+        }
       ];
     }).config.boot.postBootCommands;
+  mergedPostBoot = mergePostBoot evaluated;
+  withoutFunctionMetadata = config // {
+    system.build.livePatchModules = builtins.mapAttrs (
+      _: module:
+      module
+      // {
+        batch = module.batch // {
+          build = builtins.removeAttrs module.batch.build [ "expected" ];
+        };
+      }
+    ) config.system.build.livePatchModules;
+  };
+  ineligible = evaluateWith (
+    withoutFunctionMetadata // { boot.kernelVersion = "6.12.114"; }
+  ) capture setId;
+  unselectedConfigured = evaluateWith (
+    config
+    // {
+      system.build.livePatchModules = config.system.build.livePatchModules // {
+        "${kernelVersion}.3" = mkModule 3;
+      };
+    }
+  ) capture setId;
+  allVmlinuxModules = builtins.mapAttrs (
+    _: module:
+    module
+    // {
+      batch = module.batch // {
+        build = module.batch.build // {
+          expected.functions = [ { object = "vmlinux"; } ];
+        };
+      };
+    }
+  ) config.system.build.livePatchModules;
+  allVmlinux = evaluateWith (
+    config // { system.build.livePatchModules = allVmlinuxModules; }
+  ) capture setId;
   missingPredecessor = capture // {
     sets = [
       {
@@ -190,7 +279,14 @@ let
     ((builtins.elemAt wrongHashEvaluated.contents 1).content)
     .environment.etc."livepatch-regression/gate".source;
   tryEvaluation = value: builtins.tryEval (builtins.length value.contents);
-  postBootFile = pkgs.writeText "livepatch-regression-post-boot" postBoot;
+  postBootFile = pkgs.writeText "livepatch-regression-post-boot" ''
+    ${mergedPostBoot}
+    printf 'continuation\n' >> ${runtimeRoot}/events
+  '';
+  allVmlinuxPostBootFile = pkgs.writeText "livepatch-regression-vmlinux-post-boot" ''
+    ${mergePostBoot allVmlinux}
+    printf 'continuation\n' >> ${runtimeRoot}/events
+  '';
 
   readinessManager = pkgs.writeShellScript "livepatch-autoload-readiness-manager" ''
     test "$#" -eq 1
@@ -234,9 +330,17 @@ let
     readinessEvaluation.content.environment.etc."livepatch-autoload-readiness/gate".source;
 in
 assert (tryEvaluation evaluated).success;
-assert postBootDefinition._type == "order";
-assert postBootDefinition.priority == 1500;
-assert lib.hasPrefix "automatic-loader\n" mergedPostBoot;
+assert postBootDefinition._type == "merge";
+assert preloadDefinition._type == "order" && preloadDefinition.priority == 500;
+assert gateDefinition._type == "order" && gateDefinition.priority == 1500;
+assert
+  mergedPostBoot == lib.concatStringsSep "\n" [
+    preloadDefinition.content
+    automaticLoader
+    gateDefinition.content
+  ];
+assert mergePostBoot ineligible == automaticLoader;
+assert !(tryEvaluation unselectedConfigured).success;
 assert !(tryEvaluation (evaluate capture "6.12.113.9")).success;
 assert !(tryEvaluation (evaluate missingPredecessor setId)).success;
 assert !(tryEvaluation (evaluate wrongProducer setId)).success;
@@ -253,6 +357,7 @@ pkgs.runCommand "livepatch-regression-interface-check"
   ''
     set -euo pipefail
     root=${runtimeRoot}
+    mkdir "$out"
 
     prepare_runtime() {
       rm -rf "$root"
@@ -262,6 +367,7 @@ pkgs.runCommand "livepatch-regression-interface-check"
         "$root/sys/module/livepatch_regression_2" \
         "$root/sys/kernel/livepatch/livepatch_regression_1" \
         "$root/sys/kernel/livepatch/livepatch_regression_2"
+      : > "$root/events"
       printf '%s\n' ${setId} > "$root/uname"
       for ordinal in 1 2; do
         state="$root/sys/kernel/livepatch/livepatch_regression_$ordinal"
@@ -281,6 +387,42 @@ pkgs.runCommand "livepatch-regression-interface-check"
       test ! -e "$root/run/livepatch-regression/verified"
       grep -F 'livepatch regression gate:' "$root/$label.err" >/dev/null
     }
+
+    prepare_runtime
+    bash ${postBootFile}
+    printf '%s\n' \
+      'modprobe nf_conntrack' \
+      'modprobe bridge' \
+      'modprobe sctp' \
+      'automatic-loader' \
+      'gate' \
+      'continuation' > "$root/events.expected"
+    cmp "$root/events.expected" "$root/events"
+    test -f "$root/run/livepatch-regression/verified"
+
+    prepare_runtime
+    bash ${allVmlinuxPostBootFile}
+    printf '%s\n' automatic-loader gate continuation > "$root/events.expected"
+    cmp "$root/events.expected" "$root/events"
+    test -f "$root/run/livepatch-regression/verified"
+
+    prepare_runtime
+    mkdir -p "$root/run/livepatch-regression"
+    touch "$root/run/livepatch-regression/verified"
+    status=0
+    LIVEPATCH_REGRESSION_FAIL_OBJECT=bridge \
+      timeout --kill-after=1 2 bash ${postBootFile} \
+        > "$root/preload-failed.out" 2> "$root/preload-failed.err" || status=$?
+    test "$status" -eq 124
+    test ! -e "$root/run/livepatch-regression/verified"
+    grep -F 'livepatch regression preload: target bridge failed' \
+      "$root/run/livepatch-regression/refusal" >/dev/null
+    grep -F 'synthetic modprobe failure for bridge' \
+      "$root/run/livepatch-regression/refusal" >/dev/null
+    printf '%s\n' 'modprobe nf_conntrack' 'modprobe bridge' 'reboot -f' \
+      > "$root/events.expected"
+    cmp "$root/events.expected" "$root/events"
+    cp "$root/run/livepatch-regression/refusal" "$out/preload-refusal.log"
 
     prepare_runtime
     ${gate}
@@ -307,7 +449,6 @@ pkgs.runCommand "livepatch-regression-interface-check"
 
     prepare_runtime
     expect_refusal wrong-hash ${wrongHashGate}
-    mkdir "$out"
     cp "$root/wrong-hash.err" "$out/wrong-hash.log"
 
     prepare_readiness() {
@@ -351,12 +492,13 @@ pkgs.runCommand "livepatch-regression-interface-check"
     fi
 
     grep -F 'livepatch regression gate refused the boot; forcing guest reboot' ${postBootFile} >/dev/null
-    grep -F 'reboot -f' ${postBootFile} >/dev/null
+    grep -F '${reboot} -f' ${postBootFile} >/dev/null
     grep -F 'while :; do' ${postBootFile} >/dev/null
     grep -F 'livepatch automatic-load readiness refused the boot; forcing guest reboot' \
       ${readinessPostBootFile} >/dev/null
     grep -F 'reboot -f' ${readinessPostBootFile} >/dev/null
     grep -F 'while :; do' ${readinessPostBootFile} >/dev/null
 
+    cp ${postBootFile} "$out/post-boot.sh"
     printf '%s\n' 'livepatch regression interface checks passed' > "$out/result.txt"
   ''

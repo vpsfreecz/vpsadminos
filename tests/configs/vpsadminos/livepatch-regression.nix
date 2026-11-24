@@ -38,6 +38,12 @@ let
       "${config.system.build.livePatchManager}/bin/live-patches"
     else
       livepatchRegressionTest.manager;
+  modprobe =
+    if livepatchRegressionTest == null then
+      "${pkgs.kmod}/bin/modprobe"
+    else
+      livepatchRegressionTest.modprobe;
+  reboot = if livepatchRegressionTest == null then "reboot" else livepatchRegressionTest.reboot;
   matchingSets = builtins.filter (candidate: candidate.id == setId) plan.sets;
   matchingCapturedSets = builtins.filter (candidate: candidate.id == setId) capture.sets;
   qualificationSet = builtins.head matchingSets;
@@ -196,30 +202,62 @@ lib.mkMerge [
     environment.etc."livepatch-regression/admission.json".text = builtins.toJSON admission;
   }
 
-  (lib.mkIf validatedTargetEligible {
-    environment.etc = {
-      "livepatch-regression/sentinel".text = setId;
-      "livepatch-regression/expected-inventory".source = expectedInventory;
-      "livepatch-regression/gate".source = gate;
-    };
+  (lib.mkIf validatedTargetEligible (
+    let
+      targetObjects = lib.unique (
+        builtins.filter (object: object != "vmlinux") (
+          lib.concatMap (
+            release: map (function: function.object) configuredModules.${release}.batch.build.expected.functions
+          ) plannedReleases
+        )
+      );
+    in
+    {
+      environment.etc = {
+        "livepatch-regression/sentinel".text = setId;
+        "livepatch-regression/expected-inventory".source = expectedInventory;
+        "livepatch-regression/gate".source = gate;
+      };
 
-    # The production manager appends its automatic loader earlier at the same
-    # option boundary. This gate must run afterwards and before stage 2 execs
-    # runit, which is when any test shell could announce readiness.
-    boot.postBootCommands = lib.mkAfter ''
-      refusal=/run/livepatch-regression/refusal
-      ${pkgs.coreutils}/bin/rm -f -- "$refusal"
-      if ! gate_output=$(${gate} 2>&1); then
-        ${pkgs.coreutils}/bin/mkdir -p -- /run/livepatch-regression
-        printf '%s\n' "$gate_output" | ${pkgs.coreutils}/bin/tee "$refusal" >&2
-        echo 'livepatch regression gate refused the boot; forcing guest reboot' >&2
-        reboot -f
-        while :; do
-          ${pkgs.coreutils}/bin/sleep 3600
-        done
-      fi
-    '';
-  })
+      boot.postBootCommands = lib.mkMerge [
+        # Runit loads boot.kernelModules after the automatic livepatch loader.
+        # Load the captured stack's target objects before that loader runs.
+        (lib.mkBefore ''
+          marker=${lib.escapeShellArg (runtimePath "/run/livepatch-regression/verified")}
+          refusal=${lib.escapeShellArg (runtimePath "/run/livepatch-regression/refusal")}
+          ${pkgs.coreutils}/bin/rm -f -- "$marker" "$refusal"
+          for object in ${lib.concatMapStringsSep " " lib.escapeShellArg targetObjects}; do
+            if ! preload_output=$(${modprobe} "$object" 2>&1); then
+              ${pkgs.coreutils}/bin/mkdir -p -- ${lib.escapeShellArg (runtimePath "/run/livepatch-regression")}
+              printf 'livepatch regression preload: target %s failed\n%s\n' "$object" "$preload_output" |
+                ${pkgs.coreutils}/bin/tee "$refusal" >&2
+              echo 'livepatch regression preload refused the boot; forcing guest reboot' >&2
+              ${reboot} -f
+              while :; do
+                ${pkgs.coreutils}/bin/sleep 3600
+              done
+            fi
+          done
+        '')
+
+        # The gate follows the production loader and runs before stage 2 execs
+        # runit, which is when any test shell could announce readiness.
+        (lib.mkAfter ''
+          refusal=${lib.escapeShellArg (runtimePath "/run/livepatch-regression/refusal")}
+          ${pkgs.coreutils}/bin/rm -f -- "$refusal"
+          if ! gate_output=$(${gate} 2>&1); then
+            ${pkgs.coreutils}/bin/mkdir -p -- ${lib.escapeShellArg (runtimePath "/run/livepatch-regression")}
+            printf '%s\n' "$gate_output" | ${pkgs.coreutils}/bin/tee "$refusal" >&2
+            echo 'livepatch regression gate refused the boot; forcing guest reboot' >&2
+            ${reboot} -f
+            while :; do
+              ${pkgs.coreutils}/bin/sleep 3600
+            done
+          fi
+        '')
+      ];
+    }
+  ))
 
   (lib.mkIf kernelMatches {
     services.live-patches = {
