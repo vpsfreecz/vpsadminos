@@ -296,13 +296,28 @@ class TransactionTests(unittest.TestCase):
         stubs = runner / 'bin'
         self.write(runner / 'snapshot.json', json.dumps(self.evidence).encode())
         self.write(stubs / 'nix', b'#!/bin/sh\nexec cat "$RUNNER_TEMP/snapshot.json"\n')
-        self.write(stubs / 'curl', b'''#!/usr/bin/env bash
-printf '{"status":true,"response":{"nodes":[{"fqdn":"node.example.invalid","type":"node","hypervisor_type":"vpsadminos","kernel":"6.12.118","status":true,"last_report":"%s"}]}}\\n200\\n\\n' "$(date -u +%FT%T.%6NZ)"
+        # Keep the report, acquisition, and plan on one fixture timeline.
+        self.write(runner / 'public-status.json', json.dumps({'status': True, 'response': {'nodes': [{
+            'fqdn': 'node.example.invalid', 'type': 'node', 'hypervisor_type': 'vpsadminos',
+            'kernel': '6.12.118', 'status': True, 'last_report': '2026-02-02T12:00:20Z',
+        }]}}).encode())
+        self.write(stubs / 'python3', b'''#!/usr/bin/env bash
+set -euo pipefail
+if [[ $# -ge 3 && "$1 $2 $3" == '-B tools/kernel-retention.py collect' ]]; then
+  set -- "$@" --fixture "$RUNNER_TEMP/public-status.json" --acquired-at 2026-02-02T12:00:30Z
+fi
+exec "$REAL_PYTHON" "$@"
+''')
+        self.write(stubs / 'curl', b'#!/bin/sh\nexit 99\n')
+        self.write(stubs / 'date', b'''#!/bin/sh
+[ "$*" = '-u +%FT%T.%6NZ' ] || exit 99
+printf '%s\\n' 2026-02-02T12:00:31.000000Z
 ''')
         for stub in stubs.iterdir():
             stub.chmod(0o755)
         env = {**os.environ, 'PATH': str(stubs) + ':' + os.environ['PATH'],
-               'RUNNER_TEMP': str(runner), 'GITHUB_OUTPUT': str(runner / 'output')}
+               'RUNNER_TEMP': str(runner), 'GITHUB_OUTPUT': str(runner / 'output'),
+               'REAL_PYTHON': sys.executable}
         env.pop('KERNEL_RETENTION_WRITE', None)
         prepare = source / '.github/workflows/scripts/kernel-retention-prepare.sh'
         result = subprocess.run(['bash', prepare], env=env, capture_output=True, text=True, timeout=10)
