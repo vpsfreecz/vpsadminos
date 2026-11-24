@@ -92,6 +92,171 @@ RSpec.describe OsCtl::Oomd::Controller do
 
   def score = controller.export.find { |ct| ct.id == 'a' }
 
+  context 'with real persistent host history' do
+    def initial_loads = [1.0, 1.0, 1.0]
+    def history_file = (@history_file ||= File.join(Dir.mktmpdir('oomd-partial-history-'), 'host-load.yml'))
+    let(:host_load) do
+      stub_const('OsCtl::Oomd::HostLoad::STATE_FILE', history_file)
+      File.write(history_file, OsCtl::Lib::ConfigFile.dump_yaml('version' => 2, 'loads' => initial_loads))
+      OsCtl::Oomd::HostLoad.new(interval)
+    end
+
+    before { allow(host_load).to receive(:<<).and_call_original }
+    after { FileUtils.remove_entry(File.dirname(history_file)) }
+
+    def history = host_load.instance_variable_get(:@loads)
+    def host_records = evidence_lines.map { |line| JSON.parse(line) }.select { |record| record['type'] == 'host' }
+
+    def partial_observe(sequence, time, rows = [row], **changes)
+      observe(sequence, time, rows, complete: false, invalid_reason: 'inventory_pending',
+                                    inventory_complete: false, measurement_window_started_monotonic_ns: nil, **changes)
+    end
+
+    [5, 15].each do |rate|
+      context "with interval #{rate}" do
+        define_method(:interval) { rate }
+
+        it 'advances valid host history through inventory and unrelated limit failures without crediting unknown targets' do
+          unknown = row('b', cpu_limit: nil, loadavg: [0]).merge('cpu_limit_state' => 'unknown', 'errors' => { 'cpu_limit' => 'invalid_limit' })
+          partial_observe(1, 100, [row, unknown], loadavg: [10])
+          partial_observe(2, 100 + rate, [row, unknown], loadavg: [20], invalid_reason: 'invalid_limit')
+          partial_observe(3, 100 + (2 * rate), [row, unknown], loadavg: [30])
+
+          expect(history).to eq(initial_loads + [10, 20, 30])
+          expect(host_records.map { |record| record['history_count'] }).to eq([4, 5, 6])
+          expect(score.restart_qualified_seconds).to eq(rate)
+          expect(controller.export.find { |ct| ct.id == 'b' }.restart_qualified_seconds).to eq(0)
+          expect(permits).to be_empty
+        end
+
+        it 'appends each current point once across full and partial transitions' do
+          observe(1, 100, loadavg: [10])
+          partial_observe(2, 100 + rate, loadavg: [20])
+          observe(3, 100 + (2 * rate), loadavg: [30])
+          observe(4, 100 + (3 * rate), loadavg: [40])
+
+          expect(history).to eq(initial_loads + [10, 20, 30, 40])
+          expect(host_records.map { |record| record['history_median'] }).to eq([1.0, 1.0, 5.5, 10])
+          expect(score.restart_qualified_seconds).to eq(3 * rate)
+        end
+      end
+    end
+
+    it 'rejects duplicates, stale samples, invalid host values and retired epochs without appending' do
+      first = frame(1, 100)
+      controller.observe(first, now_ns: ns(100))
+      expect(controller.observe(first, now_ns: ns(101))).to be(false)
+      expect(controller.observe(frame(2, 115), now_ns: ns(121))).to be(false)
+      partial_observe(2, 115, loadavg: [Float::NAN])
+      expect(history).to eq(initial_loads + [10])
+      controller.child_started
+      observe(1, 130, epoch: 'replacement')
+      controller.child_started
+      expect(observe(2, 145)).to be(false)
+      expect(history).to eq(initial_loads + [10, 10])
+      expect(permits).to be_empty
+    end
+
+    it 'keeps missing current host load unknown without advancing history' do
+      observe(1, 100)
+      data = frame(2, 115, complete: false, invalid_reason: 'invalid_host_value', measurement_window_started_monotonic_ns: nil)
+      data['loadavg'] = data['containers'].last['loadavg'] = nil
+      controller.observe(data, now_ns: ns(115))
+
+      expect(history).to eq(initial_loads + [10])
+      expect(score.restart_qualified_seconds).to eq(0)
+      expect(permits).to be_empty
+    end
+
+    it 'rolls host history and scores back when expiry reservations cannot be admitted' do
+      observe(1, 100)
+      allow(controller).to receive(:reserve_expiries).and_return(nil)
+      expect(partial_observe(2, 115)).to be(false)
+      expect(history).to eq(initial_loads + [10])
+      expect(score.restart_qualified_seconds).to eq(0)
+      allow(controller).to receive(:reserve_expiries).and_call_original
+      partial_observe(3, 130)
+      expect(history).to eq(initial_loads + [10, 10])
+      expect(score.restart_qualified_seconds).to eq(0)
+    end
+
+    it 'does not append under sample reservation pressure or backfill skipped samples' do
+      held = evidence.reserve(300)
+      expect(observe(1, 100)).to be(false)
+      expect(history).to eq(initial_loads)
+      evidence.release(held)
+      partial_observe(3, 130)
+      expect(history).to eq(initial_loads + [10])
+      expect(permits).to be_empty
+    ensure
+      evidence.release(held)
+    end
+
+    context 'without established history' do
+      def initial_loads = []
+
+      it 'keeps the first partial transient, then commits both same-epoch cold points once' do
+        partial_observe(1, 100, loadavg: [10])
+        expect(history).to be_empty
+        expect(host_records.last).to include('history_count' => 1, 'history_median' => nil, 'load_gate' => nil)
+        partial_observe(2, 115, loadavg: [20])
+        expect(history).to eq([10, 20])
+        expect(host_records.last).to include('history_count' => 2, 'history_median' => 15.0, 'load_gate' => false)
+        expect(score.restart_qualified_seconds).to eq(0)
+      end
+
+      it 'clears an unpromoted cold seed on a real child/epoch boundary' do
+        partial_observe(1, 100, loadavg: [10])
+        controller.child_started
+        partial_observe(1, 115, loadavg: [100], epoch: 'replacement')
+        expect(history).to be_empty
+        partial_observe(2, 130, loadavg: [20], epoch: 'replacement')
+        expect(history).to eq([100, 20])
+        expect(permits).to be_empty
+      end
+
+      it 'preserves coherent full bootstrap and promotes a partial seed on full recovery' do
+        seed(1, 100)
+        observe(2, 115, loadavg: [20])
+        expect(history).to eq([10, 20])
+        expect(host_records.last['history_median']).to eq(15)
+        expect(permits).to be_empty
+      end
+
+      it 'retains only the admitted cold seed after an oversized selected batch' do
+        partial_observe(1, 100, loadavg: [10])
+        controller.instance_variable_set(:@load_top, 400)
+        expect(partial_observe(2, 115, Array.new(400) { |i| row(i.to_s) }, loadavg: [300])).to be(false)
+        expect(history).to be_empty
+        partial_observe(3, 130, loadavg: [20])
+        expect(history).to eq([10, 20])
+        expect(permits).to be_empty
+      end
+
+      it 'keeps the existing coherent full first-reading bootstrap' do
+        observe(1, 100, loadavg: [10])
+        expect(history).to eq([10])
+        expect(host_records.last).to include('history_median' => 10, 'history_count' => 1)
+        expect(score.restart_qualified_seconds).to eq(0)
+      end
+    end
+
+    context 'with a dispatch median boundary' do
+      def initial_loads = [0.0, 0.0]
+
+      it 'uses the same single-inclusion median for evidence, scoring and final admission' do
+        controller.instance_variable_set(:@restart_after_seconds, interval)
+        partial_observe(1, 100, loadavg: [100])
+        partial_observe(2, 115, loadavg: [300])
+        partial_observe(3, 130, loadavg: [300])
+
+        expect(history).to eq([0, 0, 100, 300, 300])
+        expect(host_records.last).to include('history_median' => 100, 'history_count' => 5, 'load_gate' => true)
+        expect(permits).to contain_exactly(include(action: :restart, run: [42, 123]))
+      end
+    end
+  end
+
   it 'emits pre-gate qualifiers with both gates disabled independent of verbose' do
     actor = described_class.new(interval:, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
                                 load_top: 2, restart_after_seconds: 90, stop_after_seconds: 600,

@@ -77,19 +77,24 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     expect(permits).to contain_exactly(include(action: :restart, pool: 'tank', id: '101', run: [201, 12_345], sequence: 7))
     expect(score.stop_qualified_seconds).to eq(15)
     expect(score('102').restart_qualified_seconds).to eq(0)
-    expect(loads).to eq([20.0])
+    expect(loads).to eq([20.0, 20.0])
     expect(watchdog).to have_received(:episode).at_least(:once)
   end
 
   it 'does not manufacture a partial hit from an unobserved seed or unestablished ordinary history' do
-    allow(host_load).to receive_messages(established?: false, median_with: nil)
-    allow(host_load).to receive(:cold_median_with).and_return(nil, 20, 20)
-    expect(observe(fixture)).to be(false)
-    expect(observe(frame(8, reason: 'missing_cgroup_value'))).to be(true)
-    expect(observe(frame(9, reason: 'missing_cgroup_value'))).to be(true)
-    expect(score.restart_qualified_seconds).to eq(0)
-    expect(loads).to be_empty
-    expect(permits).to be_empty
+    Dir.mktmpdir('oomd-cold-') do |dir|
+      stub_const('OsCtl::Oomd::HostLoad::STATE_FILE', File.join(dir, 'history.yml'))
+      @host_load = OsCtl::Oomd::HostLoad.new(15)
+      actor = make_controller
+      actor.child_started
+      [fixture, frame(8, reason: 'missing_cgroup_value'), frame(9, reason: 'missing_cgroup_value')].each_with_index do |raw, i|
+        expect(actor.observe(raw, now_ns: raw.fetch('sample_completed_monotonic_ns'))).to be(i > 0)
+        expect(host_load.count).to eq(i == 0 ? 0 : i + 1)
+        expect(permits).to be_empty
+      end
+      expect(actor.export.find { |ct| ct.id == '101' }.restart_qualified_seconds).to eq(0)
+      expect(host_load.median).to eq(20)
+    end
   end
 
   it 'rejects old, wrapped and contradictory full observations' do
@@ -102,7 +107,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     expect(permits).to be_empty
   end
 
-  it 'lets the cold node detect a measured spike without persisting partial history' do
+  it 'lets the cold node detect a measured spike while retaining admitted partial history' do
     Dir.mktmpdir('oomd-cold-') do |dir|
       state = File.join(dir, 'history.yml')
       stub_const('OsCtl::Oomd::HostLoad::STATE_FILE', state)
@@ -117,16 +122,18 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
         expect(permits).to be_empty if i < loads_input.size - 1
       end
       expect(permits).to contain_exactly(include(action: :restart, sequence: 23))
-      expect(host_load).not_to be_established
-      expect(File).not_to exist(state)
+      expect(host_load).to be_established
+      expect(host_load.count).to eq(loads_input.size)
+      expect(File).to exist(state)
       expect(actor.export.find { |ct| ct.id == '101' }.stop_qualified_seconds).to eq(105)
 
       seed = frame(24, reason: 'initial_baseline')
       actor.observe(seed, now_ns: seed.fetch('sample_completed_monotonic_ns'))
       full = frame(25)
+      allow(Time).to receive(:now).and_return(Time.now + 61)
       expect(actor.observe(full, now_ns: full.fetch('sample_completed_monotonic_ns'))).to be(true)
-      expect(host_load.median).to eq(20.0)
-      expect(OsCtl::Lib::ConfigFile.load_yaml_file(state)).to eq('version' => 2, 'loads' => [20.0])
+      expect(host_load.median).to eq(4.5)
+      expect(OsCtl::Lib::ConfigFile.load_yaml_file(state)).to eq('version' => 2, 'loads' => loads_input + [20.0, 20.0])
       expect(actor.export.find { |ct| ct.id == '101' }.stop_qualified_seconds).to eq(105)
     end
   end
@@ -144,13 +151,13 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     expect(permits).to be_empty
   end
 
-  it 'keeps hard invalid, subsequent good seed and eligible full decisions distinct' do
+  it 'keeps partial, seed and full target decisions distinct while advancing valid host history' do
     observe(frame(6))
     observe(fixture)
     expect(observe(frame(8))).to be(true) # only per-run pairs are usable at this point
     expect(observe(frame(9, reason: 'initial_baseline'))).to be(true)
     expect(observe(frame(10))).to be(true)
-    expect(loads).to eq([20.0, 20.0])
+    expect(loads).to eq([20.0] * 5)
     expect(score.stop_qualified_seconds).to eq(15)
   end
 
@@ -159,38 +166,41 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     data = Marshal.load(Marshal.dump(fixture))
     data['containers'][1]['loadavg'] = nil
     expect(observe(data)).to be(true) # structurally valid, but A cannot prove rank 2
+    expect(loads).to eq([20.0, 20.0])
     next_frame = frame(8, reason: 'missing_cgroup_value')
     expect(observe(next_frame, now: next_frame['sample_completed_monotonic_ns'] + ns(5) + 1)).to be(false)
     data = frame(9, reason: 'missing_cgroup_value')
     data['collectors']['zfs'] = 'false'
     expect(observe(data)).to be(false)
     expect(observe(frame(10, reason: 'initial_baseline', epoch: 'new-sampler'))).to be(false)
+    expect(loads).to eq([20.0, 20.0]) # rejected control inputs do not advance history
     expect(observe(frame(11))).to be(false)
     expect(permits).to be_empty
     expect(score.stop_qualified_seconds).to eq(0)
-    expect(loads).to eq([20.0])
+    expect(loads).to eq([20.0] * 3) # the valid unlinked frame still contributes host load
   end
 
   [
-    { 'cpu_baseline_sequence' => 4 },
-    { 'cpu_window_started_monotonic_ns' => 0 },
-    { 'group_path' => 'replacement/path' },
-    { 'init_start_time_ticks' => 35_000 },
-    { 'memory_limit' => nil, 'memory_limit_state' => 'unknown' },
-    { 'cpu_limit' => nil, 'cpu_limit_state' => 'unknown' },
-    { 'cpu_usage' => 10**400 },
-    { 'cpu_usage' => 1e300, 'cpu_limit' => 1e-300 },
-    { 'cpu_usage' => nil, 'cpu_baseline_sequence' => nil, 'cpu_window_started_monotonic_ns' => nil,
-      'errors' => { 'cpu_usage' => 'invalid_host_cpu_delta' } }
-  ].each_with_index do |fields, i|
+    [{ 'cpu_baseline_sequence' => 4 }, true],
+    [{ 'cpu_window_started_monotonic_ns' => 0 }, false],
+    [{ 'group_path' => 'replacement/path' }, true],
+    [{ 'init_start_time_ticks' => 35_000 }, true],
+    [{ 'memory_limit' => nil, 'memory_limit_state' => 'unknown' }, true],
+    [{ 'cpu_limit' => nil, 'cpu_limit_state' => 'unknown' }, true],
+    [{ 'cpu_usage' => 10**400 }, false],
+    [{ 'cpu_usage' => 1e300, 'cpu_limit' => 1e-300 }, true],
+    [{ 'cpu_usage' => nil, 'cpu_baseline_sequence' => nil, 'cpu_window_started_monotonic_ns' => nil,
+       'errors' => { 'cpu_usage' => 'invalid_host_cpu_delta' } }, true]
+  ].each_with_index do |(fields, valid_host_sample), i|
     it "rejects unsafe target data variant #{i + 1} (#{fields.keys.join(', ')})" do
       observe(frame(6))
       raw = fixture
       raw['containers'][0].update(fields)
-      observe(raw)
+      expect(observe(raw)).to be(valid_host_sample)
       expect(permits).to be_empty
       expect(score.stop_qualified_seconds).to eq(0)
-      expect(loads).to eq([20.0])
+      expect(score.restart_qualified_seconds).to eq(0)
+      expect(loads).to eq(valid_host_sample ? [20.0, 20.0] : [20.0])
     end
   end
 
@@ -228,7 +238,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     expect(permits).to be_empty
     expect(observe(frame(10))).to be(true)
     expect(permits).to contain_exactly(include(action: :restart, sequence: 10))
-    expect(loads).to eq([20.0, 20.0, 20.0])
+    expect(loads).to eq([20.0] * 4)
   end
 
   describe 'recovery through the child reader and mailbox' do
@@ -256,12 +266,12 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
         seed = frame(8, epoch: 'replacement')
         deliver.call(seed)
         expect(mailbox.drain(controller, now_ns: seed.fetch('sample_completed_monotonic_ns'))).to be(false)
-        expect(loads).to eq([20.0])
+        expect(loads).to eq([20.0, 20.0])
         expect([score.restart_qualified_seconds, score.stop_qualified_seconds]).to eq([0, 0])
         expect(permits).to be_empty
         deliver.call(frame(9, epoch: 'replacement'))
         expect(mailbox.drain(controller, now_ns: ns(145.2))).to be(true)
-        expect(loads).to eq([20.0, 20.0])
+        expect(loads).to eq([20.0] * 3)
         expect(permits).to be_empty
         deliver.call(frame(10, epoch: 'replacement'))
         mailbox.drain(controller, now_ns: ns(160.2))
@@ -285,29 +295,35 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
     end
   end
 
-  [0, 1].each do |over_ns|
-    it "checks partial grant freshness after the final gate (deadline + #{over_ns}ns)" do
+  %i[enqueue worker_admission].product([0, 1]).each do |boundary, over_ns|
+    it "checks partial grant freshness at #{boundary} (deadline + #{over_ns}ns)" do
       observe(frame(6))
-      trace = []
       elapsed = 0
-      allow(controller).to receive(:monotonic_ns) do
-        trace << :clock
-        elapsed
-      end
+      median_calls = gate_calls = dispatch_attempts = 0
+      allow(controller).to receive(:monotonic_ns) { elapsed }
       allow(host_load).to receive(:median_with) do
-        trace << :median
-        elapsed = ns(5) + over_ns if trace.count(:median) == 2
+        median_calls += 1
         5
       end
-      allow(workers).to receive(:dispatch) do |permit|
-        trace << :dispatch
+      allow(controller).to receive(:load_gate).and_wrap_original do |original, *args|
+        gate = original.call(*args)
+        gate_calls += 1
+        elapsed = ns(5) + over_ns if boundary == :enqueue && gate_calls == 2
+        gate
+      end
+      allow(workers).to receive(:dispatch) do |permit, &final_admission|
+        dispatch_attempts += 1
+        elapsed = ns(5) + over_ns if boundary == :worker_admission
+        next false unless final_admission.call
+
         permits << permit
         true
       end
 
       expect(observe(fixture)).to be(true)
-      expect(trace).to eq(%i[clock median clock median clock] + (over_ns == 0 ? [:dispatch] : []))
-      expect(loads).to eq([20.0])
+      expect(median_calls).to eq(1)
+      expect(dispatch_attempts).to eq(boundary == :enqueue && over_ns == 1 ? 0 : 1)
+      expect(loads).to eq([20.0, 20.0])
       expect(score.stop_qualified_seconds).to eq(15)
       if over_ns == 0
         expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 7, run: [201, 12_345]))
@@ -440,7 +456,7 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       expect([score.restart_qualified_seconds, score.stop_qualified_seconds]).to eq([0, 0])
     end
 
-    it 'scores the verified target when a peer has no path and keeps the strict history separate' do
+    it 'scores the verified target when a peer has no path while preserving independent host history' do
       observe(frame(6))
       raw = fixture.merge('inventory_complete' => false, 'invalid_reason' => 'invalid_run')
       peer = raw['containers'][1]
@@ -457,15 +473,15 @@ RSpec.describe OsCtl::Oomd::Controller, '#observe' do
       expect(observe(raw)).to be(true)
       expect(permits).to contain_exactly(include(action: :restart, id: '101', sequence: 7))
       expect(controller.inflight.values).to eq(permits)
-      expect(loads).to eq([20.0])
+      expect(loads).to eq([20.0, 20.0])
       expect([score.restart_qualified_seconds, score.stop_qualified_seconds]).to eq([0, 15])
       warmup = frame(8, reason: 'initial_baseline')
       warmup['containers'][1].update('cpu_usage' => nil, 'cpu_baseline_sequence' => nil,
                                      'cpu_window_started_monotonic_ns' => nil, 'errors' => { 'cpu_usage' => 'initial_baseline' })
       expect(observe(warmup)).to be(true)
-      expect(loads).to eq([20.0])
+      expect(loads).to eq([20.0] * 3)
       expect(observe(frame(9))).to be(true)
-      expect(loads).to eq([20.0, 20.0])
+      expect(loads).to eq([20.0] * 4)
       expect(permits.size).to eq(1)
     end
 

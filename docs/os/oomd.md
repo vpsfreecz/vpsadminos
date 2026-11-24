@@ -223,12 +223,22 @@ restart and stop scores. A stop takes priority when both thresholds are met.
 RTNL activation alone can grant a restart. A stop always requires the
 host-load gate.
 
-For a partial sample, oomd compares the current host load with the median that
-would result from adding it to the complete history. Only complete observations
-update the persisted history. On a cold node, oomd keeps a bounded history of
-measured host loads in memory. It needs at least two readings to evaluate the
-gate and drops this temporary history when it gets a strict baseline or the
-sampler restarts.
+Each fresh, accepted observation with a valid host load advances host-load
+history, including partial samples with unrelated inventory or container errors.
+Scoring, logged thresholds and action admission use the same median, with the
+current reading included once. The logged `history_count` describes that
+prospective history, not the number of readings already saved to disk.
+
+Oomd commits history only after reserving space for the sample evidence and
+eventual score expiry. Stale, duplicate, malformed or rejected samples add
+nothing, and missing intervals are not filled in. Accepting a host reading does
+not grant time credit to an unlinked container observation.
+
+Without retained history, the first partial reading is a temporary seed. A
+second accepted reading in the same sampler epoch establishes the median and
+commits both points once. A sampler restart discards an unpromoted seed; a
+coherent full startup can establish history directly. The history keeps its
+existing sample cap, save cadence and version-2 YAML format.
 
 ## Guarded actions
 

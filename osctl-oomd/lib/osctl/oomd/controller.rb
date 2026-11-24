@@ -176,7 +176,8 @@ module OsCtl::Oomd
       @sample_rows = []
       @qualifications = {}
       @actions = []
-      @staged_load = @sample_median = @sample_history_count = nil
+      @staged_loads = []
+      @sample_median = @sample_history_count = nil
       bootstrap = @bootstrap
       @bootstrap = false
       begin
@@ -202,7 +203,7 @@ module OsCtl::Oomd
         @expiry_tickets.each_key do |key|
           @evidence.release(@expiry_tickets.delete(key)) unless @records[key]&.restart_qualified_seconds.to_f > 0
         end
-        @host_load << @staged_load if @staged_load
+        @staged_loads.each { |load| @host_load << load }
         @actions.each { |args, opts| dispatch(*args, **opts) }
         publish_export
         accepted
@@ -234,12 +235,23 @@ module OsCtl::Oomd
 
     protected
 
-    def update_host_load(data)
-      load = data.fetch('loadavg').fetch(0)
-      @cold_loads.clear
-      @staged_load = load
-      @sample_median = @host_load.median_with(load) || load
-      @sample_history_count = [@host_load.count + 1, 86_400 / (@interval_ns / 1_000_000_000)].min if @host_load.respond_to?(:count)
+    def prepare_host_load(data, full:)
+      load = data['loadavg']&.first
+      return @load_enable ? nil : false unless Eligibility::Partial.reading?(load)
+
+      if @host_load.established? || (full && @cold_loads.empty?)
+        @cold_loads.clear
+        @staged_loads = [load]
+        @sample_median = @host_load.median_with(load) || load
+        @sample_history_count = [@host_load.count + 1, 86_400 / (@interval_ns / 1_000_000_000)].min if @host_load.respond_to?(:count)
+      else
+        @sample_median = @host_load.cold_median_with(@cold_loads, load)
+        @sample_history_count = @cold_loads.size
+        if @sample_median
+          @staged_loads = @cold_loads.dup
+          @cold_loads.clear
+        end
+      end
       load_gate(load, @sample_median)
     end
 
@@ -279,29 +291,23 @@ module OsCtl::Oomd
       @packet_accepted = true
       @raw = RawFrame.new(data:, rows:, strict_seed: seed)
       @raw_broken = false
-      @cold_loads.clear if seed
-      if full
-        gate = update_host_load(data)
-      else
-        cold_gate = update_cold_history(data) unless seed
-        unless linked
-          roster = rows.values + [data.fetch('containers').last]
-          ranked = Eligibility.rank(roster).take([@load_top, 0].max) if roster.all? { |row| row['loadavg'] }
-          rows.each do |key, row|
-            hit = Eligibility::Partial.decidable?(row) && matching_cpu_window?(row, data) ? ranked_hit?(row, roster, ranked) : nil
-            @qualifications[key] = hit
-            before = @records[key]
-            if hit || before&.restart_qualified_seconds.to_f > 0
-              select_row(evidence_row(key, row, hit, before&.restart_qualified_seconds || 0, before&.stop_qualified_seconds || 0, 0, nil, nil, 'unlinked_baseline'))
-            end
+      gate = prepare_host_load(data, full:)
+      @load_active = gate
+      unless full || linked
+        roster = rows.values + [data.fetch('containers').last]
+        ranked = Eligibility.rank(roster).take([@load_top, 0].max) if roster.all? { |row| row['loadavg'] }
+        rows.each do |key, row|
+          hit = Eligibility::Partial.decidable?(row) && matching_cpu_window?(row, data) ? ranked_hit?(row, roster, ranked) : nil
+          @qualifications[key] = hit
+          before = @records[key]
+          if hit || before&.restart_qualified_seconds.to_f > 0
+            select_row(evidence_row(key, row, hit, before&.restart_qualified_seconds || 0, before&.stop_qualified_seconds || 0, 0, nil, nil, 'unlinked_baseline'))
           end
-          return false
         end
-        gate = partial_load_gate(data)
-        gate = cold_gate if gate.nil?
+        return false
       end
 
-      score_rows(data, rows, previous, gate, now, processing_started, cold_gate, linked:, full:)
+      score_rows(data, rows, previous, gate, now, processing_started, linked:)
     end
 
     def packet_rows(data)
@@ -378,7 +384,7 @@ module OsCtl::Oomd
       rows.size == previous.size && rows.all? { |key, row| previous[key] && run_identity(row) == run_identity(previous[key]) }
     end
 
-    def score_rows(data, rows, previous, gate, now, processing_started, cold_gate, linked:, full:)
+    def score_rows(data, rows, previous, gate, now, processing_started, linked:)
       @load_active = gate
       # Freeze the competing population for this observation. A grant takes
       # its target out of the ranking starting with the next observation.
@@ -425,7 +431,7 @@ module OsCtl::Oomd
                  elsif combined && record.restart_qualified_seconds >= restart_after_seconds
                    :restart
                  end
-        @actions << [[row, key, action, now, processing_started], { gate:, partial: !full, cold_gate:, scored_generation: }] if action
+        @actions << [[row, key, action, now, processing_started], { scored_generation: }] if action
       end
       # Disappearance invalidates restart evidence; stop history retains the
       # ordinary success/reset semantics across restarts and inventory sweeps.
@@ -455,30 +461,6 @@ module OsCtl::Oomd
       prior = previous.rows[key]
       run_identity(row) == run_identity(prior) && cpu_seed?(previous.data, prior) &&
         Eligibility::Partial.decidable?(row) && matching_cpu_window?(row, data)
-    end
-
-    def update_cold_history(data)
-      if @host_load.established?
-        @cold_loads.clear
-        return
-      end
-      load = data['loadavg']&.first
-      return unless load
-
-      @sample_median = @host_load.cold_median_with(@cold_loads, load)
-      @sample_history_count = @cold_loads.size
-      load_gate(load, @sample_median)
-    end
-
-    def partial_load_gate(data)
-      return false unless @load_enable
-
-      load = data['loadavg']&.first
-      return unless load
-
-      @sample_median = @host_load.median_with(load)
-      @sample_history_count = [@host_load.count + 1, 86_400 / (@interval_ns / 1_000_000_000)].min if @host_load.respond_to?(:count)
-      load_gate(load, @sample_median)
     end
 
     def load_gate(load, median)
@@ -514,9 +496,9 @@ module OsCtl::Oomd
       @runs[key] = identity
     end
 
-    def dispatch(ct, key, action, now, processing_started, gate:, partial:, cold_gate:, scored_generation:)
-      # Re-read the independent host gate and effective threshold at grant,
-      # even if scoring or another candidate took time since the first tick.
+    def dispatch(ct, key, action, now, processing_started, scored_generation:)
+      # Refresh RTNL at grant, retaining this frame's single-inclusion load
+      # median: its current load has already been committed to host history.
       tick(now_ns: now + (monotonic_ns - processing_started))
       # No deferred permit queue: recheck this exact current frame/run at grant.
       frame = @raw.data
@@ -524,10 +506,7 @@ module OsCtl::Oomd
       return unless @raw.rows[key].equal?(ct) && @runs[key] == run_identity(ct)
 
       record = @records.fetch(key)
-      if partial
-        gate = partial_load_gate(frame)
-        gate = cold_gate if gate.nil?
-      end
+      gate = load_gate(frame['loadavg']&.first, @sample_median)
       if action == :stop
         return unless gate && record.stop_qualified_seconds >= stop_after_seconds
       else
@@ -595,7 +574,7 @@ module OsCtl::Oomd
 
     def sample_records(data, now)
       identity = { sample_epoch: data['epoch'], sample_sequence: data['sequence'] }
-      median = @sample_median || @host_load.median
+      median = @sample_history_count.nil? ? @host_load.median : @sample_median
       threshold = median && (median * @load_multiplier)
       threshold = nil unless threshold&.finite?
       ratio = data['loadavg'] && threshold && threshold > 0 ? data['loadavg'][0] / threshold.to_f : nil
