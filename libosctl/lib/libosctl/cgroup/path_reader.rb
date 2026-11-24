@@ -23,6 +23,17 @@ module OsCtl::Lib
         @@meminfo ||= MemInfo.new
       end
 
+      def cpu_limit_percent(quota, period)
+        quota = Integer(quota, 10)
+        period = Integer(period, 10)
+        raise ArgumentError, 'CPU quota and period must be positive' unless quota > 0 && period > 0
+
+        percent = quota.fdiv(period) * 100
+        raise ArgumentError, 'CPU limit must be positive and finite' unless percent.finite? && percent > 0
+
+        percent
+      end
+
       def cache_param(path, name)
         path_cache = cache[path]
 
@@ -162,7 +173,7 @@ module OsCtl::Lib
         period = read_cgparam(:cpu, limit_path, 'cpu.cfs_period_us')
         return :none if quota == '-1'
 
-        (quota.to_i / period.to_i) * 100
+        cpu_limit_percent(quota, period)
       end
 
       def read_params(params)
@@ -350,10 +361,13 @@ module OsCtl::Lib
             path
           end
 
-        quota, period = read_cgparam(limit_path, 'cpu.max').strip.split
+        values = read_cgparam(limit_path, 'cpu.max').strip.split
+        raise ArgumentError, 'CPU limit requires quota and period' unless values.size == 2
+
+        quota, period = values
         return :none if quota == 'max'
 
-        (quota.to_i / period.to_i) * 100
+        cpu_limit_percent(quota, period)
       end
 
       # @return [Hash]

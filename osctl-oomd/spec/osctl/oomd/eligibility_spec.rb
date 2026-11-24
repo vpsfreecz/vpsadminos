@@ -37,6 +37,16 @@ RSpec.describe OsCtl::Oomd::Eligibility do
     expect(eligible?(container.merge('cpu_usage' => 89.9))).to be(false)
   end
 
+  it 'compares usage against a fractional cgroup reader limit in percentage-of-one-CPU units' do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, 'cpu.max'), "50000 100000\n")
+      limit = OsCtl::Lib::CGroup::PathReader::V2.new(dir, '').read_cpu_limit
+
+      expect(eligible?(container.merge('cpu_limit' => limit, 'cpu_usage' => 45.0))).to be(true)
+      expect(eligible?(container.merge('cpu_limit' => limit, 'cpu_usage' => 44.9))).to be(false)
+    end
+  end
+
   it 'does not introduce CPU numeric coercion' do
     expect(eligible?(container.merge('cpu_usage' => 90))).to be(false)
   end

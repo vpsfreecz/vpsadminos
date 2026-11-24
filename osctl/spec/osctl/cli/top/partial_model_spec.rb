@@ -136,6 +136,18 @@ RSpec.describe OsCtl::Cli::Top::PartialModel do
     end
   end
 
+  it 'preserves a fractional reader limit as a positive finite Top limit' do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, 'cpu.max'), "50000 100000\n")
+      reader = OsCtl::Lib::CGroup::PathReader::V2.new(dir, '')
+      state[:missing]['ct101/user-owned'] = { cpu_limit: reader.read_cpu_limit }
+      partial.setup
+      advance(partial)
+
+      expect(row(partial.json_data, '101')).to include(cpu_limit: 50.0, cpu_limit_state: 'limited', errors: {})
+    end
+  end
+
   it 'emits the normative partial frame and independently preserves strict recovery' do
     allow(SecureRandom).to receive(:uuid).and_return('fixture-e')
     # The preceding five attempts are outside the fixture's observation window.

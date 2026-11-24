@@ -18,6 +18,53 @@ RSpec.describe OsCtl::Lib::CGroup::PathReader do
   shared_examples 'cgroup path reader' do |version|
     let(:cg_path) { '/osctl/pool.tank/ct.ct1/user-owned' }
 
+    { '50000' => 50.0, '150000' => 150.0, '200000' => 200.0, '1' => 0.001 }.each do |quota, percent|
+      it "reads quota #{quota}/100000 as #{percent} percent of one CPU" do
+        with_tmpdir do |dir|
+          reader = build_reader(version, dir, cg_path)
+          write_cpu_limit(version, dir, cg_path, quota:, period: '100000')
+          limit = reader.read_stats([:cpu_limit], false).fetch(:cpu_limit)
+
+          expect(limit).to be_a(OsCtl::Lib::Cli::Presentable)
+          expect(limit.raw).to eq(percent)
+        end
+      end
+    end
+
+    [
+      ['garbage', '100000'], ['50000x', '100000'], ['0', '100000'], ['-2', '100000'],
+      ['50000', 'garbage'], ['50000', '0'], ['50000', '-100000']
+    ].each do |quota, period|
+      it "rejects invalid finite CPU quota/period #{quota}/#{period}" do
+        with_tmpdir do |dir|
+          reader = build_reader(version, dir, cg_path)
+          write_cpu_limit(version, dir, cg_path, quota:, period:)
+
+          expect { reader.read_stats([:cpu_limit], true) }.to raise_error(ArgumentError)
+        end
+      end
+    end
+
+    it 'retains the unlimited CPU sentinel' do
+      with_tmpdir do |dir|
+        reader = build_reader(version, dir, cg_path)
+        write_cpu_limit(version, dir, cg_path, quota: version == :v1 ? '-1' : 'max', period: '100000')
+
+        expect(reader.read_stats([:cpu_limit], true)).to eq({})
+      end
+    end
+
+    it 'keeps a missing CPU limit unknown' do
+      with_tmpdir do |dir|
+        reader = build_reader(version, dir, cg_path)
+        parent = File.dirname(cg_path.sub(%r{^/}, ''))
+        relative = version == :v1 ? File.join('cpu', parent, 'cpu.cfs_quota_us') : File.join(parent, 'cpu.max')
+        File.unlink(File.join(dir, relative))
+
+        expect(reader.read_stats([:cpu_limit], true)).to eq(cpu_limit: nil)
+      end
+    end
+
     it 'reads common stats, params, and available parameters' do
       with_tmpdir do |dir|
         reader = build_reader(version, dir, cg_path)
@@ -57,6 +104,16 @@ RSpec.describe OsCtl::Lib::CGroup::PathReader do
           expect(reader.list_available_params).to include('cpu.stat', 'memory.current', 'pids.current')
         end
       end
+    end
+  end
+
+  def write_cpu_limit(version, root, path, quota:, period:)
+    parent = File.dirname(path.sub(%r{^/}, ''))
+    if version == :v1
+      write_sysfs_file(root, File.join('cpu', parent, 'cpu.cfs_quota_us'), "#{quota}\n")
+      write_sysfs_file(root, File.join('cpu', parent, 'cpu.cfs_period_us'), "#{period}\n")
+    else
+      write_sysfs_file(root, File.join(parent, 'cpu.max'), "#{quota} #{period}\n")
     end
   end
 
