@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'stringio'
+require 'timeout'
 require 'libosctl/zfs/iostat'
 
 RSpec.describe OsCtl::Lib::Zfs::IOStat do
@@ -31,6 +32,31 @@ RSpec.describe OsCtl::Lib::Zfs::IOStat do
     reader.send(:parser, StringIO.new("tank\t1\t2\t1\t1\t1\t1\n"))
 
     expect(reader.accumulated_pool('tank')).to have_attributes(io_read: 4, io_written: 5, bytes_read: 6, bytes_written: 7)
+  end
+
+  it 'closes both pipe ends and joins the reader if spawning zpool fails' do
+    r, w = IO.pipe
+    allow(IO).to receive(:pipe).and_return([r, w])
+    error = Errno::ENOENT.new('zpool')
+    allow(Process).to receive(:spawn).with('zpool', 'iostat', '-Hpy', '1', out: w).and_raise(error)
+    iostat = described_class.new
+    reader = nil
+    allow(Thread).to receive(:new).and_wrap_original do |start, &block|
+      reader = start.call(&block)
+    end
+
+    Timeout.timeout(2) do
+      expect { iostat.start }.to raise_error(Errno::ENOENT) { |raised| expect(raised).to equal(error) }
+      expect(r).to be_closed
+      expect(w).to be_closed
+      expect(reader).not_to be_alive
+      2.times { iostat.stop }
+      expect(iostat).not_to be_started
+    end
+  ensure
+    w&.close unless w&.closed?
+    reader&.join(2)
+    r&.close unless r&.closed?
   end
 
   it 'restarts when pools change and drops removed pool stats' do

@@ -25,6 +25,10 @@ module OsCtl::Cli
 
       view = klass.new(model, opts[:rate], **kwargs)
       view.start
+    rescue Top::PartialModel::MonitorLost => e
+      raise GLI::CustomExit.new(e.message, 1)
+    ensure
+      model&.stop if json
     end
 
     protected

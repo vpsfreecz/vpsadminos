@@ -4,6 +4,10 @@ module OsCtl::Cli
   # One sweep, with independent histories for display and strict eligibility.
   # Neither history is populated from the other projection's published rows.
   class Top::PartialModel < Top::Model
+    class MonitorLost < StandardError; end
+
+    attr_reader :sample_wakeup
+
     Row = Struct.new(:ct, :start_run, :finish_run, :read_error, keyword_init: true) do
       def ticks = start_run&.ticks
 
@@ -31,7 +35,26 @@ module OsCtl::Cli
       @changes = {}
       @monitor_coverage = :pending
       @json = json
+      @sample_wakeup = OsCtl::Lib::Queue.new if json
       super(**)
+    end
+
+    def setup
+      check_monitor!
+      super
+    rescue OsCtl::Client::Error, SystemCallError, IOError
+      check_monitor!
+      raise
+    end
+
+    def stop
+      if (worker = @inventory_read)
+        @inventory_read = nil
+        worker.kill
+        worker.join
+      end
+    ensure
+      super
     end
 
     def changed!(type = :lifecycle, key = nil)
@@ -47,12 +70,25 @@ module OsCtl::Cli
       sync { @monitor_coverage = :active if @monitor_coverage == :pending }
     end
 
-    def monitor_unavailable
+    def monitor_unavailable(startup: false)
       sync do
         next if @monitor_coverage == :unavailable
 
         @monitor_coverage = :unavailable
+        @monitor_loss = startup ? :subscribe_failed : :coverage_lost
         changed!(:monitor)
+        sample_wakeup&.push(:monitor_loss)
+      end
+    end
+
+    def check_monitor!
+      return unless @json
+
+      case sync { @monitor_loss }
+      when :subscribe_failed
+        raise MonitorLost, 'ct top: unable to subscribe to osctld events'
+      when :coverage_lost
+        raise MonitorLost, 'ct top: lost osctld event coverage; restart the sampler'
       end
     end
 
@@ -216,6 +252,14 @@ module OsCtl::Cli
       containers.each do |ct|
         ct.netifs ||= sweep.catalog.fetch(ct.ident).netifs unless dirty?(during, :netif, ct.ident)
       end
+    end
+
+    def open
+      check_monitor!
+      super
+    rescue OsCtl::Client::Error, SystemCallError, IOError
+      check_monitor!
+      raise
     end
 
     def load_initial_inventory

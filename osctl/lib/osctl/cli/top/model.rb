@@ -23,6 +23,9 @@ module OsCtl::Cli
       @mode = :realtime
       @monitor.subscribe
       open
+    rescue StandardError, Interrupt
+      stop
+      raise
     end
 
     def iostat_enabled?
@@ -40,6 +43,7 @@ module OsCtl::Cli
     def setup
       client.cmd_data!(:pool_list).each { |v| host.pools << v[:name] } if zfs_enabled?
       monitor.start
+      check_monitor!
       if iostat
         iostat.pools = host.pools
         iostat.start
@@ -49,7 +53,13 @@ module OsCtl::Cli
     end
 
     def stop
-      iostat.stop if iostat
+      monitor&.stop
+    ensure
+      begin
+        iostat&.stop
+      ensure
+        close_client(client)
+      end
     end
 
     # Presentation may copy/sort a snapshot, but cannot acquire or restamp it.
@@ -152,7 +162,9 @@ module OsCtl::Cli
 
     def monitor_ready; end
 
-    def monitor_unavailable; end
+    def monitor_unavailable(startup: false); end
+
+    def check_monitor!; end
 
     def sync(&)
       @mutex.owned? ? yield : @mutex.synchronize(&)
@@ -188,13 +200,20 @@ module OsCtl::Cli
 
     def with_client
       lookup = OsCtl::Client.new
-      begin
+      opened = false
+      monitor.with_lookup do
         lookup.open
         opened = true
         yield lookup
-      ensure
-        lookup.close if opened
       end
+    ensure
+      opened ? lookup.close : close_client(lookup)
+    end
+
+    def close_client(connection)
+      connection.close if connection&.socket && !connection.socket.closed?
+    rescue IOError, SystemCallError
+      nil
     end
 
     def new_container(attrs)

@@ -243,9 +243,15 @@ container is waiting for a second CPU reading. In the totals, `~` marks a
 measured subtotal that excludes missing contributors. It is not an estimate
 of the full total.
 
-If Top loses its connection to the event stream, it can still show readings,
+If the interactive view loses event coverage, it can still show readings,
 but it can no longer verify which containers are running. Relaunch
 `osctl ct top` to restore event monitoring.
+
+When `osctl -j ct top` loses event coverage, it closes the JSON stream and
+exits with status 1 instead of continuing to send degraded samples. If you
+read this stream from a script or service, handle EOF and relaunch the command
+if you need more samples. Treat the new epoch as a new stream. A temporary
+missing reading does not close the stream.
 
 Left and right arrows can be used to change the sort column, `r` to reverse
 sort order. Up and down arrows move selection cursor up and down, spacebar will

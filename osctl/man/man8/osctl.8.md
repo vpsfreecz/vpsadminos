@@ -1958,9 +1958,15 @@ transfer and start again.
   acquisition, whose start is `previous_sample_started_monotonic_ns`. Limit
   states distinguish `limited`, `unlimited`, and `unknown`.
 
-  `invalid_reason: "monitor_unavailable"` means Top cannot verify the running
-  container list because event monitoring failed. Relaunch `osctl ct top` to
-  restore event monitoring.
+  In JSON mode, failure to subscribe to osctld events prevents the stream
+  from starting. Losing coverage after subscribing ends the stream. Both
+  cases report an error on standard error and exit with status 1. Top does
+  not send a final JSON record for the error.
+  Readers that need to continue must relaunch the command after EOF and start
+  with the new stream's epoch and baseline. Ordinary partial samples still
+  appear in the stream. The interactive view stays open and asks you to
+  relaunch `osctl ct top` when it can no longer verify the running container
+  list.
 
     `-r`, `--rate` *n*
       Refresh rate in seconds, defaults to 1 second.

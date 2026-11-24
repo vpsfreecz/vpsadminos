@@ -1,6 +1,9 @@
 module OsCtl::Cli
   class Top::Monitor
     MAX_BUFFERED_EVENTS = 4096
+    STOP_GRACE = 0.25
+
+    class LookupCancelled < StandardError; end
 
     def initialize(model)
       @model = model
@@ -8,6 +11,7 @@ module OsCtl::Cli
       @acknowledged = false
       @failed = false
       @event_mutex = Mutex.new
+      @lookup_mutex = Mutex.new
       @buffer = []
     end
 
@@ -38,8 +42,31 @@ module OsCtl::Cli
     end
 
     def stop
+      @lookup_mutex.synchronize { @stopping = true }
       close_client
-      thread&.join
+      return if !thread || thread.join(STOP_GRACE)
+
+      # Closing the subscription cannot wake a lookup on another connection.
+      # Interrupt only the worker's lookup, never collector start/stop or event bookkeeping.
+      @lookup_mutex.synchronize { thread.raise(LookupCancelled) if @lookup_active }
+      thread.join
+    end
+
+    def with_lookup(&lookup)
+      return lookup.call unless Thread.current == thread
+
+      Thread.handle_interrupt(LookupCancelled => :never) do
+        @lookup_mutex.synchronize do
+          raise LookupCancelled if @stopping
+
+          @lookup_active = true
+        end
+        begin
+          Thread.handle_interrupt(LookupCancelled => :immediate, &lookup)
+        ensure
+          @lookup_mutex.synchronize { @lookup_active = false }
+        end
+      end
     end
 
     protected
@@ -52,11 +79,11 @@ module OsCtl::Cli
         break unless event
 
         @event_mutex.synchronize do
-          break if @failed
+          break if @failed || @stopping
 
           @started ? deliver(event) : save_event(event)
         end
-        break if @failed
+        break if @failed || @stopping
       end
     rescue StandardError
       nil
@@ -66,18 +93,22 @@ module OsCtl::Cli
 
     def lost_subscription
       @event_mutex.synchronize do
-        @failed = true
-        @buffer.clear
-        model.monitor_unavailable
+        unless @failed || @stopping
+          @failed = true
+          @buffer.clear
+          model.monitor_unavailable(startup: !@acknowledged)
+        end
       end
       close_client
     end
 
     def close_client
-      return unless @connected
-
-      @connected = false
-      client.close
+      connection = @lookup_mutex.synchronize do
+        current = @client
+        @client = nil
+        current
+      end
+      connection.close if connection && (@connected || connection.socket)
     rescue IOError, SystemCallError
       nil
     end

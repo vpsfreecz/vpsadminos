@@ -44,10 +44,23 @@ module OsCtl::Lib
       args.concat(pools) if pools
       args << interval.to_s
 
-      r, w = IO.pipe
-      @reader = Thread.new { parser(r) }
-      @iostat_pid = Process.spawn(*args, out: w)
-      w.close
+      r = nil
+      Thread.handle_interrupt(Interrupt => :never) do
+        r, w = IO.pipe
+        begin
+          @reader = Thread.new do
+            parser(r)
+          ensure
+            r.close
+          end
+          @iostat_pid = Process.spawn(*args, out: w)
+        ensure
+          w.close
+        end
+      end
+    rescue StandardError, Interrupt
+      unwind_reader(r) if r
+      raise
     end
 
     def started?
@@ -140,6 +153,21 @@ module OsCtl::Lib
 
     attr_reader :iostat_pid, :mutex, :reader,
                 :current_stats, :accumulated_stats
+
+    def unwind_reader(r)
+      return stop if iostat_pid
+
+      if reader
+        reader.join
+      else
+        r.close unless r.closed?
+      end
+    rescue StandardError
+      # Report the startup error, not a secondary failure while unwinding it.
+      nil
+    ensure
+      @reader = nil
+    end
 
     def parser(r)
       r.each_line do |line|

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'timeout'
 
 RSpec.describe OsCtl::Cli::Top::Monitor do
   let(:model) { double('model') }
@@ -35,7 +36,7 @@ RSpec.describe OsCtl::Cli::Top::Monitor do
     monitor.subscribe
     monitor.start
     monitor.stop
-    expect(model).to have_received(:monitor_unavailable).once
+    expect(model).to have_received(:monitor_unavailable).with(startup: true).once
     expect(model).not_to have_received(:monitor_ready)
   end
 
@@ -59,7 +60,70 @@ RSpec.describe OsCtl::Cli::Top::Monitor do
     # required to flush it.
     monitor.send(:monitor_loop)
     expect(applied).to eq(['before', :ready, 'after'])
-    expect(model).to have_received(:monitor_unavailable).once
+    expect(model).to have_received(:monitor_unavailable).with(startup: false).once
+  end
+
+  it 'unblocks the reader on local teardown without reporting monitor loss' do
+    reader, writer = IO.pipe
+    client = instance_double(OsCtl::Client, open: nil)
+    allow(client).to receive(:cmd_data!).with(:event_subscribe).and_return('subscribed')
+    reading = Queue.new
+    allow(client).to receive(:response!) do
+      reading << true
+      reader.read
+    end
+    allow(client).to receive(:close) { reader.close }
+    allow(OsCtl::Client).to receive(:new).and_return(client)
+    monitor = described_class.new(model)
+    monitor.subscribe
+    expect(reading.pop(timeout: 2)).to be(true)
+
+    2.times { monitor.stop }
+
+    expect(client).to have_received(:close).once
+    expect(model).not_to have_received(:monitor_unavailable)
+  ensure
+    writer&.close
+    monitor&.stop
+  end
+
+  it 'cancels the monitor worker’s secondary lookup without reporting event loss' do
+    r, w = IO.pipe
+    entered = Queue.new
+    subscribed = Queue.new
+    subscriber = instance_double(OsCtl::Client, open: nil, close: nil)
+    allow(subscriber).to receive(:cmd_data!).with(:event_subscribe).and_return('subscribed')
+    allow(subscriber).to receive(:response!) do
+      subscribed.pop
+      double(data: { type: 'db', opts: { object: 'container', action: 'add', pool: 'tank', id: 'new' } })
+    end
+    primary = FakeClientHelpers::ClientDouble.new(cmd_data: { ct_list: [[]] })
+    lookup = instance_double(OsCtl::Client, socket: r)
+    allow(lookup).to receive(:open) do
+      entered << true
+      r.read
+    end
+    allow(lookup).to receive(:close) { r.close }
+    stub_osctld_clients(subscriber, primary, lookup)
+    allow(OsCtl::Lib::CGroup).to receive(:v1?).and_return(false)
+    sample = OsCtl::Cli::Top::Model.new(enable_netif: false, enable_zfs: false)
+    allow(sample).to receive(:monitor_unavailable)
+    monitor = sample.send(:monitor)
+    monitor.start
+    subscribed << true
+    expect(entered.pop(timeout: 2)).to be(true)
+    worker = monitor.send(:thread)
+
+    Timeout.timeout(2) { 2.times { monitor.stop } }
+
+    expect(worker).not_to be_alive
+    expect(lookup).to have_received(:close).once
+    expect(sample).not_to have_received(:monitor_unavailable)
+  ensure
+    w&.close
+    subscribed&.push(true)
+    worker&.join(1)
+    r&.close unless r&.closed?
   end
 
   it 'updates container state, scheduling, init pid, and interfaces from events' do

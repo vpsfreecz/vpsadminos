@@ -17,6 +17,7 @@ import ../../make-test.nix (
     };
 
     testScript = ''
+      require 'json'
       require 'shellwords'
 
       OSCTLD_SOCKET = '/run/osctl/osctld.sock'
@@ -242,6 +243,104 @@ import ../../make-test.nix (
         )
       end
 
+      def self.with_top_job(name)
+        out = "#{JOB_DIR}/#{name}.jsonl"
+        err = "#{JOB_DIR}/#{name}.stderr"
+        cancel = "#{JOB_DIR}/#{name}.cancel"
+        machine.succeeds("rm -f #{Shellwords.join([out, err, cancel])}")
+        job = shell_job(
+          name,
+          <<~SH,
+            ruby <<'RUBY'
+              cancel = #{cancel.inspect}
+              exit(1) if File.exist?(cancel)
+
+              pid = Process.spawn('osctl', '-j', 'ct', 'top', '--rate', '2', out: #{out.inspect}, err: #{err.inspect})
+              signal_child = ->(signal) do
+                Process.kill(signal, pid)
+              rescue Errno::ESRCH
+                # The child may have exited just before the signal.
+                nil
+              end
+              status = nil
+              begin
+                deadline = nil
+                until (status = Process.waitpid2(pid, Process::WNOHANG)&.last)
+                  if deadline && Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+                    signal_child.call('KILL')
+                    status = Process.waitpid2(pid).last
+                    break
+                  elsif !deadline && File.exist?(cancel)
+                    signal_child.call('TERM')
+                    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+                  end
+                  sleep(0.05) unless status
+                end
+              ensure
+                unless status
+                  signal_child.call('KILL')
+                  Process.waitpid(pid)
+                end
+              end
+              exit(status.exitstatus || 128 + status.termsig)
+            RUBY
+          SH
+          shell: 'client', mark_ready: false
+        ).merge(out:, err:)
+        yield(job)
+      ensure
+        if job
+          original_error = $!
+          begin
+            unless shell_job_finished?(job)
+              machine.succeeds("touch #{Shellwords.escape(cancel)}", timeout: 5)
+              fail "#{name} did not leave the client shell after cancellation" unless job[:thread].join(8)
+            end
+          rescue StandardError, RSpec::Expectations::ExpectationNotMetError => cleanup_error
+            raise unless original_error
+
+            warn "#{name} cleanup failed: #{cleanup_error.message}"
+          end
+        end
+      end
+
+      def self.wait_top_window(job)
+        wait_for_block(name: "#{job[:name]} publishes a complete JSON window", timeout: 45) do
+          if shell_job_finished?(job)
+            status, = shell_job_result(job)
+            fail "#{job[:name]} exited before a complete window with #{status}"
+          end
+
+          status, output = machine.execute("cat #{Shellwords.escape(job[:out])}")
+          next false unless status == 0
+
+          # The writer may still be writing the last line. Once it exits,
+          # expect_top_exit also checks that every line is valid JSON.
+          frames = output.lines.filter_map do |line|
+            JSON.parse(line)
+          rescue JSON::ParserError
+            nil
+          end
+          frames.each_cons(2).filter_map do |previous, current|
+            next unless current['top_schema'] == 2 && current['complete'] && current['inventory_complete']
+            next unless current['epoch'] == previous['epoch'] && current['sequence'] == previous['sequence'] + 1
+            next unless current['measurement_window_started_monotonic_ns'] == previous['sample_started_monotonic_ns']
+
+            current
+          end.last || false
+        end
+      end
+
+      def self.expect_top_exit(job)
+        status, = wait_shell_job_exit(job, timeout: 30)
+        expect(status).to eq(1)
+        _, errors = machine.succeeds("cat #{Shellwords.escape(job[:err])}")
+        expect(errors.lines.grep(/ct top: lost osctld event coverage/).length).to eq(1)
+        _, output = machine.succeeds("cat #{Shellwords.escape(job[:out])}")
+        expect(output.lines.map { |line| JSON.parse(line).fetch('top_schema') }.uniq).to eq([2])
+        machine.succeeds('true', shell: job[:shell])
+      end
+
       def self.kill_osctld
         machine.succeeds(<<~'SH')
           pids=$(ps -eo pid=,args= | awk '$0 ~ /^[[:space:]]*[0-9]+ osctld: main$/ {print $1}')
@@ -329,16 +428,24 @@ import ../../make-test.nix (
           wait_osctld_ready
         end
 
-        it 'ct top exits instead of spinning' do
-          top_job = shell_job(
-            'ct-top-osctld-killed',
-            'osctl -j ct top --rate 60',
-            shell: 'client'
-          )
-
-          kill_osctld
-          expect_osctl_lost_osctld(top_job)
+        it 'ct top ends its JSON stream and starts a fresh epoch after relaunch' do
+          old_window = nil
+          with_top_job('ct-top-osctld-killed') do |job|
+            old_window = wait_top_window(job)
+            kill_osctld
+            expect_top_exit(job)
+          end
           wait_osctld_ready
+
+          with_top_job('ct-top-osctld-relaunched') do |job|
+            fresh_window = wait_top_window(job)
+            expect(fresh_window.fetch('epoch')).not_to eq(old_window.fetch('epoch'))
+            expect(fresh_window.fetch('measurement_window_started_monotonic_ns')).to be >
+              old_window.fetch('sample_started_monotonic_ns')
+
+            restart_osctld
+            expect_top_exit(job)
+          end
         end
       end
 
