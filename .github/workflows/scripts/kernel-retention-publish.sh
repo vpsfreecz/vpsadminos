@@ -3,7 +3,7 @@ set -euo pipefail
 umask 077
 
 [[ ${GITHUB_REPOSITORY:-} == vpsfreecz/vpsadminos && ${GITHUB_REF:-} == refs/heads/staging ]]
-[[ ${KERNEL_RETENTION_WRITE:-} == true && $EXPECTED_FLEET_SHA256 =~ ^[0-9a-f]{64}$ ]]
+[[ ${KERNEL_RETENTION_WRITE:-} == true ]]
 [[ $BASE =~ ^[0-9a-f]{40}$ && $CANDIDATE =~ ^[0-9a-f]{40}$ ]]
 [[ $GITHUB_RUN_ID =~ ^[0-9]+$ && $GITHUB_RUN_ATTEMPT =~ ^[0-9]+$ ]]
 [[ $(git rev-parse HEAD) == "$BASE" ]]
@@ -73,8 +73,7 @@ gh api "$api/check-runs/$check_id" | jq -e --arg sha "$CANDIDATE" --arg name "$c
 "${pruner[@]}" collect --output "$private/fleet.json"
 [[ $(staging_tip) == "$BASE" ]]
 SECONDS=0
-verify_tree recheck --fleet "$private/fleet.json" --as-of "$(date -u +%FT%T.%6NZ)" \
-  --expected-fleet-sha256 "$EXPECTED_FLEET_SHA256" > "$private/recheck.json"
+verify_tree recheck --fleet "$private/fleet.json" --as-of "$(date -u +%FT%T.%6NZ)" > "$private/recheck.json"
 cat "$private/recheck.json"
 deadline=$(jq -er '.fresh_until_ms | select(type == "number" and floor == .)' "$private/recheck.json")
 remaining=$(( (deadline - $(date -u +%s%3N)) / 1000 ))

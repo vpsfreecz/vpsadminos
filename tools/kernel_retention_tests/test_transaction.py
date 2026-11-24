@@ -1,5 +1,4 @@
 import copy
-import hashlib
 import json
 import os
 import shutil
@@ -248,8 +247,7 @@ class TransactionTests(unittest.TestCase):
         script = Path(__file__).resolve().parents[1] / 'kernel-retention.py'
         txn.apply(self.base, self.evidence, self.eligible)
         candidate = self.git('rev-parse', 'HEAD')
-        digest = hashlib.sha256(b'node.example.invalid\n').hexdigest()
-        receipt = {'base': self.evidence, 'fleet_sha256': digest, 'report': {
+        receipt = {'base': self.evidence, 'report': {
             'base': self.base, 'eligible': self.eligible, 'fleet_count': 1, 'as_of': '2026-02-02T12:00:00Z',
         }}
         tree_id = txn.verify_tree(self.base, candidate, self.evidence, self.eligible)
@@ -262,8 +260,7 @@ class TransactionTests(unittest.TestCase):
         fleet = {'acquired_at': '2026-02-02T12:01:00Z', 'nodes': [node]}
         cmd = [sys.executable, '-B', str(script), 'recheck', '--base', self.base, '--candidate', candidate,
                '--evidence', str(paths / 'receipt'), '--proof', str(paths / 'proof'),
-               '--as-of', '2026-02-02T12:01:00Z', '--fleet', str(paths / 'fleet'),
-               '--expected-fleet-sha256', digest]
+               '--as-of', '2026-02-02T12:01:00Z', '--fleet', str(paths / 'fleet')]
 
         def run():
             (paths / 'fleet').write_text(json.dumps(fleet))
@@ -275,11 +272,50 @@ class TransactionTests(unittest.TestCase):
         node['last_report'] = '2026-02-02T11:58:59Z'
         self.assertIn('stale or future status report', run().stderr)
         node['last_report'] = fleet['acquired_at']
+        node['fqdn'] = 'replacement.example.invalid'
+        self.assertEqual(run().returncode, 0)
+        fleet['nodes'].append({**node, 'fqdn': 'new.example.invalid'})
+        self.assertIn('eligibility or row count differs', run().stderr)
+        fleet['nodes'].pop()
         node['kernel'] = '6.12.110.1'
-        self.assertIn('eligibility or coverage differs', run().stderr)
+        self.assertIn('eligibility or row count differs', run().stderr)
+        node['kernel'] = '6.12.118'
+        earlier = '2026-02-02T12:00:00Z'
+        fleet['acquired_at'] = node['last_report'] = earlier
+        self.assertIn('second collection is not newer', run().stderr)
         proof['tree'] = '0' * 40
         (paths / 'proof').write_text(json.dumps(proof))
         self.assertIn('offline verification proof', run().stderr)
+
+    def test_prepare_collects_and_reports_without_write_opt_in(self):
+        source = Path(__file__).resolve().parents[2]
+        for path in ('tools/kernel-retention.py', 'tools/kernel_retention_transaction.py'):
+            self.write(path, (source / path).read_bytes())
+        self.base = self.commit()
+        runner = Path.cwd() / '.git'
+        stubs = runner / 'bin'
+        self.write(runner / 'snapshot.json', json.dumps(self.evidence).encode())
+        self.write(stubs / 'nix', b'#!/bin/sh\nexec cat "$RUNNER_TEMP/snapshot.json"\n')
+        self.write(stubs / 'curl', b'''#!/usr/bin/env bash
+printf '{"status":true,"response":{"nodes":[{"fqdn":"node.example.invalid","type":"node","hypervisor_type":"vpsadminos","kernel":"6.12.118","status":true,"last_report":"%s"}]}}\\n200\\n\\n' "$(date -u +%FT%T.%6NZ)"
+''')
+        for stub in stubs.iterdir():
+            stub.chmod(0o755)
+        env = {**os.environ, 'PATH': str(stubs) + ':' + os.environ['PATH'],
+               'RUNNER_TEMP': str(runner), 'GITHUB_OUTPUT': str(runner / 'output')}
+        env.pop('KERNEL_RETENTION_WRITE', None)
+        prepare = source / '.github/workflows/scripts/kernel-retention-prepare.sh'
+        result = subprocess.run(['bash', prepare], env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['eligible'], self.eligible)
+        out = runner / 'kernel-retention'
+        self.assertEqual([path.name for path in out.iterdir()], ['evidence.json'])
+        evidence = (out / 'evidence.json').read_text()
+        self.assertEqual(set(json.loads(evidence)), {'base', 'report'})
+        self.assertNotIn('example.invalid', evidence + result.stdout + result.stderr)
+        self.assertFalse((runner / 'output').exists())
+        self.assertEqual(self.git('rev-parse', 'HEAD'), self.base)
+        self.assertEqual(self.git('status', '--porcelain'), '')
 
     def test_publisher_checks_exact_sha_before_staging(self):
         source = Path(__file__).resolve().parents[2]
@@ -289,7 +325,6 @@ class TransactionTests(unittest.TestCase):
         runner = Path.cwd() / '.git'
         output = runner / 'kernel-retention'
         output.mkdir()
-        digest = hashlib.sha256(b'node.example.invalid\n').hexdigest()
 
         def make_artifact(base):
             txn.apply(base, self.evidence, self.eligible)
@@ -299,7 +334,7 @@ class TransactionTests(unittest.TestCase):
             self.git('bundle', 'create', str(bundle), 'HEAD', '^' + self.base)
             report = {'base': base, 'eligible': self.eligible, 'fleet_count': 1,
                       'as_of': '2026-02-02T12:00:00Z'}
-            evidence = {'base': self.evidence, 'report': report, 'fleet_sha256': digest}
+            evidence = {'base': self.evidence, 'report': report}
             proof = txn.binding(candidate, txn.verify_tree(base, candidate, self.evidence, self.eligible), evidence)
             for name, value in (('evidence', evidence), ('proof', proof)):
                 (output / (name + '.json')).write_text(json.dumps(value))
@@ -352,7 +387,7 @@ fi
         env = {**os.environ, 'PATH': str(stubs) + ':' + os.environ['PATH'], 'REAL_GIT': shutil.which('git'),
                'LOCAL_REMOTE': str(remote), 'BASE': self.base, 'STAGING_PUSHES': str(pushes),
                'GITHUB_REPOSITORY': 'vpsfreecz/vpsadminos', 'GITHUB_REF': 'refs/heads/staging',
-               'GITHUB_RUN_ID': '99', 'KERNEL_RETENTION_WRITE': 'true', 'EXPECTED_FLEET_SHA256': digest,
+               'GITHUB_RUN_ID': '99', 'KERNEL_RETENTION_WRITE': 'true',
                'RUNNER_TEMP': str(runner), 'REAL_DATE': shutil.which('date')}
         publisher = source / '.github/workflows/scripts/kernel-retention-publish.sh'
 
@@ -385,8 +420,9 @@ fi
         for attempt, check, options, diagnostic in (
             ('3', self.base, {}, ''),
             ('4', candidate, {'EXPIRE_RECHECK': 'yes'}, 'expired before the staging push'),
-            ('5', candidate, {'IN_USE': '6.12.110.1'}, 'eligibility or coverage differs'),
-            ('6', candidate, {'MOVE_TIP': wrong_base}, ''),
+            ('5', candidate, {'IN_USE': '6.12.110.1'}, 'eligibility or row count differs'),
+            ('6', candidate, {'KERNEL_RETENTION_WRITE': 'false'}, ''),
+            ('7', candidate, {'MOVE_TIP': wrong_base}, ''),
         ):
             with self.subTest(attempt=attempt):
                 result = publish(candidate, attempt, check, **options)
@@ -396,7 +432,7 @@ fi
                                  options.get('MOVE_TIP', self.base))
                 self.assertFalse(pushes.exists())
         self.git('--git-dir', str(remote), 'update-ref', 'refs/heads/staging', self.base, wrong_base)
-        result = publish(candidate, '7', candidate)
+        result = publish(candidate, '8', candidate)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.git('--git-dir', str(remote), 'rev-parse', 'staging'), candidate)
         self.assertEqual(pushes.read_text().splitlines(), [candidate])

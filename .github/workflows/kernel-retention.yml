@@ -21,7 +21,6 @@ jobs:
       base: ${{ steps.prepare.outputs.base }}
       candidate: ${{ steps.prepare.outputs.candidate }}
     env:
-      EXPECTED_FLEET_SHA256: ${{ vars.KERNEL_RETENTION_FLEET_SHA256 }}
       KERNEL_RETENTION_WRITE: ${{ vars.KERNEL_RETENTION_WRITE }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,23 +31,15 @@ jobs:
       - name: Run offline fixtures
         run: python3 -B -m unittest discover -s tools/kernel_retention_tests -v
       - uses: cachix/install-nix-action@382a9ed9481c7c1f94f68b72ef105b3417c73877 # v32.1.0
-        if: env.EXPECTED_FLEET_SHA256 != ''
       - name: Prepare locked inputs and lightweight verification tools
-        if: env.EXPECTED_FLEET_SHA256 != ''
         run: |
           nix flake archive --no-write-lock-file
           if [[ "$KERNEL_RETENTION_WRITE" == true ]]; then
             nix shell --inputs-from . nixpkgs#overcommit nixpkgs#nixfmt nixpkgs#rubocop nixpkgs#mkdocs \
               --command bash -eu -c 'overcommit --install && overcommit --sign'
           fi
-      - name: Require independently reconciled fleet coverage
-        if: env.EXPECTED_FLEET_SHA256 == ''
-        run: |
-          echo 'No trusted fleet digest configured; no collection or write attempted.'
-          test "$KERNEL_RETENTION_WRITE" != true
       - name: Plan and, only when enabled, verify one local candidate
         id: prepare
-        if: env.EXPECTED_FLEET_SHA256 != ''
         run: |
           if [[ "$KERNEL_RETENTION_WRITE" == true ]]; then
             nix shell --offline --inputs-from . nixpkgs#overcommit nixpkgs#nixfmt nixpkgs#rubocop nixpkgs#mkdocs \
@@ -89,7 +80,6 @@ jobs:
         env:
           BASE: ${{ needs.prepare.outputs.base }}
           CANDIDATE: ${{ needs.prepare.outputs.candidate }}
-          EXPECTED_FLEET_SHA256: ${{ vars.KERNEL_RETENTION_FLEET_SHA256 }}
           KERNEL_RETENTION_WRITE: ${{ vars.KERNEL_RETENTION_WRITE }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_TERMINAL_PROMPT: '0'

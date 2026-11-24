@@ -4,6 +4,7 @@
   "message": null,
   "errors": null,
   "response": {
+    "_meta": {},
     "nodes": [
       {
         "fqdn": "Storage.Example.Invalid.",

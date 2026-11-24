@@ -248,11 +248,11 @@ applies to the writer independently of the advisory PR check.
 
 ### Operate weekly kernel retention
 
-The **Weekly kernel retention** workflow runs on `staging`. Once you configure
-an expected fleet digest, it reports eligible kernels without changing the branch
-unless `KERNEL_RETENTION_WRITE` is `true`. It keeps the selected stable and
-unstable versions, kernels reported in use, and entries within their retention
-period. Each retired version gets a commit titled `os: retire kernel <version>`.
+The **Weekly kernel retention** workflow runs on `staging`. It uses the
+vpsFree.cz public node status API and reports eligible kernels without changing
+`staging` unless `KERNEL_RETENTION_WRITE` is `true`. It keeps the selected stable
+and unstable versions, kernels reported in use, and entries within their
+retention period. Each retired version gets a commit titled `os: retire kernel <version>`.
 That commit also removes the version's registered tests and private livepatch
 and packaging files. If several versions share a payload, the commit that
 retires its last supported target removes it. The workflow verifies every
@@ -260,29 +260,28 @@ commit and updates `staging` once, with a fast-forward of the whole series.
 
 Before enabling writes:
 
-1. Reconcile the anonymous public-status population with the independent roster
-   of production machines that can run these kernels. Offline or unrepresented
-   machines cannot count as evidence of non-use. Set the repository variable
-   `KERNEL_RETENTION_FLEET_SHA256` to the SHA-256 of the independently reconciled
-   names: lowercase each DNS name, strip one trailing dot, reject duplicates,
-   sort bytewise, and encode each name as UTF-8 followed by one newline. Never
-   derive the expected digest from the public-status response. Keep fleet
-   identities and projections out of Git, logs and uploaded artifacts.
-2. Run the workflow with writes disabled and compare the report with the fleet.
-   Missing, stale, or unrecognized data blocks pruning, as does a membership
-   mismatch. Reconcile membership changes before refreshing the digest. If the
-   public API cannot cover the fleet, leave writes disabled. The workflow does
-   not use a production API token.
-3. On an equivalent test target, prove the built-in GitHub Actions token may
+1. Run the workflow with writes disabled and review its report. The anonymous
+   API defines the active node and storage population used for retention. An
+   empty response or an unusable row, including a stale or offline report,
+   blocks pruning. Machines absent from the response do not inform the plan.
+   Use a `keepUntil` hold for a kernel you still need outside that population.
+   The workflow does not need an API token or a separate inventory. Keep node
+   identities and status snapshots out of Git, logs, and uploaded artifacts.
+2. On an equivalent test target, prove the built-in GitHub Actions token may
    publish a disposable candidate ref, dispatch the read-only entry check, and
    make an ordinary fast-forward with success on that exact commit. Verify a
    missing check, moved tip, or newly in-use kernel stops the update. Do not
    grant an exemption or relax protections to enable this job.
-4. Set `KERNEL_RETENTION_WRITE` to `true` only after those checks succeed. The
-   writer repolls the fleet on the original base after GitHub reports success;
-   it abandons the attempt if eligibility, coverage or the branch tip changes.
-   The run leaves its `kernel-retention-candidate-*` ref as exact-check evidence.
-   A stale attempt is not retried against a new base.
+3. Set `KERNEL_RETENTION_WRITE` to `true` only after those checks succeed. After
+   GitHub checks the exact candidate, the writer fetches a newer status sample
+   and replans on the original base. It stops if the eligible versions, number
+   of returned rows, or branch tip changes. The run leaves its
+   `kernel-retention-candidate-*` ref as exact-check evidence. It does not retry
+   a stale attempt against a new base.
+
+The old `KERNEL_RETENTION_FLEET_SHA256` setting is ignored. If writes are
+already enabled, a missing digest no longer prevents a new run from pruning.
+Disable writes before adopting this change if you want to review reports first.
 
 Pruning removes selections from future OS revisions. It does not uninstall a
 running kernel. Git cannot prevent a concurrent node boot. Before rolling out

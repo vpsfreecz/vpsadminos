@@ -2,7 +2,6 @@
 """Collect fleet evidence, plan retention, or verify a disposable retirement."""
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -127,7 +126,9 @@ def project_response(response, acquired_at):
             or response.get('status') is not True):
         raise RetentionError('unexpected HaveAPI public-status envelope')
     output = response.get('response')
-    if not isinstance(output, dict) or output.keys() != {'nodes'}:
+    # HaveAPI can include an empty metadata object even for this unpaginated action.
+    if (not isinstance(output, dict) or output.keys() not in ({'nodes'}, {'nodes', '_meta'})
+            or output.get('_meta', {}) != {}):
         raise RetentionError('expected the unpaginated HaveAPI nodes response')
     return {'acquired_at': utc_text(acquired_at), 'nodes': normalize_rows(output['nodes'], acquired_at)}
 
@@ -176,11 +177,9 @@ def catalog_policy(catalog, as_of):
     return selectors, retain_through
 
 
-def plan(base, as_of, catalog, fleet, expected_digest):
+def plan(base, as_of, catalog, fleet):
     if not matches(r'[0-9a-f]{40}', base):
         raise RetentionError('base must be a full Git commit SHA')
-    if not matches(r'[0-9a-f]{64}', expected_digest):
-        raise RetentionError('an independently reconciled fleet SHA-256 digest is required')
     selectors, retain_through = catalog_policy(catalog, as_of)
     if not isinstance(fleet, dict) or fleet.keys() != {'acquired_at', 'nodes'}:
         raise RetentionError('invalid fleet projection')
@@ -188,10 +187,6 @@ def plan(base, as_of, catalog, fleet, expected_digest):
     if not fresh(acquired, as_of):
         raise RetentionError('fleet acquisition is stale or in the future')
     rows = normalize_rows(fleet['nodes'], acquired)
-    # Canonical DNS names are ASCII, hence Python lexical order is byte order.
-    digest = hashlib.sha256(''.join(row['fqdn'] + '\n' for row in rows).encode('utf-8')).hexdigest()
-    if digest != expected_digest:
-        raise RetentionError('fleet membership does not match the trusted roster')
 
     in_use = set()
     for row in rows:
@@ -230,13 +225,12 @@ def transaction(args):
             txn.clean_checkout(args.base)
             txn.guard_tree(txn.tree(args.base))
             observed = txn.snapshot(args.base)
-            report = plan(args.base, instant(args.as_of, utc=True), observed['catalog'],
-                          read_json(args.fleet), args.expected_fleet_sha256)
+            report = plan(args.base, instant(args.as_of, utc=True), observed['catalog'], read_json(args.fleet))
             delete, _, nav_changed = txn.changes(args.base, observed, report['eligible'])
             paths = sorted(delete + ([txn.NAV] if nav_changed else []))
             if args.write and paths:
                 observed = txn.snapshot(args.base, full=True)
-            evidence = {'report': report, 'base': observed, 'fleet_sha256': args.expected_fleet_sha256}
+            evidence = {'report': report, 'base': observed}
             with args.evidence.open('x', encoding='utf-8') as stream:
                 stream.write(json.dumps(evidence, sort_keys=True) + '\n')
             if args.write and paths:
@@ -273,10 +267,9 @@ def transaction(args):
                     acquired = instant(fleet.get('acquired_at') if isinstance(fleet, dict) else None, utc=True)
                     if acquired <= previous:
                         raise RetentionError('second collection is not newer than the initial plan')
-                    report = plan(base, now, evidence['base']['catalog'], fleet, args.expected_fleet_sha256)
-                    if (args.expected_fleet_sha256 != evidence['fleet_sha256'] or report['eligible'] != eligible
-                            or report['fleet_count'] != evidence['report']['fleet_count']):
-                        raise RetentionError('fresh eligibility or coverage differs from the tested transaction')
+                    report = plan(base, now, evidence['base']['catalog'], fleet)
+                    if report['eligible'] != eligible or report['fleet_count'] != evidence['report']['fleet_count']:
+                        raise RetentionError('fresh eligibility or row count differs from the tested transaction')
                     # The writer must start and finish its bounded push before
                     # the oldest evidence expires, not just within 120 seconds
                     # of its second HTTP request.
@@ -294,7 +287,6 @@ def transaction(args):
 def plan_args(command):
     command.add_argument('--as-of', required=True, help='explicit UTC timestamp')
     command.add_argument('--fleet', type=Path, required=True, help='private collected projection')
-    command.add_argument('--expected-fleet-sha256', required=True)
 
 
 def main(argv=None):
@@ -345,8 +337,7 @@ def main(argv=None):
                 json.dump(projection, stream, sort_keys=True)
                 stream.write('\n')
         elif args.command == 'plan':
-            report = plan(args.base, instant(args.as_of, utc=True), read_json(args.catalog),
-                          read_json(args.fleet), args.expected_fleet_sha256)
+            report = plan(args.base, instant(args.as_of, utc=True), read_json(args.catalog), read_json(args.fleet))
             print(json.dumps(report, sort_keys=True))
         else:
             return transaction(args)

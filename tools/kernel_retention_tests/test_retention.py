@@ -1,5 +1,4 @@
 import copy
-import hashlib
 import json
 import os
 import runpy
@@ -17,7 +16,6 @@ FIXTURES = Path(__file__).with_name('fixtures')
 TOOL = runpy.run_path(str(SCRIPT))
 BASE = 'b86287c105b749827cd63632ac35936533910f63'
 AS_OF = '2026-12-02T12:00:00Z'
-DIGEST = hashlib.sha256(b'node.example.invalid\nstorage.example.invalid\n').hexdigest()
 
 
 class RetentionTests(unittest.TestCase):
@@ -26,13 +24,13 @@ class RetentionTests(unittest.TestCase):
         self.catalog = TOOL['read_json'](FIXTURES / 'catalog.json')
         self.as_of = TOOL['instant'](AS_OF, utc=True)
 
-    def plan(self, timestamp=None, *, digest=DIGEST, fleet=None):
+    def plan(self, timestamp=None, *, fleet=None):
         now = TOOL['instant'](timestamp, utc=True) if timestamp else self.as_of
         if fleet is None:
             for row in self.api['response']['nodes']:
                 row['last_report'] = TOOL['utc_text'](now)
             fleet = TOOL['project_response'](self.api, now)
-        return TOOL['plan'](BASE, now, self.catalog, fleet, digest)
+        return TOOL['plan'](BASE, now, self.catalog, fleet)
 
     def test_reasons_and_inclusive_dates(self):
         result = self.plan()
@@ -74,6 +72,8 @@ class RetentionTests(unittest.TestCase):
 
     def test_projection_is_minimal_and_sorted(self):
         fleet = TOOL['project_response'](self.api, self.as_of)
+        del self.api['response']['_meta']
+        self.assertEqual(fleet, TOOL['project_response'](self.api, self.as_of))
         names = [row['fqdn'] for row in fleet['nodes']]
         self.assertEqual(names, ['node.example.invalid', 'storage.example.invalid'])
         self.assertEqual(fleet['nodes'][1]['last_report'], '2026-12-02T11:59:30Z')
@@ -126,15 +126,26 @@ class RetentionTests(unittest.TestCase):
             with self.assertRaises(TOOL['RetentionError']):
                 TOOL['project_response'](api, self.as_of)
 
-    def test_unknown_release_and_changed_membership_fail(self):
+    def test_reject_nonempty_or_malformed_status_metadata(self):
+        for meta in ({'next': 'another-page'}, {'total': 2}, None, False, [], ''):
+            with self.subTest(meta=meta), self.assertRaisesRegex(TOOL['RetentionError'], 'unpaginated'):
+                self.api['response']['_meta'] = meta
+                TOOL['project_response'](self.api, self.as_of)
+
+    def test_unknown_release_fails(self):
         self.api['response']['nodes'][0]['kernel'] = '6.12.1'
         with self.assertRaisesRegex(TOOL['RetentionError'], 'absent'):
             self.plan()
-        self.api['response']['nodes'].pop(0)
-        with self.assertRaisesRegex(TOOL['RetentionError'], 'membership'):
-            self.plan()
-        with self.assertRaisesRegex(TOOL['RetentionError'], 'digest'):
-            self.plan(digest='')
+
+    def test_api_membership_can_change_between_runs(self):
+        first = self.plan()
+        nodes = self.api['response']['nodes']
+        nodes.pop(0)
+        nodes[0]['fqdn'] = 'replacement.example.invalid'
+        second = self.plan('2026-12-09T12:00:00Z')
+        self.assertEqual((first['fleet_count'], second['fleet_count']), (2, 1))
+        self.assertIn('in-use', first['decisions']['6.12.110']['reasons'])
+        self.assertIn('6.12.110', second['eligible'])
 
     def test_projection_not_implicitly_trusted_and_expires(self):
         self.api['response']['nodes'][1]['last_report'] = '2026-12-02T11:58:00Z'
@@ -173,7 +184,7 @@ class RetentionTests(unittest.TestCase):
             self.assertIn('--max-time', command)
             self.assertIs(run.call_args.kwargs['stderr'], subprocess.DEVNULL)
         for status, link, content_range in (
-            (b'503', b'', b''), (b'301', b'', b''), (b'206', b'', b''),
+            (b'401', b'', b''), (b'503', b'', b''), (b'301', b'', b''), (b'206', b'', b''),
             (b'200', b'next', b''), (b'200', b'', b'1-2/3'),
         ):
             reply = b'\n'.join((body, status, link, content_range))
@@ -201,12 +212,15 @@ class RetentionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertEqual(output.read_bytes(), data)
             planning = ('plan', '--base', BASE, '--as-of', AS_OF, '--fleet', output,
-                        '--catalog', FIXTURES / 'catalog.json', '--expected-fleet-sha256')
-            result = run(*planning, DIGEST)
+                        '--catalog', FIXTURES / 'catalog.json')
+            result = run(*planning)
             self.assertEqual(result.returncode, 0)
             self.assertEqual(json.loads(result.stdout)['eligible'], ['6.12.11'])
             self.assertNotIn('example.invalid', result.stdout + result.stderr)
-            result = run(*planning, '0' * 64)
+            fleet = json.loads(data)
+            fleet['nodes'][0]['fqdn'] = fleet['nodes'][1]['fqdn']
+            output.write_text(json.dumps(fleet))
+            result = run(*planning)
             self.assertEqual(result.returncode, 1)
             self.assertEqual(result.stdout, '')
             self.assertNotIn('example.invalid', result.stderr)

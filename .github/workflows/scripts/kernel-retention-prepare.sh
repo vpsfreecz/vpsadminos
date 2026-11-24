@@ -20,8 +20,7 @@ if [[ ${KERNEL_RETENTION_WRITE:-} == true ]]; then
   export GIT_COMMITTER_NAME=$GIT_AUTHOR_NAME GIT_COMMITTER_EMAIL=$GIT_AUTHOR_EMAIL
 fi
 "${pruner[@]}" apply --base "$base" --fleet "$private/fleet.json" --as-of "$as_of" \
-  --expected-fleet-sha256 "$EXPECTED_FLEET_SHA256" --evidence "$out/evidence.json" \
-  "${write[@]}" | tee "$private/report.json"
+  --evidence "$out/evidence.json" "${write[@]}" | tee "$private/report.json"
 
 if [[ ${#write[@]} == 0 ]] || jq -e '.eligible == []' "$private/report.json" >/dev/null; then
   exit 0
