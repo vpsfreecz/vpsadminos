@@ -143,8 +143,15 @@ pub fn wait_read(fd: RawFd, millis: i32) -> io::Result<()> {
     }
     Ok(())
 }
-pub fn write_status(bytes: &[u8]) -> io::Result<()> {
-    write_bounded(1, bytes)
+pub fn write_status(bytes: &[u8]) -> io::Result<usize> {
+    // The output worker owns the retained offset; a short write is progress.
+    // SAFETY: borrowed byte slice is valid for its length; FD1 is nonblocking.
+    let n = unsafe { libc::write(1, bytes.as_ptr().cast(), bytes.len()) };
+    if n < 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(n as usize)
+    }
 }
 pub fn write_bounded(fd: RawFd, bytes: &[u8]) -> io::Result<()> {
     if bytes.len() > 512 {
@@ -349,4 +356,16 @@ impl Netlink {
         )
         .map_err(|_| 5)
     }
+}
+
+#[cfg(test)]
+pub fn test_pipe() -> (File, File) {
+    let mut fds = [-1; 2];
+    // SAFETY: initialized two-FD output array, transferred once to File below.
+    assert_eq!(
+        unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_NONBLOCK | libc::O_CLOEXEC) },
+        0
+    );
+    // SAFETY: pipe2 returned unique, live descriptors.
+    unsafe { (File::from_raw_fd(fds[0]), File::from_raw_fd(fds[1])) }
 }

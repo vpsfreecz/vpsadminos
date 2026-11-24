@@ -149,6 +149,12 @@ pub struct Model {
     pub errors: [u64; 8],
     pub history: History,
     pub latency_run: LatencyRun,
+    pub evidence_paused: bool,
+    pub evidence_draining: bool,
+    pub evidence_records: usize,
+    pub evidence_bytes: usize,
+    pub evidence_reserved: usize,
+    pub evidence_failures: u64,
     coverage_seen_ns: u64,
     coverage_clean: bool,
     pub sequence: u64,
@@ -190,6 +196,12 @@ impl Model {
             errors: [0; 8],
             history: History::default(),
             latency_run: LatencyRun::new(&Config::default()),
+            evidence_paused: false,
+            evidence_draining: false,
+            evidence_records: 0,
+            evidence_bytes: 0,
+            evidence_reserved: 0,
+            evidence_failures: 0,
             coverage_seen_ns: 0,
             coverage_clean: false,
             sequence: 0,
@@ -221,6 +233,14 @@ impl Model {
     // Called before draining queued IPC, so a delayed completion cannot fill a
     // coverage gap retrospectively. Restoring pending validity happens only in
     // observe(), after that drain, and never repairs an IPC/error state.
+    pub fn pause_evidence(&mut self, paused: bool, now: u64) {
+        if self.evidence_paused != paused {
+            self.evidence_paused = paused;
+            self.latency_run.reset(now);
+            self.coverage_clean = false;
+            self.coverage_seen_ns = 0;
+        }
+    }
     pub fn check_coverage(&mut self, now: u64) {
         self.coverage_clean = !self.coverage_lost(now);
         if !self.coverage_clean {
@@ -230,13 +250,17 @@ impl Model {
     }
     fn coverage_lost(&self, now: u64) -> bool {
         const GRACE: u64 = 1_000_000_000;
-        let gap = self.coverage_seen_ns == 0
-            || now.saturating_sub(self.coverage_seen_ns) > GRACE;
-        let dispatch_late = !self.inflight && self.end != 0
-            && now > self.end.saturating_add(self.latency_run.interval_ns).saturating_add(GRACE);
-        let start_late = self.inflight && self.start == 0
-            && now > self.dispatch.saturating_add(GRACE);
-        gap || dispatch_late || start_late
+        let gap = self.coverage_seen_ns == 0 || now.saturating_sub(self.coverage_seen_ns) > GRACE;
+        let dispatch_late = !self.inflight
+            && self.end != 0
+            && now
+                > self
+                    .end
+                    .saturating_add(self.latency_run.interval_ns)
+                    .saturating_add(GRACE);
+        let start_late =
+            self.inflight && self.start == 0 && now > self.dispatch.saturating_add(GRACE);
+        self.evidence_paused || gap || dispatch_late || start_late
     }
     pub fn fail(&mut self, error: u32) {
         self.error = if (1..8).contains(&error) { error } else { 6 };
@@ -374,6 +398,9 @@ impl Model {
             "dispatch_monotonic_ns":optional(self.dispatch),"started_monotonic_ns":optional(self.start),
             "completed_monotonic_ns":optional(self.end),"last_duration_ns":self.duration,
             "expected_errno":22,"error_code":self.error,
+            "log_evidence":{"version":1,"state":if self.evidence_draining { "draining" } else if self.evidence_paused { "backpressured" } else { "ready" }},
+            "evidence":{"version":1,"paused":self.evidence_paused,"records":self.evidence_records,
+                "bytes":self.evidence_bytes,"reserved_records":self.evidence_reserved,"failures":self.evidence_failures},
             "latency_run": {
                 "version":1,"cutoff_ns":self.latency_run.cutoff_ns,
                 "interval_ns":self.latency_run.interval_ns,"tick_ns":self.latency_run.tick_ns,
@@ -493,7 +520,8 @@ mod tests {
         m.dispatch(start).unwrap();
         m.apply(started(m, start), start, 1.).unwrap();
         covered_until(m, start + duration, c);
-        m.apply(done(m, start + duration, 0), start + duration, 1.).unwrap();
+        m.apply(done(m, start + duration, 0), start + duration, 1.)
+            .unwrap();
         m.completed(c);
     }
     #[test]
@@ -505,12 +533,20 @@ mod tests {
         assert_eq!(m.latency_run.slow_count, 1);
         response(&mut m, 17_000_000_000, 14_999_000_000, &c);
         let run = &m.latency_run;
-        assert_eq!(run.last_completed_ns.unwrap() - run.first_started_ns.unwrap(), 30_999_000_000);
+        assert_eq!(
+            run.last_completed_ns.unwrap() - run.first_started_ns.unwrap(),
+            30_999_000_000
+        );
         assert_eq!(run.slow_count, 2);
         let first = run.first_probe;
         // Equality is fast, including when both it and another slow result
         // occur before any consumer/output submission.
-        response(&mut m, 32_999_000_000, c.latency_threshold_ms * 1_000_000, &c);
+        response(
+            &mut m,
+            32_999_000_000,
+            c.latency_threshold_ms * 1_000_000,
+            &c,
+        );
         assert_eq!(m.latency_run.slow_count, 0);
         response(&mut m, 34_999_000_000, 2_000_000_000, &c);
         assert_ne!(m.latency_run.first_probe, first);
@@ -518,11 +554,14 @@ mod tests {
         let end = m.latency_run.last_completed_ns;
         covered_until(&mut m, 37_999_000_000, &c);
         m.dispatch(37_999_000_000).unwrap();
-        m.apply(started(&m, 37_999_000_000), 37_999_000_000, 1.).unwrap();
+        m.apply(started(&m, 37_999_000_000), 37_999_000_000, 1.)
+            .unwrap();
         covered_until(&mut m, 70_000_000_000, &c);
         assert_eq!(m.latency_run.last_completed_ns, end);
         assert!(m.latency_run.valid);
-        assert!(m.apply(done(&m, 70_000_000_000, 0), 70_000_000_000, 1.).is_ok());
+        assert!(m
+            .apply(done(&m, 70_000_000_000, 0), 70_000_000_000, 1.)
+            .is_ok());
         m.completed(&c);
         let count = m.latency_run.slow_count;
         m.completed(&c);
@@ -531,12 +570,18 @@ mod tests {
     #[test]
     fn latency_span_reaches_thirty_only_on_the_boundary_completion() {
         let c = Config::default();
-        for (duration, span) in [(14_999_000_000, 29_999_000_000), (15_000_000_000, 30_000_000_000)] {
+        for (duration, span) in [
+            (14_999_000_000, 29_999_000_000),
+            (15_000_000_000, 30_000_000_000),
+        ] {
             let mut m = Model::new(BOOT, "span").unwrap();
             m.check_coverage(1);
             response(&mut m, 1_000_000_000, 14_000_000_000, &c);
             response(&mut m, 16_000_000_000, duration, &c);
-            assert_eq!(m.latency_run.last_completed_ns.unwrap() - m.latency_run.first_started_ns.unwrap(), span);
+            assert_eq!(
+                m.latency_run.last_completed_ns.unwrap() - m.latency_run.first_started_ns.unwrap(),
+                span
+            );
             let json: serde_json::Value = serde_json::from_slice(&m.json().unwrap()).unwrap();
             assert_eq!(json["latency_run"]["slow_count"], 2);
         }
@@ -552,7 +597,8 @@ mod tests {
         assert_eq!(m.latency_run.slow_count, 0);
         m.dispatch(5_000_000_001).unwrap();
         m.check_coverage(5_250_000_001);
-        m.apply(started(&m, 5_000_000_001), 5_250_000_001, 1.).unwrap();
+        m.apply(started(&m, 5_000_000_001), 5_250_000_001, 1.)
+            .unwrap();
         m.check_coverage(40_000_000_000); // Observer stalled before queued IPC.
         assert!(!m.latency_run.valid);
         m.observe(40_000_000_000, 1., &c).unwrap();
@@ -560,7 +606,9 @@ mod tests {
         covered_until(&mut m, 40_250_000_000, &c);
         assert!(m.latency_run.valid);
         assert_eq!(m.latency_run.coverage_started_ns, 40_000_000_000);
-        assert!(m.apply(done(&m, 40_250_000_000, 0), 40_250_000_000, 1.).is_ok());
+        assert!(m
+            .apply(done(&m, 40_250_000_000, 0), 40_250_000_000, 1.)
+            .is_ok());
         m.completed(&c); // Its pre-boundary start cannot seed a slow run.
         assert_eq!(m.latency_run.slow_count, 0);
         m.fail(6);
@@ -572,7 +620,10 @@ mod tests {
     }
     #[test]
     fn scheduling_and_start_grace_are_bounded_separately_from_latency_cutoff() {
-        let c = Config { latency_threshold_ms: 1, ..Config::default() };
+        let c = Config {
+            latency_threshold_ms: 1,
+            ..Config::default()
+        };
         let mut m = Model::new(BOOT, "deadlines").unwrap();
         m.configure(&c);
         m.check_coverage(1);
@@ -595,7 +646,8 @@ mod tests {
             response(&mut m, 1_000_000_000, 2_000_000_000, &c);
             covered_until(&mut m, 4_000_000_000, &c);
             m.dispatch(4_000_000_000).unwrap();
-            m.apply(started(&m, 4_000_000_000), 4_000_000_000, 1.).unwrap();
+            m.apply(started(&m, 4_000_000_000), 4_000_000_000, 1.)
+                .unwrap();
             m.check_coverage(4_250_000_000);
             let published = 5_250_000_000 + over;
             m.observe(published, 1., &c).unwrap();
@@ -740,6 +792,61 @@ mod tests {
         assert!(m.json().unwrap().len() < LIMIT);
     }
     #[test]
+    fn evidence_pause_invalidates_pending_and_retains_completion_without_repairing_errors() {
+        let c = Config::default();
+        let mut m = Model::new(BOOT, "pressure").unwrap();
+        m.check_coverage(1);
+        m.dispatch(2).unwrap();
+        m.check_coverage(3);
+        m.apply(started(&m, 3), 3, 1.).unwrap();
+        assert!(m.latency_run.valid);
+        m.pause_evidence(true, 4);
+        m.check_coverage(5);
+        m.observe(5, 1., &c).unwrap();
+        assert!(!m.latency_run.valid);
+        assert!(m.inflight);
+        assert!(m.apply(done(&m, 6, 0), 6, 1.).unwrap());
+        m.completed(&c);
+        assert_eq!(m.history.responses, 1);
+        assert!(!m.latency_run.valid);
+        m.pause_evidence(false, 7);
+        m.check_coverage(7);
+        m.observe(7, 1., &c).unwrap();
+        assert!(!m.latency_run.valid); // First resumed tick seeds only.
+        m.fail(6);
+        m.check_coverage(8);
+        m.observe(8, 1., &c).unwrap();
+        assert!(!m.latency_run.valid);
+        assert_eq!(m.error, 6);
+        let mut missing = Model::new(BOOT, "missing").unwrap();
+        missing.check_coverage(1);
+        missing.dispatch(2).unwrap();
+        missing.pause_evidence(true, 3);
+        missing.pause_evidence(false, 4);
+        missing.check_coverage(4);
+        missing.observe(4, 1., &c).unwrap();
+        missing.check_coverage(5);
+        missing.observe(5, 1., &c).unwrap();
+        assert!(!missing.latency_run.valid);
+        assert_eq!(missing.start, 0);
+    }
+    #[test]
+    fn ordered_log_capability_is_additive_and_reports_actual_pipeline_state() {
+        let mut m = Model::new(BOOT, "logging").unwrap();
+        for (paused, draining, state) in [
+            (false, false, "ready"),
+            (true, false, "backpressured"),
+            (true, true, "draining"),
+        ] {
+            m.evidence_paused = paused;
+            m.evidence_draining = draining;
+            let value: serde_json::Value = serde_json::from_slice(&m.json().unwrap()).unwrap();
+            assert_eq!(value["schema"], 1);
+            assert_eq!(value["latency_run"]["version"], 1);
+            assert_eq!(value["log_evidence"], json!({"version":1,"state":state}));
+        }
+    }
+    #[test]
     fn maximum_metrics_frame_fits_limit() {
         let mut m = Model::new(BOOT, &"e".repeat(95)).unwrap();
         m.state = State::Distressed;
@@ -765,6 +872,11 @@ mod tests {
         m.latency_run.last_completed_ns = Some(u64::MAX);
         m.latency_run.slow_count = u64::MAX;
         m.latency_run.valid = true;
+        m.evidence_paused = true;
+        m.evidence_records = usize::MAX;
+        m.evidence_bytes = usize::MAX;
+        m.evidence_reserved = usize::MAX;
+        m.evidence_failures = u64::MAX;
         assert!(m.metrics(u64::MAX).unwrap().len() <= LIMIT);
         assert!(m.json().unwrap().len() <= LIMIT);
     }

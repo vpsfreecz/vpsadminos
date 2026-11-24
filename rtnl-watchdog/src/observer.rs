@@ -3,7 +3,7 @@ use crate::{
     config::{self, Action},
     files, invalid,
     ipc::{self, Endpoint, Kind, Message},
-    output::Output,
+    output::{Output, Pool},
     state::{Model, State},
     sys,
 };
@@ -45,6 +45,24 @@ fn failure(event: &str, error: u32) {
     let mut bytes = bytes;
     bytes.push(b'\n');
     let _ = sys::write_bounded(2, &bytes);
+}
+fn admission(output: &Output, m: &mut Model, helper: u32, now: u64) -> io::Result<()> {
+    let paused = !output.ready(m.evidence_paused);
+    if paused != m.evidence_paused {
+        m.pause_evidence(paused, now);
+        output.event(
+            if paused {
+                "evidence_paused"
+            } else {
+                "evidence_resumed"
+            },
+            m,
+            helper,
+            now,
+            Pool::Control,
+        )?;
+    }
+    Ok(())
 }
 pub fn run() -> io::Result<()> {
     let args = std::env::args_os()
@@ -95,22 +113,37 @@ pub fn run() -> io::Result<()> {
     let mut next_probe = sys::monotonic()?;
     let mut next_frame = next_probe;
     let mut previous = State::Starting;
+    output.event("observer_started", &m, 0, next_probe, Pool::Control)?;
     while !sys::STOP.load(Ordering::Relaxed) {
         let now = sys::monotonic()?;
+        admission(&output, &mut m, child.as_ref().map_or(0, Child::id), now)?;
+        let covered = m.latency_run.valid;
         m.check_coverage(now);
+        if covered && !m.latency_run.valid && !m.evidence_paused {
+            output.event(
+                "coverage_lost",
+                &m,
+                child.as_ref().map_or(0, Child::id),
+                now,
+                Pool::Control,
+            )?;
+        }
         if let Some(own) = child.as_mut() {
             match own.try_wait() {
                 Ok(Some(_)) => {
-                    output.event("helper_reaped", &m, own.id());
+                    let helper_pid = own.id();
                     endpoint = None;
                     child = None;
                     m.inflight = false;
                     m.fail(7);
+                    output.event("helper_reaped", &m, helper_pid, now, Pool::Control)?;
+                    output.finish_probe();
                     next_probe = now + backoff;
                 }
                 Err(_) if m.error != 7 => {
                     endpoint = None;
                     m.fail(7);
+                    output.event("helper_uncertain", &m, own.id(), now, Pool::Control)?;
                 } // Retain Child on uncertainty.
                 _ => (),
             }
@@ -119,6 +152,13 @@ pub fn run() -> io::Result<()> {
         if let Some(ipc) = endpoint.as_mut() {
             if ipc.flush().is_err() {
                 m.fail(6);
+                output.event(
+                    "ipc_error",
+                    &m,
+                    child.as_ref().map_or(0, Child::id),
+                    now,
+                    Pool::Probe,
+                )?;
                 broken = true;
             } else {
                 for _ in 0..4 {
@@ -126,15 +166,57 @@ pub fn run() -> io::Result<()> {
                         Ok(None) => break,
                         Ok(Some(message)) => {
                             let now = sys::monotonic()?;
+                            let covered = m.latency_run.valid;
                             m.check_coverage(now);
+                            if covered && !m.latency_run.valid && !m.evidence_paused {
+                                output.event(
+                                    "coverage_lost",
+                                    &m,
+                                    child.as_ref().map_or(0, Child::id),
+                                    now,
+                                    Pool::Control,
+                                )?;
+                            }
+                            let covered = m.latency_run.valid;
                             match m.apply(message, now, wall()?) {
                                 Ok(true) => {
                                     m.completed(&c);
+                                    output.event(
+                                        "completed",
+                                        &m,
+                                        child.as_ref().map_or(0, Child::id),
+                                        now,
+                                        Pool::Probe,
+                                    )?;
                                     next_probe =
                                         now + if m.error != 0 { backoff } else { interval };
                                 }
-                                Ok(false) => (),
+                                Ok(false) => {
+                                    output.event(
+                                        "started",
+                                        &m,
+                                        child.as_ref().map_or(0, Child::id),
+                                        now,
+                                        Pool::Probe,
+                                    )?;
+                                    if !covered && m.latency_run.valid {
+                                        output.event(
+                                            "coverage_restored",
+                                            &m,
+                                            child.as_ref().map_or(0, Child::id),
+                                            now,
+                                            Pool::Control,
+                                        )?;
+                                    }
+                                }
                                 Err(_) => {
+                                    output.event(
+                                        "ipc_invalid",
+                                        &m,
+                                        child.as_ref().map_or(0, Child::id),
+                                        now,
+                                        Pool::Probe,
+                                    )?;
                                     broken = true;
                                     break;
                                 }
@@ -142,6 +224,13 @@ pub fn run() -> io::Result<()> {
                         }
                         Err(_) => {
                             m.fail(6);
+                            output.event(
+                                "ipc_error",
+                                &m,
+                                child.as_ref().map_or(0, Child::id),
+                                sys::monotonic()?,
+                                Pool::Probe,
+                            )?;
                             broken = true;
                             break;
                         }
@@ -153,25 +242,50 @@ pub fn run() -> io::Result<()> {
             endpoint = None;
         } // EOF is unknown, never a reaping/cancellation signal.
         let now = sys::monotonic()?;
-        if child.is_none() && now >= next_probe {
+        admission(&output, &mut m, child.as_ref().map_or(0, Child::id), now)?;
+        if !m.evidence_paused && child.is_none() && now >= next_probe {
             match ipc::spawn(&helper, &lock) {
                 Ok((own, ipc)) => {
                     m.rebind(&epoch(own.id())?)?;
                     previous = State::Starting;
-                    output.event("helper_started", &m, own.id());
+                    output.event("helper_started", &m, own.id(), now, Pool::Control)?;
                     child = Some(own);
                     endpoint = Some(ipc);
                     next_probe = now;
                 }
                 Err(_) => {
                     m.fail(7);
+                    output.event("helper_spawn_error", &m, 0, now, Pool::Control)?;
                     next_probe = now + backoff;
                 }
             }
         }
+        admission(
+            &output,
+            &mut m,
+            child.as_ref().map_or(0, Child::id),
+            sys::monotonic()?,
+        )?;
         if let Some(ipc) = endpoint.as_mut() {
-            if child.is_some() && !m.inflight && now >= next_probe {
+            if !m.evidence_paused && child.is_some() && !m.inflight && now >= next_probe {
+                let covered = m.latency_run.valid;
                 m.dispatch(now)?;
+                if covered && !m.latency_run.valid {
+                    output.event(
+                        "coverage_lost",
+                        &m,
+                        child.as_ref().map_or(0, Child::id),
+                        now,
+                        Pool::Control,
+                    )?;
+                }
+                output.event(
+                    "dispatched",
+                    &m,
+                    child.as_ref().map_or(0, Child::id),
+                    now,
+                    Pool::Probe,
+                )?;
                 if ipc
                     .queue(Message {
                         kind: Kind::Request,
@@ -184,22 +298,57 @@ pub fn run() -> io::Result<()> {
                     .is_err()
                 {
                     m.fail(6);
+                    output.event(
+                        "ipc_error",
+                        &m,
+                        child.as_ref().map_or(0, Child::id),
+                        now,
+                        Pool::Probe,
+                    )?;
                     endpoint = None;
                 }
             }
         }
         let now = sys::monotonic()?;
+        admission(&output, &mut m, child.as_ref().map_or(0, Child::id), now)?;
         if now >= next_frame || m.state != previous {
+            let covered = m.latency_run.valid;
             m.observe(now, wall()?, &c)?;
-            if m.state != previous {
-                output.event(m.state.name(), &m, child.as_ref().map_or(0, Child::id));
+            if covered != m.latency_run.valid && !m.evidence_paused {
+                output.event(
+                    if m.latency_run.valid {
+                        "coverage_restored"
+                    } else {
+                        "coverage_lost"
+                    },
+                    &m,
+                    child.as_ref().map_or(0, Child::id),
+                    now,
+                    Pool::Control,
+                )?;
+            }
+            if m.state != previous && m.state == State::Distressed {
+                output.event(
+                    "distressed",
+                    &m,
+                    child.as_ref().map_or(0, Child::id),
+                    now,
+                    Pool::Control,
+                )?;
             }
             previous = m.state;
             output.submit(&m);
             next_frame = now + c.tick_ms * 1_000_000;
         }
+        // Queued completion/extra IPC has been resolved before unused tokens return.
+        if !m.inflight {
+            output.finish_probe();
+        }
         let mut due = next_frame;
-        if (child.is_none() || (endpoint.is_some() && !m.inflight)) && next_probe < due {
+        if !m.evidence_paused
+            && (child.is_none() || (endpoint.is_some() && !m.inflight))
+            && next_probe < due
+        {
             due = next_probe;
         }
         let delay = due
@@ -212,7 +361,16 @@ pub fn run() -> io::Result<()> {
         )?;
     }
     drop(endpoint); // No kernel cancellation; helper retains its own lock reference.
-    output.event("observer_stopping", &m, child.as_ref().map_or(0, Child::id));
+    m.pause_evidence(true, sys::monotonic()?);
+    m.evidence_draining = true;
+    output.submit(&m);
+    output.event(
+        "observer_stopping",
+        &m,
+        child.as_ref().map_or(0, Child::id),
+        sys::monotonic()?,
+        Pool::Control,
+    )?;
     let drained = output.stop();
     if let Some(mut child) = child {
         if !matches!(child.try_wait(), Ok(Some(_))) {

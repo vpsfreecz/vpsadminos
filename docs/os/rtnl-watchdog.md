@@ -125,6 +125,56 @@ valid load protection remains available. Older consumers ignore the added
 fields. See the [oomd reference](oomd.md) for activation durations and rollout
 compatibility.
 
+## Ordered probe evidence
+
+The producer writes JSON records for probe dispatch, start and every completion,
+including fast responses, plus errors, helper lifecycle and coverage changes.
+These records enter an ordered FIFO before current-state snapshots can coalesce.
+Each record carries an evidence-schema version, process epoch, event sequence,
+boot/probe identity, timestamps, duration/error and the observer's coverage state.
+A retained last-duration gauge or histogram cannot replace this ordering when
+evaluating consecutive slow responses.
+
+The state file also has an additive `log_evidence` object with `version: 1` and
+`state` equal to `ready`, `backpressured` or `draining`. It reports support and
+pipeline state only. `ready` does not prove that a record was written, retained
+or received centrally. Missing, unsupported or malformed markers leave ordered
+log support unverified. The existing latency summary alone does not establish
+support. Oomd reports this diagnostic independently of RTNL policy enable;
+marker absence does not invalidate otherwise valid existing control evidence.
+Older consumers ignore the added object.
+
+The evidence FIFO holds at most 256 records and 1 MiB of payload, including
+writer-owned records and reservations. It reserves four records before admitting
+a probe and keeps eight lifecycle records available. When capacity is
+unavailable, the observer pauses new probe admission and invalidates control
+coverage. It continues handling an already-announced probe through reserved
+capacity; logging pressure never cancels or replaces the helper. Pause and
+resume records delimit a gap. Recovery starts new coverage and cannot grant
+retroactive sustained-latency credit.
+
+The existing output worker retains the FIFO head and its partial-write offset
+on blocked or failed stdout writes. Nonblocking retries leave it available for
+current state/metrics output. Application records are at most 3072 bytes. A
+complete local write releases evidence capacity; it does not establish disk
+durability or remote receipt. Graceful shutdown stops admissions and drains
+accepted evidence. A blocked sink can keep shutdown pending; forced termination
+or a crash can lose in-memory records.
+
+The service logs to `/var/log/rtnl-watchdog` and forwards to `127.0.0.1:514` over
+UDP. Its inherited runit defaults rotate at 1000000 bytes and keep ten old files
+plus the current file, without age-driven rotation. This gives roughly 10 MB
+of rotated logs, not a fixed retention period. With the default one-second
+spacing, dispatch/start/completion produce approximately three records per
+second for fast probes, plus lifecycle and coverage records. Larger records
+and event bursts shorten retention. Local disk failure, rotation and UDP loss
+remain limits; there is no durable spool or guaranteed central receipt.
+
+Compare alternate RTNL latency/sustain thresholds only where the retained stream
+has complete sequence and coverage. Missing records, pauses and observer gaps
+leave that interval unknown. See [oomd decision evidence](oomd.md#continuous-decision-evidence)
+for the independently sampled host signals and candidate VPSes.
+
 ## Prometheus output
 
 Use the existing node-exporter textfile collector for the configured directory.
@@ -137,7 +187,7 @@ interpreting them.
 
 `output_errors_total` counts failures to render or write state, metrics or
 status output, including output rejected by a size limit. Replacing an older
-queued snapshot or status event with the newest one does not increment it.
+queued state/metrics snapshot with the newest one does not increment it.
 The counter resets when the observer restarts. Alert on new failures and stale
 `snapshot_timestamp_seconds` values rather than a positive lifetime total:
 a past error can remain visible after publication has recovered. A failed
@@ -166,11 +216,12 @@ During a rollout with different bucket sets, query each node separately or
 restrict aggregation to the boundaries shared by all selected nodes.
 
 State/metric output uses a fixed latest-frame handoff. Coalesced frames retain
-observer-owned histogram/counters. A full stdout pipe drops bounded status
-events without stopping local file output. A blocked filesystem writer can
-leave both files stale while the observer/helper continue; it is never
-replaced by an unlimited worker pool. Host scheduler or memory stalls can also
-delay observation. There is no guaranteed alarm deadline during a global stall.
+observer-owned histogram/counters; ordered probe evidence uses the separate FIFO
+described above. A blocked filesystem writer can leave both files stale and
+prevent the same worker draining evidence. Once evidence capacity fills, new
+probes pause while outstanding helper work remains accounted for. No unlimited
+worker pool replaces the writer. Host scheduler or memory stalls can also delay
+observation. There is no guaranteed alarm deadline during a global stall.
 
 ## Stop and recovery
 

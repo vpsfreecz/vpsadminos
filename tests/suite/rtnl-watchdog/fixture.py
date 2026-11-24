@@ -171,25 +171,35 @@ def histogram(values):
 
 
 class Watchdog:
-    def __init__(self, *extra, state=None, metrics=None, lock=None, prefix=()):
+    def __init__(self, *extra, state=None, metrics=None, lock=None, prefix=(), output_pipe=False):
         STATE.mkdir(exist_ok=True)
         self.state = state or STATE / 'state.json'
         self.metrics = metrics or STATE / 'metrics.prom'
         self.lock = lock or STATE / 'lifetime.lock'
         self.errors = (STATE / 'stderr').open('w+')
+        # Ordinary phases can spend seconds away from frame(). A regular-file
+        # sink prevents those waits manufacturing the dedicated pipe-pressure case.
+        self.stdout_file = None if output_pipe else (STATE / f'stdout-{time.monotonic_ns()}').open('w+b')
         self.process = subprocess.Popen([*prefix, BINARY,
             '--state-file', str(self.state), '--metrics-file', str(self.metrics),
-            '--lock-file', str(self.lock), *extra], stdout=subprocess.PIPE, stderr=self.errors)
-        fcntl.fcntl(self.process.stdout, fcntl.F_SETPIPE_SZ, 4096)
-        os.set_blocking(self.process.stdout.fileno(), False)
-        self.selector = selectors.DefaultSelector()
-        self.selector.register(self.process.stdout, selectors.EVENT_READ)
+            '--lock-file', str(self.lock), *extra], stdout=subprocess.PIPE if output_pipe else self.stdout_file,
+            stderr=self.errors)
+        self.reader = self.process.stdout if output_pipe else Path(self.stdout_file.name).open('rb')
+        self.selector = None
+        if output_pipe:
+            fcntl.fcntl(self.reader, fcntl.F_SETPIPE_SZ, 4096)
+            os.set_blocking(self.reader.fileno(), False)
+            self.selector = selectors.DefaultSelector()
+            self.selector.register(self.reader, selectors.EVENT_READ)
         self.output = b''
         self.last = None
 
     def pump(self):
-        if self.selector.select(0):
-            self.output = (self.output + os.read(self.process.stdout.fileno(), 65536))[-16384:]
+        while self.selector is None or self.selector.select(0):
+            chunk = os.read(self.reader.fileno(), 65536)
+            if not chunk:
+                break
+            self.output = (self.output + chunk)[-16384:]
 
     def running(self):
         code = self.process.poll()
@@ -228,13 +238,20 @@ class Watchdog:
         helpers = children(self.process.pid)
         if self.process.poll() is None:
             self.process.send_signal(signal.SIGTERM)
-        self.process.wait(timeout=12)
+        def drained():
+            self.pump()
+            return self.process.poll() is not None
+        until(drained, timeout=12)
+        self.process.wait(timeout=0)
         # Closing IPC is asynchronous. Wait for known helper exit before the
         # next case reuses the lifetime-lock path; never cancel a pending call.
         until(lambda: all(not Path(f'/proc/{pid}').exists() for pid in helpers), timeout=5)
         self.pump()
-        self.selector.close()
-        self.process.stdout.close()
+        if self.selector:
+            self.selector.close()
+        self.reader.close()
+        if self.stdout_file:
+            self.stdout_file.close()
         self.errors.close()
 
 
@@ -318,9 +335,10 @@ def namespace():
         later = watchdog.frame(lambda r: r['state'] == 'error' and r['sequence'] >= row['sequence'] + 4)
         assert later['probe_sequence'] == row['probe_sequence'], 'namespace error bypassed backoff'
         assert later['started_monotonic_ns'] is None
-        events = [json.loads(line) for line in watchdog.output.splitlines()]
-        assert any(r.get('event') == 'error' and r['error_code'] == 1 for r in events), events
-        assert not any(r.get('event') == 'healthy' for r in events), events
+        watchdog.pump()
+        events = [json.loads(line) for line in watchdog.output.splitlines() if line.endswith(b'}')]
+        assert any(r.get('event') == 'completed' and r['error_code'] == 1 for r in events), events
+        assert not any(r.get('event') == 'completed' and r['error_code'] == 0 for r in events), events
         return {'namespace_error': row, 'backoff': later, 'helper_pid': watchdog.helper(),
                 'structured_status': events}
     finally:
@@ -328,14 +346,16 @@ def namespace():
 
 
 def backpressure():
-    watchdog = Watchdog()
+    watchdog = Watchdog(output_pipe=True)
     held = None
     try:
         initial = watchdog.frame()
         child = watchdog.helper()
-        # Healthy output contains only bounded status transitions. Fill the
-        # actual pipe to EAGAIN, then force a real distress transition while
-        # leaving it undrained; no alternate healthy CLI is involved.
+        # Every healthy probe now emits ordered records. Fill this dedicated
+        # pipe to EAGAIN and leave it undrained throughout the pending assertions.
+        # Ordinary phases use a regular file; no alternate healthy CLI is involved.
+        errors_before = float(next(line.split()[1] for line in watchdog.metrics.read_text().splitlines()
+                                   if line.startswith(METRIC_PREFIX + 'output_errors_total ')))
         writer = os.open(f'/proc/{watchdog.process.pid}/fd/1', os.O_WRONLY | os.O_NONBLOCK)
         filled = 0
         try:
@@ -357,7 +377,9 @@ def backpressure():
         metrics = watchdog.metrics.read_text()
         values = {line.split()[0]: float(line.split()[1]) for line in metrics.splitlines()
                   if line and not line.startswith('#')}
-        assert values[METRIC_PREFIX + 'output_errors_total'] > 0, metrics
+        assert values[METRIC_PREFIX + 'output_errors_total'] == errors_before, metrics
+        assert 0 < latest['evidence']['records'] <= 256 and latest['evidence']['bytes'] > 0, latest
+        assert latest['log_evidence']['state'] in ('ready', 'backpressured'), latest
         release()
         assert held.wait(timeout=3) == 0
         recovered = watchdog.frame()
