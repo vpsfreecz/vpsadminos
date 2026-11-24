@@ -20,6 +20,11 @@ module OsCtl::Oomd
 
     RawFrame = Struct.new(:data, :rows, :strict_seed, keyword_init: true)
     STRICT_SEED_REASONS = %w[initial_baseline counter_reset invalid_window invalid_host_cpu_delta].freeze
+    DIAGNOSTIC_INTERVAL_NS = 30_000_000_000
+    DIAGNOSTIC_BYTES = 2048
+    DIAGNOSTIC_FIELDS = %w[run cpu_usage cpu_limit memory memory_limit loadavg nproc].freeze
+    DIAGNOSTIC_ERRORS = %w[invalid_limit missing_cgroup_value required_read_failed initial_baseline invalid_window
+                           counter_reset invalid_host_cpu_delta monitor_unavailable run_changed invalid_run missing_container_load].freeze
 
     def self.settings(value)
       config = DEFAULTS.merge(value || {})
@@ -177,6 +182,7 @@ module OsCtl::Oomd
       @qualifications = {}
       @actions = []
       @staged_loads = []
+      @staged_diagnostic = nil
       @sample_median = @sample_history_count = nil
       bootstrap = @bootstrap
       @bootstrap = false
@@ -204,6 +210,7 @@ module OsCtl::Oomd
           @evidence.release(@expiry_tickets.delete(key)) unless @records[key]&.restart_qualified_seconds.to_f > 0
         end
         @staged_loads.each { |load| @host_load << load }
+        @diagnostic_epoch, @diagnostic_at, @diagnostic_cursor = @staged_diagnostic if @staged_diagnostic
         @actions.each { |args, opts| dispatch(*args, **opts) }
         publish_export
         accepted
@@ -599,13 +606,130 @@ module OsCtl::Oomd
                policy: @settings.merge('interval_seconds' => @interval_ns / 1_000_000_000,
                                        'load_multiplier' => @load_multiplier, 'load_enable' => @load_enable, 'cpu_percent' => @cpu_percent, 'memory_percent' => @memory_percent, 'load_top' => @load_top, 'restart_after_seconds' => restart_after_seconds,
                                        'stop_after_seconds' => stop_after_seconds, 'restart_unknown_expiry_seconds' => @restart_expiry_ns / 1_000_000_000) }
+      inventory = inventory_diagnostic(data, now)
+      host[:inventory_observation] = inventory
+      deferred_inventory = inventory if diagnostic_bytes('host', identity.merge(host)) > Evidence::LINE_BYTES
+      host.delete(:inventory_observation) if deferred_inventory
       body = @evidence.frame('host', identity.merge(host))
       @sample_rows.each do |row|
         body.concat(@evidence.frame('container', identity.merge(row)))
         raise Evidence::Oversize, 'sample population exceeds bounded batch' if body.size + 2 > Evidence::SAMPLE_RECORDS
       end
-      counts = { selected_records: @sample_rows.size, expected_lines: body.size + 2 }
+      page, disposition = unknown_diagnostic(data, identity, body, deferred_inventory)
+      disposition[:inventory_status] = inventory[:status]
+      body.concat(page) if page
+      counts = { selected_records: @sample_rows.size, expected_lines: body.size + 2, unknown_diagnostic: disposition }
       @evidence.frame('sample_begin', identity.merge(counts)) + body + @evidence.frame('sample_end', identity.merge(counts).merge(emitted_lines: body.size + 2))
+    end
+
+    def diagnostic_integer?(value)
+      value.is_a?(Integer) && value.between?(0, 18_446_744_073_709_551_615)
+    end
+
+    def inventory_completion(value, now)
+      return if value.nil?
+      return false unless value.is_a?(Hash) && %w[id started_monotonic_ns completed_monotonic_ns duration_ns].all? { |key| diagnostic_integer?(value[key]) }
+      return false unless value['id'] > 0 && value['started_monotonic_ns'] > 0 &&
+                          value['started_monotonic_ns'] <= value['completed_monotonic_ns'] && value['completed_monotonic_ns'] <= now &&
+                          value['duration_ns'] == value['completed_monotonic_ns'] - value['started_monotonic_ns'] &&
+                          %w[success invalid_inventory required_read_failed].include?(value['result'])
+
+      value.slice('id', 'started_monotonic_ns', 'completed_monotonic_ns', 'duration_ns', 'result')
+    end
+
+    def inventory_diagnostic(data, received_at)
+      return { status: 'missing' } unless data.has_key?('inventory_observation')
+
+      value = data['inventory_observation']
+      return { status: 'malformed' } unless value.is_a?(Hash) && value['version'].is_a?(Integer)
+      return { status: 'unsupported' } unless value['version'] == 1
+      return { status: 'malformed' } unless %w[request last_completion last_success].all? { |key| value.has_key?(key) }
+
+      now = value['observed_monotonic_ns']
+      return { status: 'malformed' } unless diagnostic_integer?(now) && now.between?(data['sample_started_monotonic_ns'], received_at) && value['epoch'] == data['epoch']
+
+      request = value['request']
+      unless request.nil?
+        return { status: 'malformed' } unless request.is_a?(Hash) && positive?(request['id']) && diagnostic_integer?(request['id']) &&
+                                              positive?(request['started_monotonic_ns']) && request['started_monotonic_ns'] <= now &&
+                                              %w[pending completed_unconsumed].include?(request['status'])
+
+        request = request.slice('id', 'started_monotonic_ns', 'status')
+      end
+      completion = inventory_completion(value['last_completion'], now)
+      success = inventory_completion(value['last_success'], now)
+      if completion == false || success == false || (success && (success['result'] != 'success' || !completion || success['id'] > completion['id']))
+        return { status: 'malformed' }
+      end
+
+      { status: 'available', version: 1, epoch: value['epoch'], observed_monotonic_ns: now, request:,
+        last_completion: completion, last_success: success }
+    end
+
+    # Account for the envelope and final event sequence before generating an
+    # optional record. Diagnostic pages never use mandatory fragmentation.
+    def diagnostic_bytes(type, fields)
+      JSON.generate({ evidence_schema: 1, process_epoch: @evidence.epoch, type: }.merge(fields)).bytesize + 160
+    end
+
+    def unknown_diagnostic(data, identity, body, inventory)
+      keys = @raw.rows.keys.select { |key| @qualifications[key].nil? }.sort
+      disposition = { unknown_total: keys.size, status: 'none', considered: 0, reported: 0, unrepresentable: 0,
+                      wrapped: false, inventory_detail: inventory ? 'deferred' : 'host' }
+      return [nil, disposition] if keys.empty? && !inventory
+
+      now = data.fetch('sample_completed_monotonic_ns')
+      same_epoch = @diagnostic_epoch == data['epoch']
+      if same_epoch && @diagnostic_at && now - @diagnostic_at < DIAGNOSTIC_INTERVAL_NS
+        return [nil, disposition.merge(status: 'not_due')]
+      end
+
+      bytes = body.sum { |record| JSON.generate(record).bytesize + 160 } + (2 * Evidence::LINE_BYTES)
+      if body.size + 3 > Evidence::SAMPLE_RECORDS || bytes + DIAGNOSTIC_BYTES > Evidence::SAMPLE_BYTES
+        return [nil, disposition.merge(status: 'deferred')]
+      end
+
+      cursor = @diagnostic_cursor if same_epoch
+      start = cursor && keys.bsearch_index { |key| (key <=> cursor) > 0 }
+      start = 0 unless cursor
+      wrapped = start.nil? ? !keys.empty? : false
+      start ||= 0
+      candidates = keys.rotate(start).take(4)
+      wrapped ||= start + candidates.size > keys.size
+      fields = identity.merge(unknown_total: keys.size, considered: candidates.size, reported: 4, unrepresentable: 4, wrapped:)
+      fields[:inventory_observation] = inventory if inventory
+      budget = (DIAGNOSTIC_BYTES - diagnostic_bytes('unknown_targets', fields.merge(entries: [])) - 8) / [candidates.size, 1].max
+      return [nil, disposition.merge(status: 'deferred')] if budget < 160
+
+      positions = @raw.rows.keys.each_with_index.to_h
+      entries = candidates.map { |key| unknown_entry(key, positions.fetch(key), data, budget) }
+      reported = entries.count { |entry| entry.has_key?(:id) }
+      disposition.update(status: 'emitted', considered: entries.size, reported:, unrepresentable: entries.size - reported,
+                         wrapped:, inventory_detail: inventory ? 'page' : 'host')
+      fields.update(entries:, reported:, unrepresentable: entries.size - reported)
+      @staged_diagnostic = [data['epoch'], now, candidates.last || cursor]
+      [@evidence.frame('unknown_targets', fields), disposition]
+    end
+
+    def unknown_entry(key, position, data, budget)
+      row = @raw.rows.fetch(key)
+      errors = DIAGNOSTIC_FIELDS.filter_map do |field|
+        reason = row['errors'][field]
+        next unless reason
+
+        [field, DIAGNOSTIC_ERRORS.include?(reason) ? reason : 'unrecognized_error', reason.bytesize]
+      end.take(2)
+      reasons = []
+      reasons << 'run_unverified' unless row['run_verified']
+      reasons << 'resources_unknown' unless Eligibility::Partial.decidable?(row)
+      reasons << 'cpu_window_unknown' unless matching_cpu_window?(row, data)
+      reasons << (@inflight.has_key?(key) ? 'inflight' : 'rank_unknown') if reasons.empty?
+      entry = { row_reference: position, pool: key[0], id: key[1], run_verified: row['run_verified'],
+                cpu_limit_state: row['cpu_limit_state'], memory_limit_state: row['memory_limit_state'],
+                errors:, errors_total: row['errors'].size, reasons: }
+      return entry if key.sum(&:bytesize) <= budget && JSON.generate(entry).bytesize <= budget
+
+      { row_reference: position, unrepresented: 'entry_exceeds_page_budget', field_bytes: { pool: key[0].bytesize, id: key[1].bytesize } }
     end
 
     def reserve_expiries

@@ -28,6 +28,7 @@ RSpec.describe OsCtl::Cli::Top::PartialModel do
     allow(model).to receive(:monotonic_ns).and_return(state[:time], state[:time] + 200_000_000)
     if model.is_a?(described_class)
       allow(model).to receive(:counter_clock) { state[:time] }
+      allow(model).to receive(:inventory_clock) { state[:time] }
     end
     model
   end
@@ -148,6 +149,67 @@ RSpec.describe OsCtl::Cli::Top::PartialModel do
     end
   end
 
+  it 'adds a bounded inventory summary without changing the root schema or collection result' do
+    partial.setup
+    advance(partial)
+    frame = partial.json_data
+    observation = frame.fetch(:inventory_observation)
+
+    expect(frame).to include(top_schema: 2, complete: true)
+    expect(observation).to include(version: 1, epoch: frame[:epoch], observed_monotonic_ns: state[:time], request: nil)
+    expect(observation[:last_completion]).to include(result: 'success', duration_ns: 0)
+    expect(observation[:last_success]).to eq(observation[:last_completion])
+    expect(JSON.generate(observation).bytesize).to be < 1024
+  end
+
+  it 'distinguishes worker completion from later consumption and cached inventory' do
+    partial.setup
+    cached = partial.json_data.fetch(:inventory_observation).fetch(:last_success)
+    release = Queue.new
+    worker = nil
+    allow(client).to receive(:cmd_data!).with(:ct_list, read_hostname: false) do
+      worker = Thread.current
+      release.pop
+      state[:inventory].map(&:dup)
+    end
+    started = state[:time]
+    partial.send(:sample_inventory)
+    pending = partial.send(:sync) { partial.send(:inventory_observation, started) }
+    expect(pending[:request]).to include(started_monotonic_ns: started, status: 'pending')
+    expect(pending[:last_success]).to eq(cached)
+    state[:time] += 1_000_000_000
+    release << true
+    expect(worker.join(2)).to eq(worker)
+    completed = state[:time]
+    unconsumed = partial.send(:sync) { partial.send(:inventory_observation, completed + 10_000_000_000) }
+    expect(unconsumed[:request]).to include(id: pending[:request][:id], status: 'completed_unconsumed')
+    expect(unconsumed[:last_success]).to eq(cached)
+    partial.send(:finish_inventory_read)
+    consumed = partial.send(:sync) { partial.send(:inventory_observation, completed + 10_000_000_000) }
+    expect(consumed[:request]).to be_nil
+    expect(consumed[:last_completion]).to include(id: pending[:request][:id], started_monotonic_ns: started,
+                                                  completed_monotonic_ns: completed, duration_ns: 1_000_000_000, result: 'success')
+    expect(consumed[:last_success]).to eq(consumed[:last_completion])
+  ensure
+    release&.push(true)
+    worker&.join(2)
+  end
+
+  it 'retains the last cached success across invalid and failed inventory requests' do
+    partial.setup
+    cached = partial.json_data.fetch(:inventory_observation).fetch(:last_success)
+    allow(client).to receive(:cmd_data!).with(:ct_list, read_hostname: false).and_return([state[:inventory].first] * 2)
+    partial.send(:sample_inventory)
+    observation = partial.send(:sync) { partial.send(:inventory_observation, state[:time]) }
+    expect(observation[:last_completion][:result]).to eq('invalid_inventory')
+    expect(observation[:last_success]).to eq(cached)
+    allow(client).to receive(:cmd_data!).with(:ct_list, read_hostname: false).and_raise(IOError, 'read failed')
+    partial.send(:sample_inventory)
+    observation = partial.send(:sync) { partial.send(:inventory_observation, state[:time]) }
+    expect(observation[:last_completion][:result]).to eq('required_read_failed')
+    expect(observation[:last_success]).to eq(cached)
+  end
+
   it 'emits the normative partial frame and independently preserves strict recovery' do
     allow(SecureRandom).to receive(:uuid).and_return('fixture-e')
     # The preceding five attempts are outside the fixture's observation window.
@@ -192,6 +254,8 @@ RSpec.describe OsCtl::Cli::Top::PartialModel do
                               invalid_reason: 'inventory_pending', state_counts: nil)
       expect(row(wire, '101')).to include(run_verified: true, memory: 123 + i, cpu_usage: 180.0,
                                           cpu_baseline_sequence: i + 2)
+      expect(wire.fetch(:inventory_observation).fetch(:request)).to include(status: 'pending')
+      expect(wire[:inventory_observation][:last_success][:id]).to be < wire[:inventory_observation][:request][:id]
     end
     expect(requests.size).to eq(1)
     state[:inventory].last.update(state: 'running', init_pid: 203, group_path: 'ct103/user-owned')

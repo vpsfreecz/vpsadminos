@@ -33,6 +33,7 @@ module OsCtl::Cli
 
     def initialize(json: true, **)
       @changes = {}
+      @inventory_sequence = 0
       @monitor_coverage = :pending
       @json = json
       @sample_wakeup = OsCtl::Lib::Queue.new if json
@@ -114,7 +115,8 @@ module OsCtl::Cli
       sync do
         hard = publish_sweep(sweep, history, frames, version, reason, hard)
         frames.each_value do |frame|
-          frame.update(sample_completed_monotonic_ns: completed, measurement_window_completed_monotonic_ns: completed)
+          frame.update(sample_completed_monotonic_ns: completed, measurement_window_completed_monotonic_ns: completed,
+                       inventory_observation: inventory_observation(inventory_clock))
         end
         @decision_cpu = decision_cpu unless hard
         @decision_cpu = nil if hard
@@ -364,7 +366,25 @@ module OsCtl::Cli
 
         finish_inventory_read
       end
-      @inventory_read = Thread.new { inventory_result }
+      request = sync do
+        @inventory_sequence += 1
+        @inventory_request = { id: @inventory_sequence, started_monotonic_ns: inventory_clock }
+      end
+      @inventory_read = Thread.new do
+        result = inventory_result
+        completed = inventory_clock
+        outcome = case result[1]
+                  when nil then 'success'
+                  when 'invalid_inventory' then 'invalid_inventory'
+                  else 'required_read_failed'
+                  end
+        sync do
+          @inventory_request = request.merge(completed_monotonic_ns: completed,
+                                             duration_ns: completed - request[:started_monotonic_ns],
+                                             result: outcome)
+        end
+        result
+      end
       return [@last_inventory, 'inventory_pending'] unless @inventory_read.join(INVENTORY_WAIT_SECONDS)
 
       inventory, error = finish_inventory_read
@@ -374,8 +394,31 @@ module OsCtl::Cli
     def finish_inventory_read
       inventory, error = @inventory_read.value
       @inventory_read = nil
-      @last_inventory = inventory if inventory
+      sync do
+        @inventory_completion = @inventory_request
+        @inventory_request = nil
+        if inventory
+          @last_inventory = inventory
+          @inventory_success = @inventory_completion
+        end
+      end
       [inventory, error]
+    end
+
+    # Called under the publication lock. A completed reply is not the cached
+    # inventory until the sampler consumes it; timestamps belong to the worker.
+    def inventory_observation(now)
+      return unless @bounded_inventory
+
+      request = @inventory_request && @inventory_request.slice(:id, :started_monotonic_ns).merge(
+        status: @inventory_request[:completed_monotonic_ns] ? 'completed_unconsumed' : 'pending'
+      )
+      { version: 1, epoch: @epoch, observed_monotonic_ns: now, request:,
+        last_completion: @inventory_completion&.dup, last_success: @inventory_success&.dup }
+    end
+
+    def inventory_clock
+      Process.clock_gettime(Process::CLOCK_MONOTONIC, :nanosecond)
     end
 
     def inventory_result

@@ -257,6 +257,134 @@ RSpec.describe OsCtl::Oomd::Controller do
     end
   end
 
+  context 'with optional partial-data diagnostics' do
+    def logged(type) = evidence_lines.map { |line| JSON.parse(line) }.select { |record| record['type'] == type }
+
+    def unknown_row(id = 'a', **changes)
+      row(id, cpu_usage: nil, errors: { 'cpu_usage' => 'missing_cgroup_value' }, **changes)
+    end
+
+    def partial_sample(sequence, time, rows, **changes)
+      observe(sequence, time, rows, complete: false, invalid_reason: 'inventory_pending', inventory_complete: false,
+                                    measurement_window_started_monotonic_ns: nil, **changes)
+    end
+
+    def inventory_observation(time, status: 'pending')
+      completion = { 'id' => 2, 'started_monotonic_ns' => ns(time - 25), 'completed_monotonic_ns' => ns(time - 20),
+                     'duration_ns' => ns(5), 'result' => 'success' }
+      { 'version' => 1, 'epoch' => 'sampler', 'observed_monotonic_ns' => ns(time),
+        'request' => status && { 'id' => 3, 'started_monotonic_ns' => ns(time - 10), 'status' => status },
+        'last_completion' => completion, 'last_success' => completion }
+    end
+
+    it 'records old, new and malformed optional observations without changing valid control' do
+      observe(1, 100, loadavg: [300])
+      expect(logged('host').last['inventory_observation']).to eq('status' => 'missing')
+      ['pending', 'completed_unconsumed', nil].each_with_index do |status, i|
+        time = 115 + (i * 15)
+        observe(i + 2, time, loadavg: [300], inventory_observation: inventory_observation(time, status:))
+        expect(logged('host').last['inventory_observation']).to include('status' => 'available', 'request' => status ? include('status' => status) : nil)
+      end
+      invalid = [nil, {}, { 'version' => 2 }, inventory_observation(145).merge('request' => false),
+                 inventory_observation(160).merge('last_completion' => {}), inventory_observation(175).except('last_success')]
+      invalid.each_with_index do |value, i|
+        time = 160 + (i * 15)
+        value = value.merge('observed_monotonic_ns' => ns(time)) if value.is_a?(Hash) && value['version'] == 1
+        observe(i + 5, time, loadavg: [300], inventory_observation: value)
+        expected = value == { 'version' => 2 } ? 'unsupported' : 'malformed'
+        expect(logged('host').last['inventory_observation']).to eq('status' => expected)
+      end
+      expect(permits).to contain_exactly(include(action: :restart, run: [42, 123]))
+    end
+
+    it 'emits bounded four-target pages every30 accepted seconds for400unknown CTs with verbose enabled' do
+      controller.instance_variable_set(:@verbose, true)
+      rows = Array.new(400) { |i| unknown_row(format('%03d', i)) }
+      5.times { |i| partial_sample(i + 1, 100 + (i * 15), rows) }
+      pages = logged('unknown_targets')
+      expect(pages.map { |page| page['entries'].map { |entry| entry['id'] } }).to eq([
+                                                                                       %w[000 001 002 003], %w[004 005 006 007], %w[008 009 010 011]
+                                                                                     ])
+      expect(pages.map { |page| page['sample_sequence'] }).to eq([2, 4, 6])
+      expect(logged('container')).to be_empty
+      expect(logged('host')).to all(include('population' => 400, 'unknown_count' => 400, 'selected' => 0, 'selection' => 'none'))
+      expect(evidence_lines.select { |line| JSON.parse(line)['type'] == 'unknown_targets' }.map(&:bytesize).max).to be <= 2048
+      expect(evidence_lines.map(&:bytesize).max).to be <= 3072
+      logged('sample_begin').each do |sample|
+        lines = evidence_lines.select { |line| JSON.parse(line)['sample_sequence'] == sample['sample_sequence'] }
+        expect(lines.size).to eq(sample['expected_lines'])
+        expect(lines.size).to be <= 256
+        expect(lines.sum(&:bytesize)).to be <= 1024 * 1024
+      end
+      expect(evidence.status).to include(evidence_records: 8)
+    end
+
+    it 'wraps over changed populations and restarts diagnostic cadence at a new sampler epoch' do
+      partial_sample(1, 100, %w[a b c d e].map { |id| unknown_row(id) })
+      partial_sample(2, 115, %w[a b c d e].map { |id| unknown_row(id) })
+      partial_sample(3, 130, %w[a c e f].map { |id| unknown_row(id) })
+      expect(logged('unknown_targets').last).to include('wrapped' => true)
+      expect(logged('unknown_targets').last['entries'].map { |entry| entry['id'] }).to eq(%w[e f a c])
+      controller.child_started
+      partial_sample(1, 145, [unknown_row('z')], epoch: 'replacement')
+      expect(logged('unknown_targets').last).to include('sample_epoch' => 'replacement', 'unknown_total' => 1)
+    end
+
+    it 'reports oversized identities by row reference and unrecognized errors by byte length' do
+      rows = [unknown_row('a' * 5000), unknown_row('b', errors: { 'cpu_usage' => 'x' * 8000 }), unknown_row('c')]
+      partial_sample(1, 100, rows)
+      page = logged('unknown_targets').last
+      expect(page).to include('considered' => 3, 'reported' => 2, 'unrepresentable' => 1)
+      expect(page['entries'][0]).to eq('row_reference' => 0, 'unrepresented' => 'entry_exceeds_page_budget',
+                                       'field_bytes' => { 'pool' => 4, 'id' => 5000 })
+      expect(page['entries'][1]).to include('id' => 'b', 'errors' => [['cpu_usage', 'unrecognized_error', 8000]])
+      expect(JSON.generate(page)).not_to include('a' * 100, 'x' * 100)
+      expect(controller.status[:evidence_paused]).to eq(0)
+    end
+
+    it 'defers diagnostics when mandatory records fill the batch and retries without pausing' do
+      controller.instance_variable_set(:@load_top, 400)
+      rows = Array.new(253) { |i| row("q#{i}") } + [unknown_row('z')]
+      partial_sample(1, 100, rows)
+      expect(logged('sample_begin').last).to include('expected_lines' => 256, 'unknown_diagnostic' => include('status' => 'deferred', 'considered' => 0))
+      expect(logged('unknown_targets')).to be_empty
+      expect(controller.status[:evidence_paused]).to eq(0)
+      partial_sample(2, 115, [unknown_row('z')])
+      expect(logged('unknown_targets').last['entries'].map { |entry| entry['id'] }).to eq(['z'])
+    end
+
+    it 'selects against spare byte headroom before generating optional pages' do
+      stub_const('OsCtl::Oomd::Evidence::SAMPLE_BYTES', 8192)
+      partial_sample(1, 100, [unknown_row])
+      expect(logged('unknown_targets')).to be_empty
+      expect(logged('sample_begin').last['unknown_diagnostic']).to include('status' => 'deferred')
+      expect(controller.status[:evidence_paused]).to eq(0)
+      stub_const('OsCtl::Oomd::Evidence::SAMPLE_BYTES', 1024 * 1024)
+      partial_sample(2, 115, [unknown_row])
+      expect(logged('unknown_targets').size).to eq(1)
+    end
+
+    it 'commits neither diagnostic cursor nor cadence when sample admission fails' do
+      rows = %w[a b c d e f g h].map { |id| unknown_row(id) }
+      partial_sample(1, 100, rows)
+      partial_sample(2, 115, rows)
+      allow(controller).to receive(:reserve_expiries).and_return(nil)
+      expect(partial_sample(3, 130, rows)).to be(false)
+      expect(logged('unknown_targets').size).to eq(1)
+      allow(controller).to receive(:reserve_expiries).and_call_original
+      partial_sample(4, 145, rows)
+      expect(logged('unknown_targets').last['entries'].map { |entry| entry['id'] }).to eq(%w[e f g h])
+    end
+
+    it 'moves inventory detail to the bounded optional page when the host record has no room' do
+      controller.instance_variable_get(:@settings)['state_file'] = "/#{'p' * 2000}"
+      partial_sample(1, 100, [unknown_row], inventory_observation: inventory_observation(100))
+      expect(logged('sample_begin').last['unknown_diagnostic']).to include('inventory_detail' => 'page', 'inventory_status' => 'available')
+      expect(logged('unknown_targets').last['inventory_observation']).to include('status' => 'available')
+      expect(evidence_lines.select { |line| JSON.parse(line)['type'] == 'unknown_targets' }.first.bytesize).to be <= 2048
+    end
+  end
+
   it 'emits pre-gate qualifiers with both gates disabled independent of verbose' do
     actor = described_class.new(interval:, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
                                 load_top: 2, restart_after_seconds: 90, stop_after_seconds: 600,

@@ -165,6 +165,15 @@ their current counters and checks their init processes at both ends of each
 sweep. It can discover new containers once osctld answers. A blocked local
 counter read can still delay publication beyond the freshness limit.
 
+The optional `inventory_observation` field describes this request pipeline.
+Version 1 reports the current request as `pending` or `completed_unconsumed`,
+the last consumed completion, and the last successful reply used as cached
+inventory. Request IDs and monotonic start/completion times distinguish slow
+RPCs from delays in consuming replies. Completion time comes from the worker;
+the observation time may follow sample completion. These diagnostics do not
+make cached inventory fresh or prove an atomic inventory snapshot. The wait
+remains 250 ms, with at most one outstanding request.
+
 ## Qualified-time scoring
 
 One restart score belongs to each verified container run. Its first usable
@@ -298,6 +307,34 @@ ineligible counts partition the current population; selected/excluded counts
 describe which rows appear individually. An empty selection can still contain
 unknown eligibility, so it does not establish that every VPS was ineligible.
 
+Within a sampler epoch, oomd may emit an `unknown_targets` page every 30 seconds
+of accepted sample time, starting with the first eligible sample. Each page
+considers at most four currently unknown targets and fits within 2048 bytes.
+Selection rotates through the current unknown population. Entries give exact
+pool/container IDs, run verification, limit states and compact reasons for
+uncertainty. At most two failing fields are summarized, alongside `errors_total`;
+the page is not a complete error or resource dump and does not contain raw
+quota values.
+
+An entry that cannot fit carries `unrepresented: entry_exceeds_page_budget`,
+the pool/ID byte lengths and a zero-based `row_reference` into that sample's
+Top container array. The reference is valid only within that sample; the full
+identity remains unavailable in this entry. The `unknown_diagnostic` fields in
+`sample_begin` and `sample_end` report the observed unknown population,
+considered/reported/unrepresentable counts, rotation wrap
+and whether detail was emitted, not due or deferred. Optional pages use spare
+batch capacity. Deferral leaves the rotation position and due time unchanged;
+only an admitted batch advances them. Mandatory qualifier and score-change
+records keep their existing selection. Churn or pressure can leave targets
+unreported, so these pages do not certify complete inventory coverage.
+
+The host's `inventory_observation` reports `available`, `missing`, `unsupported`
+or `malformed`. If its detail cannot fit the host line, it moves to the optional
+page or remains explicitly deferred in the sample boundaries. Older producers
+may omit it; optional diagnostic defects do not reject otherwise valid control
+data. The timing and unknown-target fields explain sampling limits without
+changing eligibility or granting time credit.
+
 Admission, dispatch, progress and outcomes use an action ID. Human-readable
 messages accompany structured decision/action fields. Each emitter has its own
 process epoch and ordered event sequence; sample and probe identities join
@@ -366,9 +403,9 @@ Inherited runit defaults rotate at 1000000 bytes and retain ten old files plus
 the current file. There is no age-driven rotation by default. This is roughly
 10 MB of rotated logs per service, not a guaranteed time span. For an
 unfragmented sample with Q selected containers every I seconds, ordinary sample
-volume is approximately `(3 + Q) / I` records per second, plus action and gap
-records. Fragmentation increases that count. The watchdog has its own log and
-retention. Preserve the relevant intervals before rotation when investigating
+volume is approximately `(3 + Q) / I` records per second, plus optional diagnostic
+pages and action/gap records. Fragmentation increases that count. The watchdog
+has its own log and retention. Preserve the relevant intervals before rotation when investigating
 incidents or comparing gate settings.
 
 ## Settings and metric migration
