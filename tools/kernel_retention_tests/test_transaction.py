@@ -367,16 +367,30 @@ case "$*" in
   *) exit 99;;
 esac
 ''')
-        self.write(stubs / 'curl', b'''#!/usr/bin/env bash
-printf '{"status":true,"response":{"nodes":[{"fqdn":"node.example.invalid","type":"node","hypervisor_type":"vpsadminos","kernel":"%s","status":true,"last_report":"%s"}]}}\\n200\\n\\n' "${IN_USE:-6.12.118}" "$(date -u +%FT%T.%6NZ)"
-''')
-        self.write(stubs / 'date', b'''#!/usr/bin/env bash
-if [[ "$*" == '-u +%s%3N' && ${EXPIRE_RECHECK:-} == yes ]]; then
-  # Advance only the pre-push wall clock, after recheck succeeded.
-  echo $(( $("$REAL_DATE" "$@") + 120001 ))
-else
-  exec "$REAL_DATE" "$@"
+        # Use the real collector's fixture mode so its acquisition time and
+        # the synthetic report share the same fixed clock as the publisher.
+        self.write(stubs / 'python3', b'''#!/usr/bin/env bash
+set -euo pipefail
+if [[ $# -ge 3 && "$1 $2 $3" == '-B tools/kernel-retention.py collect' ]]; then
+  fixture="$RUNNER_TEMP/public-status.json"
+  printf '{"status":true,"response":{"nodes":[{"fqdn":"node.example.invalid","type":"node","hypervisor_type":"vpsadminos","kernel":"%s","status":true,"last_report":"2026-02-02T12:00:20Z"}]}}\\n' "${IN_USE:-6.12.118}" > "$fixture"
+  set -- "$@" --fixture "$fixture" --acquired-at 2026-02-02T12:00:30Z
 fi
+exec "$REAL_PYTHON" "$@"
+''')
+        self.write(stubs / 'curl', b'#!/bin/sh\nexit 99\n')
+        self.write(stubs / 'date', b'''#!/usr/bin/env bash
+case "$*" in
+  '-u +%FT%T.%6NZ') printf '%s\\n' 2026-02-02T12:00:31.000000Z;;
+  '-u +%s%3N')
+    # Move only the final check beyond the report's 12:02:20 deadline.
+    if [[ ${EXPIRE_RECHECK:-} == yes ]]; then
+      printf '%s\\n' 1770033741000  # 12:02:21 UTC
+    else
+      printf '%s\\n' 1770033632000  # 12:00:32 UTC
+    fi;;
+  *) exit 99;;
+esac
 ''')
         for stub in stubs.iterdir():
             stub.chmod(0o755)
@@ -388,7 +402,7 @@ fi
                'LOCAL_REMOTE': str(remote), 'BASE': self.base, 'STAGING_PUSHES': str(pushes),
                'GITHUB_REPOSITORY': 'vpsfreecz/vpsadminos', 'GITHUB_REF': 'refs/heads/staging',
                'GITHUB_RUN_ID': '99', 'KERNEL_RETENTION_WRITE': 'true',
-               'RUNNER_TEMP': str(runner), 'REAL_DATE': shutil.which('date')}
+               'RUNNER_TEMP': str(runner), 'REAL_PYTHON': sys.executable}
         publisher = source / '.github/workflows/scripts/kernel-retention-publish.sh'
 
         def publish(candidate, attempt, check, **scenario):
