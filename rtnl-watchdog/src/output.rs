@@ -213,6 +213,7 @@ impl Output {
 fn writer(shared: Arc<Shared>, c: Config) {
     let mut state: Option<Identity> = None;
     let mut metrics: Option<Identity> = None;
+    let mut exposure: Option<Identity> = None;
     let mut pending: Option<Record> = None;
     loop {
         let (model, done) = {
@@ -229,6 +230,15 @@ fn writer(shared: Arc<Shared>, c: Config) {
             )
         }; // No stdout/filesystem I/O under the publication mutex.
         if let Some(m) = model {
+            match m
+                .exposure_json()
+                .and_then(|b| files::write_exposure(&c.exposure_file, &b))
+            {
+                Ok(id) => exposure = Some(id),
+                Err(_) => {
+                    shared.failures.fetch_add(1, Ordering::Relaxed);
+                }
+            }
             match m
                 .json()
                 .and_then(|b| files::write(&c.state_file, &b, 0o600, 0))
@@ -275,6 +285,7 @@ fn writer(shared: Arc<Shared>, c: Config) {
     }
     files::remove(&c.state_file, state, 0);
     files::remove(&c.metrics_file, metrics, 0);
+    files::remove(&c.exposure_file, exposure, 0);
 }
 #[cfg(test)]
 mod tests {

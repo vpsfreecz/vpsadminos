@@ -56,7 +56,19 @@ pub fn lock(path: &Path, owner: u32) -> io::Result<File> {
     Ok(file) // Drop closes this reference; never LOCK_UN or unlink.
 }
 pub fn write(path: &Path, data: &[u8], mode: u32, owner: u32) -> io::Result<Identity> {
-    if data.len() > 4096 {
+    write_limited(path, data, mode, owner, 4096)
+}
+pub fn write_exposure(path: &Path, data: &[u8]) -> io::Result<Identity> {
+    write_limited(path, data, 0o600, 0, 32768)
+}
+fn write_limited(
+    path: &Path,
+    data: &[u8],
+    mode: u32,
+    owner: u32,
+    limit: usize,
+) -> io::Result<Identity> {
+    if data.len() > limit {
         return Err(invalid("output too large"));
     }
     let (_dir, anchored) = parent(path, owner)?;

@@ -5,8 +5,10 @@ use crate::{
     ipc::{Kind, Message},
 };
 use serde_json::json;
-use std::{fmt::Write, io};
+use std::{collections::VecDeque, fmt::Write, io};
 pub const LIMIT: usize = 4096;
+pub const EXPOSURE_LIMIT: usize = 32768;
+type Terminal = (u64, u64, Option<u64>, u64, u32, Option<u64>, bool);
 pub const BOUNDS: [u64; 28] = [
     1_000_000,
     10_000_000,
@@ -169,6 +171,8 @@ pub struct Model {
     pub success: Option<f64>,
     overdue_counted: bool,
     completion_counted: bool,
+    terminals: VecDeque<Terminal>,
+    terminal_sequence: u64,
 }
 impl Model {
     pub fn new(boot: &str, epoch: &str) -> io::Result<Self> {
@@ -216,6 +220,8 @@ impl Model {
             success: None,
             overdue_counted: false,
             completion_counted: false,
+            terminals: VecDeque::new(),
+            terminal_sequence: 0,
         })
     }
     pub fn rebind(&mut self, epoch: &str) -> io::Result<()> {
@@ -342,6 +348,24 @@ impl Model {
             return;
         }
         self.completion_counted = true;
+        let Some(sequence) = self.terminal_sequence.checked_add(1) else {
+            self.fail(6);
+            return;
+        };
+        self.terminal_sequence = sequence;
+        self.terminals.push_back((
+            self.terminal_sequence,
+            self.probe,
+            (self.start != 0).then_some(self.start),
+            self.end,
+            self.error,
+            (self.latency_run.coverage_started_ns != 0)
+                .then_some(self.latency_run.coverage_started_ns),
+            self.latency_run.valid && self.error == 0 && !self.evidence_paused,
+        ));
+        if self.terminals.len() > 128 {
+            self.terminals.pop_front();
+        }
         if self.start == 0 || self.end < self.start {
             return;
         }
@@ -415,6 +439,30 @@ impl Model {
             return Err(invalid("state too large"));
         }
         Ok(b)
+    }
+    pub fn exposure_json(&self) -> io::Result<Vec<u8>> {
+        let coverage = (self.latency_run.coverage_started_ns != 0)
+            .then_some(self.latency_run.coverage_started_ns);
+        let valid = self.latency_run.valid
+            && self.error == 0
+            && !self.evidence_paused
+            && !self.evidence_draining;
+        let mut bytes = serde_json::to_vec(&json!({
+            "schema":1,"boot_id":self.boot,"epoch":self.epoch,"observed_monotonic_ns":self.observed,
+            "cutoff_ns":self.latency_run.cutoff_ns,"interval_ns":self.latency_run.interval_ns,
+            "coverage_started_ns":coverage,"coverage_valid":valid,
+            "paused":self.evidence_paused || self.evidence_draining,
+            "first_sequence":self.terminals.front().map_or(0, |r| r.0),
+            "last_sequence":self.terminals.back().map_or(0, |r| r.0),"records":self.terminals,
+            "pending":if self.inflight { Some(json!({"probe":self.probe,
+                "started_ns_or_null":(self.start != 0).then_some(self.start),
+                "coverage_started_ns_or_null":coverage,"coverage_valid":valid})) } else { None }
+        }))?;
+        bytes.push(b'\n');
+        if bytes.len() > EXPOSURE_LIMIT {
+            return Err(invalid("exposure cache too large"));
+        }
+        Ok(bytes)
     }
     pub fn metrics(&self, failures: u64) -> io::Result<Vec<u8>> {
         let available = self.state == State::Healthy
@@ -845,6 +893,86 @@ mod tests {
             assert_eq!(value["latency_run"]["version"], 1);
             assert_eq!(value["log_evidence"], json!({"version":1,"state":state}));
         }
+    }
+    #[test]
+    fn exposure_retains_every_terminal_once_and_resets_on_rebind() {
+        let c = Config::default();
+        let mut m = Model::new(BOOT, "terminals").unwrap();
+        for probe in 1..=130u64 {
+            let start = probe * 1_000_000_000;
+            m.check_coverage(start);
+            m.dispatch(start).unwrap();
+            m.apply(started(&m, start), start, 1.).unwrap();
+            m.apply(
+                done(&m, start + 1, if probe == 129 { 5 } else { 0 }),
+                start + 1,
+                1.,
+            )
+            .unwrap();
+            m.completed(&c);
+            m.completed(&c);
+        }
+        let j: serde_json::Value = serde_json::from_slice(&m.exposure_json().unwrap()).unwrap();
+        assert_eq!(j["records"].as_array().unwrap().len(), 128);
+        assert_eq!(j["first_sequence"], 3);
+        assert_eq!(j["last_sequence"], 130);
+        assert_eq!(j["records"][126][4], 5); // Error is ordered between fast responses.
+        assert_eq!(j["records"][126][6], false);
+        assert_eq!(j["records"][127][1], 130);
+        m.rebind("next").unwrap();
+        assert!(m.terminals.is_empty());
+        assert_eq!(m.terminal_sequence, 0);
+        assert!(m.exposure_json().unwrap().len() <= EXPOSURE_LIMIT);
+    }
+    #[test]
+    fn exposure_pending_reports_only_the_observed_coverage_suffix() {
+        let c = Config::default();
+        let mut m = Model::new(BOOT, "suffix").unwrap();
+        m.check_coverage(1);
+        m.dispatch(2).unwrap();
+        m.apply(started(&m, 3), 3, 1.).unwrap();
+        m.check_coverage(4_000_000_000);
+        m.observe(4_000_000_000, 4., &c).unwrap();
+        assert!(!m.latency_run.valid);
+        m.check_coverage(4_250_000_000);
+        m.observe(4_250_000_000, 4.25, &c).unwrap();
+        let j: serde_json::Value = serde_json::from_slice(&m.exposure_json().unwrap()).unwrap();
+        assert_eq!(j["pending"]["started_ns_or_null"], 3);
+        assert_eq!(
+            j["pending"]["coverage_started_ns_or_null"],
+            4_000_000_000u64
+        );
+        assert_eq!(j["pending"]["coverage_valid"], true);
+        m.pause_evidence(true, 4_250_000_001);
+        let j: serde_json::Value = serde_json::from_slice(&m.exposure_json().unwrap()).unwrap();
+        assert_eq!(j["coverage_valid"], false);
+        assert_eq!(j["paused"], true);
+    }
+    #[test]
+    fn maximum_exposure_cache_fits_with_128_widest_terminal_tuples() {
+        let mut m = Model::new(BOOT, &"e".repeat(95)).unwrap();
+        m.observed = u64::MAX;
+        m.probe = u64::MAX;
+        m.start = u64::MAX;
+        m.inflight = true;
+        m.latency_run.cutoff_ns = u64::MAX;
+        m.latency_run.interval_ns = u64::MAX;
+        m.latency_run.coverage_started_ns = u64::MAX;
+        for _ in 0..128 {
+            m.terminals.push_back((
+                u64::MAX,
+                u64::MAX,
+                Some(u64::MAX),
+                u64::MAX,
+                7,
+                Some(u64::MAX),
+                false,
+            ));
+        }
+        let bytes = m.exposure_json().unwrap();
+        assert!(bytes.len() <= EXPOSURE_LIMIT);
+        assert_eq!(bytes.last(), Some(&b'\n'));
+        assert!(m.json().unwrap().len() <= LIMIT);
     }
     #[test]
     fn maximum_metrics_frame_fits_limit() {

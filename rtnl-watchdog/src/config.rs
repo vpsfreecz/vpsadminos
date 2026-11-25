@@ -5,6 +5,7 @@ use std::{io, path::PathBuf};
 pub const HELP: &str = "Usage: rtnl-watchdog [OPTIONS]
 Measure RTNL-path request responsiveness without taking container actions.
   --state-file PATH          Write root-owned state JSON atomically
+  --exposure-file PATH       Write bounded terminal observation cache atomically
   --metrics-file PATH        Write Prometheus metrics atomically
   --lock-file PATH           Lock shared with the probe helper
   --interval-ms N            Spacing after completion, 100..60000 (1000)
@@ -20,6 +21,7 @@ The distress threshold must be at least the state update interval.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
     pub state_file: PathBuf,
+    pub exposure_file: PathBuf,
     pub metrics_file: PathBuf,
     pub lock_file: PathBuf,
     pub interval_ms: u64,
@@ -32,6 +34,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             state_file: "/run/rtnl-watchdog.json".into(),
+            exposure_file: "/run/rtnl-watchdog-exposure.json".into(),
             metrics_file: "/run/metrics/rtnl-watchdog.prom".into(),
             lock_file: "/run/rtnl-watchdog.lock".into(),
             interval_ms: 1000,
@@ -74,6 +77,7 @@ pub fn parse(args: &[String]) -> io::Result<Action> {
         if !matches!(
             name,
             "--state-file"
+                | "--exposure-file"
                 | "--metrics-file"
                 | "--lock-file"
                 | "--interval-ms"
@@ -91,12 +95,13 @@ pub fn parse(args: &[String]) -> io::Result<Action> {
             args.get(i).ok_or_else(|| invalid("missing option value"))?
         };
         match name {
-            "--state-file" | "--metrics-file" | "--lock-file" => {
+            "--state-file" | "--exposure-file" | "--metrics-file" | "--lock-file" => {
                 if !clean_path(value) {
                     return Err(invalid("invalid path"));
                 }
                 let target = match name {
                     "--state-file" => &mut c.state_file,
+                    "--exposure-file" => &mut c.exposure_file,
                     "--metrics-file" => &mut c.metrics_file,
                     _ => &mut c.lock_file,
                 };
@@ -126,6 +131,7 @@ pub fn parse(args: &[String]) -> io::Result<Action> {
         || c.state_file == c.metrics_file
         || c.state_file == c.lock_file
         || c.metrics_file == c.lock_file
+        || [&c.state_file, &c.metrics_file, &c.lock_file].contains(&&c.exposure_file)
     {
         return Err(invalid("conflicting options"));
     }
@@ -159,6 +165,13 @@ mod tests {
             assert!(parse(&["--state-file".into(), path.into()]).is_err());
         }
         assert!(parse(&["--state-file=/run/rtnl-watchdog.lock".into()]).is_err());
+        for path in [
+            "/run/rtnl-watchdog.json",
+            "/run/metrics/rtnl-watchdog.prom",
+            "/run/rtnl-watchdog.lock",
+        ] {
+            assert!(parse(&[format!("--exposure-file={path}")]).is_err());
+        }
         assert!(parse(&["--threshold-ms=100".into(), "--tick-ms=250".into()]).is_err());
         assert!(matches!(parse(&["--help".into()]).unwrap(), Action::Help));
     }

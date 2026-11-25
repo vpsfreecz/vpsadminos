@@ -182,6 +182,7 @@ class Watchdog:
         self.stdout_file = None if output_pipe else (STATE / f'stdout-{time.monotonic_ns()}').open('w+b')
         self.process = subprocess.Popen([*prefix, BINARY,
             '--state-file', str(self.state), '--metrics-file', str(self.metrics),
+            '--exposure-file', str(self.state.with_name(self.state.name + '.exposure')),
             '--lock-file', str(self.lock), *extra], stdout=subprocess.PIPE if output_pipe else self.stdout_file,
             stderr=self.errors)
         self.reader = self.process.stdout if output_pipe else Path(self.stdout_file.name).open('rb')

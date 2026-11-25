@@ -63,10 +63,10 @@ the current distress immediately and retains its full duration.
 
 The CLI mirrors these settings with `--interval-ms`, `--threshold-ms`,
 `--latency-threshold-ms`, `--tick-ms`, `--error-backoff-ms` and `--metrics-file`.
-Standalone fixtures can also set `--state-file` and `--lock-file`; the module
-fixes those paths below.
-Paths must be absolute and normalized, with distinct state, metrics and lock
-files in trusted root-owned directories. `--help` and `--version` do not probe.
+Standalone fixtures can also set `--state-file`, `--exposure-file` and
+`--lock-file`; the module fixes those paths below.
+Paths must be absolute and normalized, with distinct state, metrics, exposure
+cache and lock files in trusted root-owned directories. `--help` and `--version` do not probe.
 `services.rtnl-watchdog.package` selects a package containing the observer and its
 private helper; the helper is resolved from that package, never from PATH or a
 configurable backend.
@@ -124,6 +124,41 @@ A missing or mismatched summary disables RTNL activation while independently
 valid load protection remains available. Older consumers ignore the added
 fields. See the [oomd reference](oomd.md) for activation durations and rollout
 compatibility.
+
+## Exposure observation cache
+
+The observer also publishes `/run/rtnl-watchdog-exposure.json` atomically with
+root ownership and mode `0600`. This separate schema-1 file is limited to 32768
+bytes including its newline. The primary state file keeps its 4096-byte limit.
+The cache contains the last 128 terminal observations in order, including fast
+responses and errors, plus the current pending probe. The observer model retains
+the ring before output snapshots coalesce, so short completions remain available
+between consumer reads. It is an in-memory observation cache, not a delivery log.
+
+Fields are `schema`, `boot_id`, `epoch`, `observed_monotonic_ns`, `cutoff_ns`,
+`interval_ns`, `coverage_started_ns`, `coverage_valid`, `paused`, `first_sequence`,
+`last_sequence`, `records` and `pending`. Times use unsigned 64-bit nanoseconds.
+Each terminal record is a fixed tuple:
+
+```text
+[sequence, probe, started_ns_or_null, completed_ns, error_code,
+ coverage_started_ns_or_null, coverage_valid]
+```
+
+`pending` is null or an object containing `probe`, `started_ns_or_null`,
+`coverage_started_ns_or_null` and `coverage_valid`. An empty ring has first and last
+sequence zero. Each terminal advances the sequence, including failed probes.
+Helper or observer epoch changes reset the ring. Coverage describes only the
+observed suffix after `coverage_started_ns`; it cannot repair an earlier gap in
+a long pending probe.
+
+Consumers validate ownership, framing, bounds, boot/epoch identity, cutoff,
+freshness and sequence continuity against the primary state. Missing or
+overwritten terminals require a new baseline. Old producers, missing files,
+errors and paused coverage remain unknown evidence. The existing output worker
+writes the bounded cache; a stalled writer can leave it stale. See
+[oomd exposure collection](oomd.md#collect-rtnl-exposure-events) for interval
+accounting and the separate best-effort event path.
 
 ## Ordered probe evidence
 
@@ -185,8 +220,8 @@ and `output_errors_total`. Unknown distress is omitted; last duration/success
 are omitted until a valid completion. Check freshness and availability before
 interpreting them.
 
-`output_errors_total` counts failures to render or write state, metrics or
-status output, including output rejected by a size limit. Replacing an older
+`output_errors_total` counts failures to render or write state, metrics, the
+exposure cache or status output, including output rejected by a size limit. Replacing an older
 queued state/metrics snapshot with the newest one does not increment it.
 The counter resets when the observer restarts. Alert on new failures and stale
 `snapshot_timestamp_seconds` values rather than a positive lifetime total:
@@ -217,7 +252,7 @@ restrict aggregation to the boundaries shared by all selected nodes.
 
 State/metric output uses a fixed latest-frame handoff. Coalesced frames retain
 observer-owned histogram/counters; ordered probe evidence uses the separate FIFO
-described above. A blocked filesystem writer can leave both files stale and
+described above. A blocked filesystem writer can leave the published files stale and
 prevent the same worker draining evidence. Once evidence capacity fills, new
 probes pause while outstanding helper work remains accounted for. No unlimited
 worker pool replaces the writer. Host scheduler or memory stalls can also delay
@@ -235,8 +270,8 @@ Normal shutdown stops admissions and closes IPC; the helper exits after its
 outstanding call returns and detects the closed connection. No cancellation is
 claimed. After a known reaped helper failure, recreation waits the error backoff
 and starts a new epoch. A child with uncertain effects is never replaced.
-Clean observer shutdown removes only its own state/metrics after the writer
-exits. A crash or stalled writer can leave stale output; consumers must enforce
+Clean observer shutdown removes only its own state, metrics and exposure cache
+after the writer exits. A crash or stalled writer can leave stale output; consumers must enforce
 freshness. Do not delete the lifetime lock or force a second probe during
 recovery. Disabling the service changes no persistent schema or container
 lifecycle, and oomd consumer policy remains separately controlled.
