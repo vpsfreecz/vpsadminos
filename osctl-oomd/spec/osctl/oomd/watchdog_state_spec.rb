@@ -42,6 +42,25 @@ RSpec.describe OsCtl::Oomd::WatchdogState do
     end
   end
 
+  it 'exposes only validated advancing primary evidence separately from diagnostic raw fields' do
+    read
+    expect(reader.exposure_observation).to be_nil
+    next_frame
+    expect(reader.exposure_observation).to include(epoch: 'observer', boot_id: 'boot')
+    frame['expected_errno'] = 0
+    next_frame
+    expect(reader.observation[:epoch]).to eq('observer')
+    expect(reader.exposure_observation).to be_nil
+    frame['expected_errno'] = 22
+    next_frame
+    expect(reader.exposure_observation).to be_nil
+    next_frame
+    expect(reader.exposure_observation).not_to be_nil
+    frame['epoch'] = 'replacement'
+    next_frame
+    expect(reader.exposure_observation).to be_nil
+  end
+
   it 'requires two ordered fresh frames per observer epoch including first-probe startup distress' do
     expect(read).to be_nil
     expect(next_frame).to be_a(Array)

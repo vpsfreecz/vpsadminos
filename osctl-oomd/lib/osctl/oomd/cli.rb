@@ -27,7 +27,8 @@ module OsCtl::Oomd
         export_file: options['export_file'],
         dry_run: options['dry_run'],
         verbose: options['verbose'],
-        rtnl_watchdog: options['rtnl_watchdog']
+        rtnl_watchdog: options['rtnl_watchdog'],
+        rtnl_exposure: options['rtnl_exposure']
       )
     end
 
@@ -84,6 +85,9 @@ module OsCtl::Oomd
         opts.on('--rtnl-enable BOOL', 'Enable sustained RTNL gating (true or false)') do |v|
           options['rtnl_watchdog'] = (options['rtnl_watchdog'] || {}).merge('enable' => boolean(v))
         end
+        opts.on('--rtnl-exposure-enable BOOL', 'Collect independent qualified RTNL exposure (true or false)') do |v|
+          options['rtnl_exposure'] = (options['rtnl_exposure'] || {}).merge('enable' => boolean(v))
+        end
         %w[latency_threshold_ms sustain_seconds pending_seconds].each do |key|
           opts.on("--rtnl-#{key.tr('_', '-')} N", Integer, "RTNL #{key.tr('_', ' ')}") do |v|
             options['rtnl_watchdog'] = (options['rtnl_watchdog'] || {}).merge(key => v)
@@ -135,6 +139,7 @@ module OsCtl::Oomd
       options['restart_after_seconds'] ||= 90
       options['stop_after_seconds'] ||= 600
       options['rtnl_watchdog'] = Controller.settings(options['rtnl_watchdog'])
+      options['rtnl_exposure'] = RtnlExposure.settings(options['rtnl_exposure'])
 
       %w[restart stop].each do |kind|
         old = "#{kind}_hits"

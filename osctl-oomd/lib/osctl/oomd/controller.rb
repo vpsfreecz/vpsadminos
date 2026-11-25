@@ -1,6 +1,7 @@
 require 'libosctl'
 require 'osctl/oomd/watchdog_state'
 require 'osctl/oomd/action_workers'
+require 'osctl/oomd/rtnl_exposure'
 
 module OsCtl::Oomd
   # The sole owner of scores and permits in guarded modes.
@@ -58,7 +59,7 @@ module OsCtl::Oomd
     end
 
     def initialize(interval:, cpu_percent:, memory_percent:, load_multiplier:, load_top:, restart_after_seconds:, stop_after_seconds:,
-                   rtnl_watchdog:, load_enable: true, restart_unknown_expiry_seconds: 30, dry_run: false, host_load: nil, watchdog: nil, workers: nil, executor: nil, evidence: nil, verbose: false)
+                   rtnl_watchdog:, load_enable: true, restart_unknown_expiry_seconds: 30, dry_run: false, host_load: nil, watchdog: nil, workers: nil, executor: nil, evidence: nil, verbose: false, rtnl_exposure: nil, exposure: nil)
       @settings = self.class.settings(rtnl_watchdog)
       @interval_ns = (interval * 1_000_000_000).to_i
       @sample_max_age_ns = (@settings.fetch('observation_max_age_seconds') * 1_000_000_000).to_i
@@ -90,6 +91,8 @@ module OsCtl::Oomd
                                                 sustain_seconds: @settings.fetch('sustain_seconds'), pending_seconds: @settings.fetch('pending_seconds'))
       @workers = workers || ActionWorkers.new(size: @settings.fetch('action_workers'), dry_run:, executor:)
       @evidence = evidence || @workers.evidence
+      @exposure = exposure || RtnlExposure.new(interval:, cpu_percent:, memory_percent:, load_top:, settings: rtnl_exposure)
+      @exposure_watchdog = WatchdogState.new(path: @settings.fetch('state_file'), max_age_seconds: 1) if @exposure.enabled?
       @expiry_tickets = {}
       @paused = false
       @gap = nil
@@ -107,12 +110,14 @@ module OsCtl::Oomd
 
     def start
       @workers.start
+      @exposure.start
     end
 
     def stop
       @stopping = true
       @evidence.control('controller_stopping', monotonic_ns: monotonic_ns, message: 'Stopping admissions; draining accepted evidence and actions')
       @workers.stop { |permit, result| complete_action(permit, result) }
+      @exposure.stop
     end
 
     def export
@@ -125,7 +130,13 @@ module OsCtl::Oomd
 
     # Called independently of the sampler, including while commands are blocked.
     def tick(now_ns: monotonic_ns)
+      read_started = monotonic_ns if @exposure.enabled?
       @observed_episode = @watchdog.episode(now_ns:)
+      if read_started
+        # Exposure validates its fixed cutoff independently of acute gate settings.
+        @exposure_watchdog.episode(now_ns: now_ns + monotonic_ns - read_started)
+        @exposure.tick(now_ns: now_ns + monotonic_ns - read_started, watchdog: @exposure_watchdog.exposure_observation)
+      end
       next_episode = @settings['enable'] ? @observed_episode : nil
       if @last_gate_status != [next_episode, @settings['enable'] ? @watchdog.diagnostic : nil]
         @last_gate_status = [next_episode, @settings['enable'] ? @watchdog.diagnostic : nil]
@@ -180,6 +191,7 @@ module OsCtl::Oomd
       @runs = @runs.dup
       @sample_rows = []
       @qualifications = {}
+      @qualification_ranks = {}
       @actions = []
       @staged_loads = []
       @staged_diagnostic = nil
@@ -212,6 +224,7 @@ module OsCtl::Oomd
         @staged_loads.each { |load| @host_load << load }
         @diagnostic_epoch, @diagnostic_at, @diagnostic_cursor = @staged_diagnostic if @staged_diagnostic
         @actions.each { |args, opts| dispatch(*args, **opts) }
+        @exposure.observe(data, rows: @raw.rows, qualifications: @qualifications, ranks: @qualification_ranks, linked: @sample_linked)
         publish_export
         accepted
       rescue Evidence::Oversize
@@ -292,6 +305,7 @@ module OsCtl::Oomd
       end
 
       linked = adjacent && !@raw_broken
+      @sample_linked = linked
       break_links unless linked
       full = data['complete'] && ((new_epoch && bootstrap) || (linked && previous.strict_seed && same_runs?(rows, previous.rows)))
       seed = coherent_seed || data['complete']
@@ -306,6 +320,7 @@ module OsCtl::Oomd
         rows.each do |key, row|
           hit = Eligibility::Partial.decidable?(row) && matching_cpu_window?(row, data) ? ranked_hit?(row, roster, ranked) : nil
           @qualifications[key] = hit
+          @qualification_ranks[key] = ranked&.index(row)&.+(1)
           before = @records[key]
           if hit || before&.restart_qualified_seconds.to_f > 0
             select_row(evidence_row(key, row, hit, before&.restart_qualified_seconds || 0, before&.stop_qualified_seconds || 0, 0, nil, nil, 'unlinked_baseline'))
@@ -417,6 +432,7 @@ module OsCtl::Oomd
         delta = record.observe(now_ns: data.fetch('sample_completed_monotonic_ns'), qualification: hit,
                                gate_token: combined, load_gate: gate, linked:, interval_ns: @interval_ns)
         rank = ranked ? ranked.index(row)&.+(1) : Eligibility.rank_proof(row, roster, nil, @load_top)
+        @qualification_ranks[key] = rank if rank.is_a?(Integer)
         if hit || before[0] > 0 || record.restart_qualified_seconds > 0 || before != [record.restart_qualified_seconds, record.stop_qualified_seconds]
           reason = if !linked || !previous || !usable_pair?(data, row, previous, key)
                      'unlinked_or_incomplete'
@@ -781,6 +797,7 @@ module OsCtl::Oomd
 
     def break_links
       @records.each_value(&:break_link)
+      @exposure.break_link
     end
 
     def publish_export
@@ -790,7 +807,7 @@ module OsCtl::Oomd
         notification_failures: @workers.notification_failures,
         unknown_actions: @inflight.values.count { |permit| permit[:unknown] },
         evidence_paused: @paused ? 1 : 0
-      }.merge(@evidence.status)
+      }.merge(@evidence.status).merge(@exposure.status)
       @export_mutex.synchronize do
         @export = values
         @status = status

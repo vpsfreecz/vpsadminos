@@ -21,6 +21,7 @@ let
   settingsFormat = pkgs.formats.json { };
 
   raw = cfg.settings;
+  watchdogRequired = raw.rtnl_watchdog.enable || raw.rtnl_exposure.enable;
   # Null option defaults preserve whether legacy interval/seconds were explicit.
   # The CLI is the single legacy conversion boundary and emits its warning.
   effective = lib.filterAttrs (
@@ -72,6 +73,14 @@ in
               type = types.ints.positive;
               default = 30;
               description = "Expiry of restart evidence without usable target observations.";
+            };
+            rtnl_exposure = {
+              enable = mkEnableOption "independent qualified RTNL exposure events without container actions";
+              cache_file = mkOption {
+                type = types.strMatching "/.*";
+                default = "/run/rtnl-watchdog-exposure.json";
+                description = "Root-owned bounded terminal observation cache.";
+              };
             };
             rtnl_watchdog = {
               enable = mkEnableOption "RTNL watchdog activation of the existing OOM policy";
@@ -151,6 +160,17 @@ in
           );
         message = "oomd RTNL control requires matching cutoff and producer interval<=1000ms/tick<=250ms";
       }
+      {
+        assertion =
+          !raw.rtnl_exposure.enable
+          || (
+            config.services.rtnl-watchdog.settings.latencyThresholdMs == 1000
+            && config.services.rtnl-watchdog.settings.intervalMs <= 1000
+            && config.services.rtnl-watchdog.settings.tickMs <= 250
+            && raw.rtnl_exposure.cache_file == "/run/rtnl-watchdog-exposure.json"
+          );
+        message = "oomd exposure requires the standard cache and a 1000ms cutoff with interval<=1000ms/tick<=250ms";
+      }
     ];
     warnings =
       lib.optional (raw ? restart_hits || raw ? stop_hits)
@@ -158,9 +178,9 @@ in
       ++ lib.optional (
         !raw.rtnl_watchdog.enable && raw.rtnl_watchdog ? restart_hits
       ) "Disabled legacy RTNL restart_hits is obsolete.";
-    services.rtnl-watchdog.enable = mkIf raw.rtnl_watchdog.enable true;
-    services.rtnl-watchdog.settings.latencyThresholdMs = mkIf raw.rtnl_watchdog.enable (
-      lib.mkDefault raw.rtnl_watchdog.latency_threshold_ms
+    services.rtnl-watchdog.enable = mkIf watchdogRequired true;
+    services.rtnl-watchdog.settings.latencyThresholdMs = mkIf watchdogRequired (
+      lib.mkDefault (if raw.rtnl_exposure.enable then 1000 else raw.rtnl_watchdog.latency_threshold_ms)
     );
 
     runit.services.osctl-oomd = {

@@ -22,9 +22,10 @@ module OsCtl::Oomd
       @bound = false
     end
 
-    attr_reader :diagnostic, :details, :observation
+    attr_reader :diagnostic, :details, :observation, :exposure_observation
 
     def episode(now_ns:)
+      @exposure_observation = nil
       if @last_read_ns && now_ns - @last_read_ns > @max_age_ns
         invalidate
       end
@@ -67,6 +68,7 @@ module OsCtl::Oomd
         return nil
       end
 
+      @exposure_observation = @observation
       coverage = run.fetch('coverage_started_ns')
       @details = { frame_age_seconds: (now_ns - observed) / 1e9, cutoff_ns: run['cutoff_ns'],
                    coverage_started_ns: coverage, probe: frame['probe_sequence'],
@@ -107,7 +109,7 @@ module OsCtl::Oomd
         ordered_log_state: supported ? marker['state'] : nil,
         # This is capability/pressure metadata, never a local-write receipt.
         cross_stream_complete: false,
-        epoch: frame['epoch'], sequence: frame['sequence'], probe_sequence: frame['probe_sequence'],
+        boot_id: frame['boot_id'], epoch: frame['epoch'], sequence: frame['sequence'], probe_sequence: frame['probe_sequence'],
         observed_monotonic_ns: frame['observed_monotonic_ns'], state: frame['state'],
         started_monotonic_ns: frame['started_monotonic_ns'], completed_monotonic_ns: frame['completed_monotonic_ns'],
         error_code: frame['error_code'], latency_run: frame['latency_run'] }
@@ -187,6 +189,7 @@ module OsCtl::Oomd
     end
 
     def invalidate
+      @exposure_observation = nil
       @details = nil
       @diagnostic ||= 'watchdog evidence unavailable'
       @continuity += 1

@@ -96,6 +96,14 @@ RSpec.describe OsCtl::Oomd::Cli do
     expect(cli.send(:parse, %w[--interval 30 --restart-unknown-expiry-seconds 40])).to include('restart_after_seconds' => 90)
   end
 
+  it 'parses independent disabled-default exposure without changing the acute gate' do
+    options = described_class.new.send(:parse, %w[--rtnl-exposure-enable true])
+    expect(options['rtnl_exposure']).to include('enable' => true)
+    expect(options['rtnl_watchdog']['enable']).to be(false)
+    expect { OsCtl::Oomd::RtnlExposure.settings('enable' => 1) }.to raise_error(ArgumentError)
+    expect { OsCtl::Oomd::RtnlExposure.settings('cache_file' => 'relative') }.to raise_error(ArgumentError)
+  end
+
   describe '#run' do
     it 'delegates the parsed values to Watcher.run' do
       allow(OsCtl::Lib::Logger).to receive(:setup)
@@ -130,7 +138,8 @@ RSpec.describe OsCtl::Oomd::Cli do
         export_file: '/run/metrics/osctl-oomd.prom',
         dry_run: true,
         verbose: true,
-        rtnl_watchdog: OsCtl::Oomd::Controller::DEFAULTS
+        rtnl_watchdog: OsCtl::Oomd::Controller::DEFAULTS,
+        rtnl_exposure: OsCtl::Oomd::RtnlExposure::DEFAULTS
       )
     end
   end

@@ -1,0 +1,69 @@
+{
+  "type": "osctl_oomd_rtnl_exposure",
+  "opts": {
+    "schema": 1,
+    "kind": "sample",
+    "producer_epoch": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "boot_id": "00000000-0000-4000-8000-000000000001",
+    "observer_epoch": "observer-A",
+    "sequence": 42,
+    "batch_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:42",
+    "part": 1,
+    "parts": 1,
+    "observed_at_us": 1795608005000000,
+    "observed_mono_us": 15000000,
+    "sample_epoch": "top-A",
+    "sample_sequence": 90,
+    "interval_us": 5000000,
+    "cutoff_us": 1000000,
+    "coverage_started_mono_us": 9000000,
+    "coverage_valid": true,
+    "gap_since_previous": false,
+    "gap_reason": null,
+    "targets_complete": true,
+    "roster_complete": true,
+    "policy": {
+      "cpu_percent_milli": 90000,
+      "memory_percent_milli": 95000,
+      "load_top": 5
+    },
+    "targets": [
+      {
+        "pool": "tank",
+        "id": "12345",
+        "run": {
+          "group_path": "/osctl/pool.tank/ct.12345",
+          "init_pid": 2000,
+          "init_start_time_ticks": 90000
+        },
+        "qualification": "qualified",
+        "previous_qualification": "qualified",
+        "linked": true,
+        "window_from_mono_us": 10000000,
+        "window_to_mono_us": 15000000,
+        "cpu_percent_milli": 96000,
+        "memory_percent_milli": 97000,
+        "cpu_limit_state": "limited",
+        "memory_limit_state": "limited",
+        "rank": 1,
+        "reason": null
+      }
+    ],
+    "segments": [
+      {
+        "target": 0,
+        "probe": 77,
+        "probe_started_mono_us": 10000000,
+        "probe_completed_mono_us": 13000000,
+        "coverage_started_mono_us": 9000000,
+        "from_mono_us": 11000000,
+        "to_mono_us": 13000000,
+        "from_at_us": 1795608001000000,
+        "to_at_us": 1795608003000000,
+        "credit_us": 2000000,
+        "peak_latency_us": 3000000,
+        "peak_is_lower_bound": false
+      }
+    ]
+  }
+}

@@ -106,6 +106,100 @@ Settings under `osctl.oomd.settings.rtnl_watchdog`:
 CLI forms are `--rtnl-enable true|false`, `--rtnl-latency-threshold-ms`,
 `--rtnl-sustain-seconds` and `--rtnl-pending-seconds`.
 
+## Collect RTNL exposure events
+
+Exposure collection is separate from acute restart and stop scoring. It emits
+observed time intervals for external incident accounting and takes no container
+action. Host-load activation and the acute RTNL gate's 30-second requirement do
+not apply to collection. External consumers own rolling windows, thresholds,
+repeat reports and incident policies.
+
+```nix
+{
+  osctl.oomd = {
+    enable = true;
+    settings.rtnl_exposure.enable = true;
+  };
+}
+```
+
+`osctl.oomd.settings.rtnl_exposure.enable` defaults to `false`. The CLI option is
+`--rtnl-exposure-enable true|false`. The `cache_file` setting defaults to
+`/run/rtnl-watchdog-exposure.json`; the Nix module requires this standard path.
+Enabling collection also enables the standalone watchdog. It requires the
+producer's latency cutoff to be 1000 ms, `intervalMs <= 1000` and `tickMs <= 250`.
+If the acute RTNL gate is also enabled, its cutoff must match that same value.
+Collection uses a separate validated primary-state binding with one-second
+freshness. It does not enable either acute action gate or change their budgets.
+
+Both adjacent observations must prove that the same container run meets the
+CPU, memory and rank criteria. An exact rank may be unknown when a conservative
+bound still proves eligibility. Credit is the intersection of that linked CPU
+window, valid probe coverage and the part of a probe strictly after its first
+second, capped at the configured sampling interval. Exactly one second earns
+zero. Pending and completed observations of the same probe cannot credit the
+same interval twice. Unknown resources, run changes, gaps and stale observations
+break linkage; the first usable observation seeds a new pair without credit.
+
+Collection follows mandatory sample-evidence admission. It reads the watchdog's
+[bounded terminal cache](rtnl-watchdog.md#exposure-observation-cache), which retains
+short completions between oomd samples. Missing, old, incompatible or overwritten
+cache evidence makes exposure unavailable while acute protection retains its
+existing rules. A wall-clock offset change greater than one second starts a new
+producer epoch. Recovery does not fill missing intervals.
+
+### Event delivery
+
+The event type is `osctl_oomd_rtnl_exposure`. All fields are inside `opts`, including
+schema, producer/boot/observer/sample identities, sequence, batch and part numbers,
+original UTC and monotonic times, target proofs, intervals and coverage flags.
+Schema 1 uses integer microseconds for times and durations. Each credited interval
+retains its run and probe identity, endpoints, credited duration and peak delay.
+A peak from a pending probe is marked as a lower bound. The
+[shared example](../../osctl-oomd/spec/fixtures/rtnl_exposure_v1.json) defines a
+synthetic two-second contribution.
+
+Positive credit produces an event batch. New admitted observations produce a
+heartbeat when 15 seconds have elapsed since the previous batch, including with
+zero credit.
+It includes current qualifiers and changed ineligible, unknown or vanished
+previously reported targets. Unchanged idle containers are omitted. Send or
+receipt time never refreshes the original observation. `targets_complete`
+describes this selection; it does not certify full inventory. `roster_complete`
+reports inventory completeness separately.
+
+Each part holds at most 16 targets and 16 intervals, with at most 16384 UTF-8 bytes
+in `opts`. Pending publication, including delivery in progress, is limited to 64
+parts and 1 MiB. Oversized identities or selections leave explicit incomplete
+coverage instead of truncated identities. Admission failure marks a gap and
+reseeds collection without blocking acute action processing.
+
+A separate asynchronous publisher sends through osctld's existing event broadcast
+interface. It attempts each part once. Failures increment a metric; sequence and
+part gaps expose missing data to consumers. There is no local spool, replay or
+database acknowledgement. Successful broadcast does not establish receipt by an
+external service. A blocked broadcast can keep its worker and graceful shutdown
+waiting, but cannot grow the queue beyond its bounds.
+
+`--dry-run` suppresses physical actions and their success events. It does not
+disable separately enabled exposure collection. Disable exposure collection when
+external consumers must not receive these observations.
+
+### Exposure metrics and compatibility
+
+The existing oomd exporter adds `osctl_oomd_rtnl_exposure_` gauges named `enabled`,
+`available`, `paused`, `gaps`, `batches`, `pending_parts` and `event_failures`.
+Accumulated values reset with the process. These describe collection and local
+publication; there is no per-container rolling ledger in this exporter.
+[vpsAdmin's reporting reference](https://github.com/vpsfreecz/vpsadmin/blob/master/docs/rtnl-exposure.md)
+describes its central accounting, configurable windows and per-VPS metrics.
+
+Install compatible event consumers before enabling collection. An older watchdog
+without the cache leaves exposure unavailable; an older oomd ignores the separate
+cache. Nodes can be updated independently. Rollback disables collection and
+restores matching binaries and settings; external consumers retain their own
+accepted history. No on-disk score migration is required.
+
 ## Eligibility samples from ct top
 
 ```sh

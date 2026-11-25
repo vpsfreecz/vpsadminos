@@ -92,6 +92,67 @@ RSpec.describe OsCtl::Oomd::Controller do
 
   def score = controller.export.find { |ct| ct.id == 'a' }
 
+  context 'with independent exposure and both acute gates disabled' do
+    let(:controller) do
+      cache_reader = instance_double(OsCtl::Oomd::ExposureState, gap: false)
+      event_publisher = instance_double(OsCtl::Oomd::ExposureEvents, status: {}, start: nil, stop: nil, publish: true)
+      exposure = OsCtl::Oomd::RtnlExposure.new(interval: 15, cpu_percent: 90, memory_percent: 95, load_top: 2,
+                                               settings: { 'enable' => true }, reader: cache_reader, publisher: event_publisher)
+      allow(cache_reader).to receive(:read) do |now_ns:, **|
+        { 'epoch' => 'observer', 'observed_monotonic_ns' => now_ns, 'coverage_started_ns' => ns(90),
+          'records' => now_ns >= ns(115) ? [[1, 1, ns(100), ns(110), 0, ns(90), true]] : [], 'pending' => nil }
+      end
+      described_class.new(interval: 15, cpu_percent: 90, memory_percent: 95, load_multiplier: 2,
+                          load_top: 2, restart_after_seconds: 90, stop_after_seconds: 600,
+                          rtnl_watchdog: { 'enable' => false, 'latency_threshold_ms' => 2000 }, load_enable: false, dry_run: true,
+                          watchdog:, workers:, host_load:, exposure:)
+    end
+
+    def exposure = controller.instance_variable_get(:@exposure)
+    def publisher = exposure.instance_variable_get(:@publisher)
+
+    it 'emits separately enabled collection in dry-run with neither gate active and never changes acute scores/actions' do
+      observe(1, 100)
+      observe(2, 115)
+      expect(publisher).to have_received(:publish).with([
+                                                          hash_including(opts: hash_including(segments: [hash_including(credit_us: 9_000_000)],
+                                                                                              targets: [hash_including(qualification: 'qualified')]))
+                                                        ])
+      expect(score.restart_qualified_seconds).to eq(0)
+      expect(score.stop_qualified_seconds).to eq(0)
+      expect(permits).to be_empty
+    end
+
+    it 'validates the fixed exposure cutoff independently from a different disabled acute cutoff' do
+      primary = { 'schema' => 1, 'boot_id' => File.read('/proc/sys/kernel/random/boot_id').strip,
+                  'epoch' => 'observer', 'sequence' => 1, 'probe_sequence' => 1, 'state' => 'pending',
+                  'observed_monotonic_ns' => ns(100), 'dispatch_monotonic_ns' => ns(99),
+                  'started_monotonic_ns' => ns(99), 'completed_monotonic_ns' => nil,
+                  'last_duration_ns' => nil, 'expected_errno' => 22, 'error_code' => 0,
+                  'latency_run' => { 'version' => 1, 'valid' => true, 'cutoff_ns' => ns(1), 'interval_ns' => ns(1),
+                                     'tick_ns' => ns(0.25), 'coverage_started_ns' => ns(90), 'slow_count' => 0,
+                                     'first_probe' => nil, 'last_probe' => nil, 'first_started_ns' => nil, 'last_completed_ns' => nil } }
+      validator = controller.instance_variable_get(:@exposure_watchdog)
+      reader = exposure.instance_variable_get(:@reader)
+      allow(validator).to receive(:read_frame) { primary.dup }
+      controller.tick(now_ns: ns(100))
+      primary['sequence'] += 1
+      primary['observed_monotonic_ns'] += ns(0.25)
+      controller.tick(now_ns: ns(100.25))
+      expect(reader).to have_received(:read).with(now_ns: anything, watchdog: hash_including(epoch: 'observer'))
+    end
+
+    it 'does not advance exposure or publish from a rejected mandatory sample admission' do
+      observe(1, 100)
+      allow(evidence).to receive(:reserve).and_return(nil)
+      allow(exposure).to receive(:observe).and_call_original
+      expect(observe(2, 115)).to be(false)
+      expect(exposure).not_to have_received(:observe)
+      expect(publisher).to have_received(:publish).once
+      expect(permits).to be_empty
+    end
+  end
+
   context 'with real persistent host history' do
     def initial_loads = [1.0, 1.0, 1.0]
     def history_file = (@history_file ||= File.join(Dir.mktmpdir('oomd-partial-history-'), 'host-load.yml'))

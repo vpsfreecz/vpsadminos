@@ -65,7 +65,9 @@ module OsCtl::Oomd
       )
 
       if @killer.respond_to?(:status)
-        @status_metrics = %i[notification_drops notification_failures unknown_actions evidence_records evidence_bytes evidence_failures evidence_paused evidence_pending_records].to_h do |name|
+        @status_metrics = %i[notification_drops notification_failures unknown_actions evidence_records evidence_bytes evidence_failures evidence_paused evidence_pending_records
+                             rtnl_exposure_enabled rtnl_exposure_available rtnl_exposure_paused rtnl_exposure_gaps rtnl_exposure_batches
+                             rtnl_exposure_pending_parts rtnl_exposure_event_failures].to_h do |name|
           [name, registry.gauge(:"osctl_oomd_#{name}", docstring: "OOMd #{name.to_s.tr('_', ' ')}")]
         end
       end
