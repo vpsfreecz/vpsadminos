@@ -166,29 +166,32 @@ let
 
     run_mount_operation() {
       kind=$1
+      root=$(${pkgs.coreutils}/bin/mktemp -d /run/core-mount-operation.XXXXXX)
+      cleanup_mount_root() {
+        ${pkgs.coreutils}/bin/rm -rf -- "$root"
+      }
+      trap cleanup_mount_root EXIT HUP INT TERM
       unshare --mount --fork sh -eu -c '
         kind=$1
-        root=$(mktemp -d /run/core-mount-operation.XXXXXX)
-        cleanup() {
-          mount --make-rprivate / 2>/dev/null || true
-          umount -R "$root" 2>/dev/null || true
-          rm -rf -- "$root"
-        }
-        trap cleanup EXIT HUP INT TERM
+        root=$2
         mount --make-rprivate /
         case "$kind" in
           pivot-root)
             mount --bind / "$root"
             mkdir -p "$root/old-root"
+            mount --bind /nix/store "$root/nix/store"
+            mount --bind /proc "$root/proc"
             cd "$root"
             pivot_root . old-root
             cd /
             test -r /proc/self/status
-            umount -l /old-root
+            ${pkgs.util-linux}/bin/umount -l /old-root
             ;;
           *) exit 2 ;;
         esac
-      ' sh "$kind"
+      ' sh "$kind" "$root"
+      trap - EXIT HUP INT TERM
+      cleanup_mount_root
     }
 
     run_key_operation() {
