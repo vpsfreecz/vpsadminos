@@ -11,7 +11,7 @@ GEM
       reline
     io-console (0.9.5)
     ipaddress (0.8.3)
-    json (3.1.0)
+    json (3.2.0)
     libosctl (26.05.0)
       fiddle
       logger
@@ -49,7 +49,7 @@ GEM
     ostruct (0.6.3)
     prometheus-client (4.2.5)
       base64
-    puma (8.1.2)
+    puma (8.1.3)
       nio4r (~> 2.0)
     rack (3.2.9)
     rainbow (3.1.1)
