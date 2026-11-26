@@ -265,6 +265,7 @@ let
           "zfs/mmap-nosync"
           "zfs/mmap-write-truncate"
           "zfs/overlayfs-deadlock"
+          "zfs/send-recv"
         ]
         ++ localOnlyTests
         ++ genericLivepatchTests
