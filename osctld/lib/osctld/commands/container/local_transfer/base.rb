@@ -115,7 +115,8 @@ module OsCtld
         src,
         snapshot,
         from_snapshot,
-        intermediary: false
+        intermediary: false,
+        compressed: Daemon.get.config.zfs.send.compressed?
       )
 
       stream.progress do |total, _transfered, changed|

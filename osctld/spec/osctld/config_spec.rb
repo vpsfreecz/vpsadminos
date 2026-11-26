@@ -49,6 +49,42 @@ RSpec.describe OsCtld::Config do
     end
   end
 
+  [{}, { 'zfs' => {} }, { 'zfs' => { 'send' => {} } }].each do |data|
+    it "enables compressed ZFS sends with missing settings #{data.inspect}" do
+      build_config(data) do |config|
+        expect(config.zfs.send.compressed?).to be(true)
+      end
+    end
+  end
+
+  [true, false].each do |compressed|
+    it "preserves the explicit compressed send policy #{compressed}" do
+      build_config('zfs' => { 'send' => { 'compressed' => compressed } }) do |config|
+        expect(config.zfs.send.compressed?).to be(compressed)
+      end
+    end
+  end
+
+  [nil, 'false', 'true', 0, 1, [], {}].each do |compressed|
+    it "rejects invalid compressed send policy #{compressed.inspect}" do
+      expect do
+        build_config('zfs' => { 'send' => { 'compressed' => compressed } }) { |_config| nil }
+      end.to raise_error(ArgumentError, 'zfs.send.compressed must be a boolean')
+    end
+  end
+
+  [nil, false, 'false', []].each do |value|
+    it "rejects invalid ZFS configuration group #{value.inspect}" do
+      expect do
+        build_config('zfs' => value) { |_config| nil }
+      end.to raise_error(ArgumentError, 'zfs must be an object')
+
+      expect do
+        build_config('zfs' => { 'send' => value }) { |_config| nil }
+      end.to raise_error(ArgumentError, 'zfs.send must be an object')
+    end
+  end
+
   it 'expands send receive mbuffer options' do
     build_config({}) do |config|
       send_mbuffer = config.send_receive.send_mbuffer

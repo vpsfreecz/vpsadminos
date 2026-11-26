@@ -3,6 +3,7 @@
 # rubocop:disable RSpec/DescribeClass
 
 require 'stringio'
+require 'osctld/config'
 require 'osctld/command'
 require 'osctld/exceptions'
 require 'osctld/commands/container/export'
@@ -22,6 +23,10 @@ RSpec.describe 'container transfer commands' do
 
       def send_receive
         Struct.new(:send_mbuffer).new(nil)
+      end
+
+      def zfs
+        OsCtld::Config::Zfs.new({})
       end
     end.new(writeout)
     daemon = Struct.new(:config).new(config)
@@ -108,6 +113,10 @@ RSpec.describe 'container transfer commands' do
   end
 
   describe OsCtld::Commands::Container::Export do
+    before do
+      stub_transfer_daemon(writeout: false)
+    end
+
     it 'aborts consistent exports when stopping the source container fails' do
       stop_class = Class.new
       stub_const('OsCtld::Commands::Container::Stop', stop_class)

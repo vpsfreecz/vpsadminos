@@ -25,9 +25,17 @@ reset/power loss on import.
 osctl ct export [--consistent] myct01 myct01-export.tar
 ```
 
-By default, the ZFS stream is either dumped compressed by ZFS or is compressed
-by *osctld* using *gzip*. One can choose to disable or enforce compression
-using option `--compression auto | off | gzip`.
+*osctld* uses compressed ZFS sends by default. The receiving ZFS version and
+pool must support the compression algorithms used by the source dataset.
+The host setting [`osctld.settings.zfs.send.compressed`](send-receive.md#zfs-stream-compression)
+controls this behavior.
+
+The export option `--compression auto | off | gzip` controls an additional
+gzip layer around the ZFS stream. With the default `auto`, *osctld* uses gzip
+when compressed sends are disabled or the dataset's compression property is
+`off`; otherwise, it stores the stream without gzip. `gzip` always adds gzip,
+and `off` disables that layer. These options do not disable compressed ZFS
+sends.
 
 ## Importing
 To import a previously exported container, use:

@@ -54,6 +54,31 @@ The source and destination nodes must support the same send/receive protocol
 version. Mixed old/new *osctld* versions are refused before the transfer is
 staged on the destination node.
 
+## ZFS stream compression
+
+*osctld* uses compressed ZFS sends by default for container transfers, local
+copies and moves, and [exports](export-import.md). The stream preserves the
+compression of existing blocks, so the receiving ZFS version and pool must
+support the compression algorithms used by the source dataset.
+
+To disable compressed sends on a host, set:
+
+```nix
+osctld.settings.zfs.send.compressed = false;
+```
+
+For a manually configured daemon, the equivalent JSON setting is:
+
+```json
+{"zfs": {"send": {"compressed": false}}}
+```
+
+The value must be a boolean; omitting it enables compressed sends. The policy
+applies when each new stream is created, including later transfer steps and
+retries. Existing transfer logs and received data do not change. Check receiver
+compatibility before enabling compressed sends to older systems; setting this
+option to `false` restores uncompressed sends for subsequent streams.
+
 ## Moving containers
 The container move itself consists of several steps:
 

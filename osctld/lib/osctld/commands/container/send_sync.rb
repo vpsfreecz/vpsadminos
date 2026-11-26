@@ -52,7 +52,8 @@ module OsCtld
         ds,
         snap,
         ct.send_log.snapshots[-2],
-        intermediary: ct.send_log.opts.snapshots
+        intermediary: ct.send_log.opts.snapshots,
+        compressed: Daemon.get.config.zfs.send.compressed?
       )
       stream.progress do |total, _transfered, changed|
         progress(type: :progress, data: {

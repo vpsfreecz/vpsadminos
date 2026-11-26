@@ -46,6 +46,8 @@ module OsCtld
     # @param from [String, nil] base snapshot
     # @return [String] snapshot name
     def copy_datasets(src, dst, from: nil)
+      send_opts = %w[-p -L]
+      send_opts << '-c' if Daemon.get.config.zfs.send.compressed?
       snap = "osctl-copy-#{from ? 'incr' : 'base'}-#{Time.now.to_i}"
       zfs(:snapshot, nil, src.map { |ds| "#{ds}@#{snap}" }.join(' '))
 
@@ -53,7 +55,7 @@ module OsCtld
 
       zipped.each do |src_ds, dst_ds|
         progress("Copying dataset #{src_ds.relative_name}")
-        syscmd("zfs send -p -L #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} " \
+        syscmd("zfs send #{send_opts.join(' ')} #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} " \
                "| zfs recv -F #{dst_ds}")
       end
 

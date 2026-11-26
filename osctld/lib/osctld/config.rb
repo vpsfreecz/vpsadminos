@@ -55,6 +55,33 @@ module OsCtld
       end
     end
 
+    class Zfs
+      class Send
+        # @return [Boolean]
+        attr_reader :compressed
+        alias compressed? compressed
+
+        def initialize(cfg)
+          raise ArgumentError, 'zfs.send must be an object' unless cfg.is_a?(Hash)
+
+          @compressed = cfg.fetch('compressed', true)
+
+          return if @compressed == true || @compressed == false
+
+          raise ArgumentError, 'zfs.send.compressed must be a boolean'
+        end
+      end
+
+      # @return [Send]
+      attr_reader :send
+
+      def initialize(cfg)
+        raise ArgumentError, 'zfs must be an object' unless cfg.is_a?(Hash)
+
+        @send = Send.new(cfg.fetch('send', {}))
+      end
+    end
+
     class SendReceive
       # @return [Mbuffer]
       attr_reader :send_mbuffer
@@ -158,6 +185,9 @@ module OsCtld
     # @return [SendReceive]
     attr_reader :send_receive
 
+    # @return [Zfs]
+    attr_reader :zfs
+
     # @return [TrashBin]
     attr_reader :trash_bin
 
@@ -177,6 +207,7 @@ module OsCtld
       @writeout_dirtied_pages = cfg.fetch('writeout_dirtied_pages', true)
       @cpu_scheduler = CpuScheduler.new(cfg.fetch('cpu_scheduler', {}))
       @send_receive = SendReceive.new(cfg.fetch('send_receive', {}))
+      @zfs = Zfs.new(cfg.fetch('zfs', {}))
       @trash_bin = TrashBin.new(cfg.fetch('trash_bin', {}))
       @garbage_collector = GarbageCollector.new(cfg.fetch('garbage_collector', {}))
     end

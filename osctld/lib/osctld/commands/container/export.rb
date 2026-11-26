@@ -25,7 +25,8 @@ module OsCtld
       exporter = OsCtl::Lib::Exporter::Zfs.new(
         ct,
         io,
-        compression: opts[:compression] && opts[:compression].to_sym
+        compression: opts[:compression] && opts[:compression].to_sym,
+        compressed_send: Daemon.get.config.zfs.send.compressed?
       )
       exporter.dump_metadata('full')
       exporter.dump_configs
