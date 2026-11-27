@@ -1,0 +1,89 @@
+From 43dbddcc2b98635014f3af37ad712d38991b92dd Mon Sep 17 00:00:00 2001
+From: Josef Bacik <josef@toxicpanda.com>
+Date: Thu, 15 Oct 2026 19:30:25 +0000
+Subject: [PATCH] io_uring/waitid: own the request before clearing ->head
+
+Commit c254eec4364b9f4b4cbdce43be3fb4df5a651a70 upstream.
+
+io_waitid_remove_wq() only takes the wait queue lock if ->head is set.
+io_waitid_wait() clears ->head first thing, before it tries to become the
+owner of the request by bumping ->refs. If somebody else owns the request
+at that point, nothing keeps it from completing the request while the
+wake up handler is still going to touch it:
+
+CPU0 (io_waitid_wait)                 CPU1 (io_waitid, holds a ref)
+list_del_init(&wait->entry)
+smp_store_release(&iw->head, NULL)
+                                      __do_wait() finds another child
+                                      io_waitid_remove_wq()
+                                        // ->head == NULL, no locking
+                                      io_waitid_finish(), IOU_COMPLETE
+                                      // request freed and reused
+atomic_fetch_inc(&iw->refs)
+
+The same goes for __io_waitid_cancel() if it claims the request in that
+window. ->refs is part of the per opcode data of the request, so this
+increments whatever the next user of the request keeps there. If that
+happens to be zero, the handler concludes that it owns the request, and
+queues io_waitid_cb() for it. With the window held open by a delay, and
+the request reused for a receive that is waiting for data:
+
+  BUG: KASAN: slab-use-after-free in __wake_up_common+0x1ca/0x1f0
+   __wake_up_sync_key+0x36/0x50
+   sock_def_readable+0xf1/0x420
+   unix_stream_sendmsg+0x60b/0x1110
+  Allocated by task 87:
+   io_arm_apoll+0x1ed/0x940
+  Freed by task 87:
+   __io_submit_flush_completions+0x118d/0x1a10
+   tctx_task_work_run+0x327/0x950
+
+Only clear ->head once the handler owns the request. If it doesn't, the
+owner finds ->head set and has to wait for the lock, which is held by the
+caller of the handler. Deleting the already deleted entry again is
+harmless.
+
+Adapted for the vpsAdminOS Linux 6.12.113 target: keep the target's
+existing io_req_task_work_add(req) call instead of the later stable
+tree's __io_req_task_work_add(req, IOU_F_TWQ_IN_WAKE). The request
+ownership and ->head ordering change is otherwise identical to stable
+commit bf01da1a9cca4a54e5c30b8344e52c26afb87be7.
+
+Fixes: ab673c1bcaf2 ("io_uring/waitid: use io_waitid_remove_wq() consistently")
+Assisted-by: LLM
+Signed-off-by: Josef Bacik <josef@toxicpanda.com>
+Link: https://patch.msgid.link/20261015-b4-io-uring-fixes-v1-1-c1556f5d7bf5@toxicpanda.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ io_uring/waitid.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/io_uring/waitid.c b/io_uring/waitid.c
+index 7f3a6c2d9f807..a6fd8227d59e2 100644
+--- a/io_uring/waitid.c
++++ b/io_uring/waitid.c
+@@ -291,12 +291,18 @@ static int io_waitid_wait(struct wait_queue_entry *wait, unsigned mode,
+ 		return 0;
+ 
+ 	list_del_init(&wait->entry);
+-	smp_store_release(&iw->head, NULL);
+ 
+-	/* cancel is in progress */
++	/*
++	 * Cancel or issue is in progress. Leave ->head alone, so that whoever
++	 * owns the request has to take the wait queue lock, which we hold,
++	 * before it can complete and free it.
++	 */
+ 	if (atomic_fetch_inc(&iw->refs) & IO_WAITID_REF_MASK)
+ 		return 1;
+ 
++	/* pairs with the smp_load_acquire() in io_waitid_remove_wq() */
++	smp_store_release(&iw->head, NULL);
++
+ 	req->io_task_work.func = io_waitid_cb;
+ 	io_req_task_work_add(req);
+ 	return 1;
+-- 
+2.54.0
+
