@@ -279,6 +279,9 @@ let
           id: normalizePlatform "${context} platform ${id}" id qualification.platforms.${id}
         ) platformNames;
         selectedFixIds = concatMap (entry: map (fix: fix.id) entry.batch.fixes) releases;
+        profileFixIds = concatMap (
+          entry: map (fix: fix.id) (filter (fix: fix.oracleIds != [ ]) entry.batch.fixes)
+        ) releases;
         oracleManifests = concatMap (entry: entry.qualification.oracles) releases;
         oracleFixIds = map (manifest: manifest.fixId) oracleManifests;
         oracles = concatMap (
@@ -431,8 +434,8 @@ let
           (require context (selectedFixIds != [ ]) "selected set must contain a fix")
           (require context (uniqueList selectedFixIds) "fix IDs must be unique across the active set")
           (require context (
-            sorted selectedFixIds == sorted oracleFixIds
-          ) "every active fix must have one oracle manifest")
+            sorted profileFixIds == sorted oracleFixIds
+          ) "active fixes with oracle IDs must have one oracle manifest")
           (require context (uniqueList oracleIds) "oracle IDs must be unique across the active set")
           (require context (all (
             row:
@@ -449,7 +452,7 @@ let
           ) oracleRows) "oracle platform mapping is inconsistent")
           (require context (all (
             fixId: builtins.elem fixId oracleFixIds
-          ) selectedFixIds) "active fix oracle coverage is incomplete")
+          ) profileFixIds) "active targeted oracle coverage is incomplete")
           (require context (uniqueList rowIds) "row IDs must be unique")
           (require context (all (
             row:

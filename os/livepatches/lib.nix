@@ -480,24 +480,27 @@ let
 
   discoverOracleManifests =
     directory:
-    map (
-      name:
-      let
-        context = "oracle manifest ${name}";
-        fixId = removeSuffix ".nix" name;
-        manifest = import (directory + "/${name}");
-      in
-      checked [
-        (require context (validStableId fixId) "filename stem is invalid")
-        (require context (builtins.isAttrs manifest) "manifest must be an attribute set")
-        (require context ((manifest.fixId or null) == fixId) "filename stem must equal manifest fixId")
-      ] manifest
-    ) (readFlatFiles "oracle manifest directory" directory ".nix");
+    if builtins.pathExists directory then
+      map (
+        name:
+        let
+          context = "oracle manifest ${name}";
+          fixId = removeSuffix ".nix" name;
+          manifest = import (directory + "/${name}");
+        in
+        checked [
+          (require context (validStableId fixId) "filename stem is invalid")
+          (require context (builtins.isAttrs manifest) "manifest must be an attribute set")
+          (require context ((manifest.fixId or null) == fixId) "filename stem must equal manifest fixId")
+        ] manifest
+      ) (readFlatFiles "oracle manifest directory" directory ".nix")
+    else
+      [ ];
 
   validateOracleClosure =
     context: fixes: manifests:
     let
-      fixIds = map (fix: fix.id) fixes;
+      profileFixIds = map (fix: fix.id) (filter (fix: fix.oracleIds != [ ]) fixes);
       normalized = map (
         manifest:
         let
@@ -524,8 +527,8 @@ let
     checked [
       (require context (uniqueList oracleFixIds) "oracle manifests must be unique by fixId")
       (require context (
-        sortStrings oracleFixIds == sortStrings fixIds
-      ) "every selected fix must have exactly one oracle manifest")
+        sortStrings oracleFixIds == sortStrings profileFixIds
+      ) "fixes with oracle IDs must have exactly one oracle manifest")
     ] normalized;
 
   validateBatchUnit =
@@ -588,6 +591,7 @@ let
       ) discoveredFixes;
       normalizedOracleManifests = validateOracleClosure context normalizedFixes discoveredOracles;
       oracleFixIds = map (manifest: manifest.fixId) normalizedOracleManifests;
+      profileFixIds = map (fix: fix.id) (filter (fix: fix.oracleIds != [ ]) normalizedFixes);
       release = batch.release or "";
       parsedRelease = releaseParts "${context}.batch.release" release;
       qualification = unit.qualification or { };
@@ -616,8 +620,8 @@ let
         ) "series must reference every flat patch file exactly once")
         (require context (uniqueList fixIds) "fix IDs must be unique")
         (require context (
-          sortStrings oracleFixIds == sortStrings fixIds
-        ) "every selected fix must have exactly one oracle manifest")
+          sortStrings oracleFixIds == sortStrings profileFixIds
+        ) "fixes with oracle IDs must have exactly one oracle manifest")
         (require context (builtins.isAttrs qualification) "qualification must be an attribute set")
         (require context (
           (qualification.schemaVersion or null) == 1
