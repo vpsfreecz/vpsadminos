@@ -5,6 +5,8 @@
   pkgs,
   qualificationSet,
   row,
+  oracleId ? "nfsd-openowner-operation-safety",
+  sequenceEvidence ? false,
 }:
 
 let
@@ -159,7 +161,7 @@ let
     require 'json'
     require 'shellwords'
 
-    oracle_id = 'nfsd-openowner-operation-safety'
+    oracle_id = ${builtins.toJSON oracleId}
 
     def validate_storage_capture_relation(plan_set, captured_set)
       planned_members = plan_set.fetch('members')
@@ -245,6 +247,39 @@ let
       )
     end
 
+    ${pkgs.lib.optionalString sequenceEvidence ''
+      # NFSD_SEQUENCE_COUNTER_BEGIN
+      def nfsd_sequence_counter(text)
+        records = text.lines.select { |line| line.split.first == 'proc4ops' }
+        raise 'NFSD proc4ops record is not unique' unless records.length == 1
+
+        fields = records.fetch(0).split
+        raise 'NFSD proc4ops count is malformed' unless fields.fetch(1, "").match?(/\A[0-9]+\z/)
+
+        declared = Integer(fields.fetch(1), 10)
+        counts = fields.drop(2)
+        raise 'NFSD proc4ops count does not cover OP_SEQUENCE' unless declared > 53
+        raise 'NFSD proc4ops field count mismatch' unless counts.length == declared
+        raise 'NFSD proc4ops counter is malformed' unless counts.all? { |count| count.match?(/\A[0-9]+\z/) }
+
+        Integer(counts.fetch(53), 10)
+      end
+      def observe_nfsd_sequence(machine, boundary, previous)
+        before = nfsd_sequence_counter(machine.succeeds('cat /proc/net/rpc/nfsd')[1])
+        raise 'NFSD SEQUENCE counter decreased between operations' if previous && before < previous.fetch(:after)
+
+        machine.succeeds("nfsd-openowner-operation operate #{Shellwords.escape(boundary)}")
+        after = nfsd_sequence_counter(machine.succeeds('cat /proc/net/rpc/nfsd')[1])
+        raise 'NFSD SEQUENCE operation made no positive progress' unless after > before
+
+        {boundary: boundary, before: before, after: after}
+      end
+
+      # NFSD_SEQUENCE_COUNTER_END
+
+      sequence_observations = []
+    ''}
+
     machine.succeeds('test "$(uname -r)" = 6.12.113')
     dmesg_start = machine.succeeds('dmesg | wc -l')[1].to_i
     prepare = machine.succeeds('nfsd-openowner-operation prepare')[1]
@@ -252,13 +287,27 @@ let
     expect(integrity_match).not_to be_nil
     integrity_sha256 = integrity_match[1]
     machine.succeeds('nfsd-openowner-operation start')
+    ${pkgs.lib.optionalString sequenceEvidence ''
+      sequence_observations << observe_nfsd_sequence(machine, 'native', sequence_observations.last)
+    ''}
 
     forward = captured_members.map do |member|
       identity = member.fetch('identity')
       machine.succeeds("insmod #{Shellwords.escape(identity.fetch('module'))}", timeout: 60)
       wait_nfsd_forward(machine, identity.fetch('moduleName'))
       machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(member.fetch('release'))}")
-      machine.succeeds("nfsd-openowner-operation operate #{Shellwords.escape("after-forward-#{member.fetch('release')}")}")
+      ${
+        if sequenceEvidence then
+          ''
+            sequence_observations << observe_nfsd_sequence(
+              machine, "after-forward-#{member.fetch('release')}", sequence_observations.last,
+            )
+          ''
+        else
+          ''
+            machine.succeeds("nfsd-openowner-operation operate #{Shellwords.escape("after-forward-#{member.fetch('release')}")}")
+          ''
+      }
       {
         release: member.fetch('release'),
         enabled: 1,
@@ -284,7 +333,18 @@ let
       )
       predecessor_release = index.zero? ? '6.12.113' : captured_members.fetch(index - 1).fetch('release')
       machine.succeeds("test \"$(uname -r)\" = #{Shellwords.escape(predecessor_release)}")
-      machine.succeeds("nfsd-openowner-operation operate #{Shellwords.escape("after-reverse-#{member.fetch('release')}")}")
+      ${
+        if sequenceEvidence then
+          ''
+            sequence_observations << observe_nfsd_sequence(
+              machine, "after-reverse-#{member.fetch('release')}", sequence_observations.last,
+            )
+          ''
+        else
+          ''
+            machine.succeeds("nfsd-openowner-operation operate #{Shellwords.escape("after-reverse-#{member.fetch('release')}")}")
+          ''
+      }
       {
         removedRelease: member.fetch('release'),
         release: predecessor_release,
@@ -322,6 +382,9 @@ let
         integritySha256: integrity_sha256,
         operation: oracle_id,
       },
+      ${pkgs.lib.optionalString sequenceEvidence ''
+        sequence: {operationNumber: 53, observations: sequence_observations},
+      ''}
       forward: {
         release: plan_set.fetch('tipRelease'),
         converged: true,

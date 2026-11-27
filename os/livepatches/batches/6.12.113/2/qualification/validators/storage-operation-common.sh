@@ -269,6 +269,30 @@ EOF
     and .kernelHealth == "clean"
   ' "$marker_tmp" >/dev/null
 
+  if [[ ${REQUIRE_NFSD_SEQUENCE:-false} == true ]]; then
+    jq -e --arg setId "$set_id" --slurpfile plan "$plan" '
+      def counter: type == "number" and floor == . and . >= 0;
+      ([$plan[0].sets[] | select(.id == $setId)][0].members | map(.release)) as $releases
+      | (["native"]
+        + ($releases | map("after-forward-" + .))
+        + ($releases | reverse | map("after-reverse-" + .))) as $boundaries
+      | .sequence as $sequence
+      | $sequence.operationNumber == 53
+      and ($sequence.observations | type == "array")
+      and ($sequence.observations | map(.boundary)) == $boundaries
+      and ($sequence.observations | all(
+        (keys | sort) == ["after", "before", "boundary"]
+        and (.before | counter)
+        and (.after | counter)
+        and .after > .before
+      ))
+      and ([range(1; ($sequence.observations | length)) as $index
+        | $sequence.observations[$index].before
+          >= $sequence.observations[$index - 1].after
+      ] | all)
+    ' "$marker_tmp" >/dev/null
+  fi
+
   jq -n \
     --arg rowId "$row_id" \
     --arg setId "$(jq -er '.setId' <<<"$row")" \
