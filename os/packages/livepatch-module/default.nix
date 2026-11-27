@@ -86,7 +86,6 @@ let
   legacySkippedObjects = [
     "kernel/trace/ring_buffer.o"
     "net/bpf/test_run.o"
-    "net/core/filter.o"
     "kernel/bpf/helpers.o"
     "drivers/net/ethernet/chelsio/cxgb4/t4_hw.o"
   ];
