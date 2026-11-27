@@ -14,6 +14,10 @@ with lib;
 let
   nixpkgs = lib.cleanSource nixpkgsPath;
 
+  flakeSources = builtins.filterSource (
+    path: type: lib.cleanSourceFilter path type
+  ) ../../../../nix/flake;
+
   os = (
     builtins.filterSource (
       path: type:
@@ -66,9 +70,10 @@ let
   '';
 
   vpsadminosChannel = pkgs.runCommand "vpsadminos-${config.system.vpsadminos.version}" { } ''
-    mkdir -p $out $out/vpsadminos $out/vpsadminos/artwork
+    mkdir -p $out $out/vpsadminos $out/vpsadminos/artwork $out/vpsadminos/nix
     cp --reflink=never -prd ${../../../../flake.nix} $out/vpsadminos/flake.nix
     cp --reflink=never -prd ${../../../../flake.lock} $out/vpsadminos/flake.lock
+    cp --reflink=never -prd ${flakeSources} $out/vpsadminos/nix/flake
     cp --reflink=never -prd ${../../../../.ruby-version} $out/vpsadminos/.ruby-version
     cp --reflink=never -prd ${ctStartMenu} $out/vpsadminos/ctstartmenu
     cp --reflink=never -prd ${ctPtyWrapper} $out/vpsadminos/ctptywrapper
