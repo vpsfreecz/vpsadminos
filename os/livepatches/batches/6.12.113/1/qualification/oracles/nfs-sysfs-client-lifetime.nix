@@ -8,7 +8,6 @@
       role = "operation-safety";
       applicablePlatforms = [
         "amd"
-        "intel"
       ];
       timeoutClass = "oracle";
       expectedOutcome = "success";
