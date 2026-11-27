@@ -77,6 +77,11 @@ let
   ];
 
   testAttrs = testFn ({ pkgs = nixpkgs; } // forwardedArgs // effectiveTestArgs);
+  livepatchRegressionEnabled = testConfig.livepatchRegression.enable or false;
+  livepatchRegressionFixture = (testAttrs.labels or { }).livepatchRegressionFixture or null;
+  livepatchAutoloadReadinessEnabled = testConfig.livepatchAutoloadReadiness.enable or false;
+  effectiveConfiguration =
+    if livepatchRegressionEnabled && livepatchRegressionFixture != null then null else configuration;
 
   testScriptJobs = testAttrs.testScriptJobs or 1;
   machineShellNames = machine: machine.shells or [ ];
@@ -104,11 +109,11 @@ let
     import ../os (
       {
         inherit
-          configuration
           pkgs
           extraArgs
           system
           ;
+        configuration = effectiveConfiguration;
         modules =
           modules
           ++ (cfg.modules or [ ])
@@ -117,6 +122,9 @@ let
           ++ lib.optional (
             effectiveTestFramework != null && effectiveTestFramework ? sourceVersionModule
           ) effectiveTestFramework.sourceVersionModule
+          ++ lib.optional (
+            livepatchAutoloadReadinessEnabled && livepatchRegressionFixture == null
+          ) ./configs/vpsadminos/livepatch-autoload-readiness.nix
           ++ [ cfg.config or { } ]
           ++ [
             {
@@ -183,6 +191,11 @@ let
       cpus = if machine ? cpus then machine.cpus else cpuCfg.cores * cpuCfg.threads * cpuCfg.sockets;
     in
     {
+      _livepatchRegression = {
+        directVpsadminos = false;
+        vpsadminos = spin == "vpsadminos";
+        sentinel = false;
+      };
       inherit spin;
       qemu = toString qemuPackage;
       virtiofsd = toString virtiofsdPackage;
@@ -227,6 +240,12 @@ let
       qemuCfg = vpsadminos.config.boot.qemu;
     in
     {
+      _livepatchRegression = {
+        directVpsadminos = true;
+        vpsadminos = true;
+        sentinel =
+          livepatchRegressionEnabled && vpsadminos.config.environment.etc ? "livepatch-regression/sentinel";
+      };
       spin = "vpsadminos";
       qemu = toString qemuPackage;
       virtiofsd = toString virtiofsdPackage;
@@ -290,6 +309,11 @@ let
       diskImagePath = "${diskImage}/${diskImageBase}.img";
     in
     {
+      _livepatchRegression = {
+        directVpsadminos = false;
+        vpsadminos = false;
+        sentinel = false;
+      };
       spin = "nixos";
       qemu = toString qemuPackage;
       virtiofsd = toString virtiofsdPackage;
@@ -337,9 +361,48 @@ let
         + "product=${toString topologyCpus}"
       );
 
-  machineTestConfigs = lib.mapAttrs (
+  machineTestConfigsWithRegression = lib.mapAttrs (
     name: machine: validateMachineTopology name (machineTestConfig name machine)
   ) machineAttrs;
+  machineTestConfigs = lib.mapAttrs (
+    _name: machine: builtins.removeAttrs machine [ "_livepatchRegression" ]
+  ) machineTestConfigsWithRegression;
+
+  livepatchRegressionDecision =
+    let
+      metadata = map (machine: machine._livepatchRegression) (
+        lib.attrValues machineTestConfigsWithRegression
+      );
+      vpsadminosMachines = builtins.filter (machine: machine.vpsadminos) metadata;
+      directVpsadminosMachines = builtins.filter (machine: machine.directVpsadminos) metadata;
+      allVpsadminosDirect = lib.all (machine: machine.directVpsadminos) vpsadminosMachines;
+      allDirectSentinels = lib.all (machine: machine.sentinel) directVpsadminosMachines;
+    in
+    if livepatchRegressionFixture != null then
+      {
+        status = "excluded";
+        reason = "fixture:${livepatchRegressionFixture}";
+      }
+    else if vpsadminosMachines == [ ] then
+      {
+        status = "excluded";
+        reason = "no-vpsadminos";
+      }
+    else if !allVpsadminosDirect then
+      {
+        status = "excluded";
+        reason = "firmware-boot";
+      }
+    else if directVpsadminosMachines == [ ] || !allDirectSentinels then
+      {
+        status = "excluded";
+        reason = "configuration-bypassed";
+      }
+    else
+      {
+        status = "eligible";
+        reason = "eligible";
+      };
 
   machineResources =
     let
@@ -374,7 +437,12 @@ let
     inherit testScriptJobs;
     machines = machineTestConfigs;
     tags = testAttrs.tags or [ ];
-    labels = testAttrs.labels or { };
+    labels =
+      (testAttrs.labels or { })
+      // lib.optionalAttrs livepatchRegressionEnabled {
+        livepatch-regression = livepatchRegressionDecision.status;
+        livepatch-regression-reason = livepatchRegressionDecision.reason;
+      };
     resources = machineResources;
     inherit testScripts;
     framework = {

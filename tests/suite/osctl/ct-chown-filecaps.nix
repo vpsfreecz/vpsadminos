@@ -1,5 +1,12 @@
 import ../../make-test.nix (
-  { pkgs }:
+  {
+    pkgs,
+    modes ? [
+      "native"
+      "zfs"
+    ],
+    testName ? "osctl-ct-chown-filecaps",
+  }:
   let
     commonScript = ''
       def self.output_of(cmd)
@@ -235,8 +242,17 @@ import ../../make-test.nix (
       end
     '';
   in
+  assert modes != [ ];
+  assert builtins.all (
+    mode:
+    builtins.elem mode [
+      "native"
+      "zfs"
+    ]
+  ) modes;
+  assert builtins.length modes == builtins.length (pkgs.lib.unique modes);
   {
-    name = "osctl-ct-chown-filecaps";
+    name = testName;
 
     description = ''
       Test how file capabilities behave after osctl ct chown in native and zfs map modes
@@ -250,20 +266,16 @@ import ../../make-test.nix (
       config.system.vpsadminos.enableUnstable = true;
     };
 
-    testScripts = {
-      native = {
-        description = ''
-          Runtime-created file caps survive repeated ct chown in native map mode.
-        '';
-        script = mkScript "native";
-      };
-
-      zfs = {
-        description = ''
-          Runtime-created file caps survive repeated ct chown in zfs map mode.
-        '';
-        script = mkScript "zfs";
-      };
-    };
+    testScripts = builtins.listToAttrs (
+      map (mode: {
+        name = mode;
+        value = {
+          description = ''
+            Runtime-created file caps survive repeated ct chown in ${mode} map mode.
+          '';
+          script = mkScript mode;
+        };
+      }) modes
+    );
   }
 )

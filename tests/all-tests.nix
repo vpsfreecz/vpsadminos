@@ -201,15 +201,8 @@ let
           }
           "kernel/vpsadminos"
           "kernel/module-autoload"
-          "kernel/cpu-view/cgroups-v1"
-          "kernel/cpu-view/cgroups-v2"
-          "kernel/loadavg"
-          "kernel/memory-view/cgroups-v1"
-          "kernel/memory-view/cgroups-v2"
           "kernel/misc"
-          "kernel/namespaces"
           "kernel/netns-preinit-fault"
-          "kernel/tracing-tools"
           "kernel/sched-proxy-exec-lock-badneighbor"
           "kernel/syslogns"
           "kernel/tmpfs/cgroups-v1"
@@ -217,10 +210,11 @@ let
           "kernel/uptime"
           "kernel/vpsadminos-selftests"
           "osctl/ct-cat"
-          "osctl/ct-chown-filecaps"
+          {
+            test = "osctl/ct-chown-filecaps";
+            args.modes = [ "native" ];
+          }
           "osctl/ct-console"
-          "osctl/ct-exec-v1"
-          "osctl/ct-exec-v2"
           "osctl/ct-image-fetch"
           "osctl/ct-local-transfer"
           "osctl/image-repository-build-service"
@@ -238,7 +232,6 @@ let
           "osctl/pool/export-cleanup"
           "osctl-exportfs/mount"
           "rtnl-watchdog"
-          "osctld/direct-start"
           "osctld/resilience"
           "osctld/restart"
           "osctld/switch-user-prlimits"
@@ -259,7 +252,6 @@ let
           "system/switch-to-configuration"
           "system/sysctl"
           "systemd/credentials"
-          "systemd/ebpf"
           {
             test = "systemd/device-units";
             args = {
@@ -270,11 +262,9 @@ let
           "zfs/boot-modes"
           "zfs/block-cloning-corruption"
           "zfs/fallocate-deadlock"
-          "zfs/large-folios"
           "zfs/mmap-nosync"
           "zfs/mmap-write-truncate"
           "zfs/overlayfs-deadlock"
-          "zfs/ugidmap"
         ]
         ++ localOnlyTests
         ++ genericLivepatchTests

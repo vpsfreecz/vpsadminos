@@ -24,6 +24,7 @@ inventory=$source_root/tools/livepatch/ci-tool-closure.tsv
 prepare=$source_root/tools/livepatch/prepare-ci-tools.sh
 ci_workspace=$source_root/tools/livepatch/ci-workspace.sh
 run_profile=$source_root/tools/livepatch/run-profile.sh
+result_verifier=$source_root/tools/livepatch/verify.sh
 test_runner=$source_root/test-runner.sh
 workflow=$source_root/.github/workflows/livepatch.yml
 main_workflow=$source_root/.github/workflows/ci.yml
@@ -33,6 +34,7 @@ osvm_machine=$source_root/osvm/lib/osvm/machine.rb
 osvm_shared_dir=$source_root/osvm/lib/osvm/shared_dir.rb
 test_runner_executor=$source_root/test-runner/lib/test-runner/executor.rb
 [[ -f "$inventory" && -x "$prepare" && -x "$ci_workspace" && -x "$run_profile" &&
+  -x "$result_verifier" &&
   -x "$test_runner" && -f "$workflow" && -f "$main_workflow" &&
   -f "$qualification_workflow" && -f "$docs_workflow" && -f "$osvm_machine" &&
   -f "$osvm_shared_dir" && -f "$test_runner_executor" ]] || usage
@@ -67,12 +69,25 @@ extract_event_list() {
   ' "$file"
 }
 
+extract_job() {
+  local file=$1
+  local job=$2
+
+  awk -v job="$job" '
+    $0 == "  " job ":" { in_job = 1 }
+    in_job && $0 != "  " job ":" && /^  [[:alnum:]_-]+:/ { exit }
+    in_job { print }
+  ' "$file"
+}
+
 path_matches() {
   local path=$1
   shift
   local pattern
 
   for pattern in "$@"; do
+    # Patterns are intentionally expanded as shell globs.
+    # shellcheck disable=SC2053
     if [[ $path == $pattern ]]; then
       return 0
     fi
@@ -119,6 +134,7 @@ cat >"$expected_qualification_paths" <<'EOF'
 .github/workflows/livepatch-qualification.yml
 flake.nix
 flake.lock
+nix/flake/**
 libosctl/**
 os/default.nix
 os/configs/qemu.nix
@@ -144,11 +160,13 @@ tests/all-tests.nix
 tests/make-template.nix
 tests/make-test.nix
 tests/test-configs/ci.nix
+tests/test-configs/livepatch-regression.nix
 tests/configs/vpsadminos/base.nix
 tests/configs/vpsadminos/livepatch*.nix
 tests/machines/vpsadminos/**
 tests/suite/kernel/livepatch*.nix
 tests/suite/kernel/livepatch*/**
+tests/suite/upgrade/impermanence-from-2abbe3cc1c10.nix
 tools/livepatch/**
 EOF
 
@@ -190,7 +208,103 @@ cmp -- "$expected_docs_paths" "$actual_docs_pull_request_paths"
 [[ $(grep -Fc 'cancel-in-progress: true' "$qualification_workflow") -eq 1 ]] ||
   fail 'qualification cancellation policy changed'
 
+qualify_job=$work/qualify-job.yml
+affected_job=$work/affected-job.yml
+results_job=$work/results-job.yml
+qualify_matrix_source="      matrix: \${{ fromJSON(needs.discover.outputs.matrix) }}"
+results_directory_argument="--results-dir \"\$LIVEPATCH_CI_WORKSPACE/results\""
+extract_job "$workflow" qualify >"$qualify_job"
+extract_job "$workflow" affected-regression >"$affected_job"
+extract_job "$workflow" results >"$results_job"
+[[ $(grep -Ec '^      fail-fast: false$' "$qualify_job") -eq 1 ]] ||
+  fail 'qualification matrix must keep later rows schedulable'
+[[ $(grep -Ec '^      max-parallel: 1$' "$qualify_job") -eq 1 ]] ||
+  fail 'qualification matrix is no longer serial'
+[[ $(grep -Fc "$qualify_matrix_source" "$qualify_job") -eq 1 ]] ||
+  fail 'qualification matrix source changed'
+[[ $(grep -Ec '^    continue-on-error: false$' "$qualify_job") -eq 1 ]] ||
+  fail 'qualification row failure policy changed'
+[[ $(grep -Ec '^      fail-fast: true$' "$affected_job") -eq 1 ]] ||
+  fail 'affected regression failure policy changed'
+[[ $(grep -Ec '^      max-parallel: 1$' "$affected_job") -eq 1 ]] ||
+  fail 'affected regression matrix is no longer serial'
+[[ $(grep -Fc "    if: \${{ always() && needs.discover.outputs.selected-sets != '0' }}" "$results_job") -eq 1 ]] ||
+  fail 'result closure no longer runs after qualification failure'
+[[ $(grep -Ec '^      - qualify$' "$results_job") -eq 1 ]] ||
+  fail 'result closure no longer waits for qualification'
+[[ $(grep -Fc -- "$results_directory_argument" "$results_job") -eq 1 ]] ||
+  fail 'result count-closure invocation changed'
+
+campaign_plan=$work/campaign-plan.json
+campaign_full=$work/campaign-full
+jq -n '{
+  counts: {matrixRows: 2},
+  matrix: {include: [{rowId: "row-one"}, {rowId: "row-two"}]},
+  rows: [
+    {rowId: "row-one", setId: "test-set", profileId: "test-one", scope: "fix"},
+    {rowId: "row-two", setId: "test-set", profileId: "test-two", scope: "fix"}
+  ]
+}' >"$campaign_plan"
+mkdir -p "$campaign_full/one" "$campaign_full/two"
+jq -n '{
+  schemaVersion: 1, rowId: "row-one", setId: "test-set", profileId: "test-one",
+  accepted: true, runnerStatus: 0, validator: {status: "accepted"}
+}' >"$campaign_full/one/result.json"
+jq -n '{
+  schemaVersion: 1, rowId: "row-two", setId: "test-set", profileId: "test-two",
+  accepted: true, runnerStatus: 0, validator: {status: "accepted"}
+}' >"$campaign_full/two/result.json"
+env PATH="$livepatch_ci_tools/bin:$PATH" "$bash_path" "$result_verifier" \
+  --plan "$campaign_plan" --results-dir "$campaign_full" \
+  --output "$work/campaign-full.json"
+
+expect_campaign_refusal() {
+  local name=$1
+  local directory=$2
+  if env PATH="$livepatch_ci_tools/bin:$PATH" "$bash_path" "$result_verifier" \
+    --plan "$campaign_plan" --results-dir "$directory" \
+    --output "$work/campaign-$name.json" >"$work/campaign-$name.stdout" \
+    2>"$work/campaign-$name.stderr"; then
+    fail "result closure accepted $name receipts"
+  fi
+}
+
+campaign_missing=$work/campaign-missing
+cp -a "$campaign_full" "$campaign_missing"
+rm "$campaign_missing/two/result.json"
+expect_campaign_refusal missing "$campaign_missing"
+
+campaign_failed=$work/campaign-failed
+cp -a "$campaign_full" "$campaign_failed"
+jq '.accepted = false | .runnerStatus = 1 | .validator.status = "rejected"' \
+  "$campaign_failed/two/result.json" >"$work/failed-result.json"
+mv "$work/failed-result.json" "$campaign_failed/two/result.json"
+expect_campaign_refusal failed "$campaign_failed"
+
+campaign_cancelled=$work/campaign-cancelled
+cp -a "$campaign_full" "$campaign_cancelled"
+jq '.accepted = false | .runnerStatus = 143 | .validator.status = "rejected"' \
+  "$campaign_cancelled/two/result.json" >"$work/cancelled-result.json"
+mv "$work/cancelled-result.json" "$campaign_cancelled/two/result.json"
+expect_campaign_refusal cancelled "$campaign_cancelled"
+
+campaign_duplicate=$work/campaign-duplicate
+cp -a "$campaign_full" "$campaign_duplicate"
+mkdir "$campaign_duplicate/duplicate"
+cp "$campaign_duplicate/two/result.json" "$campaign_duplicate/duplicate/result.json"
+expect_campaign_refusal duplicate "$campaign_duplicate"
+
+campaign_mismatched=$work/campaign-mismatched
+cp -a "$campaign_full" "$campaign_mismatched"
+jq '.setId = "wrong-set"' "$campaign_mismatched/two/result.json" \
+  >"$work/mismatched-result.json"
+mv "$work/mismatched-result.json" "$campaign_mismatched/two/result.json"
+expect_campaign_refusal mismatched "$campaign_mismatched"
+
+# These arrays are read through the named references passed to expect_match.
+# shellcheck disable=SC2034
 mapfile -t qualification_paths <"$actual_qualification_paths"
+# shellcheck disable=SC2034
 mapfile -t docs_paths <"$actual_docs_push_paths"
 
 expect_match framework-new-file qualification_paths \
@@ -243,6 +357,9 @@ grep -Fq '(../../docs/os/livepatches/process.md)' "$source_root/skills/manage-li
   fail 'livepatch process route is missing'
 grep -Fq '(../../docs/os/livepatches/template.md)' "$source_root/skills/manage-livepatch/SKILL.md" ||
   fail 'livepatch template route is missing'
+grep -Fq '(../../docs/os/livepatches/security-backports.md#kvm-default-delivery-and-opt-in-feasibility)' \
+  "$source_root/skills/manage-livepatch/SKILL.md" ||
+  fail 'KVM livepatch policy route is missing'
 
 expected=$work/expected.tsv
 cat >"$expected" <<'EOF'
@@ -274,17 +391,17 @@ EOF
 
 sort -c "$inventory"
 cmp -- "$expected" "$inventory"
-[[ $(grep -Fc 'name: Prepare locked livepatch CI tools' "$workflow") -eq 4 ]] ||
+[[ $(grep -Fc 'name: Prepare locked livepatch CI tools' "$workflow") -eq 5 ]] ||
   fail 'workflow setup-name count changed'
-[[ $(grep -Fc 'run: tools/livepatch/prepare-ci-tools.sh' "$workflow") -eq 4 ]] ||
+[[ $(grep -Fc 'run: tools/livepatch/prepare-ci-tools.sh' "$workflow") -eq 5 ]] ||
   fail 'workflow setup-command count changed'
 profile_state_environment='LIVEPATCH_PROFILE_STATE: ${{ steps.prepare-profile.outputs.state-directory }}/profile'
 profile_state_argument='--state-dir "$LIVEPATCH_PROFILE_STATE"'
 profile_state_upload='path: ${{ steps.prepare-profile.outputs.state-directory }}/profile'
 profile_artifact_name='name: livepatch-result-${{ matrix.rowId }}-${{ github.run_id }}-${{ github.run_attempt }}'
-[[ $(grep -Fc -- 'uses: ./.github/actions/prepare-test-state' "$workflow") -eq 1 ]] ||
+[[ $(grep -Fc -- 'uses: ./.github/actions/prepare-test-state' "$workflow") -eq 2 ]] ||
   fail 'workflow profile state preparation changed'
-[[ $(grep -Fc -- 'uses: ./.github/actions/cleanup-test-state' "$workflow") -eq 1 ]] ||
+[[ $(grep -Fc -- 'uses: ./.github/actions/cleanup-test-state' "$workflow") -eq 2 ]] ||
   fail 'workflow profile state cleanup changed'
 [[ $(grep -Fc -- "$profile_state_environment" "$workflow") -eq 1 ]] ||
   fail 'workflow profile state environment changed'

@@ -10,6 +10,7 @@ on:
       - .github/workflows/livepatch-qualification.yml
       - flake.nix
       - flake.lock
+      - nix/flake/**
       - libosctl/**
       - os/default.nix
       - os/configs/qemu.nix
@@ -35,13 +36,21 @@ on:
       - tests/make-template.nix
       - tests/make-test.nix
       - tests/test-configs/ci.nix
+      - tests/test-configs/livepatch-regression.nix
       - tests/configs/vpsadminos/base.nix
       - tests/configs/vpsadminos/livepatch*.nix
       - tests/machines/vpsadminos/**
       - tests/suite/kernel/livepatch*.nix
       - tests/suite/kernel/livepatch*/**
+      - tests/suite/upgrade/impermanence-from-2abbe3cc1c10.nix
       - tools/livepatch/**
   workflow_dispatch:
+    inputs:
+      kernel_versions:
+        description: Optional exact target kernels, one per line; empty runs the full campaign
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -53,4 +62,6 @@ concurrency:
 jobs:
   qualify:
     uses: ./.github/workflows/livepatch.yml
+    with:
+      kernel-versions: ${{ inputs.kernel_versions }}
     secrets: inherit
