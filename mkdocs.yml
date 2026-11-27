@@ -38,6 +38,7 @@ nav:
     - 'Kernel version updates': 'os/kernel-updates.md'
     - Kernel livepatches:
         - 'Release process': 'os/livepatches/process.md'
+        - 'Linux 6.12.48': 'os/livepatches/6.12.48.md'
         - 'Linux 6.12.113': 'os/livepatches/6.12.113.md'
     - Deployment: 'os/deployment.md'
     - Runlevels: 'os/runlevels.md'

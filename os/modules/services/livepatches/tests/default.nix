@@ -1029,14 +1029,10 @@ assert alteredUnrelatedCatalogConfig.runit.services.live-patches.run == "sleep i
 assert alteredUnrelatedCatalogConfig.runit.services.live-patches.finish == "";
 assert !(aggregateConfig.system.build ? livePatchModules);
 assert !(aggregateConfig.system.build ? livePatchManager);
-assert aggregateConfig.system.build ? livePatches;
+assert !(aggregateConfig.system.build ? livePatches);
 assert aggregateConfig.runit.services.live-patches.run == "sleep inf";
 assert aggregateConfig.runit.services.live-patches.finish == "";
-assert
-  (builtins.fromJSON (
-    builtins.unsafeDiscardStringContext
-      aggregateConfig.environment.etc."vpsadminos/livepatch-monitor.json".text
-  )).module != moduleName;
+assert !(aggregateConfig.environment.etc ? "vpsadminos/livepatch-monitor.json");
 assert !(retiredConfig.system.build ? livePatchModules);
 assert !(retiredConfig.system.build ? livePatchManager);
 assert !(retiredConfig.system.build ? livePatches);
