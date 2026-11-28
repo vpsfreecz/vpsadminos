@@ -296,7 +296,7 @@ import ../../make-test.nix (
 
           def active_runit_pid(status, service)
             match = status.match(
-              /\Arun: #{Regexp.escape(service)}: \(pid ([1-9][0-9]*)\) [0-9]+s\n?\z/
+              /\Arun: #{Regexp.escape(service)}: \(pid ([1-9][0-9]*)\) [0-9]+s(?:; run: log: \(pid [1-9][0-9]*\) [0-9]+s)?\n?\z/
             )
             raise ArgumentError, "service is not active: #{status.inspect}" unless match
 
